@@ -7,7 +7,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `user_flow.md` — User flow 다이어그램 (6 섹션 / 46 노드 / 48 엣지, manyfast.io 출처)
 - `prototype/` — UI 레퍼런스 프로토타입 (아래 "프로토타입" 섹션 참고)
 
-빌드/테스트/Lint 명령은 아직 정의되어 있지 않다. 새 코드를 추가할 때는 그 결정에 사용된 근거(PRD 의 어떤 요구사항 / user_flow 의 어떤 노드)를 명시한다.
+새 코드를 추가할 때는 그 결정에 사용된 근거(PRD 의 어떤 요구사항 / user_flow 의 어떤 노드)를 명시한다.
+
+## 명령어
+
+| 명령 | 설명 |
+|------|------|
+| `pnpm install` | 의존성 설치 |
+| `pnpm dev` | debug 모드 개발 서버 (`http://localhost:5173`) |
+| `pnpm build` | real 모드 프로덕션 빌드 (`dist/`) |
+| `pnpm preview` | 빌드 결과 로컬 미리보기 |
+| `pnpm test` | Vitest 단위·통합 테스트 |
+| `pnpm test:e2e` | Playwright E2E (골든 패스) |
+| `pnpm lint` | ESLint |
+| `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm format` | Prettier write |
+
+단일 테스트 실행: `pnpm test <파일명 또는 패턴>` (예: `pnpm test src/features/auth`)
 
 ## 인프라 결정 (확정)
 
@@ -163,7 +179,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 
 - **추측 금지** — 기술 스택·MVP 범위·결제 모델·KPI 측정 모두 확정. 새 결정이 필요한 사안이 생기면 사용자에게 명시적으로 확인 후 CLAUDE.md 반영.
 - **PRD 진행 상태 표기** — PRD 의 각 기능에는 `⚪ 시작전` 같은 진행 상태 마커가 있다. 기능 구현 완료 시 이 표기도 함께 업데이트하는 것을 사용자가 기대할 수 있으므로 작업 종료 시 확인.
-- **빌드/테스트 명령이 생기면 이 파일에 추가** — 현재 비어있는 이유는 코드가 없기 때문이지, 누락이 아니다. `package.json` 등 빌드 매니페스트가 도입되면 이 섹션을 채워라.
+- **빌드/테스트 명령이 변경되면 위 "명령어" 섹션도 함께 업데이트** — `package.json` 스크립트가 바뀌면 반드시 동기화.
 
 ## Rules
 
@@ -235,6 +251,21 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 
 - 새 파일이나 디렉토리를 만들 때, `.gitignore` 에 추가해야 하는지 검토하고 필요 시 제안한다.
 - 임시 파일, 빌드 산출물(`dist/`, `.turbo/`), 환경 변수(`.env*`), Supabase 로컬 캐시(`supabase/.branches/`, `supabase/.temp/`), Sentry sourcemap 업로드 후 잔여물, OS 산출물(`.DS_Store`) 등이 의도치 않게 커밋되는 것을 방지.
+
+## 에이전트 시스템 (`.claude/agents/`)
+
+이 프로젝트에는 역할별 전문 에이전트가 정의되어 있다. 아래 상황에서 해당 에이전트를 호출한다:
+
+| 에이전트 | 호출 시점 |
+|----------|-----------|
+| `ing-architect` | 스택·아키텍처 의사결정, 마켓 어댑터 추상화, 팀 간 트레이드오프 정리 |
+| `ing-backend` | Supabase 마이그레이션, Edge Functions, RLS 정책, DB 스키마 |
+| `ing-designer` | 화면 UX 설계, 디자인 토큰, 프로토타입 시각 작업 |
+| `ing-frontend` | React/TypeScript 컴포넌트, TanStack Query, 폼, 반응형, 접근성 |
+| `ing-qa` | 테스트 계획, Vitest·Playwright 명세, 골든 패스 E2E 수락 기준 |
+| `ing-security` | OAuth 토큰 보안, Sentry PII 마스킹, RLS 우회 검토 — 거부권 행사 가능 |
+
+**`security` 에이전트의 거부권:** 마켓 OAuth 토큰·셀러 자격증명 관련 결정에서 `ing-security` 가 차단하면 우회 금지, 대안 설계 재요청.
 
 ## Design Documents
 
