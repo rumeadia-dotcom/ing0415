@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+.vitest-cache/
+
+# Sentry
+.sentryclirc
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.log
