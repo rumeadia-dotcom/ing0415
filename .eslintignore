@@ -1,0 +1,7 @@
+node_modules
+dist
+prototype
+docs
+coverage
+supabase/.branches
+supabase/.temp
