@@ -1,0 +1,67 @@
+# Supabase CLI 프로젝트 설정 (debug / real 양 프로젝트 공통)
+# 출처: platform.md §Supabase 프로젝트 분리. project_id 는 link 시 결정.
+
+project_id = "marketcast-placeholder"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+# registration_jobs / registration_job_market_results / market_accounts publication 은 마이그레이션이 등록
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+# 버킷 (product-images-original / product-images-transformed) 는
+# 20260519000011_storage_buckets.sql 에서 SQL 로 생성. CLI seed 대신 마이그레이션 단일 소스.
+
+[auth]
+enabled = true
+# redirect URL 화이트리스트는 Supabase 대시보드에서 환경별로 설정 (auth.md §4.2).
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+# debug 프로젝트는 대시보드에서 "auto-confirm" 옵션 가능 (auth.md §4.5).
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+inspector_port = 8083
+# Edge Functions 실제 구현은 Stage F. 본 단계는 디렉토리만 존재.
+
+[analytics]
+enabled = false
