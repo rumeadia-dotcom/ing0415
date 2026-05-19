@@ -35,9 +35,43 @@ Seller (auth.users) ─┬─ MarketAccount ─── MarketCredential (jsonb + 
 Stage A → B → C → D → E → F → G → H → ✅ 부트스트랩 완료
 빌드환경  디자인  라우팅  데이터  DB    Edge  테스트  CI
 시스템         계층   마이그   Fn    인프라
-
-다음: Phase 2 (실제 화면·기능 구현)
 ```
+
+## Phase 2 진행 중 (2026-05-19 — B-1, B-2 본구현 완료)
+
+```
+B-1 환경 셋업 ✅ → B-2 s1 인증 ✅ → B-3 s5 마켓계정 ⬅ 다음
+   ↓                  ↓                 ↓
+Supabase 2 프로젝트   4페이지 본구현    MarketsListPage 본구현
+GitHub Secrets        AuthProvider     useQuery + Realtime
+Branch protection     RequireAuth      4상태 카드 그리드
+CI 6/6 ✓ + Pages      105 단위테스트
+```
+
+## 현재 develop 브랜치 (push 완료, working tree clean)
+
+최근 10 commit (오래된 → 최신):
+
+```
+3fc4c2e refactor: 디렉토리 정리 — apps/web + apps/api 모노레포 분리
+1e7ca18 fix(lint): pnpm lint 0 error 달성
+b3c9c00 docs: 5마켓 MVP HTML 프로토타입 sync sweep
+6214a3b feat(auth): s1 인증 4페이지 본구현 + 가드/세션 인프라
+3856638 fix(migrations): Supabase 클라우드 push 호환성 3건 + config.toml PG 17
+a3ebc37 fix(e2e): golden path 매칭 + RequireAuth 가드 호환
+d275571 fix(e2e): G0 진입을 vite preview SPA fallback 한계 우회
+dd14a36 fix(router): basename 가 vite base './' 환경에서 '.' 으로 평가되어 라우팅 실패
+94e542a fix(env): VITE_SENTRY_DSN 등 옵셔널 URL 의 빈 문자열 허용
+1d466b4 fix(e2e): G0 의 이메일 input 셀렉터 충돌 해소
+76d52fe docs(handoff): B-1 환경 셋업 완료 + 후속 메모
+```
+
+검증 상태 (B-2 본구현 + lint 정리 시점):
+- `pnpm typecheck` ✅
+- `pnpm test` ✅ **105 / 0 / 26 todo**
+- `pnpm build:debug` ✅ ~2.2s
+- `pnpm lint` ✅ 0 error
+- CI on `76d52fe`: ✅ 6/6 통과
 
 ---
 
@@ -118,9 +152,22 @@ Stage A → B → C → D → E → F → G → H → ✅ 부트스트랩 완료
 - ✅ `apps/web/.env.local` (debug 모드, gitignore 등록).
 - ✅ CI 6/6 통과 검증 — 진행 중 발견된 3건 fix: golden-path `@golden` 태그 + RequireAuth 가드 호환, vite `base: './'` 와 router basename 호환 (resolveBasename 헬퍼), env zod 스키마의 빈 문자열 옵셔널 처리, Tabs panel ↔ input 셀렉터 충돌.
 
-**B-1 후속 (사용자 콘솔에서 별도)**:
-- Supabase Auth → URL Configuration → **Site URL** 과 **Redirect URLs** 화이트리스트 등록 (auth.md §4.2). debug 는 `http://localhost:5173`, real 은 GitHub Pages URL.
-- (선택) Sentry 프로젝트 생성 후 4개 secret 추가.
+**⚠ B-1 후속 (사용자 콘솔 작업 — 미완료)**:
+
+1. **Supabase Auth URL Configuration** (auth.md §4.2 — 화이트리스트 등록):
+
+   **debug 프로젝트** (https://supabase.com/dashboard/project/eqoywqoalwkwbrdsulfl/auth/url-configuration)
+   - Site URL: `http://localhost:5173`
+   - Redirect URLs: `http://localhost:5173/**`, `http://localhost:4173/**`
+
+   **real 프로젝트** (https://supabase.com/dashboard/project/lfrnythcujxdhehvkmtg/auth/url-configuration)
+   - Site URL: `https://rumeadia-dotcom.github.io/ing0415/`
+   - Redirect URLs: `https://rumeadia-dotcom.github.io/ing0415/**`
+
+   → 등록 안 하면 회원가입 인증 메일의 redirect / 비밀번호 재설정 redirect 가 차단됨.
+
+2. **(선택) Sentry 프로젝트 생성** → 4개 secret 등록:
+   `REAL_SENTRY_DSN`, `DEBUG_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`
 
 ### B-2. s1 인증 구현 (2026-05-19 본구현 완료)
 - ✅ LoginPage: RHF + zod + Supabase Auth signInWithPassword + 에러 매핑 + password 토글 + redirect (location.state.from)
@@ -224,9 +271,38 @@ Stage A → B → C → D → E → F → G → H → ✅ 부트스트랩 완료
 
 ---
 
-# 즉시 다음 액션 (최우선 순서)
+# 다음 세션 진입 가이드
 
-1. **A-1 sync sweep** — register HTML 2파일 텍스트 갱신 (5분, 단독 작은 커밋 또는 다음 PR 에 합류)
-2. **A-2/A-3 lint 정리 결정** — 묶음 PR `fix(lint)` 진행 여부 확인
-3. **B-1 환경 셋업** — Supabase 프로젝트 2개 + GitHub Secrets (실 화면 작업 진입 전제)
-4. **B-2 s1 인증 구현** — 첫 실 화면 시작
+## ⚡ 즉시 시작 (5분)
+
+1. **콘솔 작업 마무리** — 위 "⚠ B-1 후속" 의 Supabase Auth URL Configuration 등록 (debug + real 둘 다).
+2. **로컬 검증** — `pnpm dev` → http://localhost:5173 → /signup 으로 실제 셀러 계정 1개 생성 (이메일 인증 메일 수신 확인). 이걸로 real Supabase Auth 흐름이 정말 동작하는지 즉시 검증.
+
+## 다음 작업 후보 (우선순위 순)
+
+### Option A — B-2 후속 마무리 (반나절 ~ 1일)
+가장 짧고 s1 인증을 "완성" 시킴. 직후 B-3 진입.
+
+- [ ] LoginPage / SignupPage 통합 테스트 (RTL — form validation, submit, navigate). RHF + zodResolver + AuthContext mock.
+- [ ] auth-event-log Edge Function 호출 통합 (login_success / login_failure / password_reset_*). 또는 v2 백로그 유지 결정.
+- [ ] (선택) 소셜 로그인 provider 활성화 — Supabase 콘솔에서 Google / Naver provider 키 등록 + LoginPage 의 social 탭에 실제 버튼 활성. Naver provider 는 Supabase 가 native 지원 안 해서 OAuth Custom 등록 필요.
+
+### Option B — B-3 s5 마켓계정 본 구현 (5~7일) ⭐ 추천
+B-2 통합 테스트 없어도 화면 자체는 다음 단계로 진행 가능. MarketsListPage 가 placeholder 상태라 첫 데이터 페칭 흐름 (useQuery + Realtime + 4상태) 정착 단계.
+
+- [ ] **MarketsListPage** placeholder → 본구현 (`apps/web/src/features/markets/pages/MarketsListPage.tsx`)
+- [ ] **MarketsConnectProviderPage** 4분기 본 동작 (네이버 OAuth / 쿠팡 HMAC / G마켓·옥션 ESM JWT)
+- [ ] **OAuthCallbackPage** 본 동작
+- [ ] 연결 해제 / 재인증 / verify 동작
+- 단, real 어댑터는 Phase 3 (C-1~C-4) 라 debug 어댑터로 폼/플로우만 검증.
+
+### Option C — B-4 s3 상품 등록 (10~14일)
+가장 큰 도메인이라 분량이 큼. B-3 가 끝나야 매끄럽게 진입 가능 (마켓 카드 데이터 필요).
+
+## 한 줄 진입 명령
+
+```
+git pull origin develop && pnpm install && pnpm dev
+```
+
+→ http://localhost:5173 으로 진입. /signup 에서 셀러 계정 생성 → /login → /dashboard (placeholder).
