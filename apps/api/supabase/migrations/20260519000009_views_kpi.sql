@@ -39,7 +39,8 @@ with monthly as (
   where started_at >= now() - interval '24 months'
   group by 1
 ),
-trailing as (
+trailing_window as (
+  -- `trailing` 은 PG reserved keyword 라 CTE 별칭으로 사용 불가
   select
     date_trunc('day', d)::date as as_of,
     (
@@ -57,7 +58,11 @@ trailing as (
 select
   m.month,
   m.mau_calendar,
-  (select mau_trailing_30d from trailing where as_of = (m.month + interval '1 month')::date) as mau_trailing_30d_at_month_end
+  (
+    select mau_trailing_30d
+    from trailing_window
+    where as_of = (m.month + interval '1 month')::date
+  ) as mau_trailing_30d_at_month_end
 from monthly m
 order by m.month desc;
 

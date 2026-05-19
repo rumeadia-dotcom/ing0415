@@ -160,9 +160,15 @@ create table public.nps_responses (
 
 -- 동일 트리거에 분기당 1회 응답으로 제한
 -- (kpi.md §4.1 의 unique(seller_id, trigger_reason, date_trunc('quarter', surveyed_at)))
--- date_trunc 는 IMMUTABLE 아니라 unique constraint 안에서 직접 못 씀 → 부분 인덱스로 표현.
+-- date_trunc(text, timestamptz) 는 timezone 의존이라 IMMUTABLE 이 아님 → unique index 의
+-- 표현식으로 못 씀. `AT TIME ZONE 'UTC'` 캐스트로 timestamp(without tz) 변환한 결과는
+-- date_trunc(text, timestamp) 와 매칭되어 IMMUTABLE 평가됨.
 create unique index nps_responses_unique_quarter
-  on public.nps_responses (seller_id, trigger_reason, (date_trunc('quarter', surveyed_at)));
+  on public.nps_responses (
+    seller_id,
+    trigger_reason,
+    (date_trunc('quarter', (surveyed_at at time zone 'UTC')))
+  );
 
 create index idx_nps_surveyed on public.nps_responses (surveyed_at desc);
 

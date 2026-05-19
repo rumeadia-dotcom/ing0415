@@ -61,5 +61,5 @@ create policy "transformed_select_own"
 ----------------------------------------------------------------------
 -- 3. 참고 코멘트
 ----------------------------------------------------------------------
-comment on policy "original_select_own"      on storage.objects is 'image-pipeline.md §3.3 — 원본 셀러 본인 prefix';
-comment on policy "transformed_select_own"   on storage.objects is 'image-pipeline.md §3.3 — 변환본 셀러 본인 prefix (읽기만)';
+-- NOTE: `COMMENT ON POLICY ... ON storage.objects` 는 Supabase 관리형 storage 의
+-- supabase_storage_admin 만 가능하므로 제거. 정책 의도는 image-pipeline.md §3.3 참조.
