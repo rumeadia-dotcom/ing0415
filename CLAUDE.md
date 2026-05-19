@@ -5,9 +5,115 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 레포 현재 상태
 - `PRD.md` — 제품 요구사항 문서 (5개 대기능 / 약 70개 세부 기능)
 - `user_flow.md` — User flow 다이어그램 (6 섹션 / 46 노드 / 48 엣지, manyfast.io 출처)
-- `prototype/` — UI 레퍼런스 프로토타입 (아래 "프로토타입" 섹션 참고)
+- `prototype/` — UI 레퍼런스 프로토타입 v0 (아래 "프로토타입" 섹션 참고)
+- `src/` — 실제 SPA 코드.
+  - Stage A: Vite + React 18 + TypeScript strict 부트스트랩
+  - Stage B: Tailwind 토큰 + shadcn/ui 10개 컴포넌트 + 라이트/다크 토글 (`src/components/ui/*`, `src/lib/use-theme.ts`)
+  - Stage C: React Router v6 + 5도메인 페이지 placeholder + 사이드바/헤더/모바일 드로어 레이아웃 + 404.html SPA fallback (`src/app/`, `src/components/layout/`, `src/features/<domain>/pages/`)
+  - Stage G: Vitest + RTL + jsdom + Playwright + axe + fixtures + 단위 시드 (`vitest.config.ts`, `playwright.config.ts`, `tests/`, `src/lib/**/__tests__/*.test.ts`)
+- `scripts/postbuild-spa.mjs` — `dist/index.html` → `dist/404.html` 복제 (GitHub Pages SPA fallback)
+- `package.json`, `tsconfig.*.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc` — 빌드/타입/린트 설정
+- `index.html` — Vite 진입점
 
-빌드/테스트/Lint 명령은 아직 정의되어 있지 않다. 새 코드를 추가할 때는 그 결정에 사용된 근거(PRD 의 어떤 요구사항 / user_flow 의 어떤 노드)를 명시한다.
+새 코드를 추가할 때는 그 결정에 사용된 근거(PRD 의 어떤 요구사항 / user_flow 의 어떤 노드)를 명시한다.
+
+## 빌드 / 테스트 / Lint 명령
+
+| 명령 | 동작 |
+|---|---|
+| `pnpm dev` | 개발 서버 (Vite, `VITE_APP_MODE=debug`, http://localhost:5173) |
+| `pnpm typecheck` | `tsc --noEmit -p tsconfig.app.json` — 타입만 검증 |
+| `pnpm lint` | ESLint flat config (typescript-eslint strict + react + react-hooks + jsx-a11y, `no-explicit-any` error) |
+| `pnpm format` | Prettier 적용 |
+| `pnpm build` | `tsc --noEmit` → `vite build` (기본 모드) |
+| `pnpm build:debug` | `VITE_APP_MODE=debug` 로 빌드 |
+| `pnpm build:real` | `VITE_APP_MODE=real` 로 빌드 (운영 산출물) |
+| `pnpm preview` | 빌드 산출물 로컬 서빙 |
+| `pnpm test` | Vitest 단위·통합 (run 1회) |
+| `pnpm test:watch` | Vitest watch 모드 |
+| `pnpm test:ui` | Vitest UI |
+| `pnpm test:e2e` | Playwright E2E (dev / preview 서버 선행 + `E2E_BASE_URL` 지정) |
+| `pnpm test:e2e:ui` | Playwright UI 모드 |
+| `pnpm test:e2e:install` | Playwright Chromium 설치 (최초 1회) |
+
+전제: `pnpm install` 이 선행되어야 한다. Node `>=20`, pnpm `>=9` (`packageManager: pnpm@9.12.3` 고정).
+
+## CI/CD (Stage H 도입)
+
+마스터: `docs/architecture/v1/ops/ci-cd.md`.
+
+- **워크플로우 파일**:
+  - `.github/workflows/ci.yml` — PR 진입 (develop / main / release/**) + push (develop / feature/** / release/** / hotfix/**).
+  - `.github/workflows/deploy.yml` — `main` push + 태그 `v*.*.*` + `workflow_dispatch` (롤백용).
+- **PR CI 잡 (병렬)**:
+  - `lint-and-typecheck` — `pnpm typecheck` + `pnpm lint`. Edge Functions lint 는 non-blocking (정리 후 병합 예정).
+  - `unit-test` — `pnpm test` (Vitest).
+  - `zod-schema-mirror-check` — `zod-mirror.test.ts` 자동 감지 후 실행 (없으면 skip notice).
+  - `build` (matrix: `debug` + `real`) — 두 모드 빌드 sanity + 404 fallback 검증 + real 모드 한정 mock 누출 grep.
+  - `e2e-golden-path` — Playwright Chromium `@golden` 태그. Playwright 캐시 + `pnpm preview` webServer.
+- **main 배포 잡**:
+  - `build-real` → mock 누출 검사 + Sentry sourcemap 업로드 (토큰 있으면) + `*.map` 공개 dist 에서 삭제.
+  - `deploy-pages` — `actions/deploy-pages@v4` (OIDC).
+  - `deploy-edge-functions` — Supabase CLI 함수 일괄 배포. `_shared` 폴더 제외.
+  - `notify-sentry` — release 배포 알림.
+- **위험 게이트 (수동 결정)**:
+  - **`supabase db push` 자동 적용은 default 비활성.** `workflow_dispatch` 의 `apply_db_migrations=true` 입력 시에만 실행. ci-cd.md §7 의 drift 정책 준수.
+  - `deploy_edge_functions=false` 로 프론트만 재배포 (롤백 시나리오) 가능.
+- **시크릿 매트릭스** (GitHub Repository Settings → Secrets and variables → Actions):
+
+  | Secret | 용도 | 사용 워크플로우 |
+  |---|---|---|
+  | `REAL_SUPABASE_URL` | real 빌드 inject | deploy.yml |
+  | `REAL_SUPABASE_ANON_KEY` | real 빌드 inject | deploy.yml + ci.yml (matrix real) |
+  | `REAL_SUPABASE_PROJECT_REF` | Supabase CLI link | deploy.yml |
+  | `REAL_SENTRY_DSN` | 운영 Sentry | deploy.yml + ci.yml (matrix real) |
+  | `DEBUG_SUPABASE_ANON_KEY` | debug 빌드 sanity | ci.yml |
+  | `DEBUG_SENTRY_DSN` | debug Sentry | ci.yml |
+  | `SUPABASE_ACCESS_TOKEN` | Supabase CLI 인증 (PAT) | deploy.yml |
+  | `SENTRY_AUTH_TOKEN` | sourcemap 업로드 | deploy.yml (선택) |
+  | `SENTRY_ORG`, `SENTRY_PROJECT` | Sentry release 매칭 | deploy.yml (선택) |
+
+  **저장 금지**: Supabase `service_role` key (Edge Function 내부 전용), 마켓 OAuth client secret (Supabase Edge Function env vars).
+- **롤백 절차** (ci-cd.md §9):
+  - 프론트: Actions UI → "Deploy (real)" → Run workflow → `ref: v1.x.y` 입력 → 약 10분.
+  - Edge Functions: `supabase functions deploy <fn> --project-ref ...` 로 이전 커밋 체크아웃 후 단일 함수 재배포.
+  - DB: forward-only. PITR 가용 플랜이면 시점 복구, 아니면 신규 마이그레이션으로 forward fix.
+- **PR 머지 게이트** (branch protection 으로 강제):
+  - `develop`: `Lint & Typecheck` / `Unit & Integration (Vitest)` / `Build (debug)` / `Build (real)` / `E2E Golden Path (Chromium)` 전체 통과.
+  - `main`: 위 전부 + release/hotfix 만 허용 + linear history (squash).
+
+## 데이터 레이어 (Stage D 도입)
+
+- **환경변수**: `src/lib/env.ts` 의 `env` 객체 + `isDebug` / `isReal` boolean. zod 로 1회 parse. `import.meta.env.VITE_APP_MODE` 직접 비교 금지 — `isDebug` / `isReal` 만 사용.
+- **Supabase 클라이언트**: `src/lib/supabase.ts` 의 `getSupabase()` 단일 진입 (lazy 싱글톤). 직접 `createClient` 호출 금지. real 모드에서 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` 누락이면 첫 호출 시 throw. debug 모드는 fallback URL 로 인스턴스만 만들고 실제 네트워크는 mock 어댑터가 우회.
+- **TanStack Query**: `src/lib/queryClient.ts` 의 `createQueryClient()` 팩토리. 기본값 `staleTime 30s`, `gcTime 5min`, `queries.retry 1`, `mutations.retry 0`, `refetchOnWindowFocus false`. 도메인별 staleTime 은 hook 에서 override (`frontend.md §4.3`). Query Key 는 `[domain, ...filters]` 규약 (Stage E 의 `queryKeys` 팩토리에서 정의 예정).
+- **MarketAdapter**: `src/lib/markets/index.ts` 의 `await getMarketAdapter(marketId)` 만 사용. 어댑터 구현체(`./debug/*`, `./real/*`) 직접 import 금지. debug 모드는 mock 어댑터 dynamic import → real 빌드 tree-shaking. 5메서드 인터페이스 변경은 `market-adapter.md` 개정 절차.
+- **zod 스키마**: `src/lib/schemas/` 단일 소스 (`common`, `market`, `registration`, `auth`, `markets-feature`, `dashboard-summary`, `history-filter`). RHF resolver / Supabase insert 직전 parse / 서버 응답 parse 3중 재사용. 컴포넌트 내부에서 inline `z.object` 정의 금지.
+- **ENUM 마스터 위치**: `JOB_STATUSES` / `MARKET_RESULT_STATUSES` / `MARKET_IDS` 는 `src/lib/schemas/registration.ts` 와 `common.ts` 에서만 정의. dashboard / history 는 import.
+- **i18n**: 모든 사용자 노출 텍스트는 `src/locales/ko.ts` 객체 path 참조 (예: `ko.nav.dashboard`). `t()` 헬퍼는 후속 Stage 도입.
+- **logger**: `src/lib/logger.ts` 의 `logger.{debug,info,warn,error}`. debug 모드는 전체 출력, real 은 warn 이상. Sentry 연동·마스킹은 Stage F.
+- **Provider 진입**: `src/app/providers/AppProviders.tsx` 가 QueryClientProvider + TooltipProvider + (debug 한정) ReactQueryDevtools 묶음. `App.tsx` 는 `<AppProviders><RouterProvider/><Toaster/></AppProviders>`.
+- **Sentry**: `src/lib/sentry.ts` 의 `initSentry()` — `main.tsx` 진입 시 1회 호출. `VITE_SENTRY_DSN` 없으면 비활성. `beforeSend` / `beforeBreadcrumb` 에서 `src/lib/security/redact.ts` 의 `redact()` 마스킹 강제 (security.md §6.2 / §6.3 마스터). environment 는 `isDebug` 그대로 — 두 모드 데이터 혼입 금지.
+
+## 테스트 디시플린 (Stage G 도입)
+
+마스터: `docs/architecture/v1/testing.md` (헌법), `docs/architecture/v1/qa/golden-path.md`.
+
+- **도구 배치**:
+  - Vitest + RTL + jsdom — 단위·통합. 설정: `vitest.config.ts`, setup: `tests/vitest.setup.ts`.
+  - Playwright + @axe-core/playwright — E2E + a11y. 설정: `playwright.config.ts`, spec: `tests/e2e/`.
+  - eslint-plugin-jsx-a11y — lint 시점 a11y (이미 활성).
+- **파일 배치 규약**:
+  - 컴포넌트/모듈 co-located 단위 테스트: `src/**/__tests__/*.test.ts(x)` 또는 `*.test.ts(x)`.
+  - 도메인 횡단 단위 테스트: `tests/unit/**/*.test.ts`.
+  - E2E spec: `tests/e2e/**/*.spec.ts`.
+  - fixture: `tests/fixtures/{markets,images,products}/` (testing.md §11.1).
+- **PR 진입 기준**:
+  - 새 컴포넌트/hook/유틸 추가 시 단위 테스트 1개 이상 + 1개 이상 실패 시나리오 (R-001).
+  - 새 라우트 추가 시 `tests/e2e/a11y.spec.ts` 의 `ROUTES` 배열에 추가 + 회귀 axe 통과 (R-009).
+  - 새 zod 스키마 추가 시 pass 1 + fail ≥1 (testing.md §6.1).
+- **골든패스 게이트**: `tests/e2e/golden-path.spec.ts` 가 `main` 머지 차단 기준. `test.skip / test.fixme / test.only` 우회 PR 거부 (R-003).
+- **debug ↔ real 격차**: Stage F 의 real 어댑터 도입 시 `tests/unit/adapters/<market>/parity.spec.ts` 추가 강제 (R-006).
 
 ## 인프라 결정 (확정)
 
@@ -163,7 +269,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 
 - **추측 금지** — 기술 스택·MVP 범위·결제 모델·KPI 측정 모두 확정. 새 결정이 필요한 사안이 생기면 사용자에게 명시적으로 확인 후 CLAUDE.md 반영.
 - **PRD 진행 상태 표기** — PRD 의 각 기능에는 `⚪ 시작전` 같은 진행 상태 마커가 있다. 기능 구현 완료 시 이 표기도 함께 업데이트하는 것을 사용자가 기대할 수 있으므로 작업 종료 시 확인.
-- **빌드/테스트 명령이 생기면 이 파일에 추가** — 현재 비어있는 이유는 코드가 없기 때문이지, 누락이 아니다. `package.json` 등 빌드 매니페스트가 도입되면 이 섹션을 채워라.
+- **빌드/테스트 명령은 위 "빌드 / 테스트 / Lint 명령" 섹션 참조** — Stage A 에서 채워졌다. 명령이 추가/변경되면 그 섹션을 갱신할 것.
 
 ## Rules
 
@@ -230,6 +336,7 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 - **긴 에러 메시지 접기/펼치기** — 공통 `ErrorMessage` 컴포넌트 (`src/components/ui/error-message.tsx`) 사용. 마켓 API 오류는 stack/raw response 가 길어 접힘 기본.
 - **4상태 + partial 처리** — 모든 비동기 UI 는 `loading` / `data` / `error` / `empty` 를 빠짐없이 처리. RegistrationJob 화면은 `partial` 추가.
 - **접근성** — WCAG 2.1 AA. 키보드 동선 + aria 라벨 + 색상 대비 4.5:1.
+- **색상·spacing·radius 는 토큰만** — `src/styles/globals.css` 의 CSS 변수 또는 `tailwind.config.ts` 의 키만 사용. raw HEX·임의 px 금지. 토큰 추가가 필요하면 `docs/architecture/v1/ui-system.md` 먼저 갱신 후 globals.css·tailwind.config.ts 동기화.
 
 ### 신규 파일 생성 시 .gitignore 검토
 
