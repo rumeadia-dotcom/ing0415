@@ -150,7 +150,17 @@ const routes: RouteObject[] = [
   },
 ]
 
+// Vite `base: './'` 인 경우 `import.meta.env.BASE_URL` 가 `./` 로 평가되어
+// 기존 `.replace(/\/$/, '')` 는 `.` 을 반환, 그 결과 React Router 의 basename 이
+// `.` 이 되어 라우팅 매칭이 실패하던 문제. 상대 base 와 root base 를 모두 `/` 로
+// 정규화한다. GitHub Pages 의 subpath 배포는 absolute `/subpath/` 형식 base 만 사용.
+function resolveBasename(rawBase: string): string {
+  if (!rawBase || rawBase === '/' || rawBase === './' || rawBase.startsWith('.')) {
+    return '/'
+  }
+  return rawBase.replace(/\/$/, '')
+}
+
 export const router = createBrowserRouter(routes, {
-  // Vite base 와 동기화. './' 빌드 시 BASE_URL 은 '/' 로 평가됨.
-  basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
+  basename: resolveBasename(import.meta.env.BASE_URL),
 })
