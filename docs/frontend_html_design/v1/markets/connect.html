@@ -11,14 +11,18 @@
   <!--
     s5 신규 마켓 선택 (n36, v1)
     -----------------------------------------------------------
-    5개 마켓 카탈로그 (2026-05-19 결정 — OQ-10):
-      - 활성 (v1):    네이버 스마트스토어 1개만
-      - 비활성 (v2):  쿠팡 / 11번가 / G마켓 / 옥션 — "오픈 준비중"
-        (쿠팡은 OpenAPI 가 OAuth 가 아닌 HMAC 기반이라 v2 어댑터 인터페이스 확장 후 통합)
+    5개 마켓 카탈로그 (2026-05-19 5마켓 MVP 확장):
+      - 활성 (v1):    네이버 / 쿠팡 / G마켓 / 옥션 — 4개
+      - 비활성 (v2):  11번가 — "오픈 준비중"
+        (Edge Function outbound IP 정책 충돌로 v2 이관, OQ-09)
 
     각 카드:
       - 색상: market-tile.<id> (브랜드 컬러 토큰)
       - 활성 카드: 클릭 → /markets/connect/:provider
+        · naver       = connect-provider.html (OAuth)
+        · coupang     = connect-coupang.html (HMAC 폼)
+        · gmarket     = connect-gmarket.html (ESM JWT 폼, site=G)
+        · auction     = connect-auction.html (ESM JWT 폼, site=A)
       - 비활성 카드: aria-disabled, "오픈 준비중" 라벨, hover 시 변화 없음
 
     상태 4종:
@@ -103,7 +107,7 @@
           </a>
           <div>
             <h1 id="page-title">신규 마켓 연결</h1>
-            <p>연결할 마켓을 선택해 주세요 · v1 은 네이버 스마트스토어를 지원합니다 (쿠팡 외 4개 마켓은 오픈 준비중)</p>
+            <p>연결할 마켓을 선택해 주세요 · v1 은 네이버 / 쿠팡 / G마켓 / 옥션을 지원합니다 (11번가는 오픈 준비중)</p>
           </div>
         </div>
 
@@ -111,10 +115,11 @@
         <div class="alert alert-info" role="note" style="margin-bottom: var(--sp-5);">
           <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
           <div class="alert-body">
-            <p class="alert-title">OAuth 2.0 인증으로 안전하게 연결합니다</p>
+            <p class="alert-title">마켓별 인증 방식이 다릅니다</p>
             <p class="alert-message">
-              마켓 로그인 정보(아이디·비밀번호) 는 MarketCast 에 절대 전달되지 않습니다.
-              인증 후 발급된 토큰은 암호화되어 보관됩니다.
+              네이버는 OAuth 2.0 으로 마켓 로그인 페이지를 거치며, 쿠팡·G마켓·옥션은
+              마켓 어드민에서 발급한 API 키를 입력합니다. 어떤 방식이든 마켓 비밀번호는
+              MarketCast 에 전달되지 않고, 입력값은 암호화되어 보관됩니다.
             </p>
           </div>
         </div>
@@ -132,15 +137,31 @@
             <span class="btn btn-primary catalog-action">연결하기</span>
           </a>
 
-          <!-- 쿠팡 (v2 비활성 — 2026-05-19 결정, OQ-10. HMAC 인증으로 v2 어댑터 인터페이스 확장 후 통합) -->
-          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="쿠팡 — 오픈 준비중, 현재 사용 불가">
+          <!-- 쿠팡 (활성 v1 — HMAC 인증, 2026-05-19 5마켓 MVP 확장) -->
+          <a href="./connect-coupang.html" class="catalog-card" aria-label="쿠팡 연결하기 (API 키 입력)">
             <span class="catalog-tile coupang" aria-hidden="true">C</span>
             <h2 class="catalog-name">쿠팡</h2>
-            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
-            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
-          </div>
+            <p class="catalog-sub">API 키 입력<br>HMAC 인증</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
 
-          <!-- 11번가 (v2 비활성) -->
+          <!-- G마켓 (활성 v1 — ESM JWT, site=G) -->
+          <a href="./connect-gmarket.html" class="catalog-card" aria-label="G마켓 연결하기 (ESM 키 입력)">
+            <span class="catalog-tile gmarket" aria-hidden="true">G</span>
+            <h2 class="catalog-name">G마켓</h2>
+            <p class="catalog-sub">ESM 키 입력<br>JWT 인증</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
+
+          <!-- 옥션 (활성 v1 — ESM JWT, site=A) -->
+          <a href="./connect-auction.html" class="catalog-card" aria-label="옥션 연결하기 (ESM 키 입력)">
+            <span class="catalog-tile auction" aria-hidden="true">A</span>
+            <h2 class="catalog-name">옥션</h2>
+            <p class="catalog-sub">ESM 키 입력<br>JWT 인증</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
+
+          <!-- 11번가 (v2 비활성 — Edge Function outbound IP 정책 충돌, OQ-09) -->
           <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="11번가 — 오픈 준비중, 현재 사용 불가">
             <span class="catalog-tile eleventh" aria-hidden="true">11</span>
             <h2 class="catalog-name">11번가</h2>
@@ -148,26 +169,10 @@
             <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
           </div>
 
-          <!-- G마켓 (v2 비활성) -->
-          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="G마켓 — 오픈 준비중, 현재 사용 불가">
-            <span class="catalog-tile gmarket" aria-hidden="true">G</span>
-            <h2 class="catalog-name">G마켓</h2>
-            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
-            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
-          </div>
-
-          <!-- 옥션 (v2 비활성) -->
-          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="옥션 — 오픈 준비중, 현재 사용 불가">
-            <span class="catalog-tile auction" aria-hidden="true">A</span>
-            <h2 class="catalog-name">옥션</h2>
-            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
-            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
-          </div>
-
         </section>
 
         <p class="t-xs t-subtle text-center mt-6">
-          원하는 마켓이 목록에 없나요? <a href="#">오픈 알림 신청 →</a>
+          11번가 오픈 알림을 받고 싶다면? <a href="#">알림 신청 →</a>
         </p>
 
       </main>

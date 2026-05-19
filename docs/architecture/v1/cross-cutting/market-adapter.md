@@ -15,59 +15,75 @@
 
 ## 1. 목적 · 범위
 
-- **목적**: 마켓 API 의 변덕(엔드포인트·페이로드·rate limit·OAuth)을 5메서드 인터페이스 1장 뒤에 격리한다.
-- **범위**: **v1 = 네이버 스마트스토어 1개만 실 구현 (2026-05-19 결정 — OQ-10)**. 쿠팡 / 11번가 / G마켓 / 옥션 = 인터페이스 stub + 단위 테스트만 유지, 호출 시 즉시 throw (v2 구현 보류). 쿠팡은 OpenAPI 가 HMAC 기반이므로 현 5메서드 OAuth 가정 인터페이스와 부정합 — v2 어댑터 인터페이스 확장 후 통합.
+- **목적**: 마켓 API 의 변덕(엔드포인트·페이로드·rate limit·인증방식)을 5메서드 인터페이스 1장 뒤에 격리한다.
+- **범위 (2026-05-19 갱신)**: **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 — real 어댑터까지 동작**. 11번가 = "오픈 준비중" (Supabase Edge Function outbound IP 동적 문제 + 11번가 IP 화이트리스트 정책 충돌로 v2 이관). v1 단계에서 `authenticate(input)` 의 `input` 이 **4-way `AuthInput` discriminated union** 으로 확장됨 — OAuth code (네이버) / HMAC 키 (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가, v2). 11번가 어댑터 파일은 인터페이스 호환을 위해 stub 만 유지하고 v1 운영 경로에서 호출 시 즉시 throw.
 - **비범위**: 재시도·rate limit·이미지 변환·로깅·감사 — 어댑터 **바깥**(`registration-run` Edge Function 오케스트레이터 + `_shared/*`).
 
 ---
 
 ## 2. MarketAdapter 인터페이스 (5메서드, 강제)
 
-신규 마켓 추가 = **이 인터페이스를 구현하는 1파일** (`src/lib/markets/<id>/adapter.ts`) + 단위 테스트.
+신규 마켓 추가 = **이 인터페이스를 구현하는 1파일** (`apps/web/src/lib/markets/<id>/adapter.ts`) + 단위 테스트.
 6번째 메서드 추가는 본 문서 개정 절차로만 가능. 어댑터 내부에 fetch retry / 이미지 변환 / 큐 / Sentry 직접 호출 코드를 두는 PR 은 **차단**.
 
-### 2.1 TypeScript 시그니처
+### 2.1 TypeScript 시그니처 (2026-05-19 4-way AuthInput 확장)
 
 ```ts
-// src/lib/markets/types.ts
+// apps/web/src/lib/markets/types.ts
 import { z } from 'zod';
 import type {
-  TokenSet,
+  AuthInput,
   CategoryNode,
-  MarketPayload,
   CreateProductResult,
+  MarketCredentialKind,
   MarketId,
-  Product,
   MarketMapping,
-} from '@/lib/schemas/market';
+  MarketPayload,
+  Product,
+  StoredCredential,
+  TokenSet,
+} from '@/lib/schemas';
 
+/**
+ * MarketAdapter — 5메서드 인터페이스 (강제).
+ *
+ * 2026-05-19 변경 사항:
+ *  - `authenticate(input)` 의 input 이 4-way `AuthInput` discriminated union 으로 확장됨.
+ *    OAuth code (네이버) / HMAC 키 (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가) 분기.
+ *  - `refreshToken` 은 OAuth (네이버) 에서만 사용 → **optional**. HMAC·ESM JWT·API Key 는 영구 키이므로 어댑터에서 정의 생략.
+ *  - 반환 타입이 `TokenSet` → `StoredCredential` (kind + payload + optional expiresAt) 로 일반화.
+ */
 export interface MarketAdapter {
-  /** 마켓 ID. 어댑터 인스턴스가 어느 마켓을 다루는지 명시. */
+  /** 어댑터 인스턴스가 다루는 마켓 ID. */
   readonly market: MarketId;
 
-  /**
-   * OAuth authorization_code → token 교환.
-   * 입력: 마켓 콜백으로 전달된 인증 코드 (10분 내 1회 사용 가능).
-   * 출력: TokenSet (access / refresh / expiresAt / scope).
-   * 에러: MarketError('unauthorized' | 'validation' | 'network' | 'server' | 'unknown').
-   */
-  authenticate(code: string): Promise<TokenSet>;
+  /** 어댑터가 사용하는 credential kind. credential_payload jsonb 의 kind 와 1:1. */
+  readonly credentialKind: MarketCredentialKind;
 
   /**
-   * refresh_token → token 갱신. 갱신된 refresh 가 회전(rotation) 발급되면 그대로 반환.
+   * 4-way 인증 input → 저장 가능한 credential.
+   * 입력: AuthInput = oauth_code (네이버) | hmac_key (쿠팡) | esm_jwt (G마켓·옥션) | api_key (11번가, v2).
+   * 출력: StoredCredential = kind + payload (+ OAuth 만 expiresAt).
+   * 에러: MarketError('unauthorized' | 'validation' | 'network' | 'server' | 'unknown').
+   */
+  authenticate(input: AuthInput): Promise<StoredCredential>;
+
+  /**
+   * refresh_token → token 갱신. **OAuth (네이버) 에서만 사용 → optional**.
+   * HMAC (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가) 는 정의 자체 생략 (`undefined`).
    * 에러: 'unauthorized' (invalid_grant / revoked) → 호출측에서 disconnected 처리.
    */
-  refreshToken(refresh: string): Promise<TokenSet>;
+  refreshToken?(refresh: string): Promise<TokenSet>;
 
   /**
    * 마켓 카테고리 트리. 캐시 정책·만료는 호출측(features/markets.md §카테고리 캐시) 담당.
-   * 어댑터는 단순히 마켓 API 호출 + zod 검증 + 트리 정규화.
+   * 어댑터는 마켓 API 호출 + zod 검증 + 트리 정규화.
    */
   fetchCategoryTree(): Promise<CategoryNode[]>;
 
   /**
    * 도메인 Product + 마켓별 MarketMapping → 마켓 페이로드.
-   * 순수 함수. 외부 호출 / I/O 금지. 이미지 변환 결과 URL 은 mapping 에 이미 들어있다고 가정.
+   * 순수 함수. fetch / Date.now / Math.random 직접 사용 금지 (결정성).
    */
   transformProduct(product: Product, mapping: MarketMapping): MarketPayload;
 
@@ -79,12 +95,14 @@ export interface MarketAdapter {
 }
 ```
 
-### 2.2 입력 / 출력 zod 스키마 (`src/lib/schemas/market.ts`)
+### 2.2 입력 / 출력 zod 스키마 (`apps/web/src/lib/schemas/market.ts`)
 
 본 스키마는 BE/FE 공유 단일 소스. 마켓 API 응답은 어댑터 내부에서 본 스키마로 `parse` (예외 → `MarketError('validation')`).
 
+**`MarketCredentialKind` 마스터 위치**: `apps/web/src/lib/schemas/market.ts` (4값 enum: `oauth` / `hmac` / `esm_jwt` / `api_key`). `credential_payload` jsonb 의 `kind` 필드와 1:1.
+
 ```ts
-// src/lib/schemas/market.ts
+// apps/web/src/lib/schemas/market.ts
 import { z } from 'zod';
 
 // ---------- MarketId ----------
@@ -97,7 +115,13 @@ export const MarketIdSchema = z.enum([
 ]);
 export type MarketId = z.infer<typeof MarketIdSchema>;
 
-// ---------- TokenSet ----------
+// ---------- MarketCredentialKind ----------
+// credential_payload jsonb 의 kind 필드 — credential-vault.md §3.1 마스터.
+export const MARKET_CREDENTIAL_KINDS = ['oauth', 'hmac', 'esm_jwt', 'api_key'] as const;
+export const MarketCredentialKindSchema = z.enum(MARKET_CREDENTIAL_KINDS);
+export type MarketCredentialKind = z.infer<typeof MarketCredentialKindSchema>;
+
+// ---------- TokenSet (OAuth 전용) ----------
 export const TokenSetSchema = z.object({
   accessToken: z.string().min(1),
   refreshToken: z.string().min(1),
@@ -107,6 +131,82 @@ export const TokenSetSchema = z.object({
   tokenType: z.literal('Bearer').default('Bearer'),
 });
 export type TokenSet = z.infer<typeof TokenSetSchema>;
+
+// ---------- AuthInput (4-way discriminated union) ----------
+// MarketAdapter.authenticate(input) 의 input 타입. 마켓별 인증 방식 분기.
+//
+//  - oauth_code: 네이버 스마트스토어 (`type=SELF` Authorization Code)
+//  - hmac_key:   쿠팡 윙 OpenAPI (VENDOR_ID + ACCESS_KEY + SECRET_KEY)
+//  - esm_jwt:    G마켓·옥션 ESM 2.0 (masterId + secretKey + sellerId + site)
+//  - api_key:    11번가 (API Key 단일. IP 화이트리스트 미해결로 v2 — 인터페이스 호환 보존용)
+export const OAuthCodeAuthInputSchema = z.object({
+  kind: z.literal('oauth_code'),
+  code: z.string().min(1),
+});
+
+export const HmacKeyAuthInputSchema = z.object({
+  kind: z.literal('hmac_key'),
+  accessKey: z.string().min(1),
+  secretKey: z.string().min(1),
+  vendorId: z.string().min(1),
+});
+
+export const EsmJwtAuthInputSchema = z.object({
+  kind: z.literal('esm_jwt'),
+  masterId: z.string().min(1),
+  secretKey: z.string().min(1),
+  sellerId: z.string().min(1),
+  site: z.enum(['G', 'A']),                    // G = G마켓, A = 옥션
+});
+
+export const ApiKeyAuthInputSchema = z.object({
+  kind: z.literal('api_key'),
+  apiKey: z.string().min(1),
+});
+
+export const AuthInputSchema = z.discriminatedUnion('kind', [
+  OAuthCodeAuthInputSchema,
+  HmacKeyAuthInputSchema,
+  EsmJwtAuthInputSchema,
+  ApiKeyAuthInputSchema,
+]);
+export type AuthInput = z.infer<typeof AuthInputSchema>;
+
+// ---------- StoredCredential (adapter.authenticate 반환 타입) ----------
+// credential_payload jsonb 에 저장될 형식과 1:1.
+// kind 별 payload 분기 — OAuth 만 expiresAt 필수, 나머지는 영구 키.
+export const StoredCredentialSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('oauth'),
+    payload: TokenSetSchema,
+    expiresAt: z.string().datetime({ offset: true }),       // OAuth 만 만료
+  }),
+  z.object({
+    kind: z.literal('hmac'),
+    payload: z.object({
+      accessKey: z.string().min(1),
+      secretKey: z.string().min(1),
+      vendorId: z.string().min(1),
+    }),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+  }),
+  z.object({
+    kind: z.literal('esm_jwt'),
+    payload: z.object({
+      masterId: z.string().min(1),
+      secretKey: z.string().min(1),
+      sellerId: z.string().min(1),
+      site: z.enum(['G', 'A']),
+    }),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+  }),
+  z.object({
+    kind: z.literal('api_key'),
+    payload: z.object({ apiKey: z.string().min(1) }),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+  }),
+]);
+export type StoredCredential = z.infer<typeof StoredCredentialSchema>;
 
 // ---------- CategoryNode (재귀) ----------
 export type CategoryNode = {
@@ -203,15 +303,18 @@ export type CreateProductResult = z.infer<typeof CreateProductResultSchema>;
 
 | 타입 | 정의 위치 | 사용처 |
 |---|---|---|
-| `MarketId` | `src/lib/schemas/market.ts` | 모든 곳 |
-| `TokenSet` | `src/lib/schemas/market.ts` | adapter, `features/markets` |
-| `CategoryNode` | `src/lib/schemas/market.ts` | adapter, `features/registration` |
-| `Product` | `src/lib/schemas/market.ts` | adapter, `features/registration` |
-| `MarketMapping` | `src/lib/schemas/market.ts` | adapter, `features/registration` |
-| `MarketPayload` | `src/lib/schemas/market.ts` | adapter |
-| `CreateProductResult` | `src/lib/schemas/market.ts` | adapter, `features/registration` |
-| `MarketAdapter` | `src/lib/markets/types.ts` | adapter, orchestrator |
-| `MarketError` | `src/lib/markets/errors.ts` | adapter, orchestrator |
+| `MarketId` | `apps/web/src/lib/schemas/common.ts` | 모든 곳 |
+| `MarketCredentialKind` | `apps/web/src/lib/schemas/market.ts` | adapter, credential-vault, `features/markets` |
+| `AuthInput` (+ 4 변형 schema) | `apps/web/src/lib/schemas/market.ts` | adapter, `markets-connect` / `markets-oauth-callback` Edge Function |
+| `StoredCredential` | `apps/web/src/lib/schemas/market.ts` | adapter, `fn_encrypt_and_store_credential` 입력 |
+| `TokenSet` | `apps/web/src/lib/schemas/market.ts` | OAuth refreshToken 경로 (네이버 한정) |
+| `CategoryNode` | `apps/web/src/lib/schemas/market.ts` | adapter, `features/registration` |
+| `Product` | `apps/web/src/lib/schemas/market.ts` | adapter, `features/registration` |
+| `MarketMapping` | `apps/web/src/lib/schemas/market.ts` | adapter, `features/registration` |
+| `MarketPayload` | `apps/web/src/lib/schemas/market.ts` | adapter |
+| `CreateProductResult` | `apps/web/src/lib/schemas/market.ts` | adapter, `features/registration` |
+| `MarketAdapter` | `apps/web/src/lib/markets/types.ts` | adapter, orchestrator |
+| `MarketError` | `apps/web/src/lib/markets/errors.ts` | adapter, orchestrator |
 
 ---
 
@@ -220,28 +323,39 @@ export type CreateProductResult = z.infer<typeof CreateProductResultSchema>;
 ### 4.1 모드 분기 (단 1지점)
 
 ```ts
-// src/lib/markets/index.ts
-import { mode } from '@/lib/mode';
+// apps/web/src/lib/markets/index.ts
+import { isDebug } from '@/lib/env';
 import type { MarketAdapter } from './types';
-import type { MarketId } from '@/lib/schemas/market';
+import type { MarketId } from '@/lib/schemas/common';
 
-export async function getAdapter(market: MarketId): Promise<MarketAdapter> {
-  if (mode === 'debug') {
-    const { createMockAdapter } = await import('./mock/adapter');
-    return createMockAdapter(market);
+export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter> {
+  if (isDebug) {
+    const { createDebugAdapter } = await import('./debug');
+    return createDebugAdapter(market);
   }
+  // 2026-05-19: v1 정식 4 마켓 (naver / coupang / gmarket / auction) real 어댑터 활성.
+  // 11번가는 Supabase Edge Function outbound IP 화이트리스트 정책 미해결로 v2 이관.
   switch (market) {
     case 'naver': {
-      const { createNaverAdapter } = await import('./naver/adapter');
+      const { createNaverAdapter } = await import('./real/naver');
       return createNaverAdapter();
     }
-    case 'coupang':
+    case 'coupang': {
+      const { createCoupangAdapter } = await import('./real/coupang');
+      return createCoupangAdapter();
+    }
+    case 'gmarket': {
+      const { createGmarketAdapter } = await import('./real/gmarket');
+      return createGmarketAdapter();
+    }
+    case 'auction': {
+      const { createAuctionAdapter } = await import('./real/auction');
+      return createAuctionAdapter();
+    }
     case '11st':
-    case 'gmarket':
-    case 'auction':
-      // v1 = naver 1개만 활성. 나머지는 인터페이스 호환을 위해 stub 만 유지 (호출 시 즉시 throw).
-      // 쿠팡 HMAC 부정합으로 v2 인터페이스 확장 시 통합 — 2026-05-19 결정 (OQ-10).
-      throw new Error(`Adapter ${market} is not in v1 (오픈 준비중) — see CLAUDE.md MVP 범위`);
+      // v2 이관 — Supabase Edge Function outbound IP 동적 ↔ 11번가 IP 화이트리스트 정책 충돌.
+      // 인터페이스 호환을 위해 stub 만 유지 (api_key kind), 호출 시 즉시 throw.
+      throw new Error('Adapter 11st is not in v1 (오픈 준비중 — IP 화이트리스트 v2 결정)');
     default: {
       const _exhaustive: never = market;
       throw new Error(`unknown market: ${String(_exhaustive)}`);
@@ -256,31 +370,46 @@ export async function getAdapter(market: MarketId): Promise<MarketAdapter> {
 ### 4.2 mock 응답도 zod 통과 필수
 
 ```ts
-// src/lib/markets/mock/adapter.ts (요지)
-import type { MarketAdapter } from '../types';
+// apps/web/src/lib/markets/debug/<id>/adapter.ts (요지) — 2026-05-19 4-way AuthInput 반영
+import type { MarketAdapter } from '../../types';
 import {
-  TokenSetSchema,
+  type AuthInput,
+  type CategoryNode,
+  type CreateProductResult,
   CategoryNodeSchema,
   CreateProductResultSchema,
+  type MarketCredentialKind,
   type MarketId,
-  type TokenSet,
-  type CategoryNode,
-  type MarketPayload,
-  type CreateProductResult,
-  type Product,
   type MarketMapping,
-} from '@/lib/schemas/market';
-import { MarketError } from '../errors';
+  type MarketPayload,
+  type Product,
+  type StoredCredential,
+  StoredCredentialSchema,
+  type TokenSet,
+  TokenSetSchema,
+} from '@/lib/schemas';
+import { MarketError } from '../../errors';
 
 type Scenario = 'happy' | '5xx' | '401' | '429' | 'timeout' | 'partial';
 
 const SCENARIO: Scenario =
   (globalThis as { __MOCK_SCENARIO__?: Scenario }).__MOCK_SCENARIO__ ?? 'happy';
 
-export function createMockAdapter(market: MarketId): MarketAdapter {
+/**
+ * createDebugAdapter — 마켓 ID 별로 credentialKind 와 authenticate 분기를 다르게 셋업.
+ * naver=oauth / coupang=hmac / gmarket=esm_jwt / auction=esm_jwt / 11st=api_key (stub).
+ */
+export function createDebugAdapter(market: MarketId): MarketAdapter {
+  const credentialKind: MarketCredentialKind =
+    market === 'naver' ? 'oauth' :
+    market === 'coupang' ? 'hmac' :
+    market === 'gmarket' || market === 'auction' ? 'esm_jwt' :
+    'api_key';
+
   return {
     market,
-    async authenticate(_code: string): Promise<TokenSet> {
+    credentialKind,
+    async authenticate(input: AuthInput): Promise<StoredCredential> {
       if (SCENARIO === '5xx') throw new MarketError('server', 'mock 5xx', { market });
       if (SCENARIO === '401') throw new MarketError('unauthorized', 'mock 401', { market });
       if (SCENARIO === '429') throw new MarketError('rate_limit', 'mock 429', { market, retryAfterMs: 1500 });
@@ -288,15 +417,42 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
         await new Promise((r) => setTimeout(r, 60_000));
         throw new MarketError('network', 'mock timeout', { market });
       }
-      // happy / partial 은 동일 토큰 셋
-      return TokenSetSchema.parse({
-        accessToken: 'mock_access_' + 'x'.repeat(40),
-        refreshToken: 'mock_refresh_' + 'x'.repeat(40),
-        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-        scope: 'product.write',
-        tokenType: 'Bearer',
+      // kind 별 happy 분기 — 입력 kind 가 어댑터 credentialKind 와 일치해야 함
+      if (input.kind === 'oauth_code') {
+        return StoredCredentialSchema.parse({
+          kind: 'oauth',
+          payload: {
+            accessToken: 'mock_access_' + 'x'.repeat(40),
+            refreshToken: 'mock_refresh_' + 'x'.repeat(40),
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+            scope: 'product.write',
+            tokenType: 'Bearer',
+          },
+          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        });
+      }
+      if (input.kind === 'hmac_key') {
+        return StoredCredentialSchema.parse({
+          kind: 'hmac',
+          payload: { accessKey: input.accessKey, secretKey: input.secretKey, vendorId: input.vendorId },
+        });
+      }
+      if (input.kind === 'esm_jwt') {
+        return StoredCredentialSchema.parse({
+          kind: 'esm_jwt',
+          payload: {
+            masterId: input.masterId, secretKey: input.secretKey,
+            sellerId: input.sellerId, site: input.site,
+          },
+        });
+      }
+      // api_key (11번가 v2 — debug 에서는 인터페이스 호환 검증용)
+      return StoredCredentialSchema.parse({
+        kind: 'api_key',
+        payload: { apiKey: input.apiKey },
       });
     },
+    // OAuth (네이버) 만 refreshToken 정의. HMAC/ESM JWT/API Key 어댑터는 이 메서드 자체 생략 (undefined).
     async refreshToken(_refresh): Promise<TokenSet> {
       if (SCENARIO === '401') throw new MarketError('unauthorized', 'invalid_grant', { market });
       return TokenSetSchema.parse({
@@ -362,24 +518,25 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
 ### 4.3 Vitest 단위 테스트 예시 (동등성 1개)
 
 ```ts
-// src/lib/markets/__tests__/adapter-contract.test.ts
+// apps/web/src/lib/markets/__tests__/adapter-contract.test.ts — 2026-05-19 4-way AuthInput 반영
 import { describe, it, expect } from 'vitest';
-import { createMockAdapter } from '@/lib/markets/mock/adapter';
+import { createDebugAdapter } from '@/lib/markets/debug';
 import {
-  TokenSetSchema,
+  StoredCredentialSchema,
   CategoryNodeSchema,
   CreateProductResultSchema,
   ProductSchema,
   MarketMappingSchema,
-} from '@/lib/schemas/market';
+} from '@/lib/schemas';
 
-describe('MarketAdapter contract — mock(naver) happy path', () => {
-  const adapter = createMockAdapter('naver');
+describe('MarketAdapter contract — debug(naver) happy path', () => {
+  const adapter = createDebugAdapter('naver');
 
-  it('authenticate → TokenSetSchema 통과', async () => {
-    const token = await adapter.authenticate('dummy_code');
-    expect(() => TokenSetSchema.parse(token)).not.toThrow();
-    expect(token.accessToken.length).toBeGreaterThan(10);
+  it('authenticate({kind:"oauth_code"}) → StoredCredentialSchema 통과 (kind=oauth)', async () => {
+    const cred = await adapter.authenticate({ kind: 'oauth_code', code: 'dummy_code' });
+    expect(() => StoredCredentialSchema.parse(cred)).not.toThrow();
+    expect(cred.kind).toBe('oauth');
+    if (cred.kind === 'oauth') expect(cred.payload.accessToken.length).toBeGreaterThan(10);
   });
 
   it('fetchCategoryTree → 모든 노드가 CategoryNodeSchema 통과', async () => {
@@ -444,14 +601,14 @@ describe('MarketAdapter contract — mock(naver) happy path', () => {
 
 ### 5.1 위치
 
-- 오케스트레이터: `supabase/functions/registration-run/index.ts`.
-- 어댑터 호출 wrap: `supabase/functions/_shared/with-retry.ts`.
-- 동시 호출 한도: `supabase/functions/_shared/limiter.ts` (마켓별 token bucket).
+- 오케스트레이터: `apps/api/supabase/functions/registration-run/index.ts`.
+- 어댑터 호출 wrap: `apps/api/supabase/functions/_shared/with-retry.ts`.
+- 동시 호출 한도: `apps/api/supabase/functions/_shared/limiter.ts` (마켓별 token bucket).
 
 ### 5.2 재시도 정책 (지수 백오프 + jitter)
 
 ```ts
-// supabase/functions/_shared/with-retry.ts
+// apps/api/supabase/functions/_shared/with-retry.ts
 import { MarketError } from '@/lib/markets/errors';
 
 export interface RetryPolicy {
@@ -514,7 +671,7 @@ export async function withRetry<T>(
 | 11st / gmarket / auction | - | - | v2 |
 
 ```ts
-// supabase/functions/_shared/limiter.ts
+// apps/api/supabase/functions/_shared/limiter.ts
 const PER_MARKET_CONCURRENCY: Record<string, number> = {
   naver: 3,
   coupang: 5,
@@ -536,7 +693,7 @@ const PER_MARKET_CONCURRENCY: Record<string, number> = {
 `security.md` §6.4 를 본 문서 규칙으로 승격.
 
 ```ts
-// supabase/functions/_shared/logger.ts (Edge)
+// apps/api/supabase/functions/_shared/logger.ts (Edge)
 import pino from 'pino'; // Deno 호환 빌드 또는 동등 구조화 로거
 import { redact } from './redact'; // security.md §6.2 마스킹
 
@@ -582,7 +739,7 @@ logger.error(
 ### 7.1 정의
 
 ```ts
-// src/lib/markets/errors.ts
+// apps/web/src/lib/markets/errors.ts
 export type MarketErrorCode =
   | 'unauthorized'   // 401, invalid_grant, revoked
   | 'rate_limit'     // 429
@@ -629,9 +786,11 @@ export class MarketError extends Error {
 
 ---
 
-## 8. OAuth 흐름 (provider 별)
+## 8. 인증 흐름 (provider 별)
 
-### 8.1 시퀀스 (ASCII)
+> **2026-05-19 갱신**: OAuth 흐름은 **네이버 한정**. 쿠팡 (HMAC) / G마켓·옥션 (ESM JWT) 은 **`markets-connect` Edge Function 의 폼 입력 흐름** 으로 처리 — `features/markets.md` §4 / §5 참조. 11번가 (API Key) 는 v2.
+
+### 8.1 시퀀스 (네이버 OAuth — ASCII)
 
 ```
 [Seller Browser]   [App Frontend]      [Edge: oauth-start]     [Market OAuth]    [Edge: oauth-callback]     [Adapter.authenticate]
@@ -671,84 +830,107 @@ export class MarketError extends Error {
 
 ---
 
-## 9. 마켓별 차이 매트릭스 (v1: 네이버 스마트스토어만)
+## 9. 마켓별 차이 매트릭스 (v1 4 마켓 + 11번가 v2 stub)
 
-> v1 활성 = naver 1개. 쿠팡 / 11번가 / G마켓 / 옥션 = **v2 예정** (인터페이스 호환 stub).
+> **2026-05-19 갱신**: v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 (real 어댑터까지 동작). 11번가 = v2 (IP 화이트리스트 정책).
 > 잠정값은 Phase 2 통합 테스트 후 갱신. 갱신 시 본 문서 §13 미해결 사안 행 제거.
 
-### 9.1 호출 / OAuth
+### 9.0 인증 방식 / 엔드포인트 요약 (5 마켓 마스터 표)
 
-| 항목 | 네이버 스마트스토어 (naver) — v1 활성 | 쿠팡 / 11st / gmarket / auction |
-|---|---|---|
-| OAuth 표준 | OAuth 2.0 Authorization Code (`type=SELF`) | **v2 예정** — 쿠팡은 HMAC, 그 외는 Phase 2 확인 |
-| 토큰 endpoint | `https://api.commerce.naver.com/external/v1/oauth2/token` (확정, form-urlencoded) | v2 |
-| `scope` | 상품 등록·조회 권한 (실제 키 이름 Phase 2 확인) | v2 |
-| refresh TTL | 잠정 14일 | v2 |
-| HTTP timeout (어댑터 fetch) | 15s | v2 |
-| 일일 호출 한도 | Phase 2 실측 | v2 |
-| RPS (동시 호출 한도, §5.3) | 3 | v2 |
-| 429 헤더 | `Retry-After` (초) | v2 |
+| 마켓 | `MarketCredentialKind` | `AuthInput.kind` | endpoint / base | refresh | IP 화이트리스트 | v1/v2 |
+|---|---|---|---|---|---|---|
+| 네이버 스마트스토어 (`naver`) | `oauth` | `oauth_code` | `https://api.commerce.naver.com/external/v1/oauth2/token` | 지원 (refresh_token rotation) | 불필요 | **v1** |
+| 쿠팡 (`coupang`) | `hmac` | `hmac_key` | `https://api-gateway.coupang.com` (HMAC-SHA256 헤더 서명) | 없음 (영구 키) | 불필요 | **v1** |
+| G마켓 (`gmarket`) | `esm_jwt` | `esm_jwt` | `https://etapi.gmarket.com` (`site='G'`) | JWT `iat` 만료 시 어댑터가 매 호출 직전 자체 재생성 | 불필요 | **v1** |
+| 옥션 (`auction`) | `esm_jwt` | `esm_jwt` | `https://etapi.gmarket.com` (`site='A'` — 동일 ESM 2.0 게이트웨이) | 동일 (JWT 자체 재생성) | 불필요 | **v1** |
+| 11번가 (`11st`) | `api_key` | `api_key` | `https://api.11st.co.kr` | 없음 | **필요** (Supabase Edge Function outbound IP 동적 ↔ 11번가 정책 충돌) | **v2** |
+
+**확장 정책 (v1 부터 4-way union)**: 본 표의 5 마켓이 4 가지 `AuthInput.kind` 를 모두 커버한다 (oauth_code / hmac_key / esm_jwt / api_key). 신규 인증 방식 추가 시:
+
+1. `AuthInput` zod discriminated union 에 신규 `kind` 분기 추가 + `MarketCredentialKind` enum 1값 추가
+2. 어댑터 1파일 (`apps/web/src/lib/markets/real/<id>/adapter.ts`) — `MarketAdapter` 인터페이스 5메서드 구현
+3. 단위 테스트 1파일 — §11 매트릭스 8 케이스
+
+**인터페이스 시그니처는 변경되지 않음** (`authenticate(input: AuthInput) → StoredCredential` 그대로). 호환 보존.
+
+### 9.1 호출 / 인증 사양
+
+| 항목 | 네이버 (`naver`) | 쿠팡 (`coupang`) | G마켓 (`gmarket`) | 옥션 (`auction`) | 11번가 (`11st`) — v2 |
+|---|---|---|---|---|---|
+| 인증 표준 | OAuth 2.0 Authorization Code (`type=SELF`) | HMAC-SHA256 헤더 서명 (요청별) | ESM 2.0 JWT (HS256, 셀러 secretKey 서명) | 동일 (`site='A'`) | API Key 헤더 |
+| 토큰/키 보관 형태 | access + refresh + expiresAt (TokenSet) | accessKey + secretKey + vendorId (영구) | masterId + secretKey + sellerId + site (영구) | 동일 | apiKey 단일 (영구) |
+| `client_id` / `vendor_id` / `master_id` 보관 | Edge Function env (`NAVER_CLIENT_ID/SECRET`) | 셀러 입력 (`vendorId`) | 셀러 입력 (`masterId`) | 동일 | 셀러 입력 (`apiKey`) |
+| `redirect_uri` (화이트리스트) | `https://<host>/markets/callback/naver` | 해당 없음 (OAuth 미사용) | 해당 없음 | 해당 없음 | 해당 없음 |
+| `scope` | `product.write product.read` (잠정) | 권한은 쿠팡 윙에서 키 발급 시 부여 | ESM 마이샵 권한 | 동일 | 11번가 셀러오피스 권한 |
+| `code` 유효 시간 | 10분 (잠정) | n/a | n/a | n/a | n/a |
+| `access_token` TTL | 잠정 1시간 | n/a (영구) | n/a (JWT 매 호출 재생성) | 동일 | n/a (영구) |
+| `refresh_token` TTL | 잠정 14일 | — | — | — | — |
+| refresh rotation | rotation 있음 가정 | n/a | n/a | n/a | n/a |
+| HTTP timeout (어댑터 fetch) | 15s | 15s | 15s | 15s | n/a (v2) |
+| 429 헤더 | `Retry-After` (초) | `Retry-After` (초) | (Phase 2 실측) | (동일) | (v2) |
+| RPS (§5.3 잠정) | 3 | 5 | 3 (Phase 2 실측) | 3 (Phase 2 실측) | v2 |
+| IP 화이트리스트 | 불필요 | 불필요 | 불필요 | 불필요 | **필요** → v2 차단 |
 
 ### 9.2 카테고리 트리
 
-| 항목 | 네이버 스마트스토어 |
-|---|---|
-| 최대 깊이 | 4 (잠정) |
-| 조회 방식 | 전체 트리 1회 조회 |
-| 캐시 정책 | 24시간 TTL (호출측 책임) |
-| 변경 통지 | webhook 없음 → polling |
+| 항목 | naver | coupang | gmarket | auction | 11st |
+|---|---|---|---|---|---|
+| 최대 깊이 | 4 (잠정) | 5 (잠정) | 4 (잠정) | 4 (잠정) | v2 |
+| 조회 방식 | 전체 트리 1회 | 분할 페이징 (Phase 2 확인) | 전체 트리 1회 | 동일 | v2 |
+| 캐시 정책 | 24h TTL (호출측 책임) | 24h TTL | 24h TTL | 24h TTL | v2 |
+| 변경 통지 | webhook 없음 → polling | 동일 | 동일 | 동일 | v2 |
 
-> 쿠팡 / 11st / gmarket / auction 의 카테고리 트리 사양은 v2 인터페이스 확정 후 본 표에 행 추가.
+### 9.3 이미지 규격 (Phase 2 실측 보정 예정)
 
-### 9.3 이미지 규격
+| 항목 | naver | coupang | gmarket | auction | 11st |
+|---|---|---|---|---|---|
+| 권장 해상도 | 1000×1000 이상 | 1000×1000 이상 | 600×600 이상 | 동일 | v2 |
+| 허용 포맷 | JPEG / PNG | JPEG / PNG / WebP | JPEG / PNG | 동일 | v2 |
+| 최대 용량 | 10 MB | 5 MB | 5 MB | 동일 | v2 |
+| 최대 장수 | 10 | 10 | 10 | 10 | v2 |
 
-| 항목 | 네이버 스마트스토어 |
-|---|---|
-| 권장 해상도 | 1000 × 1000 이상 |
-| 허용 포맷 | JPEG / PNG |
-| 최대 용량 | 10 MB |
-| 최대 장수 | 10 |
-| 워터마크 정책 | 금지 (마켓 정책) |
-
-> 이미지 변환 파이프라인은 본 문서 범위 밖. `features/registration.md` §이미지 파이프라인 참조.
-> 쿠팡 등 v2 마켓별 이미지 규격은 v2 진입 직전 추가.
+> 이미지 변환 파이프라인은 본 문서 범위 밖. `cross-cutting/image-pipeline.md` 참조.
 
 ### 9.4 필수 필드 / quirks
 
-| 항목 | 네이버 스마트스토어 |
-|---|---|
-| 필수 필드 | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 인증정보(품목별) |
-| 알려진 quirk | 상품명 한도 100자 (잠정), 특수문자 일부 거부 |
-| 부분 성공 가능성 | 적음 |
+| 항목 | naver | coupang | gmarket / auction |
+|---|---|---|---|
+| 필수 필드 | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 인증정보(품목별) | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 벤더 인증 | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 셀러 인증 |
+| 알려진 quirk | 상품명 한도 100자, 특수문자 일부 거부 | 옵션 조합 등록 / 카테고리별 필수 인증서 | ESM 통합 (G+A 동시 등록 가능, site 파라미터로 분기) |
+| 부분 성공 가능성 | 적음 | 옵션 단위 일부 실패 가능 | 적음 |
 
 ### 9.5 mock 시나리오 매핑 (debug)
 
-| 시나리오 | naver mock |
-|---|---|
-| happy | 성공 응답 |
-| 5xx | `server` throw |
-| 401 | `unauthorized` throw (`invalid_grant`) |
-| 429 | `rate_limit` (retryAfterMs=1500) |
-| timeout | `network` throw after 15s |
-| partial | createProduct status='partial' + warnings (v2 다중 마켓 시뮬레이션용 케이스 — v1 단일 마켓에서는 의미 제한적) |
+| 시나리오 | naver (oauth) | coupang (hmac) | gmarket / auction (esm_jwt) |
+|---|---|---|---|
+| happy | StoredCredential(kind=oauth) | StoredCredential(kind=hmac) | StoredCredential(kind=esm_jwt) |
+| 5xx | `server` throw | 동일 | 동일 |
+| 401 | `unauthorized` throw (`invalid_grant`) | `unauthorized` (HMAC 서명 거부) | `unauthorized` (JWT 검증 실패) |
+| 429 | `rate_limit` (retryAfterMs=1500) | 동일 | 동일 |
+| timeout | `network` throw after 15s | 동일 | 동일 |
+| partial | createProduct status='partial' + warnings | 동일 (옵션 일부 실패 시뮬레이션) | 동일 |
 
-### 9.6 확장 정책 (v2 인터페이스 확장)
+### 9.6 확장 정책 (v1 이후)
 
-- **`authenticate` input 확장 필요**: 현재 `code: string` 으로 OAuth code 만 받음. **v2 어댑터 인터페이스 확장 — `authenticate` 의 input 을 `{kind:'oauth_code'|'hmac_key', ...}` union 으로 확대 필요 (쿠팡 HMAC 대응)**.
-- 호환 보존: v1 stub 어댑터 (coupang / 11st / gmarket / auction) 는 5메서드 시그니처를 유지하되 호출 시 즉시 `MarketError('unknown')` throw. 인터페이스 확장 시 stub 의 시그니처도 union 으로 확대 적용.
-- v2 진입 시점: 본 §확장 정책 → §9 표로 통합 + `MarketAdapter` 인터페이스 PR (architect + security 합의) + 마켓별 어댑터 본문 구현.
+- **v1 부터 4-way union 강제**: `AuthInput` 은 oauth_code / hmac_key / esm_jwt / api_key 4 변형이 이미 v1 인터페이스에 들어가 있다. v2 진입 시점에 인터페이스 시그니처 변경 없이 11번가 어댑터 본문(real 구현) + IP 화이트리스트 해결책만 추가하면 됨.
+- **신규 인증 방식 추가 시** (예: 향후 OAuth2 Client Credentials 마켓 추가):
+  1. `AuthInput` 에 `kind` 분기 추가 (`apps/web/src/lib/schemas/market.ts`)
+  2. `MarketCredentialKind` enum 에 1값 추가
+  3. 어댑터 1파일 (`apps/web/src/lib/markets/real/<id>/adapter.ts`)
+  4. 단위 테스트 1파일
+- **호환 보존**: 본 절차로 기존 어댑터 4개 코드 0줄 수정. 인터페이스 5메서드 시그니처 그대로.
 
 ---
 
 ## 10. 신규 마켓 추가 절차
 
-1. **인터페이스 구현 파일 1개**: `src/lib/markets/<id>/adapter.ts` — `MarketAdapter` 5메서드.
-2. **마켓별 zod**: `src/lib/markets/<id>/schema.ts` — 마켓 API 요청/응답 검증 스키마.
-3. **단위 테스트**: `src/lib/markets/<id>/__tests__/adapter.test.ts` — §11 테스트 매트릭스 8개 케이스 모두 통과.
-4. **mock 어댑터 확장**: `src/lib/markets/mock/adapter.ts` 에 신규 마켓 시나리오 추가 (`§4.2`).
+1. **인터페이스 구현 파일 1개**: `apps/web/src/lib/markets/<id>/adapter.ts` — `MarketAdapter` 5메서드.
+2. **마켓별 zod**: `apps/web/src/lib/markets/<id>/schema.ts` — 마켓 API 요청/응답 검증 스키마.
+3. **단위 테스트**: `apps/web/src/lib/markets/<id>/__tests__/adapter.test.ts` — §11 테스트 매트릭스 8개 케이스 모두 통과.
+4. **mock 어댑터 확장**: `apps/web/src/lib/markets/mock/adapter.ts` 에 신규 마켓 시나리오 추가 (`§4.2`).
 5. **`features/markets.md` 갱신**: 마켓 OAuth 설정 / 카테고리 캐시 / 이미지 규격 / 필수 필드 표 갱신.
 6. **`__shared/limiter.ts` 갱신**: 동시 호출 한도.
-7. **`getAdapter` 의 switch 에 추가**: `src/lib/markets/index.ts`.
+7. **`getAdapter` 의 switch 에 추가**: `apps/web/src/lib/markets/index.ts`.
 8. **CI 통과**: `pnpm test` + `pnpm grep:secrets` + `pnpm grep:mock-leak`.
 9. **security 검수**: OAuth state / redirect_uri / 토큰 저장 / 로깅 마스킹 — `security.md` §14 체크리스트.
 
@@ -790,7 +972,7 @@ export class MarketError extends Error {
 ## 12. 외부 의존 (Deno / Edge Function)
 
 - **HTTP 클라이언트**: `globalThis.fetch` 1차. 별도 라이브러리 (axios / ky) 도입 금지 — Edge Function 번들 크기 / Deno 호환성 이슈.
-- **zod**: Edge Function 도 동일 버전 사용. 프론트와 단일 소스 (`src/lib/schemas/market.ts`) 를 Edge Function 에서도 import (relative path 또는 import map).
+- **zod**: Edge Function 도 동일 버전 사용. 프론트와 단일 소스 (`apps/web/src/lib/schemas/market.ts`) 를 Edge Function 에서도 import (relative path 또는 import map).
 - **로거**: pino (Deno-compatible build) 또는 자체 구조화 logger. `console.*` 직접 사용 금지.
 
 ---
@@ -799,14 +981,16 @@ export class MarketError extends Error {
 
 | # | 사안 | 영향 | 결정 시점 |
 |---|---|---|---|
-| O-1 | 네이버 스마트스토어 실제 OAuth endpoint / scope 명 / refresh TTL | §8 / §9.1 갱신 | Phase 2 통합 시작 |
-| O-2 | 쿠팡 OAuth 표준 준수 여부 (벤더 비표준 절차 가능성) | §8 어댑터 구현 분기 | Phase 2 |
+| O-1 | 네이버 스마트스토어 실제 scope 명 / refresh TTL 실측 | §9.1 표 갱신 | Phase 2 통합 시작 |
+| O-2 | 쿠팡 HMAC 서명 알고리즘 헤더 상수 / 시계 동기 윈도우 | §9.1 / 어댑터 구현 | Phase 2 |
 | O-3 | 마켓별 실측 RPS / 일일 한도 | §5.3 `limiter.ts` | Phase 2 부하 테스트 |
 | O-4 | 429 응답 헤더 포맷 (`Retry-After` vs 마켓 자체) | §7.2 `retryAfterMs` 환산 | Phase 2 |
 | O-5 | 이미지 변환 파이프라인 멱등 키 설계 (S3 키 / Storage path) | `features/registration.md` 이미지 섹션 | Phase 2 |
-| O-6 | Edge Function timeout 한도 확정 → 마켓당 호출 분할 단위 | §5.4 / `features/registration.md` 잡 분할 | Phase 1 운영 한도 확인 후 |
-| O-7 | Vault vs pgcrypto envelope 최종 결정 — 토큰 저장 형식이 어댑터 직접 영향 없음 (호출측 책임), 단 마이그레이션 시 본 문서 §8 시퀀스 갱신 가능 | `security.md` §4.2 | Phase 1 |
-| O-8 | 부분 성공(partial) 정의 — 쿠팡 외 다른 마켓에서도 적용 가능한지 | §7.1 `CreateProductResult.status` | Phase 2 |
+| O-6 | Edge Function timeout 한도 확정 → 마켓당 호출 분할 단위 | §5.4 / `features/registration.md` 잡 분할 | **결정 완료** (OQ-15, Pro 400s 가정) |
+| O-7 | Vault vs pgcrypto envelope 최종 결정 | `security.md` §4.2 | **결정 완료** (OQ-04, pgcrypto) |
+| O-8 | 부분 성공(partial) 정의 — 마켓별 적용 범위 | §7.1 `CreateProductResult.status` | Phase 2 |
+| O-9 | 11번가 IP 화이트리스트 정책 해결책 (Supabase Pro 고정 IP / 외부 프록시 / 정책 협상) | §9.0 / `features/markets.md` §3.2 / 11st 어댑터 활성화 | **v2** 진입 직전 결정 |
+| O-10 | ESM 2.0 JWT 의 `iat` 클럭 스큐 허용치 / 어댑터 내부 재생성 정책 | §9.1 gmarket / auction 어댑터 | Phase 2 |
 
 ---
 
@@ -827,3 +1011,4 @@ export class MarketError extends Error {
 | 일자 | 버전 | 변경 | 작성 |
 |---|---|---|---|
 | 2026-05-18 | v1.0 | 최초 작성. MarketAdapter 5메서드 / 공용 zod / mock-real 동등성 / 재시도·rate-limit 외부 위임 / 에러 매핑 / OAuth 시퀀스 / 마켓별 차이 매트릭스 / 테스트 매트릭스 정의. | backend |
+| 2026-05-19 | v1.1 | **5마켓 MVP 확장 Wave 1**. `authenticate(input)` 의 input 을 4-way `AuthInput` discriminated union 으로 확장 (oauth_code / hmac_key / esm_jwt / api_key). `refreshToken` optional 명시. 반환 타입 `TokenSet` → `StoredCredential`. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 활성, 11번가 = v2 (IP 화이트리스트). §9 마켓별 차이 매트릭스 5마켓 표로 확장. | backend + architect |

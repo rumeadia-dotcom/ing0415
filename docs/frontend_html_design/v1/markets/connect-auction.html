@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 다중 마켓 상품 자동 등록 SaaS. 옥션 연결 (ESM JWT)">
+  <meta name="robots" content="noindex,nofollow">
+  <title>옥션 연결 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+
+  <!--
+    s5 connect-provider (n37, v1) — provider=auction (ESM 2.0 JWT, site='A')
+    -----------------------------------------------------------
+    역할: G마켓(connect-gmarket.html) 과 동일한 ESM+ 마스터 키 셋을 사용.
+          backend 가 site='A' 로 마킹 → JWT 발급 시 옥션(auction) 엔드포인트 라우팅.
+
+    실행류 버튼:
+      - [연결]
+        - 클릭 → markets-connect invoke {market:'auction', input: {kind:'esm_jwt', masterId, secretKey, sellerId, site:'A'}}
+
+    G마켓과 어댑터 본문 99% 공유. UX 분리 이유: 셀러가 마켓별로 별도 라벨/셀러 ID 를 관리할 수 있게.
+  -->
+
+</head>
+<body>
+
+  <div class="app-shell" data-sidebar="expanded">
+
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">MarketCast<small>v1</small></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+        <a href="../dashboard/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+        <a href="../register/step-1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+        <a href="../markets/index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+        <a href="../history/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+        <div class="sidebar-group-label">보조</div>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">KM</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">김셀러</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+        <div class="topbar-title">옥션 연결</div>
+        <div class="spacer"></div>
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <main class="main-content" aria-labelledby="page-title">
+
+        <div class="connect-wrap">
+
+          <div class="page-header">
+            <a href="./connect.html" class="back-btn" aria-label="마켓 선택으로 돌아가기">
+              <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-arrow-left"/></svg>
+            </a>
+            <span class="market-tile lg auction" aria-hidden="true">A</span>
+            <div>
+              <h1 id="page-title">옥션 연결</h1>
+              <p class="t-sm t-muted" style="margin: 2px 0 0;">ESM 2.0 영구 키를 입력하여 연결합니다 (G마켓과 동일 마스터 키 사용 가능)</p>
+            </div>
+          </div>
+
+          <section class="card" aria-labelledby="form-title">
+
+            <h2 id="form-title" class="t-h3" style="margin: 0 0 var(--sp-4);">계정 정보 입력</h2>
+
+            <form action="#" method="post" novalidate>
+
+              <div class="field">
+                <label for="account-label" class="label">
+                  계정 라벨 <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="account-label"
+                  name="accountLabel"
+                  type="text"
+                  class="input"
+                  placeholder="예: 옥션 메인"
+                  required
+                  aria-required="true"
+                  maxlength="40"
+                >
+                <p class="field-hint">G마켓과 별도 라벨을 사용해 한눈에 구분.</p>
+              </div>
+
+              <div class="field">
+                <label for="master-id" class="label">
+                  ESM 마스터 ID <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="master-id"
+                  name="masterId"
+                  type="text"
+                  class="input"
+                  placeholder="esm-master-xxxxxx"
+                  required
+                  aria-required="true"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="field">
+                <label for="secret-key" class="label">
+                  Secret Key <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="secret-key"
+                  name="secretKey"
+                  type="password"
+                  class="input"
+                  placeholder="HS256 서명용 비공개 키"
+                  required
+                  aria-required="true"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="field">
+                <label for="seller-id" class="label">
+                  옥션 셀러 ID <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="seller-id"
+                  name="sellerId"
+                  type="text"
+                  class="input"
+                  placeholder="auction_seller_xxx"
+                  required
+                  aria-required="true"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+                <p class="field-hint">옥션 측 셀러 식별자. G마켓 ID 와 다를 수 있음.</p>
+              </div>
+
+              <!-- 본 폼은 site='A' 로 고정. -->
+              <input type="hidden" name="site" value="A">
+
+            </form>
+
+          </section>
+
+          <section class="card mt-4" aria-labelledby="security-title">
+            <h2 id="security-title" class="t-h3" style="margin: 0 0 var(--sp-4);">보안 안내</h2>
+            <ul class="security-list">
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>키는 <strong>TLS 즉시 전송 + pgcrypto 암호화 저장</strong>. 클라이언트에 다시 노출되지 않음.</span>
+              </li>
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>JWT (HS256) 는 <strong>Edge Function 내부에서만 발급</strong>, site='A' 로 옥션 엔드포인트 라우팅.</span>
+              </li>
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>G마켓과 동일 마스터 키를 사용해도 무방. 셀러 ID 만 분리하면 됩니다.</span>
+              </li>
+            </ul>
+          </section>
+
+          <div class="cta-row">
+            <a href="./connect.html" class="btn btn-outline btn-lg">취소</a>
+            <button type="submit" class="btn btn-primary btn-lg" id="connect-cta">
+              연결 →
+            </button>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+</body>
+</html>

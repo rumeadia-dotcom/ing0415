@@ -15,8 +15,8 @@
 
 ### 1.1 목적
 
-- 셀러가 연결한 마켓(스마트스토어·쿠팡·11번가·G마켓·옥션) OAuth access/refresh 토큰과 API 키를 **DB 평문 노출 0** 상태로 보관한다.
-- 토큰 복호화 권한은 **Edge Function (service_role)** 에만 부여하고, 클라이언트·anon·authenticated role 의 복호화 경로를 **물리적으로 차단**한다.
+- 셀러가 연결한 마켓(스마트스토어·쿠팡·G마켓·옥션·11번가) 의 **4-way 자격증명** (OAuth access/refresh 토큰 / HMAC 키 / ESM JWT 키 / API Key) 을 **DB 평문 노출 0** 상태로 보관한다 (2026-05-19 4-way 확장 — `market-adapter.md` §2.2 참조).
+- 복호화 권한은 **Edge Function (service_role)** 에만 부여하고, 클라이언트·anon·authenticated role 의 복호화 경로를 **물리적으로 차단**한다.
 - 키 회전·토큰 회전·사고 대응 절차를 사전에 정의하여, 사고 발생 시 **수동 즉흥 대응 금지**한다.
 
 ### 1.2 범위
@@ -70,6 +70,7 @@
 2. **회전 절차 자기통제**: 사고 대응 시 마스터 키 즉시 회전이 외부 의존 없이 가능. Supabase Vault 채택 시 Supabase 측 키 회전 SLA 에 종속.
 3. **이식성**: 향후 Supabase 외부로 이전 또는 다중 region 분산 시 표준 Postgres 확장으로 호환.
 4. **debug 동등성 보장 용이**: 두 Supabase 프로젝트 모두 동일 pgcrypto 확장 활성화 + 별도 마스터 키 주입. mock 토큰도 동일 경로로 암호화.
+5. **(2026-05-19 추가)** **단일 jsonb 페이로드 + kind 컬럼 구조와 호환**: pgcrypto 는 `pgp_sym_encrypt(text, key)` / `pgp_sym_decrypt(bytea, key)` 시그니처로 임의 길이 텍스트를 다룬다. jsonb 페이로드를 `::text` 캐스팅 후 암호화하면 4-way kind (oauth / hmac / esm_jwt / api_key) 모두 단일 컬럼 `credential_payload bytea` 로 통합 가능. Vault 의 `vault.secrets` 는 단일 secret 문자열 단위라 동일 통합 효과가 있으나 RLS-bypass view 의존이 추가됨.
 
 **금지**: Supabase Vault 와 pgcrypto 를 **혼용** 금지. 단일 경로로만 운영해야 사고 시 추적·감사가 가능하다.
 
@@ -79,9 +80,10 @@
 
 ## 3. 테이블 DDL
 
-### 3.1 `market_credentials`
+### 3.1 `market_credentials` (2026-05-19 갱신 — 단일 jsonb 페이로드)
 
-마켓 OAuth 토큰·API 키의 단일 저장소. 한 셀러 × 한 마켓 × 한 계정 = 1 row.
+마켓 OAuth 토큰·HMAC 키·ESM JWT 키·API Key 의 단일 저장소. 한 셀러 × 한 마켓 × 한 계정 = 1 row.
+**2026-05-19 변경**: 이전의 `encrypted_access_token` / `encrypted_refresh_token` 두 컬럼을 **단일 `credential_payload bytea` (pgcrypto 로 암호화된 jsonb)** 로 통합. `credential_kind` 컬럼 신설 (4값: `oauth` / `hmac` / `esm_jwt` / `api_key`). 이는 4-way `AuthInput` 인터페이스 확장 (`market-adapter.md` §2.2) 과 1:1 정합.
 
 ```sql
 -- pgcrypto 확장 활성화 (debug / real 양 프로젝트 모두)
@@ -89,14 +91,19 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE public.market_credentials (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  market_account_id        uuid NOT NULL REFERENCES public.market_accounts(id) ON DELETE CASCADE,
   seller_id                uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   market_id                text NOT NULL,           -- 'naver' | 'coupang' | '11st' | 'gmarket' | 'auction' (market-adapter.md 단일 출처)
-  market_account_label     text NOT NULL,           -- 셀러가 부여한 표시 이름 (예: "메인 스토어")
-  encrypted_access_token   bytea NOT NULL,          -- pgp_sym_encrypt 결과
-  encrypted_refresh_token  bytea NOT NULL,
-  token_expires_at         timestamptz NOT NULL,    -- access_token 만료 시각
+  credential_kind          text NOT NULL
+                           CHECK (credential_kind IN ('oauth', 'hmac', 'esm_jwt', 'api_key')),
+  credential_payload       bytea NOT NULL,          -- pgp_sym_encrypt(jsonb_payload::text, master_key)
+                                                    -- jsonb 페이로드 형식 (kind 별):
+                                                    --   oauth: { accessToken, refreshToken, expiresAt, scope?, tokenType }
+                                                    --   hmac:  { accessKey, secretKey, vendorId }
+                                                    --   esm_jwt: { masterId, secretKey, sellerId, site }
+                                                    --   api_key: { apiKey }
+  token_expires_at         timestamptz,             -- OAuth (네이버) 만 NOT NULL. HMAC / ESM JWT / API Key 는 NULL 허용 (영구 키).
   ciphertext_kid           text NOT NULL,           -- 사용된 마스터 키 식별자 (예: 'mk_2026_q2')
-  scope                    text[] NOT NULL DEFAULT '{}',
   status                   text NOT NULL DEFAULT 'active'
                            CHECK (status IN ('active', 'revoked', 'refresh_failed', 'expired')),
   last_refresh_at          timestamptz,
@@ -106,18 +113,37 @@ CREATE TABLE public.market_credentials (
   rotated_at               timestamptz NOT NULL DEFAULT now(),  -- 마지막 키 회전·토큰 회전 시각
   revoked_at               timestamptz,
 
-  CONSTRAINT market_credentials_unique_seller_market_account
-    UNIQUE (seller_id, market_id, market_account_label)
+  CONSTRAINT market_credentials_unique_account
+    UNIQUE (market_account_id),
+  -- credential_kind 가 market_id 와 정합한지 도메인 트리거에서 검증 (oauth=naver / hmac=coupang / esm_jwt=gmarket|auction / api_key=11st)
+  CONSTRAINT market_credentials_kind_market_check
+    CHECK (
+      (credential_kind = 'oauth' AND market_id = 'naver') OR
+      (credential_kind = 'hmac' AND market_id = 'coupang') OR
+      (credential_kind = 'esm_jwt' AND market_id IN ('gmarket', 'auction')) OR
+      (credential_kind = 'api_key' AND market_id = '11st')
+    ),
+  -- OAuth 만 token_expires_at 필수
+  CONSTRAINT market_credentials_oauth_expires_check
+    CHECK (
+      (credential_kind = 'oauth' AND token_expires_at IS NOT NULL) OR
+      (credential_kind <> 'oauth')
+    )
 );
 
 CREATE INDEX market_credentials_seller_id_idx        ON public.market_credentials (seller_id);
 CREATE INDEX market_credentials_market_id_idx        ON public.market_credentials (market_id);
+CREATE INDEX market_credentials_kind_idx             ON public.market_credentials (credential_kind);
 CREATE INDEX market_credentials_token_expires_at_idx ON public.market_credentials (token_expires_at)
-  WHERE status = 'active';   -- 만료 임박 토큰 스캔용 부분 인덱스
+  WHERE status = 'active' AND credential_kind = 'oauth';   -- 만료 임박 OAuth 토큰만 스캔
 CREATE INDEX market_credentials_status_idx           ON public.market_credentials (status);
 
 COMMENT ON TABLE  public.market_credentials IS
-  'service_role only. 마켓 OAuth 토큰 · API 키. 컬럼 암호화는 pgcrypto / 마스터 키는 Edge Function env. 클라이언트 직접 접근 금지.';
+  'service_role only. 마켓 자격증명 (OAuth/HMAC/ESM JWT/API Key) 단일 저장소. credential_payload = pgcrypto envelope(jsonb). 클라이언트 직접 접근 금지.';
+COMMENT ON COLUMN public.market_credentials.credential_kind IS
+  '4-way enum — market-adapter.md §2.2 AuthInput 의 결과 kind. 마켓별 정합성은 CHECK 제약으로 강제.';
+COMMENT ON COLUMN public.market_credentials.credential_payload IS
+  'pgcrypto 로 암호화된 jsonb 페이로드. kind 별 구조는 apps/web/src/lib/schemas/market.ts StoredCredentialSchema 와 1:1.';
 COMMENT ON COLUMN public.market_credentials.ciphertext_kid IS
   '암호화 시점 마스터 키 식별자. 키 회전 시 신·구 키 양립을 위한 라우팅 키.';
 COMMENT ON COLUMN public.market_credentials.last_refresh_error IS
@@ -208,58 +234,71 @@ COMMENT ON TABLE public.market_credentials IS
 - **필수**: 복호 결과 평문은 Edge Function 의 단일 함수 스코프에만 존재. 외부 변수·캐시·전역 상태 저장 금지.
 - **금지**: 복호화 RPC 를 Postgres view 로 expose 금지. RPC (함수) 만 허용 — view 는 RLS bypass 경로가 의도치 않게 열릴 위험.
 
-### 4.3 RPC 정의 (참고 시그니처)
+### 4.3 RPC 정의 (2026-05-19 4-way kind + 단일 jsonb 페이로드)
+
+**encrypt 시그니처**:
+`fn_encrypt_and_store_credential(p_market_account_id uuid, p_credential_kind text, p_payload jsonb, p_token_expires_at timestamptz, p_kid text, p_master_key text, p_edge_function_id text) RETURNS uuid`
+
+**decrypt 시그니처**:
+`fn_decrypt_credential(p_market_account_id uuid, p_master_key text, p_edge_function_id text) RETURNS TABLE (credential_id uuid, credential_kind text, payload jsonb, token_expires_at timestamptz, ciphertext_kid text)`
 
 ```sql
 CREATE OR REPLACE FUNCTION public.fn_encrypt_and_store_credential(
-  p_seller_id          uuid,
-  p_market_id          text,
-  p_account_label      text,
-  p_access_token       text,
-  p_refresh_token      text,
-  p_expires_at         timestamptz,
-  p_scope              text[],
-  p_master_key         text,    -- Edge Function 에서 env 로 전달
-  p_kid                text
+  p_market_account_id  uuid,
+  p_credential_kind    text,        -- 'oauth' | 'hmac' | 'esm_jwt' | 'api_key'
+  p_payload            jsonb,       -- kind 별 StoredCredentialSchema 와 1:1
+  p_token_expires_at   timestamptz, -- OAuth 만 NOT NULL, 나머지 NULL
+  p_kid                text,
+  p_master_key         text,        -- Edge Function env 에서 전달
+  p_edge_function_id   text         -- 호출 Edge Function 식별 (audit 추적)
 ) RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_id uuid;
+  v_id        uuid;
+  v_seller_id uuid;
+  v_market_id text;
 BEGIN
   -- service_role 검증
   IF auth.role() IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'fn_encrypt_and_store_credential: service_role required';
   END IF;
 
+  -- market_accounts 에서 seller_id / market_id 도출 (FK 무결성 + audit 정합성)
+  SELECT seller_id, market_id INTO v_seller_id, v_market_id
+    FROM public.market_accounts WHERE id = p_market_account_id;
+  IF v_seller_id IS NULL THEN
+    RAISE EXCEPTION 'market_account_id % not found', p_market_account_id;
+  END IF;
+
   INSERT INTO public.market_credentials (
-    seller_id, market_id, market_account_label,
-    encrypted_access_token, encrypted_refresh_token,
-    token_expires_at, ciphertext_kid, scope
+    market_account_id, seller_id, market_id, credential_kind,
+    credential_payload, token_expires_at, ciphertext_kid
   ) VALUES (
-    p_seller_id, p_market_id, p_account_label,
-    pgp_sym_encrypt(p_access_token, p_master_key),
-    pgp_sym_encrypt(p_refresh_token, p_master_key),
-    p_expires_at, p_kid, p_scope
+    p_market_account_id, v_seller_id, v_market_id, p_credential_kind,
+    pgp_sym_encrypt(p_payload::text, p_master_key),
+    p_token_expires_at, p_kid
   )
-  ON CONFLICT (seller_id, market_id, market_account_label)
+  ON CONFLICT (market_account_id)
   DO UPDATE SET
-    encrypted_access_token  = EXCLUDED.encrypted_access_token,
-    encrypted_refresh_token = EXCLUDED.encrypted_refresh_token,
-    token_expires_at        = EXCLUDED.token_expires_at,
-    ciphertext_kid          = EXCLUDED.ciphertext_kid,
-    scope                   = EXCLUDED.scope,
-    status                  = 'active',
-    last_refresh_at         = now(),
-    last_refresh_error      = NULL,
-    refresh_failure_count   = 0,
-    rotated_at              = now()
+    credential_kind     = EXCLUDED.credential_kind,
+    credential_payload  = EXCLUDED.credential_payload,
+    token_expires_at    = EXCLUDED.token_expires_at,
+    ciphertext_kid      = EXCLUDED.ciphertext_kid,
+    status              = 'active',
+    last_refresh_at     = now(),
+    last_refresh_error  = NULL,
+    refresh_failure_count = 0,
+    rotated_at          = now()
   RETURNING id INTO v_id;
 
-  INSERT INTO public.market_credentials_audit (credential_id, seller_id, event, kid_used, actor)
-  VALUES (v_id, p_seller_id, 'encrypt_store', p_kid, 'service_role');
+  INSERT INTO public.market_credentials_audit (
+    credential_id, seller_id, event, kid_used, kind, actor, edge_function_id
+  ) VALUES (
+    v_id, v_seller_id, 'encrypt_store', p_kid, p_credential_kind, 'service_role', p_edge_function_id
+  );
 
   RETURN v_id;
 END;
@@ -269,7 +308,60 @@ REVOKE ALL ON FUNCTION public.fn_encrypt_and_store_credential FROM PUBLIC, anon,
 GRANT  EXECUTE ON FUNCTION public.fn_encrypt_and_store_credential TO service_role;
 ```
 
-복호화 RPC `fn_decrypt_credential(p_credential_id uuid, p_master_key text)` 도 동일 패턴으로 정의. `auth.role() = 'service_role'` 가드 + audit insert 필수.
+**복호화 RPC** (`fn_decrypt_credential`):
+
+```sql
+CREATE OR REPLACE FUNCTION public.fn_decrypt_credential(
+  p_market_account_id  uuid,
+  p_master_key         text,
+  p_edge_function_id   text
+) RETURNS TABLE (
+  credential_id     uuid,
+  credential_kind   text,
+  payload           jsonb,
+  token_expires_at  timestamptz,
+  ciphertext_kid    text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_seller_id uuid;
+  v_cred_id   uuid;
+  v_kind      text;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'fn_decrypt_credential: service_role required';
+  END IF;
+
+  SELECT mc.id, mc.seller_id, mc.credential_kind INTO v_cred_id, v_seller_id, v_kind
+    FROM public.market_credentials mc
+    WHERE mc.market_account_id = p_market_account_id;
+
+  IF v_cred_id IS NULL THEN
+    RAISE EXCEPTION 'credential for market_account_id % not found', p_market_account_id;
+  END IF;
+
+  INSERT INTO public.market_credentials_audit (
+    credential_id, seller_id, event, kid_used, kind, actor, edge_function_id
+  ) SELECT v_cred_id, v_seller_id, 'decrypt', mc.ciphertext_kid, mc.credential_kind, 'service_role', p_edge_function_id
+    FROM public.market_credentials mc WHERE mc.id = v_cred_id;
+
+  RETURN QUERY
+    SELECT mc.id, mc.credential_kind,
+           pgp_sym_decrypt(mc.credential_payload, p_master_key)::jsonb,
+           mc.token_expires_at, mc.ciphertext_kid
+      FROM public.market_credentials mc
+      WHERE mc.id = v_cred_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fn_decrypt_credential FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.fn_decrypt_credential TO service_role;
+```
+
+**필수**: 어댑터 측에서 복호 결과 `payload` 를 `StoredCredentialSchema.parse({ kind: credential_kind, payload, expiresAt: token_expires_at })` 로 재검증 후 사용.
 
 ---
 
@@ -306,13 +398,17 @@ GRANT  EXECUTE ON FUNCTION public.fn_encrypt_and_store_credential TO service_rol
 
 ---
 
-## 6. 토큰 회전 (OAuth refresh)
+## 6. 토큰 회전 (kind 별)
 
-### 6.1 자동 갱신 트리거
+> **2026-05-19 갱신**: kind 별로 회전 정책이 다르다 — **OAuth (네이버) 만 자동 refresh**. HMAC (쿠팡) / API Key (11번가) 는 영구 키이므로 회전 불필요. ESM JWT (G마켓·옥션) 는 JWT 자체에 `iat` 만료가 있으나, 어댑터가 **매 호출 직전 자체 재생성** 하므로 본 vault 의 회전 로직 대상 아님 (영구 키 저장).
 
-- **필수**: 만료 **10분 전** 시점에 백그라운드 갱신 트리거. Edge Function 스케줄 (Supabase cron) + 마켓 API 호출 직전 lazy 갱신 양 경로 모두 가동.
-- **필수**: 갱신은 §4.1 의 저장 흐름과 동일 — refresh token 으로 새 access/refresh token 받아서 `fn_encrypt_and_store_credential` UPSERT.
-- **필수**: 갱신 도중 (1) 마켓 API 호출 시점에 만료 발생 방지 — 마켓 API 호출 직전 RPC `fn_decrypt_credential` 이 `token_expires_at < now() + 60s` 면 동기 갱신 후 토큰 반환.
+### 6.1 자동 갱신 트리거 (OAuth — 네이버 한정)
+
+- **필수**: `credential_kind='oauth'` 인 row 만 대상. 만료 **10분 전** 시점에 백그라운드 갱신 트리거. Edge Function 스케줄 (Supabase cron) + 마켓 API 호출 직전 lazy 갱신 양 경로.
+- **필수**: 갱신은 §4.1 의 저장 흐름과 동일 — refresh token 으로 새 access/refresh token 받아서 `fn_encrypt_and_store_credential` UPSERT (kind='oauth' 유지).
+- **필수**: lazy 경로 — 마켓 API 호출 직전 RPC `fn_decrypt_credential` 이 `credential_kind='oauth' AND token_expires_at < now() + 60s` 면 동기 갱신 후 반환.
+- **HMAC / ESM JWT / API Key**: cron 스캔 대상에서 제외 (`§3.1 부분 인덱스` 가 자동 필터). lazy 경로에서도 만료 검증 자체를 skip.
+- **ESM JWT 의 iat 만료**: 어댑터 내부 `transformProduct` / `createProduct` / `fetchCategoryTree` 호출 직전 JWT 를 secretKey 로 매번 재생성. vault 에는 secretKey + masterId + sellerId + site 만 저장되므로 회전 불필요.
 
 ### 6.2 갱신 실패 처리
 
@@ -353,7 +449,7 @@ GRANT  EXECUTE ON FUNCTION public.fn_encrypt_and_store_credential TO service_rol
 ### 7.2 마스킹 검증
 
 - **필수**: Sentry SDK 초기화 시 `beforeSend` 훅에서 금지 키 자동 마스킹. event 전체 JSON 을 재귀 순회하여 키 이름 매칭 시 `[MASKED]` 치환.
-- **필수**: CI 파이프라인에 `grep -E '(access_token|refresh_token|master_key)' src/ supabase/functions/` 가 코드 베이스에서 의도되지 않은 토큰 변수 노출이 없는지 검증. Edge Function 로깅 호출의 첫 번째 인자 객체 키도 ESLint 룰로 검출 시도 (security 가 룰 작성).
+- **필수**: CI 파이프라인에 `grep -E '(access_token|refresh_token|master_key)' src/ apps/api/supabase/functions/` 가 코드 베이스에서 의도되지 않은 토큰 변수 노출이 없는지 검증. Edge Function 로깅 호출의 첫 번째 인자 객체 키도 ESLint 룰로 검출 시도 (security 가 룰 작성).
 - **금지**: `console.log(credential)` `console.log({ ...credential, encrypted_access_token })` 같이 객체 통째 출력 금지. 명시적 화이트리스트 키만 추출하여 출력.
 
 ### 7.3 외부 API 로깅 패턴 적용
@@ -366,7 +462,7 @@ logger.info({ market: 'naver', status, tokenLen: token.length }, '← market res
 logger.error({ market: 'naver', err: maskError(e), correlationId }, '← market error');
 ```
 
-- **필수**: `maskError(e)` 는 error message 에서 토큰 패턴(`Bearer\s+\S+`, 길이 ≥ 32 의 영숫자 시퀀스) 을 자동 마스킹 후 반환. 구현 위치 = `supabase/functions/_shared/mask.ts` (Phase 2 에서 신설).
+- **필수**: `maskError(e)` 는 error message 에서 토큰 패턴(`Bearer\s+\S+`, 길이 ≥ 32 의 영숫자 시퀀스) 을 자동 마스킹 후 반환. 구현 위치 = `apps/api/supabase/functions/_shared/mask.ts` (Phase 2 에서 신설).
 
 ---
 
@@ -443,31 +539,35 @@ logger.error({ market: 'naver', err: maskError(e), correlationId }, '← market 
 
 ```sql
 CREATE TABLE public.market_credentials_audit (
-  id              bigserial PRIMARY KEY,
-  credential_id   uuid REFERENCES public.market_credentials(id) ON DELETE SET NULL,
-  seller_id       uuid NOT NULL,
-  market_id       text,
-  event           text NOT NULL
-                  CHECK (event IN (
-                    'encrypt_store',     -- 신규 저장 또는 갱신 UPSERT
-                    'decrypt',           -- 복호화 (마켓 API 호출 직전)
-                    'refresh_failed',    -- OAuth refresh 실패
-                    'revoke',            -- 토큰 revoke (셀러 자발 또는 마켓 측 invalid_grant)
-                    'rekey',             -- 마스터 키 회전 (재암호화)
-                    'recovery_verified'  -- 백업 복구 후 검증 (수동)
-                  )),
-  kid_used        text,                  -- 해당 이벤트 시점 KID
-  actor           text NOT NULL          -- 'service_role' | 'system_cron' | 'incident_response'
-                  CHECK (actor IN ('service_role', 'system_cron', 'incident_response')),
-  correlation_id  text,                  -- 요청 단위 추적 ID
-  error_code      text,                  -- 마스킹된 오류 코드만. raw response 금지.
-  occurred_at     timestamptz NOT NULL DEFAULT now()
+  id                bigserial PRIMARY KEY,
+  credential_id     uuid REFERENCES public.market_credentials(id) ON DELETE SET NULL,
+  seller_id         uuid NOT NULL,
+  market_id         text,
+  kind              text                  -- 2026-05-19 신설: credential_kind 함께 기록
+                    CHECK (kind IS NULL OR kind IN ('oauth', 'hmac', 'esm_jwt', 'api_key')),
+  event             text NOT NULL
+                    CHECK (event IN (
+                      'encrypt_store',     -- 신규 저장 또는 갱신 UPSERT (kind 함께 기록)
+                      'decrypt',           -- 복호화 (마켓 API 호출 직전)
+                      'refresh_failed',    -- OAuth refresh 실패 (kind='oauth' 만)
+                      'revoke',            -- 자격증명 revoke (셀러 자발 또는 마켓 측 invalid_grant)
+                      'rekey',             -- 마스터 키 회전 (재암호화)
+                      'recovery_verified'  -- 백업 복구 후 검증 (수동)
+                    )),
+  kid_used          text,                  -- 해당 이벤트 시점 KID
+  actor             text NOT NULL          -- 'service_role' | 'system_cron' | 'incident_response'
+                    CHECK (actor IN ('service_role', 'system_cron', 'incident_response')),
+  edge_function_id  text,                  -- 호출 Edge Function 식별 (markets-connect / markets-oauth-callback / markets-token-refresh / registration-run / ...)
+  correlation_id    text,                  -- 요청 단위 추적 ID
+  error_code        text,                  -- 마스킹된 오류 코드만. raw response 금지.
+  occurred_at       timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX market_credentials_audit_credential_id_idx ON public.market_credentials_audit (credential_id);
 CREATE INDEX market_credentials_audit_seller_id_idx    ON public.market_credentials_audit (seller_id);
 CREATE INDEX market_credentials_audit_occurred_at_idx  ON public.market_credentials_audit (occurred_at DESC);
 CREATE INDEX market_credentials_audit_event_idx        ON public.market_credentials_audit (event);
+CREATE INDEX market_credentials_audit_kind_idx         ON public.market_credentials_audit (kind);
 
 ALTER TABLE public.market_credentials_audit ENABLE ROW LEVEL SECURITY;
 -- 정책 없음 — service_role only. 클라이언트 조회 차단.

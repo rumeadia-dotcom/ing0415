@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 다중 마켓 상품 자동 등록 SaaS. 쿠팡 연결 (HMAC 키)">
+  <meta name="robots" content="noindex,nofollow">
+  <title>쿠팡 연결 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+
+  <!--
+    s5 connect-provider (n37, v1) — provider=coupang (HMAC 키 입력)
+    -----------------------------------------------------------
+    역할: 셀러가 쿠팡 윙 OpenAPI 의 영구 키 (accessKey / secretKey / vendorId) 와 accountLabel 을 입력
+          → markets-connect Edge Function 호출 → credential_payload jsonb (kind='hmac') 저장.
+          OAuth 와 달리 외부 리다이렉트 없음. 폼 즉시 submit.
+
+    실행류 버튼:
+      - [연결]
+        - disabled 사유 (blockingReasons):
+          · accountLabel 비어있음 / 길이 초과 (1~40자) / 동일 마켓 라벨 중복
+          · accessKey / secretKey / vendorId 누락 또는 형식 미달
+          · markets-connect 호출 중 loading
+        - 클릭 → markets-connect invoke {market:'coupang', input: {kind:'hmac_key', accessKey, secretKey, vendorId}}
+
+    상태 4종:
+      - data: 폼 즉시 렌더 (이 HTML)
+      - loading: 버튼 spinner + disabled (주석)
+      - error: 인라인 alert-error (주석)
+      - empty: n/a
+
+    보안 메시지:
+      - 키 입력값은 TLS 로 즉시 전송 + pgcrypto 암호화 저장
+      - 클라이언트(브라우저) 에는 절대 노출 안 됨
+      - 키 분실 시 쿠팡 윙에서 재발급
+  -->
+
+</head>
+<body>
+
+  <div class="app-shell" data-sidebar="expanded">
+
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">MarketCast<small>v1</small></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+        <a href="../dashboard/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+        <a href="../register/step-1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+        <a href="../markets/index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+        <a href="../history/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+        <div class="sidebar-group-label">보조</div>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">KM</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">김셀러</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+        <div class="topbar-title">쿠팡 연결</div>
+        <div class="spacer"></div>
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <main class="main-content" aria-labelledby="page-title">
+
+        <div class="connect-wrap">
+
+          <div class="page-header">
+            <a href="./connect.html" class="back-btn" aria-label="마켓 선택으로 돌아가기">
+              <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-arrow-left"/></svg>
+            </a>
+            <span class="market-tile lg coupang" aria-hidden="true">C</span>
+            <div>
+              <h1 id="page-title">쿠팡 연결</h1>
+              <p class="t-sm t-muted" style="margin: 2px 0 0;">쿠팡 윙 OpenAPI 키를 입력하여 연결합니다 (외부 리다이렉트 없음)</p>
+            </div>
+          </div>
+
+          <!-- 1차 영역: 폼 카드 -->
+          <section class="card" aria-labelledby="form-title">
+
+            <h2 id="form-title" class="t-h3" style="margin: 0 0 var(--sp-4);">계정 정보 입력</h2>
+
+            <form action="#" method="post" novalidate>
+
+              <div class="field">
+                <label for="account-label" class="label">
+                  계정 라벨 <span class="req" aria-hidden="true">*</span>
+                  <span class="sr-only">필수</span>
+                </label>
+                <input
+                  id="account-label"
+                  name="accountLabel"
+                  type="text"
+                  class="input"
+                  placeholder="예: 메인 스토어"
+                  required
+                  aria-required="true"
+                  aria-describedby="account-label-hint"
+                  maxlength="40"
+                >
+                <p id="account-label-hint" class="field-hint">
+                  여러 계정을 구분하기 위한 별명입니다. 1~40자. 동일 마켓에서 중복 불가.
+                </p>
+              </div>
+
+              <div class="field">
+                <label for="vendor-id" class="label">
+                  Vendor ID <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="vendor-id"
+                  name="vendorId"
+                  type="text"
+                  class="input"
+                  placeholder="A00012345"
+                  required
+                  aria-required="true"
+                  aria-describedby="vendor-id-hint"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+                <p id="vendor-id-hint" class="field-hint">
+                  쿠팡 윙 → 마이쇼핑 → 사업자 정보에서 확인. 영문 1자 + 숫자 8자 형식.
+                </p>
+              </div>
+
+              <div class="field">
+                <label for="access-key" class="label">
+                  Access Key <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="access-key"
+                  name="accessKey"
+                  type="text"
+                  class="input"
+                  placeholder="32자 이상의 ASCII 문자열"
+                  required
+                  aria-required="true"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </div>
+
+              <div class="field">
+                <label for="secret-key" class="label">
+                  Secret Key <span class="req" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="secret-key"
+                  name="secretKey"
+                  type="password"
+                  class="input"
+                  placeholder="비공개 키. 입력 후 다시 표시되지 않습니다"
+                  required
+                  aria-required="true"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+                <p class="field-hint">
+                  입력 즉시 TLS 로 전송 + pgcrypto 암호화 저장됩니다. 브라우저에는 평문이 남지 않습니다.
+                </p>
+              </div>
+
+            </form>
+
+          </section>
+
+          <!-- 2차 영역: 키 발급 안내 -->
+          <section class="card mt-4" aria-labelledby="how-title">
+            <h2 id="how-title" class="t-h3" style="margin: 0 0 var(--sp-4);">키 발급 방법</h2>
+            <ol class="scope-list" style="padding-left: var(--sp-5);">
+              <li class="scope-item"><div class="scope-text">
+                <p class="scope-title">1. 쿠팡 윙 (wing.coupang.com) 로그인</p>
+                <p class="scope-desc">사업자 회원 가입이 선행되어야 합니다.</p>
+              </div></li>
+              <li class="scope-item"><div class="scope-text">
+                <p class="scope-title">2. 통합관리 → API 키 발급</p>
+                <p class="scope-desc">Access Key 와 Secret Key 가 1회 노출됩니다. 즉시 안전한 곳에 복사.</p>
+              </div></li>
+              <li class="scope-item"><div class="scope-text">
+                <p class="scope-title">3. 본 폼에 붙여넣기 → [연결]</p>
+                <p class="scope-desc">MarketCast 가 HMAC-SHA256 서명으로 매 요청에 자동 부여합니다.</p>
+              </div></li>
+            </ol>
+          </section>
+
+          <!-- 3차 영역: 보안 안내 -->
+          <section class="card mt-4" aria-labelledby="security-title">
+            <h2 id="security-title" class="t-h3" style="margin: 0 0 var(--sp-4);">보안 안내</h2>
+            <ul class="security-list">
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>키 입력값은 <strong>TLS 로 즉시 전송</strong> + Postgres pgcrypto 로 암호화 저장됩니다.</span>
+              </li>
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>저장된 키는 <strong>브라우저(클라이언트)에 절대 다시 노출</strong>되지 않습니다. 마지막 4자만 표시.</span>
+              </li>
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>모든 외부 호출은 <strong>HMAC-SHA256 서명</strong> 으로 보호되며, 서명은 Edge Function 내부에서만 생성됩니다.</span>
+              </li>
+              <li class="security-item">
+                <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                <span>키 유출이 의심되면 [연결 해제] 후 쿠팡 윙에서 <strong>키 재발급</strong>하세요.</span>
+              </li>
+            </ul>
+          </section>
+
+          <div class="cta-row">
+            <a href="./connect.html" class="btn btn-outline btn-lg">취소</a>
+            <button type="submit" class="btn btn-primary btn-lg" id="connect-cta" aria-describedby="connect-cta-hint">
+              연결 →
+            </button>
+          </div>
+          <p id="connect-cta-hint" class="t-xs t-subtle text-center mt-3">
+            클릭 시 입력한 키로 쿠팡 API 인증을 검증한 뒤 저장합니다.
+          </p>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+</body>
+</html>

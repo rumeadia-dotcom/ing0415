@@ -5,7 +5,7 @@
 > **작성 책임**: backend (INTJ, 12년차) 주도. security / frontend / designer / qa 양측 리뷰 후 머지.
 > **승인**: architect + security.
 > **의존**: `docs/architecture/v1/platform.md`, `frontend.md`, `ui-system.md`, `security.md`, `testing.md`, `cross-cutting/market-adapter.md`, `cross-cutting/credential-vault.md`.
-> **차단 권한**: 본 문서가 architect + security 승인 전까지 `src/features/markets/*` 및 `supabase/functions/markets-*` 구현 PR **금지**.
+> **차단 권한**: 본 문서가 architect + security 승인 전까지 `apps/web/src/features/markets/*` 및 `apps/api/supabase/functions/markets-*` 구현 PR **금지**.
 > **근거**: PRD §2.2 / §2.3 / §2.4, CLAUDE.md "마켓 자격증명 저장" / "외부 API 로깅 패턴" / "MVP 범위 v1", `user_flow.md` s5 (n34~n40).
 
 ---
@@ -14,20 +14,20 @@
 
 ### 1.1 목적 (3줄)
 
-- 셀러가 **네이버 스마트스토어** 계정을 OAuth 로 안전하게 연결·해제·상태 확인하도록 한다 (v1 정식). 쿠팡/11번가/G마켓/옥션은 "오픈 준비중" 라벨만 노출 — 어댑터 인터페이스 호환을 위해 stub 유지, 실 구현은 v2.
-- 마켓 OAuth access/refresh 토큰은 `market_credentials` (credential-vault.md) 단일 경로로 저장하며, 클라이언트 평문 노출 0 을 유지한다.
+- 셀러가 **네이버 스마트스토어 / 쿠팡 / G마켓 / 옥션** 4개 마켓 계정을 4-way 인증 흐름 (OAuth code / HMAC key / ESM JWT) 으로 안전하게 연결·해제·상태 확인하도록 한다 (v1 정식 = 4 마켓). 11번가는 "오픈 준비중" — Supabase Edge Function outbound IP 동적 ↔ 11번가 IP 화이트리스트 정책 충돌로 v2 이관.
+- 마켓 자격증명(OAuth 토큰 / HMAC 키 / ESM JWT 키)은 `market_credentials` (credential-vault.md, 단일 `credential_payload jsonb` 컬럼 + pgcrypto 암호화) 단일 경로로 저장하며, 클라이언트 평문 노출 0 을 유지한다.
 - 마켓별 연결 상태(`active` / `expired` / `revoked` / `error`) 를 Realtime 으로 셀러 화면에 즉시 반영한다.
 
 ### 1.2 범위
 
-- **포함**: s5 화면 4종 (`/markets` 목록 / `/markets/connect` 선택 / `/markets/connect/:provider` OAuth 진입 안내 / `/markets/callback/:provider` 결과), 마켓 어댑터 호출 Edge Function 5종 (oauth-start / oauth-callback / token-refresh / disconnect / verify), `market_accounts` 테이블, `market_account_audit` 테이블, Realtime 채널 구독.
+- **포함**: s5 화면 4종 (`/markets` 목록 / `/markets/connect` 선택 / `/markets/connect/:provider` 4-way 분기 (OAuth redirect / HMAC 폼 / ESM JWT 폼 / disabled) / `/markets/callback/:provider` 결과 — OAuth 한정), Edge Function 6종 (markets-oauth-start / markets-oauth-callback — 네이버 한정 / markets-connect — HMAC + ESM JWT / markets-token-refresh — 네이버 한정 / markets-disconnect / markets-verify), `market_accounts` 테이블, `market_account_audit` 테이블, Realtime 채널 구독.
 - **제외 (다른 문서)**:
-  - 토큰 암호화/복호화 / `market_credentials` DDL·RPC → `cross-cutting/credential-vault.md`.
-  - MarketAdapter 5메서드 인터페이스 / 어댑터별 zod 응답 검증 / 재시도 / rate limit → `cross-cutting/market-adapter.md`.
-  - 등록 잡 시점 토큰 사용 (`registration-run`) → `features/registration.md` (Phase 2).
+  - 자격증명 암호화/복호화 / `market_credentials` DDL·RPC (단일 `credential_payload jsonb` + `credential_kind` 4-way) → `cross-cutting/credential-vault.md`.
+  - MarketAdapter 5메서드 / 4-way `AuthInput` zod / `StoredCredential` / 어댑터별 응답 검증 / 재시도 / rate limit → `cross-cutting/market-adapter.md`.
+  - 등록 잡 시점 자격증명 사용 (`registration-run`) → `features/registration.md` (Phase 2).
   - Sentry 마스킹 / RLS 보안 헌법 → `security.md`.
   - 이미지 변환 → `cross-cutting/image-pipeline.md`.
-- **MVP 우선 (v1, 2026-05-19 결정 — OQ-10)**: **네이버 스마트스토어 1개만 실 구현**. 쿠팡/11번가/G마켓/옥션 = UI 에 "오픈 준비중" 비활성 카드 노출. 쿠팡은 OpenAPI 가 OAuth 가 아닌 HMAC 기반임이 확인되어 현 5메서드 OAuth 가정 인터페이스와 부정합 — v2 어댑터 인터페이스 확장 시 통합. 어댑터 stub 파일은 인터페이스 호환을 위해 유지 (호출 시 즉시 throw).
+- **MVP 우선 (v1, 2026-05-19 5마켓 확장 Wave 1)**: **네이버 / 쿠팡 / G마켓 / 옥션 4개 real 어댑터 활성**. **11번가 = "오픈 준비중"** UI 비활성 카드 (어댑터 stub 파일은 `api_key` kind 로 인터페이스 호환 보존, 호출 시 즉시 throw). 11번가 활성화는 Supabase Edge Function outbound IP 화이트리스트 해결책 결정 후 v2 — `OQ-09 (v2 후보)` 참조.
 
 ### 1.3 user_flow s5 노드 매핑
 
@@ -37,10 +37,10 @@
 |---|---|---|---|
 | s5-n34 | s5 진입 (대시보드 → 마켓 계정) | `GET /markets` 화면 (§7.1) | 사이드바 "마켓" |
 | s5-n35 | 연결된 계정 목록 | `GET /markets` 의 MarketStack 카드 (§7.1) | Realtime 구독 (§9) |
-| s5-n36 | 신규 연결 선택 | `GET /markets/connect` 화면 (§7.2) | 5개 마켓 그리드, **네이버만 활성, 나머지 4개(쿠팡/11번가/G마켓/옥션) 오픈 준비중** |
-| s5-n37 | OAuth 인증 안내 | `GET /markets/connect/:provider` 화면 (§7.3) | `markets-oauth-start` 호출 |
-| s5-n38 | 외부 마켓 OAuth 동의 | 외부 마켓 도메인 (앱 책임 밖) | redirect 후 §s5-n39 로 복귀 |
-| s5-n39 | 콜백 / 계정 연결 결과 | `GET /markets/callback/:provider` 화면 (§7.4) | `markets-oauth-callback` 결과 표시 |
+| s5-n36 | 신규 연결 선택 | `GET /markets/connect` 화면 (§7.2) | 5개 마켓 그리드, **v1 활성 = 네이버 / 쿠팡 / G마켓 / 옥션, 11번가 = 오픈 준비중** |
+| s5-n37 | 인증 안내 (4-way 분기) | `GET /markets/connect/:provider` 화면 (§7.3) | provider 별 분기: **네이버 = `markets-oauth-start` 호출 + OAuth redirect** / **쿠팡 = HMAC 키 입력 폼** / **G마켓·옥션 = ESM JWT 키 입력 폼** / **11번가 = disabled** |
+| s5-n38 | 외부 마켓 인증 (OAuth 만) | 외부 마켓 도메인 (네이버 한정) | redirect 후 §s5-n39 로 복귀. HMAC / ESM JWT 는 외부 redirect 없음 — 폼 제출로 §s5-n39 로 직행 |
+| s5-n39 | 콜백 / 계정 연결 결과 | `GET /markets/callback/:provider` (OAuth) 또는 `markets-connect` 응답 결과 inline (HMAC / ESM JWT) | `markets-oauth-callback` 또는 `markets-connect` 결과 표시 |
 | s5-n40 | 해제 / 상태 확인 | `/markets` 행 내 액션 (§7.1) — `markets-disconnect` / `markets-verify` | 확인 다이얼로그 강제 |
 
 s5 외 진입점: 대시보드(s2) 위젯 "연결된 마켓 N" 클릭 → `/markets`. 상품 등록(s3) 마켓 선택 단계에서 "연결 안 됨" 표시 → `/markets/connect` deep link.
@@ -326,7 +326,7 @@ SELECT cron.schedule(
 
 ## 5. Edge Functions
 
-5개 함수 모두 Supabase Edge Functions (Deno + TypeScript). `supabase/functions/_shared/*` 의 logger / withRetry / mask / authGuard 재사용.
+5개 함수 모두 Supabase Edge Functions (Deno + TypeScript). `apps/api/supabase/functions/_shared/*` 의 logger / withRetry / mask / authGuard 재사용.
 
 > **v1 활성 마켓 (2026-05-19 확정 — OQ-10)**: `naver` 만. 본 §5 의 모든 Request 스키마가 `z.enum(['naver', 'coupang'])` 형태이나 이는 v2 인터페이스 호환 유지용 — `getMarketAdapter('coupang')` 는 호출 시 즉시 throw 되어 v1 운영 경로에서 차단된다. UI 그리드에서 쿠팡 카드 자체가 disabled 라 클라이언트 측 발신 경로도 없음.
 
@@ -342,7 +342,7 @@ SELECT cron.schedule(
 **역할**: state 발급 + Cookie 설정 + 마켓 authorize URL 생성.
 
 ```ts
-// supabase/functions/markets-oauth-start/index.ts (시그니처 요지)
+// apps/api/supabase/functions/markets-oauth-start/index.ts (시그니처 요지)
 import { z } from 'zod';
 
 export const Request = z.object({
@@ -543,10 +543,10 @@ export const Response200 = z.object({
 
 ---
 
-## 6. 클라이언트 zod 스키마 (`src/lib/schemas/markets.ts`)
+## 6. 클라이언트 zod 스키마 (`apps/web/src/lib/schemas/markets.ts`)
 
 ```ts
-// src/lib/schemas/markets.ts
+// apps/web/src/lib/schemas/markets.ts
 import { z } from 'zod';
 
 // market_accounts 의 클라이언트 노출 형식 (credential_id 제외)
@@ -635,7 +635,7 @@ export const MarketApiErrorSchema = z.object({
 export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 ```
 
-본 스키마는 **백엔드 Edge Function 의 Request/Response 스키마와 동일 소스**. `supabase/functions/_shared/schemas.ts` 가 본 파일을 import 하거나, monorepo `import map` 으로 단일 소스 보장.
+본 스키마는 **백엔드 Edge Function 의 Request/Response 스키마와 동일 소스**. `apps/api/supabase/functions/_shared/schemas.ts` 가 본 파일을 import 하거나, monorepo `import map` 으로 단일 소스 보장.
 
 ---
 
@@ -651,7 +651,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 - RLS 가 `seller_id = auth.uid()` 자동 적용.
 - Realtime: `supabase.channel('market_accounts:' + sellerId).on('postgres_changes', { event: '*', schema: 'public', table: 'market_accounts', filter: 'seller_id=eq.<sellerId>' }, ...) → invalidateQueries`.
 
-**컴포넌트 트리** (`src/features/markets/pages/MarketsListPage.tsx`):
+**컴포넌트 트리** (`apps/web/src/features/markets/pages/MarketsListPage.tsx`):
 
 ```
 <MarketsListPage>
@@ -881,7 +881,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- `ErrorMessage` 공통 컴포넌트 사용 (`src/components/ui/error-message.tsx`). raw response 는 접힘 기본.
+- `ErrorMessage` 공통 컴포넌트 사용 (`apps/web/src/components/ui/error-message.tsx`). raw response 는 접힘 기본.
 - `[처음부터 다시 시도]` → `/markets/connect/:provider`.
 - `[마켓 목록으로]` → `/markets`.
 
@@ -922,7 +922,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 ### 9.1 구독 패턴
 
 ```ts
-// src/features/markets/hooks/useMarketAccountsRealtime.ts
+// apps/web/src/features/markets/hooks/useMarketAccountsRealtime.ts
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -1075,7 +1075,7 @@ export function useMarketAccountsRealtime(sellerId: string) {
 ### 12.2 RLS 테스트 코드 예시
 
 ```ts
-// src/features/markets/__tests__/rls.test.ts (Vitest + supabase-js)
+// apps/web/src/features/markets/__tests__/rls.test.ts (Vitest + supabase-js)
 import { createClient } from '@supabase/supabase-js';
 
 describe('market_credentials RLS — anon/authenticated 직접 접근 0 row', () => {
@@ -1109,7 +1109,7 @@ describe('market_accounts RLS — 셀러 본인 row 만 SELECT', () => {
 
 ## 13. 수락 기준 체크리스트
 
-본 문서 기반 PR (`supabase/functions/markets-*`, `src/features/markets/*`, 마이그레이션) 은 아래를 **전부** 통과해야 머지 가능.
+본 문서 기반 PR (`apps/api/supabase/functions/markets-*`, `apps/web/src/features/markets/*`, 마이그레이션) 은 아래를 **전부** 통과해야 머지 가능.
 
 - [ ] 1. `market_accounts` DDL 이 §2.1 과 일치 (컬럼·인덱스·제약·코멘트).
 - [ ] 2. `market_accounts` RLS 정책 — SELECT 본인 row 만, INSERT/UPDATE/DELETE 정책 0개 (service_role only) 확인. 다른 셀러 row 조회 0건 테스트 (M-R2) 통과.
@@ -1129,7 +1129,7 @@ describe('market_accounts RLS — 셀러 본인 row 만 SELECT', () => {
 - [ ] 16. blockingReasons tooltip: 실행류 버튼 모두에 비활성 사유 노출. 키보드 focus 로도 tooltip 표시 확인 (a11y).
 - [ ] 17. 접근성 WCAG 2.1 AA: jsx-a11y lint 통과 + Playwright axe 검사 통과 + 모든 버튼 키보드 동선 확인.
 - [ ] 18. 사용자 에러 메시지 한국어 + correlationId 노출. raw response / 토큰 / PII 미포함 자동 검증.
-- [ ] 19. 디자인 토큰만 사용 (raw 색상값 금지). prototype `data.js` 의 brandColorHex 는 `src/lib/markets/catalog.ts` 단일 출처로 이식.
+- [ ] 19. 디자인 토큰만 사용 (raw 색상값 금지). prototype `data.js` 의 brandColorHex 는 `apps/web/src/lib/markets/catalog.ts` 단일 출처로 이식.
 - [ ] 20. `cross-cutting/market-adapter.md` 의 `getAdapter` 만 사용. 본 도메인 코드 어디서도 어댑터 직접 import 없음. 모드 분기 1지점 검증.
 - [ ] 21. debug 모드 동등성: mock 어댑터 5 시나리오 (`happy` / `5xx` / `401` / `429` / `timeout` / `partial`) 가 본 도메인 전 흐름 통과. CI 통과.
 - [ ] 22. 본 문서가 `frontend.md` / `ui-system.md` / `security.md` / `credential-vault.md` / `market-adapter.md` 와 정합. 충돌 시 후자 우선 명시.
@@ -1178,7 +1178,7 @@ describe('market_accounts RLS — 셀러 본인 row 만 SELECT', () => {
 |---|---|---|
 | 설계문서 | `docs/architecture/v1/features/markets.md` (본 문서) | 모든 결정 변경 시 |
 | HTML 프로토타입 | `docs/frontend_html_design/v1/markets/` (Phase 2 신설) | UI 와이어 §7 변경 시 |
-| 실제 구현 | `src/features/markets/`, `supabase/functions/markets-*/`, `src/lib/schemas/markets.ts` | 모든 결정 적용 시 |
+| 실제 구현 | `apps/web/src/features/markets/`, `apps/api/supabase/functions/markets-*/`, `apps/web/src/lib/schemas/markets.ts` | 모든 결정 적용 시 |
 
 ---
 
