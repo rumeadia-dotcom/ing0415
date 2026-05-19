@@ -1,0 +1,697 @@
+# CI/CD 설계문서 (v1)
+
+> 인용: `platform.md`, `frontend.md`, `security.md`, `testing.md`, `cross-cutting/credential-vault.md`
+> 범위: 본 문서는 **빌드·테스트·배포·릴리즈·롤백 자동화** 한 축만 다룬다. Supabase 스키마/RLS 정책 자체는 `cross-cutting/`, 마켓 어댑터 구현 자체는 `features/markets.md` 를 참조.
+
+---
+
+## 1. 목적·범위
+
+### 1.1 목적
+- **회귀 차단**: PR 머지 전 타입·린트·단위·통합·E2E 골든패스를 자동 실행해, 실수로 main 이 깨지지 않게 한다.
+- **재현 가능한 배포**: real 모드 운영 빌드를 사람 손이 아니라 GitHub Actions 가 100% 동일한 절차로 생성·배포.
+- **모드 격리 강제**: `debug` / `real` 두 빌드가 코드·시크릿·Supabase 프로젝트 모두 분리되어 운영 트래픽과 개발 트래픽이 교차하지 않음을 빌드 시점에 검증.
+- **롤백 경로 명문화**: 운영 사고 발생 시 "어떤 명령으로 몇 분 안에 되돌리는지"가 문서·워크플로우 양쪽에 박혀 있어야 함.
+
+### 1.2 범위 (v1)
+
+| 포함 | 제외 (v2+) |
+|---|---|
+| GitHub Actions 워크플로우 (`ci.yml`, `deploy.yml`) | 멀티 리전 배포 / 카나리 / 블루그린 |
+| GitHub Pages 정적 호스팅 배포 | CDN 직접 invalidation, 자체 호스팅 전환 |
+| Supabase Edge Functions deploy | 별도 백엔드(Node/Go 서버) 배포 |
+| Supabase CLI 기반 DB 마이그레이션 | schema-versioned API gateway |
+| Sentry release + 소스맵 업로드 | APM(Datadog 등) 통합 |
+| GitHub Pages 이전 커밋 재배포 롤백 | 자동 회귀 감지 후 자동 롤백 |
+
+### 1.3 비목표
+- **빌드 시간 최적화 광적 추구**: v1 기준 PR CI 6분 / deploy 10분 이내면 충분. 5분 미만 압박은 v2.
+- **셀프 호스트 러너**: 비용·보안 검토 전까지 GitHub-hosted `ubuntu-latest` 만 사용.
+
+---
+
+## 2. 브랜치 전략 & 워크플로우 매트릭스
+
+### 2.1 브랜치 모델 (Git Flow 요약)
+
+```
+main         ─────●──────────────●──────────────●─────  (운영 = real 배포 트리거)
+                  │              ▲              ▲
+                  │              │ merge        │ merge
+                  │           release/1.1     hotfix/x
+                  │              ▲              ▲
+develop      ──●──●──●──●──●──●──●──●──●──●──  (통합)
+               ▲     ▲     ▲
+               │     │     │ feature/* 머지
+            feature/a feature/b
+```
+
+- `feature/*` → `develop` (PR, squash merge)
+- `release/<x.y>` ← `develop` 컷, 추가 E2E·수동 QA 후 → `main` 머지 + 태그 `vX.Y.0`
+- `hotfix/*` ← `main` 컷, 수정 후 → `main` 머지 + `develop` 백머지 + 태그 `vX.Y.Z`
+
+### 2.2 트리거 ↔ 워크플로우 매트릭스
+
+| 이벤트 | 대상 브랜치/태그 | 워크플로우 | 작업 요약 | 모드 | 배포 |
+|---|---|---|---|---|---|
+| `pull_request` | `develop` | `ci.yml` | install / typecheck / lint / vitest / playwright(골든패스) / build(debug) | debug | X |
+| `pull_request` | `main` | `ci.yml` | 동일 + release sanity (real env 변수 존재 검증, 실제 빌드는 X) | debug | X |
+| `push` | `develop` | `ci.yml` | 동일 (브랜치 보호용 재실행) | debug | X |
+| `push` | `main` | `deploy.yml` | real 빌드 → 404 fallback 복제 → Pages 배포 → Edge Functions deploy → Supabase migrate → Sentry release | real | O |
+| `push` (tag) | `v*.*.*` | `deploy.yml` | 동일 + Sentry release 에 git tag 기록 | real | O |
+| `workflow_dispatch` | (수동) | `deploy.yml` | 동일 + `ref` 지정 가능 (롤백용) | real | O |
+| `schedule` (cron) | nightly | `ci-nightly.yml` (v2 백로그) | 전체 Playwright suite | debug | X |
+
+> v1 에 `ci-nightly.yml` 은 만들지 않는다. 골든패스 1개만 PR/CI 에서 돌리고, 전체 E2E suite 는 release/* 컷 시 수동 트리거로 운영. v2 에서 nightly 도입 결정.
+
+### 2.3 PR 머지 정책
+
+- **squash merge only** (Git Flow 결정문 매핑). merge commit 금지.
+- PR 제목 형식: `[<도메인>] <요약>` (예: `[registration] 5단계 위저드 도입`).
+- main 직접 push 금지 (branch protection).
+
+---
+
+## 3. PR CI 워크플로우
+
+### 3.1 파일: `.github/workflows/ci.yml`
+
+```yaml
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main, 'release/**']
+  push:
+    branches: [develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (typecheck / lint / test / build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # debug 모드 빌드 sanity 용. 실제 시크릿 아님.
+      VITE_APP_MODE: debug
+      VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.DEBUG_SUPABASE_ANON_KEY }}
+      VITE_SENTRY_DSN: ${{ secrets.DEBUG_SENTRY_DSN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm exec eslint . --max-warnings=0
+
+      - name: Unit & integration tests (Vitest)
+        run: pnpm exec vitest run --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: coverage/
+          retention-days: 7
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E golden path (headless)
+        run: pnpm exec playwright test --project=chromium --grep "@golden"
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Build (debug mode sanity)
+        run: pnpm build
+
+      - name: Verify SPA fallback artifact
+        run: |
+          test -f dist/index.html || (echo "dist/index.html missing" && exit 1)
+          # ci 빌드 단계에서도 404.html 산출물 누락 회귀를 잡는다.
+          cp dist/index.html dist/404.html
+          test -f dist/404.html || exit 1
+
+      - name: Bundle size budget check
+        run: pnpm exec size-limit
+        continue-on-error: false
+```
+
+### 3.2 설계 결정
+
+| 항목 | 선택 | 근거 |
+|---|---|---|
+| Node 버전 | 20 LTS | Vite 5 / TanStack Query 5 가 18+ 요구, 20 이 가장 안정 |
+| pnpm 버전 | 9 | lockfile v9 사용 — `--frozen-lockfile` 필수 |
+| 캐시 | `actions/setup-node` 의 `cache: pnpm` | 별도 `actions/cache` 불필요. lockfile 해시 기반 |
+| concurrency | 동일 ref 의 이전 실행 cancel | 빠른 피드백 + Action 사용량 절감 |
+| Playwright | chromium 만 + `@golden` 태그 | PR 단계에서 5분 미만 유지. Safari/Firefox 는 release 단계 수동 |
+| coverage upload | artifact 7일 | Codecov 등 외부 도구는 v2 |
+| size-limit | PR 단에서 차단 | 번들 폭증 회귀 차단 (frontend.md `_size budgets_` 인용) |
+
+### 3.3 거부된 옵션
+- **matrix(Node 18 + 20)**: Node 18 EOL 가까움. v1 에 매트릭스 비용 들일 가치 없음.
+- **Turborepo/Nx 캐시**: 모노레포 아님. 단일 패키지에 오버킬.
+- **Chromatic 등 비주얼 회귀**: v2 백로그. 디자인 토큰 시스템 안정화 후.
+
+---
+
+## 4. main 배포 워크플로우
+
+### 4.1 파일: `.github/workflows/deploy.yml`
+
+```yaml
+name: Deploy (real)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '배포할 ref (롤백 시 이전 커밋 SHA 또는 태그)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-real
+  cancel-in-progress: false  # 배포는 큐잉. 절대 취소하지 않는다.
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build (real mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      VITE_APP_MODE: real
+      VITE_SUPABASE_URL: ${{ secrets.REAL_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.REAL_SUPABASE_ANON_KEY }}
+      VITE_SENTRY_DSN: ${{ secrets.REAL_SENTRY_DSN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+    outputs:
+      release-version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute release version
+        id: release
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=main-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build (real mode)
+        run: pnpm build
+        env:
+          VITE_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+
+      - name: SPA fallback (404.html = index.html)
+        run: cp dist/index.html dist/404.html
+
+      - name: Verify real bundle does not leak debug code
+        run: |
+          # mock 모듈이 real 번들에 포함되었는지 휴리스틱 검사.
+          # tree-shaking 실패 회귀 차단.
+          if grep -rE "window\.AppData|__MOCK_FIXTURES__|MockMarketAdapter" dist/assets/ ; then
+            echo "::error::Debug-only artifacts leaked into real bundle"
+            exit 1
+          fi
+          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]debug" dist/assets/ ; then
+            echo "::error::debug mode literal embedded in real bundle"
+            exit 1
+          fi
+
+      - name: Upload Sentry source maps
+        run: |
+          pnpm dlx @sentry/cli releases new "${{ steps.release.outputs.version }}"
+          pnpm dlx @sentry/cli releases files "${{ steps.release.outputs.version }}" \
+            upload-sourcemaps dist/assets \
+            --url-prefix '~/assets' \
+            --validate
+          pnpm dlx @sentry/cli releases finalize "${{ steps.release.outputs.version }}"
+
+      - name: Strip source maps from public bundle
+        run: find dist -name "*.map" -delete
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-edge-functions:
+    name: Deploy Supabase Edge Functions
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.REAL_SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Apply DB migrations (real)
+        run: supabase db push --linked
+
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
+
+  notify-sentry:
+    name: Finalize Sentry release
+    needs: [deploy-pages, deploy-edge-functions]
+    runs-on: ubuntu-latest
+    env:
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    steps:
+      - name: Notify deployment
+        run: |
+          pnpm dlx @sentry/cli releases deploys "${{ needs.build.outputs.release-version }}" \
+            new -e production
+```
+
+### 4.2 설계 결정
+
+| 항목 | 선택 | 근거 |
+|---|---|---|
+| `concurrency.cancel-in-progress: false` | 배포 큐잉 | 동시 배포로 인한 race / 중간 상태 노출 회피 |
+| Pages 배포 = `actions/deploy-pages@v4` | OIDC + 공식 액션 | `gh-pages` 브랜치 푸시 방식보다 권한 좁힘 |
+| Edge Function 별 job 분리 | 실패 격리 | Pages 만 성공·Edge 실패 같은 부분 실패가 알람으로 드러남 |
+| Source map 업로드 후 dist 에서 삭제 | 공개 노출 회피 | platform.md "real 모드 소스맵 비공개" 인용 |
+| `dlx @sentry/cli` | 별도 라이브러리 설치 회피 | 빌드 캐시 무관 |
+| migrate 가 functions deploy 보다 먼저 | 스키마 우선 | 새 컬럼 의존 함수가 먼저 배포돼 500 나는 회귀 차단 |
+
+### 4.3 거부된 옵션
+- **Functions 배포를 Pages 배포 후로**: 새 프론트가 옛 함수 호출하는 시간 창이 더 길어짐. 함수가 먼저(혹은 동시) 가 안전.
+- **Pages 와 Edge Functions 같은 job**: 실패 격리 안 됨. 분리 유지.
+- **별도 `migrate.yml`**: v1 규모에서 워크플로우 분리 이득 없음. deploy.yml 안 job 으로 충분.
+
+---
+
+## 5. 환경변수 / 시크릿 매트릭스
+
+### 5.1 시크릿 저장소 매핑
+
+| 시크릿 | 저장소 | 워크플로우 노출 | 비고 |
+|---|---|---|---|
+| `REAL_SUPABASE_URL` | GitHub Secrets | deploy.yml | public 노출 가능값이지만 환경 분리 위해 secret |
+| `REAL_SUPABASE_ANON_KEY` | GitHub Secrets | deploy.yml | public 가능 |
+| `REAL_SUPABASE_PROJECT_REF` | GitHub Secrets | deploy.yml | Supabase CLI link 용 |
+| `DEBUG_SUPABASE_ANON_KEY` | GitHub Secrets | ci.yml | debug 프로젝트 |
+| `DEBUG_SENTRY_DSN` | GitHub Secrets | ci.yml | |
+| `REAL_SENTRY_DSN` | GitHub Secrets | deploy.yml | |
+| `SENTRY_AUTH_TOKEN` | GitHub Secrets | deploy.yml | 소스맵 업로드 권한만. release-only token |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | GitHub Secrets (또는 vars) | deploy.yml | 비밀 아니지만 일관성 위해 secret |
+| `SUPABASE_ACCESS_TOKEN` | GitHub Secrets | deploy.yml | CLI 호출용 PAT |
+| **Supabase service_role key** | **GitHub Secrets 에 저장 금지** | — | credential-vault.md §3 인용. Edge Function 내부에서만 사용 |
+| 마켓 OAuth client secret (naver/coupang) | **Supabase 대시보드 → Edge Function env vars** | — | GitHub Secrets 미저장. credential-vault.md §4 |
+| 셀러별 마켓 토큰 | **Postgres + pgcrypto** | — | credential-vault.md §5 |
+
+### 5.2 Vite 빌드 시점 주입 변수
+
+| 변수 | debug 값 | real 값 | 노출 영역 |
+|---|---|---|---|
+| `VITE_APP_MODE` | `debug` | `real` | 번들 상수 |
+| `VITE_SUPABASE_URL` | debug 프로젝트 URL | real 프로젝트 URL | 번들 상수 |
+| `VITE_SUPABASE_ANON_KEY` | debug anon key | real anon key | 번들 상수 (public) |
+| `VITE_SENTRY_DSN` | debug DSN | real DSN | 번들 상수 (public) |
+| `VITE_RELEASE_VERSION` | (미설정) | `vX.Y.Z` 또는 `main-<sha>` | Sentry release 매칭 |
+
+> `VITE_*` prefix 가 아닌 변수는 Vite 가 번들에 주입하지 않는다 (platform.md §빌드 결정 인용). 실수로 `SENTRY_AUTH_TOKEN` 이 `VITE_` 가 붙어 번들에 들어가는 사고를 차단하려면 ESLint 의 `no-restricted-globals` 또는 build 후 grep 단계가 안전장치.
+
+### 5.3 GitHub Environment 분리
+- `github-pages` environment 에 deploy.yml 의 deploy-pages job 만 매핑.
+- 환경 보호 규칙: `main` 브랜치만 배포 가능 (Required reviewers 는 v2 백로그 — v1 은 1인 운영 가정).
+
+---
+
+## 6. debug / real 빌드 매트릭스
+
+| 워크플로우 | 모드 | Supabase 프로젝트 | 시크릿 출처 | 산출물 사용처 |
+|---|---|---|---|---|
+| `ci.yml` (PR) | debug | debug | GitHub Secrets (`DEBUG_*`) | 폐기 (artifact 만) |
+| `deploy.yml` (main push) | real | real | GitHub Secrets (`REAL_*`) | GitHub Pages 배포 |
+| (수동) 로컬 dev | debug | debug | `.env.local` (gitignore) | localhost dev |
+| (수동) preview build | debug | debug | `.env.local` | `pnpm preview` |
+
+### 6.1 real 번들 누출 검증 단계 (deploy.yml 에 포함, §4.1)
+
+```bash
+# 1. mock 데이터·어댑터가 들어갔는지
+grep -rE "window\.AppData|__MOCK_FIXTURES__|MockMarketAdapter" dist/assets/
+
+# 2. debug 모드 리터럴이 박혔는지
+grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]debug" dist/assets/
+
+# 3. (선택) sentry auth token / service role key 가 번들에 들어갔는지 (이중 안전망)
+grep -rE "sntrys_|sbp_|service_role" dist/assets/ && exit 1 || true
+```
+
+> 이 단계는 "권장"이 아니라 **deploy.yml 의 필수 step**. 실패 시 배포 중단.
+
+### 6.2 거부된 옵션
+- **런타임 `__DEV__` 토글**: 모드 전환을 런타임에 허용하면 번들에 mock 코드가 항상 포함됨. tree-shaking 가능한 빌드타임 상수만 사용.
+- **`.env.production` 파일 커밋**: 실수 시 시크릿 노출. GitHub Secrets 만이 진실의 원천.
+
+---
+
+## 7. Supabase 마이그레이션
+
+### 7.1 단일 소스
+- 마이그레이션 SQL: `supabase/migrations/<timestamp>_<slug>.sql` — Supabase CLI 규약.
+- **debug / real 두 프로젝트 모두 동일한 마이그레이션을 적용**. drift 금지.
+
+### 7.2 적용 시점
+
+| 환경 | 적용 시점 | 명령 |
+|---|---|---|
+| 로컬 dev | 개발자가 `feature/*` 작업 시 수동 | `supabase db push --linked` (debug project) |
+| debug 프로젝트 | `develop` 머지 후 수동 1회 또는 별도 `migrate-debug.yml` (v1 은 수동) | 동일 |
+| real 프로젝트 | `deploy.yml` 의 `deploy-edge-functions` job 자동 | 동일 |
+
+### 7.3 drift 검출
+- 매 배포 전 `supabase db diff --linked` 로 로컬 마이그레이션과 실제 스키마 차이 검출. CI 단계에 포함 (v2 자동화, v1 은 release 컷 시 수동).
+- v1 운영 절차: release/* 컷 직후 `supabase db diff --linked --schema public` 실행 → 비어 있어야 함. 비어 있지 않으면 마이그레이션 누락 → 추가 후 다시 컷.
+
+### 7.4 거부된 옵션
+- **Prisma migrate / Drizzle migrate**: Supabase CLI 가 RLS 포함 마이그레이션을 처리. 별도 ORM 도입은 YAGNI.
+- **수동 SQL 콘솔 적용**: drift 의 주범. 절대 금지.
+
+---
+
+## 8. 릴리즈 절차
+
+### 8.1 정규 릴리즈 (release/*)
+
+1. **컷**: `develop` 의 머지가 안정화되면 `release/<x.y>` 브랜치 생성. 버전 번호 결정.
+2. **사전 검증**:
+   - `release/*` 에 대한 PR CI 실행 (자동).
+   - 수동: `pnpm playwright test`(전체 suite) 로컬 또는 `workflow_dispatch` 트리거.
+   - 수동: Supabase debug 프로젝트로 staging smoke test (`pnpm preview` + debug DB).
+   - 수동 QA 체크리스트 (qa 에이전트 산출물 — `docs/architecture/v1/qa/release-checklist.md`, 별도 문서).
+3. **버전 태그**: `release/*` 머지 PR 생성, main 으로 squash merge. 머지 후 main 에 `vX.Y.0` 태그.
+4. **자동 배포**: 태그 push → `deploy.yml` 자동 실행.
+5. **백머지**: `main` → `develop` 백머지 PR. CI 통과 후 squash merge.
+6. **공지**: Sentry release notes + (v2) 인앱 changelog.
+
+### 8.2 hotfix
+
+1. `main` 에서 `hotfix/<slug>` 분기.
+2. 수정 + 단위 테스트 추가.
+3. `hotfix/*` → `main` PR. CI 통과 후 squash merge. 태그 `vX.Y.(Z+1)`.
+4. 자동 배포.
+5. `main` → `develop` 백머지 필수.
+
+### 8.3 버전 규약
+- SemVer 준수: `MAJOR.MINOR.PATCH`.
+- v1 출시는 `v1.0.0`. 마켓 어댑터 추가는 MINOR, 버그 수정은 PATCH, 데이터 모델 breaking change 는 MAJOR (실무상 v1 기간 발생 시 별도 회의).
+
+---
+
+## 9. 롤백 절차
+
+### 9.1 시나리오 매트릭스
+
+| 사고 유형 | 영향 범위 | 롤백 방법 | 소요 시간 |
+|---|---|---|---|
+| 프론트 회귀 (빈 화면, 라우팅 깨짐) | Pages | `workflow_dispatch` 로 직전 태그 재배포 | ~10분 |
+| Edge Function 회귀 | Supabase | `supabase functions deploy --project-ref ... <fn>` 로 이전 ref 의 함수 재배포 | ~5분 |
+| DB 마이그레이션 사고 (잘못된 schema) | Postgres | **down 마이그레이션은 작성·검토된 경우만**. 그렇지 않으면 새 마이그레이션으로 forward fix | 사안별 |
+| 시크릿 유출 | 전체 | (1) 노출 키 즉시 회전 (Supabase 대시보드 / Sentry / GitHub Secrets), (2) 새 키로 deploy.yml 재실행 | ~30분 |
+
+### 9.2 프론트 롤백 상세
+
+```bash
+# GitHub Actions UI → Deploy (real) → Run workflow
+#   ref: v1.2.3   (직전 안정 태그)
+# 또는 CLI:
+gh workflow run deploy.yml -f ref=v1.2.3
+```
+
+- GitHub Pages 의 이전 배포는 `deployments` API 에 남아 있지만, **재배포가 가장 안전한 방법**. UI 의 "Re-run" 으로는 main 의 최신 코드가 다시 빌드되어 의도와 다를 수 있음 → 항상 `workflow_dispatch` + ref 명시.
+
+### 9.3 DB 롤백 원칙
+- **forward-only 가 기본**. down 마이그레이션은 작성 가능하지만 신뢰하지 않음.
+- 사고 발생 시 절차:
+  1. Postgres 의 PITR (Point-In-Time Recovery, Supabase Pro 플랜) 가용성 확인.
+  2. 가용하면 사고 직전 시점으로 복구 (RPO ~수분).
+  3. 아니면 새 마이그레이션으로 forward fix.
+- v1 운영 계정 플랜이 PITR 가능 플랜인지 확인 필요 — credential-vault.md 또는 별도 `ops/backup.md` 에서 다룸 (v1 미작성 시 본 문서가 임시 참조).
+
+### 9.4 거부된 옵션
+- **자동 회귀 감지 후 자동 롤백**: 감지 신뢰도 v1 에 검증 안 됨. 오작동 시 더 큰 피해. 수동 트리거 유지.
+
+---
+
+## 10. 모니터링 통합
+
+### 10.1 Sentry release 파이프라인
+
+1. `deploy.yml` 의 `build` job 에서 `sentry-cli releases new <version>` 호출.
+2. 소스맵 업로드 (`sentry-cli releases files ... upload-sourcemaps`).
+3. `sentry-cli releases finalize <version>`.
+4. Pages + Edge Functions 배포 완료 후 `notify-sentry` job 이 `sentry-cli releases deploys <version> new -e production` 호출.
+5. 이후 Sentry 가 발생 에러를 해당 release 와 git commit 에 자동 연결.
+
+### 10.2 알림
+- Sentry 알림 채널: 이메일 (v1). Slack/Discord 는 v2.
+- 임계치: P1 = 5분 내 동일 에러 50건 → 즉시 알림 / P2 = 1시간 내 10건 → 다이제스트.
+
+### 10.3 GitHub Actions 실패 알림
+- `deploy.yml` 의 어떤 job 이라도 실패 시 GitHub 의 기본 이메일 알림 사용 (v1).
+- v2: Slack incoming webhook job 추가.
+
+### 10.4 거부된 옵션
+- **PagerDuty / Opsgenie**: 1인 운영 단계에서 과잉. Sentry 메일 충분.
+
+---
+
+## 11. PR 머지 게이트
+
+`main` 과 `develop` 의 GitHub branch protection rules:
+
+### 11.1 `develop` 머지 필수 조건
+
+- [ ] `Verify (typecheck / lint / test / build)` 체크 통과 (`ci.yml`)
+- [ ] PR 코드 리뷰 1명 이상 승인 (CODEOWNERS 가 지정한 도메인 코드 변경 시 해당 코드오너 승인 필수)
+- [ ] Linear history 유지 (squash merge only)
+- [ ] PR 제목이 `[<도메인>] <요약>` 형식
+- [ ] PRD/user_flow 정합성 — 새 화면/엔드포인트 추가 시 `docs/architecture/v1/` 산출물 동기화 (CLAUDE.md "3개 산출물 동기화" 룰)
+
+### 11.2 `main` 머지 필수 조건 (release/* 또는 hotfix/* 에서만)
+
+- [ ] `develop` 필수 조건 전부 통과
+- [ ] 골든패스 Playwright 통과
+- [ ] a11y 검사 통과 (Playwright + `@axe-core/playwright`, qa 에이전트 룰)
+- [ ] Supabase 마이그레이션 변경 시 — debug 프로젝트 적용 + 검증 완료 코멘트 PR 에 첨부
+- [ ] security 영향 코드 (auth, 토큰, 자격증명) 변경 시 — security 에이전트 리뷰 승인
+
+### 11.3 CODEOWNERS (예시)
+
+```
+# .github/CODEOWNERS
+/src/features/markets/        @backend-lead @security-lead
+/src/features/registration/   @backend-lead
+/src/components/ui/           @frontend-lead @designer-lead
+/supabase/migrations/         @backend-lead
+/.github/workflows/           @tech-lead
+/docs/architecture/v1/        @tech-lead
+```
+
+(실 GitHub handle 매핑은 운영 시점에 결정)
+
+---
+
+## 12. 404.html fallback 검증
+
+### 12.1 빌드 시점
+
+- `ci.yml` 과 `deploy.yml` 양쪽에서 `cp dist/index.html dist/404.html` 단계 강제. 누락 시 빌드 실패.
+
+### 12.2 배포 후 검증 (수동 / v2 자동화)
+
+```bash
+# 라우터 직접 진입 (예: /dashboard, /register) 시 200 응답인지 확인.
+# GitHub Pages 는 404.html 을 200 으로 서빙하지는 않지만 SPA 부트가 가능해야 함.
+curl -sI https://<owner>.github.io/<repo>/dashboard | head -1
+# → HTTP/2 200 또는 404 + body 가 index.html 과 동일하면 OK
+curl -s  https://<owner>.github.io/<repo>/dashboard | grep -q '<div id="root">' && echo OK
+```
+
+- 배포 직후 골든패스 Playwright 를 production URL 대상으로 1회 실행 (v2 백로그). v1 은 수동 smoke test.
+
+### 12.3 라우터 설정 연동
+- `BrowserRouter basename` 은 GitHub Pages 의 repo path 와 일치해야 함 (`frontend.md` 인용). real 빌드 시 `VITE_BASE_PATH` 환경변수로 주입.
+
+---
+
+## 13. 수락 기준 체크리스트
+
+### 13.1 CI 시스템
+
+- [ ] `.github/workflows/ci.yml` 이 PR 마다 typecheck/lint/test/build 를 모두 실행한다.
+- [ ] CI 실패 시 머지 버튼이 비활성화된다 (branch protection).
+- [ ] PR 작성자가 5분 안에 결과를 받는다 (P50 기준).
+- [ ] 골든패스 Playwright 가 CI 에서 통과해야 머지 가능.
+- [ ] 번들 사이즈 budget 초과 시 CI 실패.
+
+### 13.2 배포 시스템
+
+- [ ] `main` push 시 `deploy.yml` 이 트리거되고 사람 개입 없이 GitHub Pages + Edge Functions 까지 배포된다.
+- [ ] real 빌드 산출물에 debug 모드 코드/리터럴이 들어가지 않는다 (자동 검증 step 통과).
+- [ ] 배포 완료 후 Sentry 에 release 가 등록되고 소스맵이 연결된다.
+- [ ] 소스맵은 공개 dist 에서 제거된다.
+- [ ] DB 마이그레이션이 Edge Function 배포 전에 적용된다.
+
+### 13.3 환경 분리
+
+- [ ] debug / real Supabase 프로젝트가 분리되어 있고, 각 워크플로우가 자기 모드의 시크릿만 사용한다.
+- [ ] Supabase service_role key 가 GitHub Secrets 에 저장되어 있지 않다.
+- [ ] 마켓 OAuth client secret 이 Edge Function 환경변수에만 존재한다.
+
+### 13.4 롤백
+
+- [ ] `workflow_dispatch` 로 임의 ref 재배포가 가능하다.
+- [ ] 직전 안정 태그로 10분 안에 프론트 롤백 가능함을 모의 훈련에서 확인한다 (release 컷 시 1회).
+- [ ] DB 사고 대응 절차(PITR 또는 forward fix)가 문서화되어 있다.
+
+### 13.5 SPA fallback
+
+- [ ] `dist/404.html` 이 `dist/index.html` 과 동일하게 생성된다.
+- [ ] 라우터 직접 진입 URL (`/dashboard`, `/register`, `/history`) 이 새로고침 시에도 동작한다.
+
+### 13.6 가시성
+
+- [ ] Sentry 에서 release 별 에러율을 비교할 수 있다.
+- [ ] GitHub Actions 실행 이력이 최소 90일 보존된다 (기본값 확인).
+- [ ] PR 코드 리뷰어가 변경된 워크플로우의 영향 범위를 PR 본문 또는 변경 파일 트리에서 즉시 파악할 수 있다.
+
+---
+
+## 부록 A — 거부된 상위 옵션 요약
+
+| 옵션 | 거부 사유 |
+|---|---|
+| Vercel / Netlify | 호스팅 = GitHub Pages 결정 확정 (platform.md). 마이그레이션 가치 없음 |
+| Cloudflare Pages | 동일 |
+| GitLab CI | GitHub 중심 운영. 도구 분산 비용 |
+| 자체 호스팅 러너 | 보안·운영 부담. GitHub-hosted 로 충분 |
+| 멀티 리전 / 카나리 / 블루그린 | 1인 셀러 규모에 과잉. v2 |
+| 자동 회귀 감지 후 자동 롤백 | 신뢰도 부족. 오작동 위험 > 이득 |
+| Renovate / Dependabot 자동 머지 | v1 에 도입은 가능하지만 자동 머지는 위험. 알림만 사용 권장 |
+
+---
+
+## 부록 B — 후속 결정 트리거
+
+다음 사건이 발생하면 본 문서 갱신:
+
+1. 셀러 수 / MAU 가 v1 베타 한도 (대략 100명) 를 넘어가면 → 카나리 / staging 환경 도입 검토.
+2. Edge Function timeout 한도 사고 발생 → 큐 시스템(예: Supabase Queues, 또는 외부 큐) 도입 결정문 추가.
+3. Sentry 에러량이 메일 알림으로 감당 불가 → Slack/PagerDuty 연동.
+4. 마켓 API 정책 변경으로 Edge Function 핫픽스 빈도가 주 1회를 초과 → 어댑터별 독립 배포 워크플로우 분리.
+5. 디자인 시스템 안정화 → Chromatic 등 비주얼 회귀 도입.
+6. 결제·정산 모델 도입 (v2) → PCI-DSS 적용 범위 재검토, 시크릿 매트릭스 갱신.
+
+---
+
+## 부록 C — 인용 매핑
+
+| 본 문서 절 | 인용 문서 / 결정 |
+|---|---|
+| §2 브랜치 전략 | CLAUDE.md "브랜치 전략" (Git Flow), platform.md |
+| §3 CI 워크플로우 | testing.md (Vitest/RTL/Playwright 골든패스), frontend.md (size budget, ESLint) |
+| §4 배포 워크플로우 | platform.md (Pages + Edge Functions), frontend.md (404.html SPA fallback) |
+| §5 시크릿 매트릭스 | security.md (service_role 비저장), cross-cutting/credential-vault.md §3/§4/§5 |
+| §6 모드 매트릭스 | CLAUDE.md "빌드 모드: debug / real" |
+| §7 Supabase 마이그레이션 | platform.md (Supabase CLI 단일 소스) |
+| §10 Sentry | frontend.md (Sentry beforeSend 마스킹), security.md |
+| §11 PR 게이트 | CLAUDE.md "3개 산출물 동기화", qa 룰 (a11y) |
+| §12 404 fallback | frontend.md (GitHub Pages SPA fallback) |

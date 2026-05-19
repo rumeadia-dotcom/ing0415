@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 등록 이력 목록. 기간 / 마켓 / 상태 / 검색어 필터로 과거 등록 잡을 추적.">
+  <meta name="robots" content="noindex,nofollow">
+  <title>등록 이력 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+  <!--
+    s6 등록 이력 (history.md) — 목록 화면 (/history)
+    user_flow: n41 (main_page) + n42 (page) + n45 (기간 필터) + n46 (마켓 필터)
+    한 줄 가치: 셀러가 과거 잡을 30초 안에 찾고, partial/failed 행에서 바로 재시도/제외 동선으로 진입한다.
+    KPI 연결: 평균 등록 시간 단축률 — 재시도 진입 클릭수 / 잡 완료까지 누적 시간.
+
+    상태 분기 시뮬레이션 (정적 HTML, JS 없음):
+      - loading: .card 내부 텍스트를 <span class="skeleton" style="height:20px;"></span> 로 치환
+      - empty (전체 잡 0건): .history-list 자체를 .alert.alert-info 로 치환 → "아직 등록 이력이 없습니다"
+      - empty (필터 결과 0건): 동일하게 .alert.alert-info, "[필터 초기화]" 액션
+      - error: .history-list 를 .alert.alert-error 로 치환 + [다시 시도]
+      - 활성 필터 시각화: .badge.badge-accent 가 필터 헤더 자리에 노출
+
+    부족한 클래스 (보고 — _shared/styles.css 수정 금지):
+      [R1] 2-컬럼 필터 사이드바 그리드 — 토큰 grid utility 부재. 임시로 인라인 grid 사용 (토큰 변수만 사용).
+      [R2] 페이지네이션 컨트롤 — 별도 클래스 없음. .row + .btn-outline.btn-sm 조합으로 대체.
+      [R3] 잡 행 (히스토리 row) — .card 로 대체하되 시각적 좌측 status 컬러 바 미구현 (색만 의존 금지를 위해 상태 텍스트 + 아이콘 병행).
+      [R4] 다중 선택 상태 칩 (활성 필터 요약) — .badge.badge-accent + 닫기 X 버튼 조합으로 대체.
+      [R5] segmented radio (기간 토글) — 별도 클래스 없음. .row + .btn-outline 토글 형태로 대체.
+      [R6] 모바일 활성 필터 바 (sticky) — 토큰만으로 sticky/scroll-shadow 표현 어려움. 단순 .row-between + .row-wrap.
+      Wave 1 마스터 수정이 필요한 항목으로 디자인 시스템 PR 별도 제안 예정.
+
+    인터랙션 (정식 React 앱에서 구현):
+      - 필터 변경: URL params 갱신 + TanStack Query refetch (디바운스 300ms)
+      - 잡 행 클릭: /history/:jobId 진입 (Enter 키 동등)
+      - 페이지네이션: keyset cursor (?cursor=…&cursorId=…) 갱신
+      - Realtime: registration_jobs UPDATE 수신 시 해당 행만 부분 갱신
+
+    접근성:
+      - 필터 영역: <aside role="search" aria-label="이력 필터">
+      - 마켓/상태 다중 선택: <fieldset><legend> 그룹화 (aria-multiselectable 은 listbox role 일 때만 의미 — fieldset/checkbox 조합엔 불필요, history.md §11.2 정정)
+      - 잡 행 상태: 색 + 아이콘 + 한국어 텍스트 3중 (badge 내부 dot + 텍스트)
+      - 키보드 동선: Tab 으로 period → market → status → q → 적용 → 페이지네이션 → 잡 행 순회
+      - 행 진입: <a href> 로 감싸 Enter 키 진입 자연 지원
+  -->
+</head>
+<body>
+
+  <!-- ============================================================
+       app-shell — 사이드바 + 메인 (chrome.html 복사)
+       ============================================================ -->
+  <div class="app-shell" data-sidebar="expanded">
+
+    <!-- 사이드바 -->
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">
+          MarketCast
+          <small>v1</small>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+
+        <a href="../dashboard/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+
+        <a href="../register/step-1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+
+        <a href="../markets/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+
+        <a href="./index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+
+        <div class="sidebar-group-label">보조</div>
+
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">JH</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">안준형</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 메인 영역 -->
+    <div class="main-area">
+
+      <!-- 토픽바 -->
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+        <div class="topbar-title">등록 이력</div>
+        <div class="spacer"></div>
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <!-- 본문 -->
+      <main class="main-content">
+
+        <!-- 페이지 헤더 -->
+        <div class="row-between mb-4">
+          <div>
+            <h1 class="t-h1">등록 이력</h1>
+            <p class="t-sm t-muted mt-1">
+              과거 등록 잡을 검색하고, 실패한 잡을 바로 재시도하거나 마켓 제외 후 재등록합니다.
+            </p>
+          </div>
+          <div class="t-sm t-muted">총 <strong style="color:var(--text-1);">142건</strong></div>
+        </div>
+
+        <!-- 활성 필터 요약 (R4 대체 — 모바일/데스크탑 공통) -->
+        <div class="row-wrap mb-4" aria-label="현재 적용된 필터" role="group">
+          <span class="badge badge-accent">기간: 최근 30일</span>
+          <span class="badge badge-accent">마켓: 네이버, 쿠팡</span>
+          <span class="badge badge-accent">상태: 부분 성공, 실패</span>
+          <button type="button" class="btn btn-ghost btn-sm" aria-label="모든 필터 초기화">
+            <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+            초기화
+          </button>
+        </div>
+
+        <!-- 2-컬럼 그리드 (R1 — 토큰만 사용한 인라인 grid) -->
+        <div style="display:grid; grid-template-columns: 280px 1fr; gap: var(--sp-5); align-items:start;">
+
+          <!-- ============================================================
+               좌측: 필터 사이드바
+               ============================================================ -->
+          <aside class="card" role="search" aria-label="이력 필터" style="position:sticky; top: var(--sp-4);">
+
+            <h2 class="t-h3 mb-3">필터</h2>
+
+            <!-- 기간 (R5 — segmented radio 대체) -->
+            <fieldset style="border:0; padding:0; margin:0;">
+              <legend class="t-label mb-2">기간</legend>
+              <div class="row-wrap" role="radiogroup" aria-label="기간 선택">
+                <label class="checkbox" style="gap: var(--sp-1);">
+                  <input type="radio" name="period" value="today" style="appearance:auto; width:16px; height:16px; flex:0 0 16px;">
+                  <span>오늘</span>
+                </label>
+                <label class="checkbox" style="gap: var(--sp-1);">
+                  <input type="radio" name="period" value="7d" style="appearance:auto; width:16px; height:16px; flex:0 0 16px;">
+                  <span>7일</span>
+                </label>
+                <label class="checkbox" style="gap: var(--sp-1);">
+                  <input type="radio" name="period" value="30d" checked style="appearance:auto; width:16px; height:16px; flex:0 0 16px;">
+                  <span>30일</span>
+                </label>
+                <label class="checkbox" style="gap: var(--sp-1);">
+                  <input type="radio" name="period" value="custom" style="appearance:auto; width:16px; height:16px; flex:0 0 16px;">
+                  <span>직접 선택</span>
+                </label>
+              </div>
+
+              <!-- custom 일 때만 노출 — period=custom 라디오 체크 시 -->
+              <div class="stack-tight mt-3" hidden aria-hidden="true">
+                <div class="field">
+                  <label for="from" class="label t-xs">시작일</label>
+                  <input id="from" type="date" class="input">
+                </div>
+                <div class="field">
+                  <label for="to" class="label t-xs">종료일</label>
+                  <input id="to" type="date" class="input">
+                </div>
+              </div>
+            </fieldset>
+
+            <hr class="divider">
+
+            <!-- 마켓 (다중 선택) -->
+            <fieldset style="border:0; padding:0; margin:0;">
+              <legend class="t-label mb-2">마켓</legend>
+              <div class="stack-tight">
+                <label class="checkbox">
+                  <input type="checkbox" name="market" value="naver" checked>
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="market-tile sm naver" aria-hidden="true">N</span>
+                    네이버
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="market" value="coupang" checked>
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                    쿠팡
+                  </span>
+                </label>
+                <!-- v2 — disabled -->
+                <label class="checkbox" style="opacity: 0.5;">
+                  <input type="checkbox" name="market" value="11st" disabled aria-describedby="v2-11st">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="market-tile sm eleventh" aria-hidden="true">11</span>
+                    11번가
+                    <span id="v2-11st" class="t-xs t-subtle">(v2)</span>
+                  </span>
+                </label>
+                <label class="checkbox" style="opacity: 0.5;">
+                  <input type="checkbox" name="market" value="gmarket" disabled aria-describedby="v2-gmarket">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="market-tile sm gmarket" aria-hidden="true">G</span>
+                    G마켓
+                    <span id="v2-gmarket" class="t-xs t-subtle">(v2)</span>
+                  </span>
+                </label>
+                <label class="checkbox" style="opacity: 0.5;">
+                  <input type="checkbox" name="market" value="auction" disabled aria-describedby="v2-auction">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="market-tile sm auction" aria-hidden="true">A</span>
+                    옥션
+                    <span id="v2-auction" class="t-xs t-subtle">(v2)</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <hr class="divider">
+
+            <!-- 상태 (다중 선택) — 7상태 칩 (history.md §1.3 / registration-job-state.md 인용) -->
+            <fieldset style="border:0; padding:0; margin:0;">
+              <legend class="t-label mb-2">상태</legend>
+              <div class="stack-tight">
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="pending">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge"><span class="dot" aria-hidden="true"></span>대기 중</span>
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="running">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>진행 중</span>
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="partial" checked>
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge badge-warning"><span class="dot" aria-hidden="true"></span>부분 성공</span>
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="succeeded">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>성공</span>
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="failed" checked>
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge badge-danger"><span class="dot" aria-hidden="true"></span>실패</span>
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="retrying">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>재시도 중</span>
+                  </span>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" name="status" value="cancelled">
+                  <span class="row" style="gap: var(--sp-2);">
+                    <span class="badge"><span class="dot" aria-hidden="true"></span>취소됨</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <hr class="divider">
+
+            <!-- 상품명 검색 -->
+            <div class="field">
+              <label for="q" class="label t-label">상품명 검색</label>
+              <input id="q" type="search" class="input" placeholder="예: 무선 이어폰" autocomplete="off">
+              <p class="field-hint">부분 일치 (ILIKE). Enter 로 즉시 검색.</p>
+            </div>
+
+            <hr class="divider">
+
+            <!-- 필터 버튼 — 검색류 variant (ghost / outline) -->
+            <div class="row" style="gap: var(--sp-2);">
+              <button type="button" class="btn btn-ghost btn-block" aria-label="필터 적용">
+                필터 적용
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" aria-label="필터 초기화">
+                초기화
+              </button>
+            </div>
+
+          </aside>
+
+          <!-- ============================================================
+               우측: 이력 리스트
+               ============================================================ -->
+          <section aria-label="등록 이력 목록">
+
+            <div class="stack" style="gap: var(--sp-3);">
+
+              <!-- ========== 행 1: partial (실패 1차 시각) ========== -->
+              <a href="./detail.html"
+                 class="card card-interactive"
+                 aria-label="무선 이어폰 — 부분 성공, 2026-05-18 14:23 등록">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <!-- thumbnail (R3 — 단순 surface 박스로 대체) -->
+                  <div aria-hidden="true"
+                       style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        무선 이어폰
+                      </h3>
+                      <span class="badge badge-warning" aria-label="상태: 부분 성공">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+                        부분 성공
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted">
+                        <strong class="t-success">1 성공</strong>
+                        <span class="t-subtle"> · </span>
+                        <strong class="t-danger">1 실패</strong>
+                      </span>
+                      <span class="t-xs t-subtle">재시도 1/5</span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-18 14:23</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <!-- ========== 행 2: succeeded ========== -->
+              <a href="./detail.html"
+                 class="card card-interactive"
+                 aria-label="캠핑 의자 — 성공, 2026-05-17 09:11 등록">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true"
+                       style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">캠핑 의자 (블랙 / L)</h3>
+                      <span class="badge badge-success" aria-label="상태: 성공">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                        성공
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted">
+                        <strong class="t-success">2 성공</strong>
+                      </span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-17 09:11</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <!-- ========== 행 3: failed (재등록 자식 잡 표시) ========== -->
+              <a href="./detail.html"
+                 class="card card-interactive"
+                 aria-label="텀블러 500ml — 실패, 2026-05-16 18:42 등록, 하위 재등록 1건 있음">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true"
+                       style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">텀블러 500ml (실버)</h3>
+                      <span class="badge badge-danger" aria-label="상태: 실패">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+                        실패
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 시도 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted">
+                        <strong class="t-danger">0 성공 / 2 실패</strong>
+                      </span>
+                      <span class="t-xs t-subtle">재시도 3/5</span>
+                      <span class="badge badge-accent">재등록 1건 있음</span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-16 18:42</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <!-- ========== 행 4: running (Realtime 갱신 중) ========== -->
+              <a href="./detail.html"
+                 class="card card-interactive"
+                 aria-label="USB-C 케이블 1.5m — 진행 중, 2026-05-16 16:08 등록">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true"
+                       style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">USB-C 케이블 1.5m</h3>
+                      <span class="badge badge-info" role="status" aria-live="polite" aria-label="상태: 진행 중">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+                        진행 중
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted">
+                        <strong class="t-success">1 성공</strong>
+                        <span class="t-subtle"> · </span>
+                        진행 중 1건
+                      </span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-16 16:08</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <!-- ========== 행 5: retrying ========== -->
+              <a href="./detail.html"
+                 class="card card-interactive"
+                 aria-label="실내 슬리퍼 (M, L) — 재시도 중, 2026-05-16 11:30 등록">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true"
+                       style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">실내 슬리퍼 (M, L)</h3>
+                      <span class="badge badge-info" role="status" aria-live="polite" aria-label="상태: 재시도 중">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+                        재시도 중
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted">쿠팡 5xx → 자동 재시도 2/3</span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-16 11:30</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <!-- ========== 행 6~15: 압축 표기 (시각 검증 목적, 단순 succeeded 반복) ========== -->
+              <a href="./detail.html" class="card card-interactive" aria-label="여행용 멀티탭 — 성공">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true" style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">여행용 멀티탭</h3>
+                      <span class="badge badge-success" aria-label="상태: 성공">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                        성공
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted"><strong class="t-success">2 성공</strong></span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-15 21:14</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <a href="./detail.html" class="card card-interactive" aria-label="LED 무드등 — 성공">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true" style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">LED 무드등 (3색)</h3>
+                      <span class="badge badge-success" aria-label="상태: 성공">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                        성공
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted"><strong class="t-success">2 성공</strong></span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-15 14:02</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <a href="./detail.html" class="card card-interactive" aria-label="가죽 카드지갑 — 실패">
+                <div class="row" style="gap: var(--sp-4); align-items: flex-start;">
+                  <div aria-hidden="true" style="width:56px; height:56px; flex:0 0 56px; background:var(--surface-3); border-radius:var(--r); display:grid; place-items:center; color:var(--text-3);">
+                    <svg width="22" height="22" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div class="row-between" style="gap: var(--sp-2);">
+                      <h3 class="t-h3" style="margin:0;">가죽 카드지갑</h3>
+                      <span class="badge badge-danger" aria-label="상태: 실패">
+                        <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+                        실패
+                      </span>
+                    </div>
+                    <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
+                      <span class="market-stack" aria-label="등록 시도 마켓: 네이버, 쿠팡">
+                        <span class="market-tile sm naver" aria-hidden="true">N</span>
+                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                      </span>
+                      <span class="t-sm t-muted"><strong class="t-danger">0 성공 / 2 실패</strong></span>
+                      <span class="t-xs t-subtle">재시도 5/5 (한도 도달)</span>
+                    </div>
+                    <div class="row-between mt-2">
+                      <span class="t-xs t-subtle">2026-05-14 18:55</span>
+                      <span class="btn-link t-sm">상세 보기 →</span>
+                    </div>
+                  </div>
+                </div>
+              </a>
+
+              <!-- (… 행 9~15 동일 패턴이라 생략. 시각 합의용 mock 3개로 충분) -->
+              <p class="t-xs t-subtle text-center" aria-hidden="true">
+                — 시각 검증용 mock 데이터 — 실제 React 앱에서는 15건 / 페이지
+              </p>
+
+            </div>
+
+            <!-- ============================================================
+                 페이지네이션 (R2 — .row + .btn-outline 조합)
+                 ============================================================ -->
+            <nav class="row-between mt-6" aria-label="페이지 이동" style="gap: var(--sp-3); flex-wrap: wrap;">
+              <div class="t-sm t-muted">
+                <strong style="color:var(--text-1);">1</strong> / 8 페이지 · 142건 중 1–20 표시
+              </div>
+              <div class="row" style="gap: var(--sp-2);">
+                <button type="button" class="btn btn-outline btn-sm" disabled aria-label="이전 페이지" aria-disabled="true">
+                  <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-arrow-left"/></svg>
+                  이전
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" aria-label="다음 페이지">
+                  다음
+                  <svg class="btn-icon" aria-hidden="true" style="transform: rotate(180deg);"><use href="../_shared/icons.svg#i-arrow-left"/></svg>
+                </button>
+              </div>
+            </nav>
+
+            <!-- ============================================================
+                 빈 상태 예시 (주석 — 실제로는 .stack 자리에 노출)
+                 ============================================================ -->
+            <!--
+              [empty — 전체 잡 0건]
+              <div class="alert alert-info" role="status">
+                <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+                <div class="alert-body">
+                  <p class="alert-title">아직 등록 이력이 없습니다</p>
+                  <p class="alert-message">상품을 등록하면 여기에 이력이 기록됩니다.</p>
+                </div>
+                <a href="../register/step-1-info.html" class="btn btn-primary btn-sm">상품 등록하러 가기</a>
+              </div>
+
+              [empty — 필터 결과 0건]
+              <div class="alert alert-info" role="status">
+                <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+                <div class="alert-body">
+                  <p class="alert-title">조건에 맞는 잡이 없습니다</p>
+                  <p class="alert-message">기간 / 마켓 / 상태 조건을 넓혀보세요.</p>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm">필터 초기화</button>
+              </div>
+
+              [error]
+              <div class="alert alert-error" role="alert">
+                <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+                <div class="alert-body">
+                  <p class="alert-title">이력을 불러오지 못했습니다</p>
+                  <p class="alert-message">네트워크 연결을 확인하고 다시 시도해주세요.</p>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm">다시 시도</button>
+              </div>
+
+              [loading — 잡 행을 .skeleton 으로 5개 대체]
+              <div class="card">
+                <div class="row" style="gap: var(--sp-4);">
+                  <span class="skeleton" style="width:56px; height:56px; flex:0 0 56px;"></span>
+                  <div style="flex:1;">
+                    <span class="skeleton" style="height:20px; width:60%; display:block;"></span>
+                    <span class="skeleton mt-2" style="height:16px; width:40%; display:block;"></span>
+                  </div>
+                </div>
+              </div>
+            -->
+
+          </section>
+
+        </div>
+
+      </main>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

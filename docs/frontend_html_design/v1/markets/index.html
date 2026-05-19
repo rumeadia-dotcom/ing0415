@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 다중 마켓 상품 자동 등록 SaaS. 마켓 계정 관리">
+  <meta name="robots" content="noindex,nofollow">
+  <title>마켓 계정 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+
+  <!--
+    s5 마켓 계정 (n34/n35/n40, v1)
+    -----------------------------------------------------------
+    데이터 소스:
+      - market_accounts SELECT (RLS 로 셀러 본인만)
+      - status: active / expired / revoked / error
+
+    상태 4종:
+      - data:    연결된 계정 카드 리스트 (이 HTML, 활성 2 + 만료 임박 1 예시)
+      - loading: 카드 skeleton (주석)
+      - error:   alert-error 배너 (주석)
+      - empty:   "아직 연결된 마켓이 없습니다" 풀폭 카드 (주석)
+
+    인터랙션:
+      - [재인증] → /markets/connect/:provider
+      - [연결 해제] → 확인 모달 (정적 HTML 에서는 미구현, 클래스만)
+      - 토큰 만료 임박 (≤ 3일) → alert-warning 인라인 표시
+  -->
+
+  <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
+
+</head>
+<body>
+
+  <div class="app-shell" data-sidebar="expanded">
+
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">MarketCast<small>v1</small></div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+        <a href="../dashboard/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+        <a href="../register/step-1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+        <a href="../markets/index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+        <a href="../history/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+
+        <div class="sidebar-group-label">보조</div>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">KM</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">김셀러</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+        <div class="topbar-title">마켓 계정</div>
+        <div class="spacer"></div>
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <main class="main-content" aria-labelledby="page-title">
+
+        <!-- ============================================================
+             빈 상태 (empty) 시뮬레이션 — 주석
+             판정: market_accounts.length === 0
+             ============================================================ -->
+        <!--
+        <section class="card text-center" style="padding: var(--sp-9) var(--sp-5);">
+          <div style="font-size: 48px; margin-bottom: var(--sp-3);" aria-hidden="true">🔌</div>
+          <h2 class="t-h2" style="margin: 0 0 var(--sp-2);">아직 연결된 마켓이 없습니다</h2>
+          <p class="t-body t-muted" style="margin: 0 0 var(--sp-5);">
+            상품을 등록하려면 먼저 1개 이상의 마켓 계정을 연결하세요.
+          </p>
+          <a href="./connect.html" class="btn btn-primary btn-lg">+ 첫 마켓 연결하기</a>
+        </section>
+        -->
+
+        <!-- ============================================================
+             에러 상태 (error) 시뮬레이션 — 주석
+             ============================================================ -->
+        <!--
+        <div class="alert alert-error" role="alert" style="margin-bottom: var(--sp-5);">
+          <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+          <div class="alert-body">
+            <p class="alert-title">마켓 계정을 불러올 수 없습니다</p>
+            <p class="alert-message">잠시 후 다시 시도해주세요.</p>
+          </div>
+        </div>
+        -->
+
+        <!-- ============================================================
+             페이지 헤더
+             ============================================================ -->
+        <div class="page-header">
+          <div>
+            <h1 id="page-title">마켓 계정</h1>
+            <p>연결된 마켓 2개 · 마지막 검증 7분 전</p>
+          </div>
+          <a href="./connect.html" class="btn btn-primary">
+            <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+            신규 마켓 연결
+          </a>
+        </div>
+
+        <!-- ============================================================
+             토큰 만료 임박 경고 (≤ 3일)
+             ============================================================ -->
+        <div class="alert alert-warning" role="alert" style="margin-bottom: var(--sp-5);">
+          <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+          <div class="alert-body">
+            <p class="alert-title">쿠팡 계정 토큰이 곧 만료됩니다</p>
+            <p class="alert-message">
+              <strong>2일 4시간 후</strong> refresh token 이 만료됩니다. 등록이 중단되지 않도록 미리 재인증해 주세요.
+            </p>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             1차 영역: 연결된 계정 카드 그리드
+             ============================================================ -->
+        <section class="account-grid" aria-label="연결된 마켓 계정">
+
+          <!-- 카드 1: 네이버 스마트스토어 (active, 정상) -->
+          <article class="account-card" aria-labelledby="acc-naver-title">
+            <div class="account-card-head">
+              <span class="market-tile lg naver" aria-hidden="true">N</span>
+              <div class="account-card-title-area">
+                <h2 id="acc-naver-title" class="account-card-title">네이버 스마트스토어</h2>
+                <div class="account-card-label">메인 스토어</div>
+              </div>
+              <span class="badge badge-success" aria-label="상태: 활성">
+                <span class="dot" aria-hidden="true"></span>활성
+              </span>
+            </div>
+
+            <dl class="account-meta-list">
+              <dt>외부 계정</dt>
+              <dd>seller_konai_main</dd>
+              <dt>연결 일자</dt>
+              <dd>2026-04-22</dd>
+              <dt>마지막 검증</dt>
+              <dd><time datetime="2026-05-18T14:25">7분 전</time></dd>
+              <dt>토큰 만료</dt>
+              <dd>2026-08-22 (97일 남음)</dd>
+            </dl>
+
+            <div class="account-card-actions">
+              <button type="button" class="btn btn-secondary">
+                상태 확인
+              </button>
+              <button type="button" class="btn btn-outline">
+                재인증
+              </button>
+              <button type="button" class="btn btn-danger" aria-label="네이버 스마트스토어 메인 스토어 연결 해제">
+                연결 해제
+              </button>
+            </div>
+          </article>
+
+          <!-- 카드 2: 쿠팡 (active 이지만 만료 임박) -->
+          <article class="account-card" aria-labelledby="acc-coupang-title">
+            <div class="account-card-head">
+              <span class="market-tile lg coupang" aria-hidden="true">C</span>
+              <div class="account-card-title-area">
+                <h2 id="acc-coupang-title" class="account-card-title">쿠팡</h2>
+                <div class="account-card-label">서브 계정</div>
+              </div>
+              <span class="badge badge-warning" aria-label="상태: 활성, 만료 임박">
+                <span class="dot" aria-hidden="true"></span>만료 임박
+              </span>
+            </div>
+
+            <dl class="account-meta-list">
+              <dt>외부 계정</dt>
+              <dd>konai_sub01</dd>
+              <dt>연결 일자</dt>
+              <dd>2026-02-19</dd>
+              <dt>마지막 검증</dt>
+              <dd><time datetime="2026-05-18T13:55">37분 전</time></dd>
+              <dt>토큰 만료</dt>
+              <dd class="t-danger">2026-05-20 (2일 4시간)</dd>
+            </dl>
+
+            <div class="account-card-actions">
+              <button type="button" class="btn btn-secondary">
+                상태 확인
+              </button>
+              <a href="./connect-provider.html?provider=coupang" class="btn btn-primary">
+                재인증
+              </a>
+              <button type="button" class="btn btn-danger" aria-label="쿠팡 서브 계정 연결 해제">
+                연결 해제
+              </button>
+            </div>
+          </article>
+
+          <!-- 카드 3: 마켓 추가 (CTA, link card) -->
+          <a href="./connect.html" class="add-account-card" aria-label="신규 마켓 연결">
+            <span class="add-account-icon" aria-hidden="true">+</span>
+            <span class="add-account-title">신규 마켓 연결</span>
+            <span class="add-account-sub">
+              네이버 스마트스토어 · 쿠팡 지원<br>
+              <span class="t-xs t-subtle">11번가 · G마켓 · 옥션은 v2 예정</span>
+            </span>
+          </a>
+
+          <!-- loading skeleton 예시 (주석)
+          <article class="account-card">
+            <div class="account-card-head">
+              <span class="skeleton" style="width:40px; height:40px; border-radius: var(--r-sm);"></span>
+              <div class="account-card-title-area">
+                <span class="skeleton" style="width: 50%; height: 16px;"></span>
+                <span class="skeleton" style="width: 30%; height: 12px; margin-top: 6px;"></span>
+              </div>
+              <span class="skeleton" style="width: 60px; height: 22px; border-radius: var(--r-full);"></span>
+            </div>
+            <span class="skeleton" style="width: 100%; height: 80px;"></span>
+            <div class="account-card-actions">
+              <span class="skeleton" style="height: 36px; flex: 1;"></span>
+              <span class="skeleton" style="height: 36px; flex: 1;"></span>
+            </div>
+          </article>
+          -->
+
+        </section>
+
+        <!-- ============================================================
+             하단 안내 (보조)
+             ============================================================ -->
+        <p class="t-xs t-subtle text-center mt-6">
+          마켓 토큰은 암호화되어 안전하게 보관되며, 클라이언트에 노출되지 않습니다.
+          <a href="#">보안 안내 →</a>
+        </p>
+
+      </main>
+    </div>
+  </div>
+
+</body>
+</html>

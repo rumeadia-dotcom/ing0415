@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 상품 등록 5/5단계: 등록 결과 (부분 성공 / partial)">
+  <meta name="robots" content="noindex,nofollow">
+  <title>상품 등록 5/5 · 결과 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+  <!--
+    Wave 3 / s3 위저드 — Step 5 (등록 결과 / partial 시각화).
+    user_flow 노드 n21 + n24 + n25, registration.md §10.7 + §11.1.
+
+    상태 (partial):
+      - 잡 진행률 100% (완료)
+      - 네이버 스마트스토어 ✓ 성공 (외부 ID + URL)
+      - 쿠팡 ✗ 실패 (rate_limit) — ErrorMessage 펼치기 (접힘 기본)
+      - 잡 전체 상태: partial 뱃지 (--warning)
+
+    설계 강조: 손실 회피 UX —
+      실패가 1차 영역 (banner + 카드 색강조), 성공은 2차 (정상 카드).
+      재시도 / 제외 CTA 가 가장 큰 실행류 버튼.
+
+    접근성:
+      - 상태는 색상 + 아이콘 + 텍스트 라벨 병행 (색-only 의존 없음)
+      - aria-live="polite" 로 진행 변화 알림
+      - <details>/<summary> 로 ErrorMessage 접기 (JS 없음, 키보드 가능)
+  -->
+
+  <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
+</head>
+<body>
+
+<div class="app-shell" data-sidebar="expanded">
+
+  <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo" aria-hidden="true">M</div>
+      <div class="sidebar-name">MarketCast<small>v1</small></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">메인</div>
+      <a href="../dashboard/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+        <span>대시보드</span>
+      </a>
+      <a href="./step1-info.html" class="nav-item active" aria-current="page">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+        <span>상품 등록</span>
+      </a>
+      <a href="../markets/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+        <span>마켓 계정</span>
+      </a>
+      <a href="../history/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+        <span>등록 이력</span>
+      </a>
+      <div class="sidebar-group-label">보조</div>
+      <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+        <span>설정</span>
+      </a>
+      <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+        <span>도움말</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+        <span class="avatar" aria-hidden="true">JH</span>
+        <div style="min-width:0; flex:1;">
+          <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">안준형</div>
+          <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+        </div>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+
+    <header class="topbar">
+      <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+      </button>
+      <div class="topbar-title">상품 등록 — 결과</div>
+      <div class="spacer"></div>
+      <button type="button" class="icon-btn" aria-label="알림 열기">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+      </button>
+      <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+      </button>
+    </header>
+
+    <main class="main-content">
+
+      <section class="wizard" aria-labelledby="wizard-title">
+
+        <header class="wizard-header">
+          <div class="wizard-title-row">
+            <h1 id="wizard-title" class="wizard-title">등록 결과</h1>
+            <span class="wizard-step-pill">5 / 5 단계 · 완료</span>
+          </div>
+
+          <ol class="stepper" role="list" aria-label="등록 진행 단계">
+            <li class="stepper-item is-done">
+              <span class="stepper-marker" aria-hidden="true">
+                <svg class="check-ico" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+              </span>
+              <span class="stepper-label">상품 정보</span>
+            </li>
+            <li class="stepper-item is-done">
+              <span class="stepper-marker" aria-hidden="true">
+                <svg class="check-ico" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+              </span>
+              <span class="stepper-label">이미지</span>
+            </li>
+            <li class="stepper-item is-done">
+              <span class="stepper-marker" aria-hidden="true">
+                <svg class="check-ico" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+              </span>
+              <span class="stepper-label">마켓·카테고리</span>
+            </li>
+            <li class="stepper-item is-done">
+              <span class="stepper-marker" aria-hidden="true">
+                <svg class="check-ico" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+              </span>
+              <span class="stepper-label">미리보기</span>
+            </li>
+            <li class="stepper-item is-current is-warn" aria-current="step">
+              <span class="stepper-marker" aria-hidden="true">
+                <svg class="check-ico" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+              </span>
+              <span class="stepper-label">결과 (일부 실패)</span>
+              <span class="sr-only">(현재 단계, 일부 마켓 실패)</span>
+            </li>
+          </ol>
+
+          <div class="progress-bar is-partial" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-label="잡 진행률 100% — 1/2 마켓 성공, 1/2 마켓 실패">
+            <div class="progress-fill" style="width:100%;"></div>
+          </div>
+          <div class="progress-meta">
+            <span><strong>진행 100%</strong> · 1/2 성공 · 1/2 실패</span>
+            <span class="t-subtle">방금 완료됨</span>
+          </div>
+        </header>
+
+        <div class="wizard-body" aria-labelledby="step5-heading" aria-live="polite">
+
+          <h2 id="step5-heading" class="sr-only">등록 결과</h2>
+
+          <!-- ============== partial banner (1차 영역 — 손실 회피) ============== -->
+          <div class="result-banner partial" role="status">
+            <div class="result-banner-icon" aria-hidden="true">
+              <svg><use href="../_shared/icons.svg#i-alert"/></svg>
+            </div>
+            <div class="result-banner-body">
+              <p class="result-banner-title">
+                <span class="badge badge-warning" style="vertical-align:middle; margin-right:var(--sp-2);">
+                  <span class="dot" aria-hidden="true"></span>
+                  부분 등록
+                </span>
+                일부 마켓 등록이 실패했어요 (1/2)
+              </p>
+              <p class="result-banner-msg">
+                실패한 마켓을 재시도하거나, 제외하고 완료할 수 있어요. 결과는 [등록 이력] 에서도 다시 확인됩니다.
+              </p>
+            </div>
+          </div>
+
+          <!-- 잡 메타 -->
+          <dl class="job-meta" aria-label="등록 잡 정보">
+            <dt>잡 ID</dt>
+            <dd><span class="job-id-code">job_a3f9-7b21-...</span></dd>
+
+            <dt>상품</dt>
+            <dd>가을 미니 원피스 (블랙)</dd>
+
+            <dt>시작</dt>
+            <dd>14:21:03</dd>
+
+            <dt>완료</dt>
+            <dd>14:23:11</dd>
+
+            <dt>소요</dt>
+            <dd>2분 8초</dd>
+          </dl>
+
+          <!-- ============== 마켓 결과 카드 (실패 → 성공 순. 손실 회피 시각) ============== -->
+          <div class="result-list">
+
+            <!-- ───── 실패 카드: 쿠팡 (1차 영역) ───── -->
+            <article class="result-card is-failed" aria-labelledby="r-coupang-title">
+              <header class="result-card-head">
+                <span class="market-tile coupang" aria-hidden="true">C</span>
+                <div class="result-card-meta">
+                  <h3 id="r-coupang-title" class="result-card-title">쿠팡</h3>
+                  <div class="result-card-sub">시도 5 / 5 · 자동 재시도 종료</div>
+                </div>
+                <span class="status-pill failed" aria-label="등록 실패">
+                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+                  실패
+                </span>
+              </header>
+
+              <!-- 오류 메시지 + raw 접기 -->
+              <div class="error-detail">
+                <div class="error-summary" role="alert">
+                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+                  <div>
+                    <p class="err-title">마켓 요청 한도에 걸렸어요 (rate_limit)</p>
+                    <p class="err-msg">쿠팡 API 호출 한도가 일시적으로 초과되었습니다. 잠시 후 다시 시도해주세요. 자동 재시도 5회를 모두 사용해 더 이상 자동 재시도하지 않아요.</p>
+                  </div>
+                </div>
+
+                <details class="error-raw">
+                  <summary aria-label="기술적 오류 상세 보기">
+                    기술적 상세 보기 (개발자용)
+                  </summary>
+                  <pre>error_code:        rate_limit
+http_status:       429
+market:            coupang
+correlation_id:    cor_8d2f-...
+attempt_count:     5 / 5
+last_attempted_at: 2026-05-18T14:23:11+09:00
+upstream_message:  "Too many requests. Retry-After: 60s"
+docs_url:          https://docs.marketcast.io/errors/rate_limit</pre>
+                </details>
+              </div>
+
+              <!-- 카드별 액션 (실행류 — 가장 큰 시각 가중) -->
+              <div class="card-actions">
+                <button type="button" class="btn btn-primary" aria-label="쿠팡 마켓만 재시도">
+                  이 마켓만 재시도
+                </button>
+                <button type="button" class="btn btn-outline" aria-label="쿠팡을 제외하고 등록 완료 처리">
+                  쿠팡 제외하고 완료
+                </button>
+                <a href="../markets/index.html" class="btn btn-ghost btn-sm" aria-label="쿠팡 연결 상태 확인">
+                  연결 상태 확인 →
+                </a>
+              </div>
+            </article>
+
+            <!-- ───── 성공 카드: 네이버 (2차 영역) ───── -->
+            <article class="result-card is-succeeded" aria-labelledby="r-naver-title">
+              <header class="result-card-head">
+                <span class="market-tile naver" aria-hidden="true">N</span>
+                <div class="result-card-meta">
+                  <h3 id="r-naver-title" class="result-card-title">네이버 스마트스토어</h3>
+                  <div class="result-card-sub">시도 1 / 5 · 14:22:48 등록 완료</div>
+                </div>
+                <span class="status-pill succeeded" aria-label="등록 성공">
+                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                  성공
+                </span>
+              </header>
+
+              <div class="success-detail">
+                <div>
+                  <div class="success-label">외부 상품 ID</div>
+                  <div class="success-id">1234567890</div>
+                </div>
+                <div class="spacer"></div>
+                <a href="#" class="btn btn-outline btn-sm" target="_blank" rel="noopener" aria-label="네이버 스마트스토어에서 상품 보기">
+                  마켓에서 보기 →
+                </a>
+              </div>
+            </article>
+
+          </div>
+
+          <!-- ============== 전체 잡 액션 (n24 / n25) ============== -->
+          <div class="global-actions" role="group" aria-label="잡 전체 액션">
+            <h3>다음에 무엇을 할까요?</h3>
+            <p class="t-sm t-muted" style="margin: 0 0 var(--sp-4);">
+              실패한 마켓에 대해 일괄 재시도하거나, 제외하고 새 잡으로 등록할 수 있어요.
+            </p>
+            <div class="ga-buttons">
+              <button type="button" class="btn btn-primary btn-lg" aria-label="모든 실패 마켓 재시도 (재시도 1/5)">
+                실패 마켓 모두 재시도
+                <span class="badge badge-warning" style="margin-left:var(--sp-2);">1개</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-lg" aria-label="실패 마켓을 제외하고 새 잡 생성">
+                실패 마켓 제외하고 새 잡
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ============== 푸터 — 종료 동선 ============== -->
+        <div class="wizard-footer">
+          <a href="../history/index.html?jobId=job_a3f9" class="btn btn-outline" aria-label="등록 이력으로 이동하여 이 잡 확인">
+            <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+            등록 이력으로
+          </a>
+
+          <div class="footer-actions">
+            <a href="../dashboard/index.html" class="btn btn-ghost" aria-label="대시보드로 이동">
+              대시보드로
+            </a>
+            <a href="./step1-info.html" class="btn btn-primary" aria-label="새 상품 등록 시작">
+              + 새 상품 등록
+            </a>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+</div>
+
+</body>
+</html>
