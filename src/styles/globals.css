@@ -1,0 +1,208 @@
+/**
+ * MarketCast — 글로벌 토큰 & Tailwind 진입.
+ *
+ * 마스터 문서: docs/architecture/v1/ui-system.md §3 / §11 / §12
+ * - 색상 변수는 RGB triplet (Tailwind `rgb(var(--*) / <alpha-value>)` alpha 지원).
+ * - 라이트 = `:root`, 다크 = `[data-theme="dark"]` 또는 `.dark` (양쪽 지원).
+ * - raw HEX 사용 금지 — 모든 색은 이 파일에서만 선언.
+ *
+ * Pretendard:
+ *  - v1 운영은 self-host 권장 (ui-system.md D2). 현 단계는 CDN 으로 시작.
+ *  - TODO(Stage C+): /public 에 woff2 배치 + @font-face self-host 전환.
+ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── 라이트 모드 ─────────────────────────────────────────────── */
+    /* surface */
+    --surface: 255 255 255; /* #FFFFFF */
+    --surface-subtle: 248 250 252; /* #F8FAFC */
+    --surface-muted: 241 245 249; /* #F1F5F9 */
+
+    /* text */
+    --text: 15 23 42; /* #0F172A */
+    --text-secondary: 71 85 105; /* #475569 */
+    --text-tertiary: 100 116 139; /* #64748B — D6: 4.5:1 확보 위해 진하게 */
+
+    /* border */
+    --border: 226 232 240; /* #E2E8F0 */
+    --border-strong: 203 213 225; /* #CBD5E1 */
+
+    /* accent */
+    --accent: 37 99 235; /* #2563EB */
+    --accent-hover: 29 78 216; /* #1D4ED8 */
+    --accent-soft: 239 246 255; /* #EFF6FF */
+    --accent-soft-border: 219 234 254; /* #DBEAFE */
+
+    /* status */
+    --success: 16 185 129; /* #10B981 */
+    --success-soft: 236 253 245; /* #ECFDF5 */
+    --success-on-soft: 4 120 87; /* #047857 */
+    --warning: 245 158 11; /* #F59E0B */
+    --warning-soft: 255 251 235; /* #FFFBEB */
+    --warning-on-soft: 180 83 9; /* #B45309 */
+    --danger: 239 68 68; /* #EF4444 */
+    --danger-soft: 254 242 242; /* #FEF2F2 */
+    --danger-on-soft: 185 28 28; /* #B91C1C */
+    --info-soft: 240 249 255; /* #F0F9FF */
+    --info-on-soft: 12 74 110; /* #0C4A6E */
+
+    /* focus ring */
+    --ring: 37 99 235; /* = accent */
+
+    /* 마켓 브랜드 */
+    --market-naver: 3 199 90; /* #03C75A */
+    --market-eleventh: 255 0 56; /* #FF0038 */
+    --market-gmarket: 0 177 71; /* #00B147 */
+    --market-auction: 231 57 54; /* #E73936 */
+    --market-coupang: 241 31 68; /* #F11F44 */
+
+    /* radius */
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+
+    /* shadow — 라이트 (낮은 노출) */
+    --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+    --shadow: 0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.04);
+    --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.08), 0 4px 6px -4px rgb(15 23 42 / 0.06);
+    --shadow-pop: 0 20px 25px -5px rgb(15 23 42 / 0.10), 0 8px 10px -6px rgb(15 23 42 / 0.06);
+
+    /* layout */
+    --topbar-h: 56px;
+    --sidebar-w: 240px;
+    --sidebar-w-collapsed: 64px;
+    --row-h: 44px;
+
+    color-scheme: light;
+  }
+
+  [data-theme='dark'],
+  .dark {
+    /* ── 다크 모드 ───────────────────────────────────────────────── */
+    --surface: 11 18 32; /* #0B1220 */
+    --surface-subtle: 15 23 42; /* #0F172A */
+    --surface-muted: 30 41 59; /* #1E293B */
+
+    --text: 241 245 249; /* #F1F5F9 */
+    --text-secondary: 203 213 225; /* #CBD5E1 */
+    --text-tertiary: 148 163 184; /* #94A3B8 — 다크에선 4.7:1 OK */
+
+    --border: 30 41 59; /* #1E293B */
+    --border-strong: 51 65 85; /* #334155 */
+
+    --accent: 59 130 246; /* #3B82F6 */
+    --accent-hover: 37 99 235; /* #2563EB */
+    --accent-soft: 23 37 84; /* #172554 */
+    --accent-soft-border: 30 58 138; /* #1E3A8A */
+
+    --success: 52 211 153; /* #34D399 */
+    --success-soft: 2 44 34; /* #022C22 */
+    --success-on-soft: 110 231 183; /* #6EE7B7 */
+    --warning: 251 191 36; /* #FBBF24 */
+    --warning-soft: 59 42 10; /* #3B2A0A */
+    --warning-on-soft: 252 211 77; /* #FCD34D */
+    --danger: 248 113 113; /* #F87171 */
+    --danger-soft: 59 20 20; /* #3B1414 */
+    --danger-on-soft: 252 165 165; /* #FCA5A5 */
+    --info-soft: 8 47 73; /* #082F49 */
+    --info-on-soft: 186 230 253; /* #BAE6FD */
+
+    --ring: 59 130 246; /* = accent dark */
+
+    /* 마켓 브랜드 — 다크 톤업 (ui-system.md §3.2) */
+    --market-naver: 3 199 90; /* unchanged */
+    --market-eleventh: 255 61 92; /* #FF3D5C */
+    --market-gmarket: 0 177 71; /* unchanged */
+    --market-auction: 242 89 85; /* #F25955 */
+    --market-coupang: 249 77 106; /* #F94D6A */
+
+    /* shadow — 다크는 더 깊게 */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.45);
+    --shadow-pop: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+
+    color-scheme: dark;
+  }
+
+  /* 기본 html / body */
+  html {
+    font-family:
+      'Pretendard',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Apple SD Gothic Neo',
+      system-ui,
+      sans-serif;
+    font-feature-settings: 'tnum';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface text-text;
+    @apply text-body;
+    min-height: 100vh;
+  }
+
+  /* focus-visible — 키보드 only 포커스 (ui-system.md §12.4) */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* 마우스 클릭으로 들어온 포커스는 outline 안 그림 */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* prefers-reduced-motion: 사용자가 동작 줄이면 transition/animation 즉시 종료 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* 모바일 본문 ≥16px 강제 (ui-system.md §4.2) */
+  @media (max-width: 767px) {
+    body {
+      @apply text-body-mobile;
+    }
+  }
+
+  /* 접근성: 텍스트 선택 색 */
+  ::selection {
+    background-color: rgb(var(--accent) / 0.2);
+    color: rgb(var(--text));
+  }
+}
+
+@layer utilities {
+  /* 화면 리더 전용 — shadcn 표준 */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
