@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui'
 import { isDebug } from '@/lib/env'
 import { createQueryClient } from '@/lib/queryClient'
+import { AuthProvider } from '@/features/auth'
 
 /**
  * 글로벌 Provider 묶음.
@@ -20,7 +21,9 @@ export function AppProviders({ children }: { children: ReactNode }): JSX.Element
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+      </AuthProvider>
       {isDebug && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   )

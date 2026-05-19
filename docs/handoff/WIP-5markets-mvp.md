@@ -117,13 +117,21 @@ Stage A → B → C → D → E → F → G → H → ✅ 부트스트랩 완료
 - [ ] Branch protection (develop/main 에 5 status check 강제)
 - [ ] `.env.local` 작성 (debug 모드 anon key)
 
-### B-2. s1 인증 구현 (3~5일)
-- [ ] LoginPage: RHF + zod + Supabase Auth signInWithPassword + 에러 매핑
-- [ ] SignupPage: 비밀번호 강도 메터 (zxcvbn) + 이메일 인증 흐름
-- [ ] ForgotPasswordPage + ResetPasswordPage
-- [ ] 소셜 로그인 (Google / Naver provider 설정)
-- [ ] RequireAuth HOC + 세션 만료 자동 로그아웃
-- [ ] auth-event-log Edge Function 연동
+### B-2. s1 인증 구현 (2026-05-19 본구현 완료)
+- ✅ LoginPage: RHF + zod + Supabase Auth signInWithPassword + 에러 매핑 + password 토글 + redirect (location.state.from)
+- ✅ SignupPage: 자체 5단계 강도 메터 (zxcvbn 미도입, v1 번들 부담 회피) + 약관/마케팅 체크박스 + enumeration 방지 동일 응답
+- ✅ ForgotPasswordPage: resetPasswordForEmail + 결과 무관 동일 안내 (네트워크/5xx/rate_limit 만 노출)
+- ✅ ResetPasswordPage: recovery 세션 검사 + updatePassword + signOut(global) + toast + /login redirect
+- ✅ RequireAuth HOC: AppLayout 그룹 가드 (anonymous→/login + state.from 보존, loading→skeleton)
+- ✅ AuthProvider + useAuth: PKCE flow + onAuthStateChange 구독 + 3-state (loading/authed/anonymous)
+- ✅ Label / ErrorMessage 공통 컴포넌트 신설 (ui-system.md §7 / §8)
+- ✅ supabase.ts: `flowType:'pkce'` + `storageKey:'mc.auth'`
+- ✅ auth-error-map: Supabase Auth 에러 → 한국어 + Sentry 송출 정책 (auth.md §7.2/§7.3)
+- ✅ 단위 테스트 13건 (auth-error-map 7 + password-strength 6)
+- [ ] 소셜 로그인 (Google / Naver provider 설정) — B-1 Supabase 콘솔 설정 의존
+- [ ] auth-event-log Edge Function 연동 (audit_log) — v2 백로그 가능
+- [ ] LoginPage / SignupPage 통합 테스트 (RTL — submit, validation, navigate)
+- [ ] 세션 만료 자동 로그아웃 동작 검증 (refresh token rotation 시나리오)
 
 ### B-3. s5 마켓계정 본 구현 (5~7일)
 - [ ] **MarketsListPage placeholder → 본구현** (`apps/web/src/features/markets/pages/MarketsListPage.tsx`)

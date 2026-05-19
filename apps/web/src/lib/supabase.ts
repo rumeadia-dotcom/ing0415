@@ -29,9 +29,13 @@ export function getSupabase(): SupabaseClient {
     env.VITE_SUPABASE_ANON_KEY ?? 'debug-anon-key',
     {
       auth: {
+        // auth.md §3.5: PKCE 고정 (implicit 금지)
+        flowType: 'pkce',
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        // 토큰 storage 키 명시 (다른 supabase 인스턴스 격리)
+        storageKey: 'mc.auth',
       },
     },
   )
