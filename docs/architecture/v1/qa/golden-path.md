@@ -25,7 +25,7 @@
 
 1. **MVP v1 의 핵심 셀러 동선 (인증 → 마켓 연결 → 상품 등록 → 이력 확인) 이 항상 동작함을 보증**한다.
 2. **회귀 게이트** — 마켓 어댑터 / Edge Function / RLS / UI 컴포넌트 변경이 핵심 동선을 깨는 PR 을 `develop` / `main` 진입 전에 차단한다.
-3. **3개 산출물 동기화 검증의 마지막 보루** — 설계문서(`docs/architecture/v1/`) / HTML 프로토타입(`docs/frontend_html_design/v1/`) / 실제 구현(`src/features/<domain>/`) 중 하나라도 누락되어 있으면 본 시나리오가 실패하도록 단계별 검증을 짠다.
+3. **3개 산출물 동기화 검증의 마지막 보루** — 설계문서(`docs/architecture/v1/`) / HTML 프로토타입(`docs/frontend_html_design/v1/`) / 실제 구현(`apps/web/src/features/<domain>/`) 중 하나라도 누락되어 있으면 본 시나리오가 실패하도록 단계별 검증을 짠다.
 
 ### 1.2 범위
 

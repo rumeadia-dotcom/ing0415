@@ -2,7 +2,7 @@
 
 > 작성: ing-designer (ENTP, 디자이너) · 검토 대기: frontend / qa / pm
 > 버전: v1.0 (2026-05-18)
-> 동기화 대상: `prototype/styles.css` (v0 시각 레퍼런스) / `docs/frontend_html_design/v1/` (정식 HTML 프로토타입 — 첫 화면 작업 시 신설) / `src/components/ui/*` (shadcn 컴포넌트 직소유)
+> 동기화 대상: `prototype/styles.css` (v0 시각 레퍼런스) / `docs/frontend_html_design/v1/` (정식 HTML 프로토타입 — 첫 화면 작업 시 신설) / `apps/web/src/components/ui/*` (shadcn 컴포넌트 직소유)
 
 ---
 
@@ -71,7 +71,7 @@ shadcn 관례 (`background`, `foreground`, `primary`, `card` 등) 와 **공존**
 ### 3.3 CSS 변수 + Tailwind 매핑 (구현 예시)
 
 ```css
-/* src/styles/tokens.css */
+/* apps/web/src/styles/tokens.css */
 :root {
   --surface: 255 255 255;          /* RGB triplets — Tailwind alpha 지원 */
   --surface-subtle: 248 250 252;
@@ -201,7 +201,7 @@ PRD §5.1.1 기준 + Tailwind 표준에 맞춤.
 
 ## 7. shadcn 컴포넌트 카탈로그 (v1)
 
-`src/components/ui/` 에 **코드 복사로 직소유**. 라이브러리 import 금지 (Radix Primitives 만 의존).
+`apps/web/src/components/ui/` 에 **코드 복사로 직소유**. 라이브러리 import 금지 (Radix Primitives 만 의존).
 
 | 컴포넌트 | variant / size 정책 | v1 사용처 |
 |---|---|---|
@@ -237,7 +237,7 @@ PRD §5.1.1 기준 + Tailwind 표준에 맞춤.
 
 ## 8. ErrorMessage 컴포넌트 명세
 
-`src/components/ui/error-message.tsx`
+`apps/web/src/components/ui/error-message.tsx`
 
 ### 8.1 Props
 
@@ -745,7 +745,7 @@ prototype v0 는 `compact` / `default` / `comfortable` 3단계.
 
 ## 16. 토큰 적용 우선순위 (구현 순서)
 
-1. **Phase 0 (이번 주)**: 본 문서 + `tailwind.config.ts` 초안 + `src/styles/tokens.css` 작성. shadcn init.
+1. **Phase 0 (이번 주)**: 본 문서 + `tailwind.config.ts` 초안 + `apps/web/src/styles/tokens.css` 작성. shadcn init.
 2. **Phase 1**: `Button` / `Input` / `Card` / `Badge` 4개 컴포넌트 + 라이트/다크 스토리북.
 3. **Phase 2**: `Dialog` / `ResponsiveDialog` / `Sheet` / `Toast` / `Tooltip` / `Form`.
 4. **Phase 3**: `ErrorMessage` / `MarketIcon` / `MarketStack` / `StatusIcon` / `EmptyState` — 도메인 특화.
@@ -774,7 +774,7 @@ prototype v0 는 `compact` / `default` / `comfortable` 3단계.
 
 - [ ] `docs/architecture/v1/ui-system.md` (본 파일) 갱신
 - [ ] `docs/frontend_html_design/v1/` (정식 HTML 프로토타입) 의 토큰 CSS 동기화 — 첫 화면 작업 시 신설
-- [ ] `src/styles/tokens.css` + `tailwind.config.ts` + 영향 받는 `src/components/ui/*.tsx`
+- [ ] `apps/web/src/styles/tokens.css` + `tailwind.config.ts` + 영향 받는 `apps/web/src/components/ui/*.tsx`
 
 prototype v0 (`prototype/styles.css`) 는 **시각 레퍼런스로만 유지**, 자동 동기화 대상 아님.
 

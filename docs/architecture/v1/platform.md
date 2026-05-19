@@ -35,7 +35,7 @@ CLAUDE.md "인프라 결정 (확정)" 의 항목을 표로 압축한다. "근거
 | Format | Prettier | 포맷팅만 담당, lint 와 책임 분리 |
 | 테스트 | Vitest + RTL + Playwright | 단위·통합·E2E 3단 분리. 골든 패스 1개 Playwright 강제 |
 | 접근성 | WCAG 2.1 AA | `eslint-plugin-jsx-a11y` + `@axe-core/playwright` 자동 검출 |
-| i18n 준비 | `t('key')` + `src/locales/ko.ts` 사전 | 한국어 1종 운영, 텍스트 하드코딩 금지 |
+| i18n 준비 | `t('key')` + `apps/web/src/locales/ko.ts` 사전 | 한국어 1종 운영, 텍스트 하드코딩 금지 |
 | 테마 | Light + Dark (`class="dark"` 토글) | shadcn/Tailwind CSS 변수 토큰. raw 색상 금지 |
 
 ### 2.2 백엔드 / 데이터
@@ -145,16 +145,16 @@ CLAUDE.md "인프라 결정 (확정)" 의 항목을 표로 압축한다. "근거
 
 | 디렉토리 | 책임 | 비범위 |
 |---|---|---|
-| `src/features/<domain>/` | 도메인별 화면·hook·api 클라이언트·도메인 타입 | 다른 도메인 import (`features/markets` → `features/registration` 금지). 공유는 `src/lib/` 경유 |
-| `src/components/ui/` | shadcn/ui 컴포넌트 (Button, Input, Dialog 등) | 비즈니스 로직·도메인 의존 금지 |
-| `src/lib/` | 공용 hook·유틸·zod 스키마·Supabase client | 화면 컴포넌트 보유 금지 |
-| `src/locales/` | i18n 사전 | 도메인 로직 금지 |
-| `supabase/migrations/` | SQL 마이그레이션 (RLS 정책 포함) | 시드 데이터 금지 (`seed.sql` 별도) |
-| `supabase/functions/` | Edge Function 진입점 | 클라이언트에서 직접 import 금지 (HTTP 경계) |
-| `supabase/functions/_shared/adapters/` | `MarketAdapter` 인터페이스 + 마켓별 구현 + mock 어댑터 | RegistrationJob 오케스트레이션 금지 (어댑터는 호출 1회만 책임) |
+| `apps/web/src/features/<domain>/` | 도메인별 화면·hook·api 클라이언트·도메인 타입 | 다른 도메인 import (`features/markets` → `features/registration` 금지). 공유는 `apps/web/src/lib/` 경유 |
+| `apps/web/src/components/ui/` | shadcn/ui 컴포넌트 (Button, Input, Dialog 등) | 비즈니스 로직·도메인 의존 금지 |
+| `apps/web/src/lib/` | 공용 hook·유틸·zod 스키마·Supabase client | 화면 컴포넌트 보유 금지 |
+| `apps/web/src/locales/` | i18n 사전 | 도메인 로직 금지 |
+| `apps/api/supabase/migrations/` | SQL 마이그레이션 (RLS 정책 포함) | 시드 데이터 금지 (`seed.sql` 별도) |
+| `apps/api/supabase/functions/` | Edge Function 진입점 | 클라이언트에서 직접 import 금지 (HTTP 경계) |
+| `apps/api/supabase/functions/_shared/adapters/` | `MarketAdapter` 인터페이스 + 마켓별 구현 + mock 어댑터 | RegistrationJob 오케스트레이션 금지 (어댑터는 호출 1회만 책임) |
 | `docs/architecture/v1/` | 설계문서 (3개 산출물 sync 대상) | 코드 금지 |
 | `docs/frontend_html_design/v1/` | 정식 HTML 프로토타입 (3개 산출물 sync 대상) | React/TS 코드 금지 |
-| `tests/e2e/` | Playwright E2E (골든 패스 1개 최소) | 단위 테스트는 각 `src/features/<domain>/__tests__/` 에 동거 |
+| `tests/e2e/` | Playwright E2E (골든 패스 1개 최소) | 단위 테스트는 각 `apps/web/src/features/<domain>/__tests__/` 에 동거 |
 | `tests/fixtures/` | mock 픽스처 (`window.AppData` 대체) | real 번들에 절대 포함 금지 (tree-shaking 보장) |
 | `prototype/` | v0 시각 레퍼런스 | 정식 빌드 산출물 아님. 수정 동결 |
 
@@ -181,10 +181,10 @@ CLAUDE.md "인프라 결정 (확정)" 의 항목을 표로 압축한다. "근거
 
 ### 4.2 모드 스위치 메커니즘
 
-`VITE_APP_MODE` 환경변수가 단일 ground truth. `src/lib/mode.ts` 가 1회 판정 후 export.
+`VITE_APP_MODE` 환경변수가 단일 ground truth. `apps/web/src/lib/mode.ts` 가 1회 판정 후 export.
 
 ```ts
-// src/lib/mode.ts
+// apps/web/src/lib/mode.ts
 import { z } from 'zod';
 
 const ModeSchema = z.enum(['debug', 'real']);
@@ -200,7 +200,7 @@ export const isReal = APP_MODE === 'real';
 debug 전용 코드는 real 번들에 절대 들어가지 않아야 한다. 다음 패턴을 강제한다.
 
 ```ts
-// src/lib/fixtures-loader.ts
+// apps/web/src/lib/fixtures-loader.ts
 import { isDebug } from './mode';
 
 export async function loadMockFixtures() {
@@ -212,7 +212,7 @@ export async function loadMockFixtures() {
 ```
 
 ```ts
-// src/features/markets/api/adapter-registry.ts
+// apps/web/src/features/markets/api/adapter-registry.ts
 import { isDebug } from '@/lib/mode';
 import { naverRealAdapter } from './adapters/naver';
 import { coupangRealAdapter } from './adapters/coupang';
@@ -273,7 +273,7 @@ export const adapters = isDebug
 
 ### 5.3 마이그레이션 단일 소스 유지
 
-- `supabase/migrations/` 가 **유일한** 스키마 ground truth. 대시보드에서 SQL 직접 실행 금지.
+- `apps/api/supabase/migrations/` 가 **유일한** 스키마 ground truth. 대시보드에서 SQL 직접 실행 금지.
 - 두 프로젝트에 동일 SQL 적용을 CI 로 강제:
 
 ```yaml
@@ -350,7 +350,7 @@ jobs:
 ### 7.1 MarketAdapter 인터페이스 (5메서드)
 
 ```ts
-// supabase/functions/_shared/adapters/types.ts
+// apps/api/supabase/functions/_shared/adapters/types.ts
 export interface MarketAdapter {
   authenticate(code: string): Promise<{
     accessToken: string;
@@ -414,11 +414,11 @@ WHERE schemaname = 'public'
 - Sentry SDK 초기화 시 `beforeSend` 훅 의무 등록. 다음 키 이름 (대소문자 무관) 은 모든 event payload 에서 `[REDACTED]` 치환:
   - `accessToken`, `refreshToken`, `apiKey`, `clientSecret`, `password`, `email`, `phone`
 - 화이트리스트 패턴: payload 의 키 이름을 정규식 매치 → 매치되면 값 redact. 깊이 제한 없음 (재귀).
-- 로그 레벨에서도 동일 마스킹 적용 — `src/lib/logger.ts` 가 출력 전 동일 화이트리스트 통과.
+- 로그 레벨에서도 동일 마스킹 적용 — `apps/web/src/lib/logger.ts` 가 출력 전 동일 화이트리스트 통과.
 - 운영 어댑터의 외부 호출 로그는 `tokenLength`, `tokenSuffix4` 만 노출. 본문 금지.
 
 ```ts
-// src/lib/sentry.ts (발췌)
+// apps/web/src/lib/sentry.ts (발췌)
 import * as Sentry from '@sentry/react';
 import { isReal, APP_MODE } from './mode';
 
@@ -453,11 +453,11 @@ Sentry.init({
 신규 마켓 추가는 **1 파일 + 단위 테스트** 로 끝나야 한다. 외부에 손이 닿으면 추상화 실패로 간주.
 
 ```
-1. supabase/functions/_shared/adapters/<market>.ts        # 5메서드 구현
-2. supabase/functions/_shared/adapters/<market>.test.ts   # 단위 테스트 (Deno test)
+1. apps/api/supabase/functions/_shared/adapters/<market>.ts        # 5메서드 구현
+2. apps/api/supabase/functions/_shared/adapters/<market>.test.ts   # 단위 테스트 (Deno test)
 3. tests/fixtures/markets/<market>.ts                     # debug 용 mock 응답
-4. supabase/functions/_shared/adapters/index.ts           # 1줄 export 추가
-5. supabase/migrations/<ts>_seed_market_<market>.sql      # markets 테이블에 row insert
+4. apps/api/supabase/functions/_shared/adapters/index.ts           # 1줄 export 추가
+5. apps/api/supabase/migrations/<ts>_seed_market_<market>.sql      # markets 테이블에 row insert
 ```
 
 검증 체크리스트:
@@ -481,9 +481,9 @@ Sentry.init({
    - 화면 흐름 (user_flow 노드 인용)
    - 수락 기준 (qa 에이전트 룰)
 3. docs/frontend_html_design/v1/<domain>/ 정적 HTML
-4. supabase/migrations/ SQL 추가 (RLS 정책 포함)
-5. supabase/functions/<endpoint>/ 구현
-6. src/features/<domain>/ 구현 (components/hooks/api/types/pages)
+4. apps/api/supabase/migrations/ SQL 추가 (RLS 정책 포함)
+5. apps/api/supabase/functions/<endpoint>/ 구현
+6. apps/web/src/features/<domain>/ 구현 (components/hooks/api/types/pages)
 7. tests 추가 (단위 + 골든 패스 영향 검토)
 ```
 
@@ -509,7 +509,7 @@ Sentry.init({
 | 1 | 자격증명 암호화 방식 | **Phase 1 결정 완료 — pgcrypto** (`credential-vault.md` §2 단일 출처). Vault 검토는 v2 백로그 | (해결됨) | `security.md` §4.2, `cross-cutting/credential-vault.md` |
 | 2 | 실시간 상태 전송 방식 | Phase 1 (frontend + backend) | Supabase Realtime (Postgres changes) vs polling (TanStack Query refetch) | `frontend.md`, `features/registration.md` |
 | 3 | 장기 잡 재시도 스케줄러 | Phase 2 (backend) | `pg_cron` vs Supabase scheduled functions vs 클라이언트 재요청 | `features/registration.md` |
-| 4 | i18n 라이브러리 | Phase 3 (frontend) | i18next vs 경량 자체 dictionary (`src/locales/ko.ts` 단순 lookup) | `frontend.md` |
+| 4 | i18n 라이브러리 | Phase 3 (frontend) | i18next vs 경량 자체 dictionary (`apps/web/src/locales/ko.ts` 단순 lookup) | `frontend.md` |
 | 5 | 이미지 변환 실행 위치 | Phase 2 (backend) | Edge Function 내부 (CPU 2s 제약) vs Supabase Storage transformations vs 외부 서비스 | `features/registration.md`, `security.md` |
 | 6 | 다크 토큰 정의 시점 | Phase 0 (designer) | 첫 화면 구현과 동시 vs 별도 spike | `ui-system.md` |
 | 7 | MAU 세션 수집 방식 | Phase 4 (backend) | Supabase Auth event 트리거 vs 클라이언트 ping | `features/dashboard.md` |

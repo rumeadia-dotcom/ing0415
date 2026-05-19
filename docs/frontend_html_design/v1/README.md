@@ -78,6 +78,6 @@ docs/frontend_html_design/v1/
 
 1. `docs/architecture/v1/` — 설계문서 (의도·근거)
 2. `docs/frontend_html_design/v1/` — **본 디렉토리** (시각 합의)
-3. `src/features/<domain>/` + `src/components/ui/` — 실제 구현 (예정)
+3. `apps/web/src/features/<domain>/` + `apps/web/src/components/ui/` — 실제 구현 (예정)
 
 `prototype/` (v0) 은 시각 레퍼런스로 보존하며 자동 동기화 대상이 아님.

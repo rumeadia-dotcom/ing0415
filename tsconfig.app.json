@@ -25,20 +25,20 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["apps/web/src/*"]
     },
 
     "types": ["vite/client"]
   },
-  "include": ["src"],
+  "include": ["apps/web/src"],
   "exclude": [
     "node_modules",
     "dist",
-    "prototype",
     "docs",
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "src/**/__tests__/**",
+    "apps/api",
+    "apps/web/src/**/*.test.ts",
+    "apps/web/src/**/*.test.tsx",
+    "apps/web/src/**/__tests__/**",
     "tests"
   ]
 }

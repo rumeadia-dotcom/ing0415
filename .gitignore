@@ -17,8 +17,8 @@ build/
 *.local
 
 # Supabase local
-supabase/.branches/
-supabase/.temp/
+apps/api/supabase/.branches/
+apps/api/supabase/.temp/
 
 # Test / coverage
 coverage/

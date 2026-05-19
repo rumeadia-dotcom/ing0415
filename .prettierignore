@@ -1,8 +1,7 @@
 node_modules
 dist
-prototype
 docs
 coverage
-supabase/.branches
-supabase/.temp
+apps/api/supabase/.branches
+apps/api/supabase/.temp
 pnpm-lock.yaml

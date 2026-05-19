@@ -100,7 +100,7 @@
 | `market_accounts` | `account_label` (목록 행에서 어느 계정으로 등록됐는지 표시) | `access_token_enc`, `refresh_token_enc`, `expires_at`, `email`, `phone` 절대 미포함 |
 | `products` | `name`, `thumbnail_image_id` → 별도 RPC 로 변환된 thumbnail URL | 상세설명 HTML, 가격 raw (목록·상세 둘 다 미노출. 가격은 product detail 진입 후 별도 화면) |
 
-> **금지**: `error_message` 컬럼은 마켓 API 가 응답에 PII/토큰을 섞어 보낸 경우가 있으므로 **저장 시점에 마스킹** (registration-job-state.md §13 보안 검수 항목 [5]). 이력 화면은 저장된 값을 그대로 노출하되, 저장 직전에 backend 가 마스킹 책임. 본 문서는 마스킹 함수 호출 위치만 인용 — 함수 자체는 `src/lib/security/mask.ts` (security.md).
+> **금지**: `error_message` 컬럼은 마켓 API 가 응답에 PII/토큰을 섞어 보낸 경우가 있으므로 **저장 시점에 마스킹** (registration-job-state.md §13 보안 검수 항목 [5]). 이력 화면은 저장된 값을 그대로 노출하되, 저장 직전에 backend 가 마스킹 책임. 본 문서는 마스킹 함수 호출 위치만 인용 — 함수 자체는 `apps/web/src/lib/security/mask.ts` (security.md).
 
 ### 2.3 ERD 인용 (간략)
 
@@ -297,7 +297,7 @@ $$;
 
 ### 3.4 응답 zod 스키마 (Edge Function 측 또는 클라이언트 측 검증)
 
-`src/lib/schemas/history.ts` — backend·frontend 단일 소스 (frontend.md §7 패턴 준수).
+`apps/web/src/lib/schemas/history.ts` — backend·frontend 단일 소스 (frontend.md §7 패턴 준수).
 
 ```ts
 import { z } from 'zod';
@@ -384,7 +384,7 @@ export type JobDetail = z.infer<typeof jobDetailSchema>;
 
 ## 4. 클라이언트 zod 스키마 — 필터 + 페이지네이션 키
 
-`src/features/history/types/filters.ts` 도 src/lib/schemas/history.ts 와 함께 단일 소스.
+`apps/web/src/features/history/types/filters.ts` 도 apps/web/src/lib/schemas/history.ts 와 함께 단일 소스.
 
 ### 4.1 `HistoryFilter`
 
@@ -969,7 +969,7 @@ testing.md §13.4 의 `QA-P4-HIST-001` / `-002` 를 본 문서가 채운다. 본
 | 21 | frontend 리뷰 요청 (§5 와이어 + §6 hook) | PR reviewer | ☐ |
 | 22 | designer 리뷰 요청 (§5 와이어 + §8.3 partial 시각) | PR reviewer | ☐ |
 | 23 | architect 승인 | 최종 머지 게이트 | ☐ |
-| 24 | 3개 산출물 동기화: 본 문서 + `docs/frontend_html_design/v1/history/*` + `src/features/history/*` 계획 명시 | CLAUDE.md "3개 산출물 동기화" | ☐ |
+| 24 | 3개 산출물 동기화: 본 문서 + `docs/frontend_html_design/v1/history/*` + `apps/web/src/features/history/*` 계획 명시 | CLAUDE.md "3개 산출물 동기화" | ☐ |
 
 ---
 
@@ -1009,7 +1009,7 @@ testing.md §16 R-007 / registration-job-state.md §13 인용. 본 문서 신설
 
 - **설계문서 (본 문서)** — 본 파일.
 - **HTML 프로토타입** — `docs/frontend_html_design/v1/history/` 신설. 와이어 §5 의 데스크탑/모바일 2종 정적 HTML.
-- **실제 구현** — `src/features/history/` 디렉토리 생성 (frontend.md §3.1 인용). `pages/HistoryListPage.tsx` / `pages/HistoryDetailPage.tsx` / `hooks/useHistoryFilters.ts` / `hooks/useRetryRegistration.ts` / `api/list-jobs.ts` / `api/get-job.ts` / `types/filters.ts`. zod 스키마는 `src/lib/schemas/history.ts` 에 단일 소스.
+- **실제 구현** — `apps/web/src/features/history/` 디렉토리 생성 (frontend.md §3.1 인용). `pages/HistoryListPage.tsx` / `pages/HistoryDetailPage.tsx` / `hooks/useHistoryFilters.ts` / `hooks/useRetryRegistration.ts` / `api/list-jobs.ts` / `api/get-job.ts` / `types/filters.ts`. zod 스키마는 `apps/web/src/lib/schemas/history.ts` 에 단일 소스.
 
 세 산출물 중 어느 하나라도 누락된 PR 은 거부 (CLAUDE.md "변경 크기와 무관하게 예외 없음").
 

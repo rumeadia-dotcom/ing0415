@@ -14,7 +14,7 @@
 
 - **React Router v6+** (`react-router-dom`). 데이터 라우터 API (`createBrowserRouter`) 사용. `RouterProvider` 로 주입.
 - **레이지 로딩 강제** — 각 라우트는 `lazy()` 또는 dynamic import 기반 `Component` 필드로 정의. 루트 번들에는 인증·레이아웃 셸만 포함.
-- 라우트 정의 위치: `src/app/router.tsx` (단일 소스). 각 도메인의 `pages/` 는 default export 하나만 노출하고, `router.tsx` 가 import.
+- 라우트 정의 위치: `apps/web/src/app/router.tsx` (단일 소스). 각 도메인의 `pages/` 는 default export 하나만 노출하고, `router.tsx` 가 import.
 
 ### 2.2 GitHub Pages 404.html fallback
 
@@ -49,7 +49,7 @@ export default defineConfig({
 
 | user_flow 노드 | URL | 컴포넌트 위치 | 인증 필요 |
 |---|---|---|---|
-| n1 시작 | `/` | `src/app/Landing.tsx` (인증 시 `/dashboard` 리다이렉트) | No |
+| n1 시작 | `/` | `apps/web/src/app/Landing.tsx` (인증 시 `/dashboard` 리다이렉트) | No |
 | n2 로그인/회원가입 | `/login` | `features/auth/pages/LoginPage.tsx` | No |
 | n3 이메일 로그인 | `/login?method=email` | 동일 (탭 state) | No |
 | n4 소셜 로그인 | `/login?method=social` | 동일 (탭 state) | No |
@@ -123,7 +123,7 @@ export function useHistoryFilters(): HistoryFilters {
 
 ---
 
-## 3. `src/features/<domain>/` 구조
+## 3. `apps/web/src/features/<domain>/` 구조
 
 ### 3.1 도메인 매핑
 
@@ -137,14 +137,14 @@ export function useHistoryFilters(): HistoryFilters {
 | `history` | s6 | v1 |
 
 도메인 외 공용:
-- `src/components/ui/` — shadcn/ui 컴포넌트 (직접 소유, 라이브러리 의존 X)
-- `src/components/layout/` — `AppShell`, `Sidebar`, `Topbar` 등 셸 컴포넌트
-- `src/lib/schemas/` — zod 스키마 단일 소스 (도메인 간 공유)
-- `src/lib/supabase.ts` — Supabase 클라이언트 단일 인스턴스
-- `src/lib/query.ts` — TanStack Query 클라이언트 + 키 팩토리
-- `src/lib/logger.ts` — 구조화 로거 (Sentry 연동)
-- `src/lib/mode.ts` — `VITE_APP_MODE` 분기 (`debug` / `real`)
-- `src/locales/ko.ts` — i18n 사전
+- `apps/web/src/components/ui/` — shadcn/ui 컴포넌트 (직접 소유, 라이브러리 의존 X)
+- `apps/web/src/components/layout/` — `AppShell`, `Sidebar`, `Topbar` 등 셸 컴포넌트
+- `apps/web/src/lib/schemas/` — zod 스키마 단일 소스 (도메인 간 공유)
+- `apps/web/src/lib/supabase.ts` — Supabase 클라이언트 단일 인스턴스
+- `apps/web/src/lib/query.ts` — TanStack Query 클라이언트 + 키 팩토리
+- `apps/web/src/lib/logger.ts` — 구조화 로거 (Sentry 연동)
+- `apps/web/src/lib/mode.ts` — `VITE_APP_MODE` 분기 (`debug` / `real`)
+- `apps/web/src/locales/ko.ts` — i18n 사전
 
 ### 3.2 도메인 내부 폴더 책임
 
@@ -157,14 +157,14 @@ export function useHistoryFilters(): HistoryFilters {
 | `pages/` | 라우트 단위 페이지. lazy import 진입점 | `app/router.tsx` 만 |
 
 **규칙:**
-- 한 도메인 안의 컴포넌트는 다른 도메인 컴포넌트를 직접 import 하지 않는다. 필요하면 `src/components/` 로 승격하거나, 도메인 hook 으로 데이터를 노출.
+- 한 도메인 안의 컴포넌트는 다른 도메인 컴포넌트를 직접 import 하지 않는다. 필요하면 `apps/web/src/components/` 로 승격하거나, 도메인 hook 으로 데이터를 노출.
 - 페이지(`pages/`) 는 비즈니스 로직을 가지지 않고, 도메인 컴포넌트·hook 의 조합만 수행.
 - `api/` 함수는 zod parse 결과만 반환. raw Supabase response 를 외부로 누출 금지.
 
 ### 3.3 ASCII 트리 예시 — `features/markets/`
 
 ```
-src/features/markets/
+apps/web/src/features/markets/
 ├── api/
 │   ├── fetchMarketAccounts.ts      # SELECT market_accounts WHERE seller_id = me
 │   ├── fetchMarketCategories.ts    # Edge Function: GET /functions/v1/markets/categories
@@ -204,10 +204,10 @@ src/features/markets/
 
 ### 4.2 도메인별 키 팩토리
 
-`src/lib/query.ts` 에 도메인별 키 팩토리를 export. 임의 inline 배열 작성 금지.
+`apps/web/src/lib/query.ts` 에 도메인별 키 팩토리를 export. 임의 inline 배열 작성 금지.
 
 ```ts
-// src/lib/query.ts
+// apps/web/src/lib/query.ts
 export const queryKeys = {
   auth: {
     session: () => ['auth', 'session'] as const,
@@ -426,12 +426,12 @@ export function useRegistrationJobRealtime(jobId: string): void {
   1. **RHF resolver** — 입력 단계 검증
   2. **Supabase insert/update 직전 parse** — DB 입력 직전 타입 보증
   3. **서버 응답 검증** — Edge Function 또는 Supabase SELECT 응답 zod parse
-- 스키마 단일 소스: `src/lib/schemas/`. 도메인이 명확하면 `src/lib/schemas/<domain>.ts`.
+- 스키마 단일 소스: `apps/web/src/lib/schemas/`. 도메인이 명확하면 `apps/web/src/lib/schemas/<domain>.ts`.
 
 ### 7.2 단일 스키마 3중 재사용 예시
 
 ```ts
-// src/lib/schemas/product.ts
+// apps/web/src/lib/schemas/product.ts
 import { z } from 'zod';
 
 export const productInputSchema = z.object({
@@ -550,13 +550,13 @@ export async function fetchDraft(sellerId: string): Promise<Product | null> {
 | URL search params | `useSearchParams` 래퍼 hook | XSS, 잘못된 enum 차단 |
 | `localStorage` / `sessionStorage` | 읽는 hook 내부 | 사용자 임의 수정 가능 |
 | `window.AppData` (debug 모드) | 진입점 1회 | mock 데이터 일관성 |
-| `import.meta.env` | 앱 부트스트랩 1회 (`src/lib/env.ts`) | 환경변수 누락 즉시 실패 |
+| `import.meta.env` | 앱 부트스트랩 1회 (`apps/web/src/lib/env.ts`) | 환경변수 누락 즉시 실패 |
 
 ### 8.2 패턴
 
 **환경변수:**
 ```ts
-// src/lib/env.ts
+// apps/web/src/lib/env.ts
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -645,12 +645,12 @@ export function MarketsListPage() {
 
 ---
 
-## 10. 공용 컴포넌트 (`src/components/ui/`) 사용 규칙
+## 10. 공용 컴포넌트 (`apps/web/src/components/ui/`) 사용 규칙
 
 ### 10.1 원칙
 
 - **shadcn/ui 컴포넌트는 직접 소유** — `pnpm dlx shadcn-ui@latest add button` 으로 코드 복사. 라이브러리 의존 없음. 변경은 자유롭게 가능 (단, 토큰/접근성 깨면 안 됨).
-- 위치: `src/components/ui/<component>.tsx` (kebab-case).
+- 위치: `apps/web/src/components/ui/<component>.tsx` (kebab-case).
 - 모든 도메인 컴포넌트는 `@/components/ui/*` 를 사용한다.
 
 ### 10.2 금지 사항
@@ -673,7 +673,7 @@ export function MarketsListPage() {
 2. 컴포넌트 상단에 `// eslint-disable-next-line @ing/no-raw-html-elements -- 사유: ...` 주석
 3. designer + frontend reviewer 양쪽 승인 필수
 
-### 10.4 필수 공용 컴포넌트 (`src/components/ui/`)
+### 10.4 필수 공용 컴포넌트 (`apps/web/src/components/ui/`)
 
 | 컴포넌트 | 용도 |
 |---|---|
@@ -755,7 +755,7 @@ export function SubmitButton({ onClick, blockingReasons }: SubmitButtonProps) {
 ### 11.2 표준 errorElement
 
 ```tsx
-// src/app/RouteErrorBoundary.tsx
+// apps/web/src/app/RouteErrorBoundary.tsx
 import { useRouteError, isRouteErrorResponse } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { ErrorMessage } from '@/components/ui/error-message';
@@ -789,7 +789,7 @@ export function RouteErrorBoundary() {
 
 ### 11.3 Sentry 초기화
 
-- `src/lib/sentry.ts` 에서 초기화. `beforeSend` 훅이 OAuth 토큰·셀러 PII·마켓 자격증명 키 이름을 마스킹.
+- `apps/web/src/lib/sentry.ts` 에서 초기화. `beforeSend` 훅이 OAuth 토큰·셀러 PII·마켓 자격증명 키 이름을 마스킹.
 - `VITE_APP_MODE === 'debug'` 일 때도 Sentry 활성화 (debug 프로젝트로 분리). 단, 콘솔 출력은 verbose.
 - security 에이전트 검수 항목: `beforeSend` 마스킹 룰 + Sentry sourcemap 업로드 후 잔여물 `.gitignore` 등록.
 
@@ -800,7 +800,7 @@ export function RouteErrorBoundary() {
 ### 12.1 라우트 기반 lazy
 
 ```tsx
-// src/app/router.tsx (발췌)
+// apps/web/src/app/router.tsx (발췌)
 import { createBrowserRouter, lazy } from 'react-router-dom';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
 
@@ -839,7 +839,7 @@ export const router = createBrowserRouter([
 - 단, **debug 모드** 에서는 mock 어댑터를 클라이언트에서 직접 사용 가능. 이 경우에도 dynamic import:
 
 ```ts
-// src/lib/marketAdapter.ts
+// apps/web/src/lib/marketAdapter.ts
 import { env } from '@/lib/env';
 
 export async function getMarketAdapter(market: string) {
@@ -908,13 +908,13 @@ export async function getMarketAdapter(market: string) {
 ### 14.1 원칙
 
 - 한국어 전용 운영. 단, **하드코딩 금지** — 모든 사용자 노출 텍스트는 `t('key')` 패턴으로 사전 참조.
-- 사전 위치: `src/locales/ko.ts`. 단일 파일 1000줄까지 허용, 초과 시 도메인별 분할 (`src/locales/ko/auth.ts`, `src/locales/ko/markets.ts`, ...).
+- 사전 위치: `apps/web/src/locales/ko.ts`. 단일 파일 1000줄까지 허용, 초과 시 도메인별 분할 (`apps/web/src/locales/ko/auth.ts`, `apps/web/src/locales/ko/markets.ts`, ...).
 - 도입 라이브러리: i18next 또는 경량 자체 dictionary. v1 첫 화면 작업 시점에 확정. 인터페이스만 안정화하면 라이브러리 교체는 비파괴적.
 
 ### 14.2 사전 구조
 
 ```ts
-// src/locales/ko.ts
+// apps/web/src/locales/ko.ts
 export const ko = {
   common: {
     submit: '제출',
@@ -963,7 +963,7 @@ export const ko = {
 ### 14.3 `t()` 헬퍼
 
 ```ts
-// src/locales/index.ts
+// apps/web/src/locales/index.ts
 import { ko } from './ko';
 
 type Path<T> = T extends object
@@ -997,6 +997,6 @@ export function t(key: TranslationKey): string {
 - `docs/architecture/v1/ui-system.md` — 컴포넌트 명세 변경 시
 - `docs/architecture/v1/platform.md` — 라우팅·번들·환경변수 결정 변경 시
 - `docs/frontend_html_design/v1/` — UI 패턴 변경 시 HTML 프로토타입 반영
-- `src/features/<domain>/` — 실제 구현 (도입 시점부터)
+- `apps/web/src/features/<domain>/` — 실제 구현 (도입 시점부터)
 
 본 문서가 변경되었으나 구현이 따라잡지 못한 항목은 `## 16. 미구현 트래커` (도입 시점에 신설) 에 명시.

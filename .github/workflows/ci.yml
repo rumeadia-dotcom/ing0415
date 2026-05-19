@@ -65,11 +65,11 @@ jobs:
       - name: Lint (src + tests, blocking)
         run: pnpm lint
 
-      # supabase/functions/* 는 Deno 런타임 + 별도 lint 정책이 필요.
+      # apps/api/supabase/functions/* 는 Deno 런타임 + 별도 lint 정책이 필요.
       # 현 시점 lint 에러 31건 정리 전이므로 non-blocking job 으로 표면화만 한다.
       # 정리 후 continue-on-error 제거 + 메인 lint 잡에 병합.
       - name: Lint Edge Functions (non-blocking)
-        run: pnpm exec eslint supabase/functions --ext .ts,.tsx || true
+        run: pnpm exec eslint apps/api/supabase/functions --ext .ts,.tsx || true
         continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────────────────

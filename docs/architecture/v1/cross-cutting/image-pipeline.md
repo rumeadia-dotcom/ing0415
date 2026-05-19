@@ -181,7 +181,7 @@ create policy "transformed_select_own"
 수치는 코드 상수로 흩지 말고 **단일 모듈** 에 모은다:
 
 ```ts
-// supabase/functions/_shared/image-spec.ts
+// apps/api/supabase/functions/_shared/image-spec.ts
 import { z } from 'zod';
 
 export const ImageSpecSchema = z.object({
@@ -225,7 +225,7 @@ export const IMAGE_SPECS: Record<MarketCode, ImageSpec> = {
 ### 5.2 서명 URL 발급 Edge Fn
 
 ```ts
-// supabase/functions/image-upload-url/index.ts
+// apps/api/supabase/functions/image-upload-url/index.ts
 const RequestSchema = z.object({
   productId: z.string().uuid(),
   files: z.array(z.object({

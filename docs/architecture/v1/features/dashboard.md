@@ -247,7 +247,7 @@ WHERE seller_id = '<seller_A_uuid>';
 
 **결정: B (RPC) 우선 권장.** 근거:
 
-1. zod 스키마(응답)는 `src/lib/schemas/dashboard.ts` 에 단일 소스로 두고 PL/pgSQL `RETURNS TABLE(...)` 시그니처와 1:1. PostgREST 가 자동 생성하는 컬럼 누락/추가 변경을 컴파일 타임에 잡기 어려운 단점 회피.
+1. zod 스키마(응답)는 `apps/web/src/lib/schemas/dashboard.ts` 에 단일 소스로 두고 PL/pgSQL `RETURNS TABLE(...)` 시그니처와 1:1. PostgREST 가 자동 생성하는 컬럼 누락/추가 변경을 컴파일 타임에 잡기 어려운 단점 회피.
 2. 향후 `market-stats-v2` 가 추가될 때 RPC 의 응답에만 필드 확장 → 클라이언트 동시 배포 부담 작음.
 3. Realtime 으로 호출 자체는 적음 (TanStack Query staleTime 30s + Realtime invalidate). RPC 오버헤드 무시 가능.
 
@@ -343,9 +343,9 @@ COMMENT ON FUNCTION public.rpc_get_recent_jobs(int) IS
 
 `limit` 은 1~50 clamp — 클라이언트가 더 큰 값을 요청해도 50 으로 잘림. 50 초과는 history 화면(별도 페이지네이션) 책임.
 
-### 3.4 zod 스키마 (`src/lib/schemas/dashboard.ts`)
+### 3.4 zod 스키마 (`apps/web/src/lib/schemas/dashboard.ts`)
 
-> **`RegistrationJobStatusSchema` / `MarketResultStatusSchema` / `MarketIdSchema` 는 본 모듈에서 정의하지 않는다.** schema 정의는 `src/lib/schemas/registration.ts` 단일 소스 (`features/registration.md` §9 참조). 본 모듈은 `import` 해서 재사용만 한다.
+> **`RegistrationJobStatusSchema` / `MarketResultStatusSchema` / `MarketIdSchema` 는 본 모듈에서 정의하지 않는다.** schema 정의는 `apps/web/src/lib/schemas/registration.ts` 단일 소스 (`features/registration.md` §9 참조). 본 모듈은 `import` 해서 재사용만 한다.
 
 ```ts
 import { z } from 'zod';
@@ -445,7 +445,7 @@ useQuery({
 `cross-cutting/registration-job-state.md` §4 의 Realtime 채널 정의를 그대로 사용한다. 본 문서는 **새 채널을 만들지 않는다.**
 
 ```ts
-// src/features/dashboard/hooks/useDashboardRealtime.ts
+// apps/web/src/features/dashboard/hooks/useDashboardRealtime.ts
 useEffect(() => {
   const channel = supabase
     .channel(`dashboard:${sellerId}`)
@@ -949,7 +949,7 @@ Skip link: 사이드바 첫 진입 시 "본문으로 건너뛰기" 제공 (front
 |---|---|
 | 설계문서 | 본 파일 (`docs/architecture/v1/features/dashboard.md`) — 본 PR 의 결과물 |
 | HTML 프로토타입 | `docs/frontend_html_design/v1/dashboard/` (신설). prototype/ v0 의 `screens/dashboard.jsx` 를 토큰 정합화하여 이식 |
-| 실제 구현 | `src/features/dashboard/` (pages/DashboardPage.tsx / hooks/useDashboard.ts / hooks/useDashboardRealtime.ts / components/SummaryCard.tsx / components/RecentJobsList.tsx / components/JobStatusBadge.tsx / api/rpc.ts), `src/lib/schemas/dashboard.ts`, `supabase/migrations/20260518_dashboard_views.sql` |
+| 실제 구현 | `apps/web/src/features/dashboard/` (pages/DashboardPage.tsx / hooks/useDashboard.ts / hooks/useDashboardRealtime.ts / components/SummaryCard.tsx / components/RecentJobsList.tsx / components/JobStatusBadge.tsx / api/rpc.ts), `apps/web/src/lib/schemas/dashboard.ts`, `apps/api/supabase/migrations/20260518_dashboard_views.sql` |
 
 CLAUDE.md "3개 산출물 동기화" 규칙. 변경 시 매번 3개 동시 갱신.
 

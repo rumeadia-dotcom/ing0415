@@ -5,10 +5,10 @@
     "noEmit": true
   },
   "include": [
-    "src",
+    "apps/web/src",
     "tests",
     "vitest.config.ts",
     "playwright.config.ts"
   ],
-  "exclude": ["node_modules", "dist", "prototype", "docs"]
+  "exclude": ["node_modules", "dist", "docs", "apps/api"]
 }

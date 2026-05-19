@@ -3,17 +3,37 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 레포 현재 상태
-- `PRD.md` — 제품 요구사항 문서 (5개 대기능 / 약 70개 세부 기능)
-- `user_flow.md` — User flow 다이어그램 (6 섹션 / 46 노드 / 48 엣지, manyfast.io 출처)
-- `prototype/` — UI 레퍼런스 프로토타입 v0 (아래 "프로토타입" 섹션 참고)
-- `src/` — 실제 SPA 코드.
+
+**디렉토리 정리 (2026-05-19)**: 모노레포 스타일로 FE/BE 분리.
+
+```
+apps/web/                  # 프론트엔드 (Vite root)
+  src/
+  index.html
+apps/api/
+  supabase/                # 백엔드 (Edge Functions + migrations, Supabase CLI workdir)
+docs/
+  spec/                    # 제품 요구사항·플로우 (PRD.md, docs/spec/user_flow.md)
+  architecture/v1/         # 영구 설계 결정
+  frontend_html_design/v1/ # HTML 프로토타입 (정식)
+  handoff/                 # 세션 간 WIP 메모 (일회성)
+  legacy/prototype-v0/     # v0 시각 레퍼런스 (읽기 전용)
+tests/                     # cross-cutting (Vitest unit + Playwright e2e + fixtures)
+scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
+```
+
+- `docs/spec/PRD.md` — 제품 요구사항 문서 (5개 대기능 / 약 70개 세부 기능)
+- `docs/spec/docs/spec/user_flow.md` — User flow 다이어그램 (6 섹션 / 46 노드 / 48 엣지, manyfast.io 출처)
+- `docs/legacy/prototype-v0/` — UI 레퍼런스 프로토타입 v0 (아래 "프로토타입" 섹션 참고)
+- `apps/web/src/` — 실제 SPA 코드.
   - Stage A: Vite + React 18 + TypeScript strict 부트스트랩
-  - Stage B: Tailwind 토큰 + shadcn/ui 10개 컴포넌트 + 라이트/다크 토글 (`src/components/ui/*`, `src/lib/use-theme.ts`)
-  - Stage C: React Router v6 + 5도메인 페이지 placeholder + 사이드바/헤더/모바일 드로어 레이아웃 + 404.html SPA fallback (`src/app/`, `src/components/layout/`, `src/features/<domain>/pages/`)
-  - Stage G: Vitest + RTL + jsdom + Playwright + axe + fixtures + 단위 시드 (`vitest.config.ts`, `playwright.config.ts`, `tests/`, `src/lib/**/__tests__/*.test.ts`)
+  - Stage B: Tailwind 토큰 + shadcn/ui 10개 컴포넌트 + 라이트/다크 토글 (`apps/web/src/components/ui/*`, `apps/web/src/lib/use-theme.ts`)
+  - Stage C: React Router v6 + 5도메인 페이지 placeholder + 사이드바/헤더/모바일 드로어 레이아웃 + 404.html SPA fallback (`apps/web/src/app/`, `apps/web/src/components/layout/`, `apps/web/src/features/<domain>/pages/`)
+  - Stage G: Vitest + RTL + jsdom + Playwright + axe + fixtures + 단위 시드 (`vitest.config.ts`, `playwright.config.ts`, `tests/`, `apps/web/src/lib/**/__tests__/*.test.ts`)
+- `apps/api/supabase/` — Postgres 마이그레이션 + Edge Functions (Deno).
 - `scripts/postbuild-spa.mjs` — `dist/index.html` → `dist/404.html` 복제 (GitHub Pages SPA fallback)
-- `package.json`, `tsconfig.*.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc` — 빌드/타입/린트 설정
-- `index.html` — Vite 진입점
+- `package.json`, `tsconfig.*.json`, `vite.config.ts`, `eslint.config.js`, `.prettierrc` — 빌드/타입/린트 설정 (루트 유지, 경로만 apps/web 으로 지시)
+- `apps/web/index.html` — Vite 진입점 (vite.config.ts 의 `root` = `apps/web/`)
 
 새 코드를 추가할 때는 그 결정에 사용된 근거(PRD 의 어떤 요구사항 / user_flow 의 어떤 노드)를 명시한다.
 
@@ -84,16 +104,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 데이터 레이어 (Stage D 도입)
 
-- **환경변수**: `src/lib/env.ts` 의 `env` 객체 + `isDebug` / `isReal` boolean. zod 로 1회 parse. `import.meta.env.VITE_APP_MODE` 직접 비교 금지 — `isDebug` / `isReal` 만 사용.
-- **Supabase 클라이언트**: `src/lib/supabase.ts` 의 `getSupabase()` 단일 진입 (lazy 싱글톤). 직접 `createClient` 호출 금지. real 모드에서 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` 누락이면 첫 호출 시 throw. debug 모드는 fallback URL 로 인스턴스만 만들고 실제 네트워크는 mock 어댑터가 우회.
-- **TanStack Query**: `src/lib/queryClient.ts` 의 `createQueryClient()` 팩토리. 기본값 `staleTime 30s`, `gcTime 5min`, `queries.retry 1`, `mutations.retry 0`, `refetchOnWindowFocus false`. 도메인별 staleTime 은 hook 에서 override (`frontend.md §4.3`). Query Key 는 `[domain, ...filters]` 규약 (Stage E 의 `queryKeys` 팩토리에서 정의 예정).
-- **MarketAdapter**: `src/lib/markets/index.ts` 의 `await getMarketAdapter(marketId)` 만 사용. 어댑터 구현체(`./debug/*`, `./real/*`) 직접 import 금지. debug 모드는 mock 어댑터 dynamic import → real 빌드 tree-shaking. 5메서드 인터페이스 변경은 `market-adapter.md` 개정 절차.
-- **zod 스키마**: `src/lib/schemas/` 단일 소스 (`common`, `market`, `registration`, `auth`, `markets-feature`, `dashboard-summary`, `history-filter`). RHF resolver / Supabase insert 직전 parse / 서버 응답 parse 3중 재사용. 컴포넌트 내부에서 inline `z.object` 정의 금지.
-- **ENUM 마스터 위치**: `JOB_STATUSES` / `MARKET_RESULT_STATUSES` / `MARKET_IDS` 는 `src/lib/schemas/registration.ts` 와 `common.ts` 에서만 정의. dashboard / history 는 import.
-- **i18n**: 모든 사용자 노출 텍스트는 `src/locales/ko.ts` 객체 path 참조 (예: `ko.nav.dashboard`). `t()` 헬퍼는 후속 Stage 도입.
-- **logger**: `src/lib/logger.ts` 의 `logger.{debug,info,warn,error}`. debug 모드는 전체 출력, real 은 warn 이상. Sentry 연동·마스킹은 Stage F.
-- **Provider 진입**: `src/app/providers/AppProviders.tsx` 가 QueryClientProvider + TooltipProvider + (debug 한정) ReactQueryDevtools 묶음. `App.tsx` 는 `<AppProviders><RouterProvider/><Toaster/></AppProviders>`.
-- **Sentry**: `src/lib/sentry.ts` 의 `initSentry()` — `main.tsx` 진입 시 1회 호출. `VITE_SENTRY_DSN` 없으면 비활성. `beforeSend` / `beforeBreadcrumb` 에서 `src/lib/security/redact.ts` 의 `redact()` 마스킹 강제 (security.md §6.2 / §6.3 마스터). environment 는 `isDebug` 그대로 — 두 모드 데이터 혼입 금지.
+- **환경변수**: `apps/web/src/lib/env.ts` 의 `env` 객체 + `isDebug` / `isReal` boolean. zod 로 1회 parse. `import.meta.env.VITE_APP_MODE` 직접 비교 금지 — `isDebug` / `isReal` 만 사용.
+- **Supabase 클라이언트**: `apps/web/src/lib/supabase.ts` 의 `getSupabase()` 단일 진입 (lazy 싱글톤). 직접 `createClient` 호출 금지. real 모드에서 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` 누락이면 첫 호출 시 throw. debug 모드는 fallback URL 로 인스턴스만 만들고 실제 네트워크는 mock 어댑터가 우회.
+- **TanStack Query**: `apps/web/src/lib/queryClient.ts` 의 `createQueryClient()` 팩토리. 기본값 `staleTime 30s`, `gcTime 5min`, `queries.retry 1`, `mutations.retry 0`, `refetchOnWindowFocus false`. 도메인별 staleTime 은 hook 에서 override (`frontend.md §4.3`). Query Key 는 `[domain, ...filters]` 규약 (Stage E 의 `queryKeys` 팩토리에서 정의 예정).
+- **MarketAdapter**: `apps/web/src/lib/markets/index.ts` 의 `await getMarketAdapter(marketId)` 만 사용. 어댑터 구현체(`./debug/*`, `./real/*`) 직접 import 금지. debug 모드는 mock 어댑터 dynamic import → real 빌드 tree-shaking. 5메서드 인터페이스 변경은 `market-adapter.md` 개정 절차.
+- **zod 스키마**: `apps/web/src/lib/schemas/` 단일 소스 (`common`, `market`, `registration`, `auth`, `markets-feature`, `dashboard-summary`, `history-filter`). RHF resolver / Supabase insert 직전 parse / 서버 응답 parse 3중 재사용. 컴포넌트 내부에서 inline `z.object` 정의 금지.
+- **ENUM 마스터 위치**: `JOB_STATUSES` / `MARKET_RESULT_STATUSES` / `MARKET_IDS` 는 `apps/web/src/lib/schemas/registration.ts` 와 `apps/web/src/lib/schemas/common.ts` 에서만 정의. dashboard / history 는 import.
+- **i18n**: 모든 사용자 노출 텍스트는 `apps/web/src/locales/ko.ts` 객체 path 참조 (예: `ko.nav.dashboard`). `t()` 헬퍼는 후속 Stage 도입.
+- **logger**: `apps/web/src/lib/logger.ts` 의 `logger.{debug,info,warn,error}`. debug 모드는 전체 출력, real 은 warn 이상. Sentry 연동·마스킹은 Stage F.
+- **Provider 진입**: `apps/web/src/app/providers/AppProviders.tsx` 가 QueryClientProvider + TooltipProvider + (debug 한정) ReactQueryDevtools 묶음. `App.tsx` 는 `<AppProviders><RouterProvider/><Toaster/></AppProviders>`.
+- **Sentry**: `apps/web/src/lib/sentry.ts` 의 `initSentry()` — `main.tsx` 진입 시 1회 호출. `VITE_SENTRY_DSN` 없으면 비활성. `beforeSend` / `beforeBreadcrumb` 에서 `apps/web/src/lib/security/redact.ts` 의 `redact()` 마스킹 강제 (security.md §6.2 / §6.3 마스터). environment 는 `isDebug` 그대로 — 두 모드 데이터 혼입 금지.
 
 ## 테스트 디시플린 (Stage G 도입)
 
@@ -104,7 +124,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Playwright + @axe-core/playwright — E2E + a11y. 설정: `playwright.config.ts`, spec: `tests/e2e/`.
   - eslint-plugin-jsx-a11y — lint 시점 a11y (이미 활성).
 - **파일 배치 규약**:
-  - 컴포넌트/모듈 co-located 단위 테스트: `src/**/__tests__/*.test.ts(x)` 또는 `*.test.ts(x)`.
+  - 컴포넌트/모듈 co-located 단위 테스트: `apps/web/src/**/__tests__/*.test.ts(x)` 또는 `*.test.ts(x)`.
   - 도메인 횡단 단위 테스트: `tests/unit/**/*.test.ts`.
   - E2E spec: `tests/e2e/**/*.spec.ts`.
   - fixture: `tests/fixtures/{markets,images,products}/` (testing.md §11.1).
@@ -119,14 +139,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **프론트엔드 스택**: **React + Vite + TypeScript strict**, 패키지 매니저 **pnpm**. `tsconfig` 는 `strict: true` + `noUncheckedIndexedAccess`. 외부 데이터(서버 응답·마켓 API)는 zod 로 런타임 검증.
 - **라우팅**: **React Router v6+**. GitHub Pages 에서는 **404.html fallback** 패턴으로 SPA 클라이언트 라우팅 유지 (build 시 `dist/index.html` 을 `dist/404.html` 로 복제). URL 은 `/dashboard`, `/register` 처럼 깔끔. URL search params 는 zod 로 별도 검증.
-- **UI 라이브러리**: **shadcn/ui + Tailwind**. 컴포넌트는 `src/components/ui/` 에 직접 소유 (라이브러리 의존이 아닌 코드 복사 방식). 접근성은 내부 Radix Primitives 가 담당. 프로토타입 `prototype/styles.css` 의 색상·spacing 토큰은 Tailwind `theme` 으로 이식.
+- **UI 라이브러리**: **shadcn/ui + Tailwind**. 컴포넌트는 `apps/web/src/components/ui/` 에 직접 소유 (라이브러리 의존이 아닌 코드 복사 방식). 접근성은 내부 Radix Primitives 가 담당. 프로토타입 `docs/legacy/prototype-v0/styles.css` 의 색상·spacing 토큰은 Tailwind `theme` 으로 이식.
 - **데이터 페칭**: **TanStack Query + Supabase JS**. Supabase JS = raw 쿼리, TanStack Query = 캐싱·재시도·invalidation·mutation. Realtime 구독은 `useEffect` + `supabase.channel(...)` 직접 → Query cache invalidate 로 연결. Query Key 규약은 `[domain, ...filters]` 형식 (예: `['products', { sellerId, status }]`).
 - **폼**: **React Hook Form + zod resolver**. 동일 zod 스키마를 (1) RHF 입력 검증, (2) Supabase insert 전 타입 보증, (3) 서버 응답 검증에 재사용 — 한 스키마가 ground truth.
-- **디렉토리 구조**: `src/features/<domain>/` 으로 도메인별 묶음. 도메인 = `auth` / `dashboard` / `registration` / `templates` / `markets` / `history` (user_flow.md s1~s6 매핑). 각 폴더 안에 `components/`, `hooks/`, `api/`, `types/`, `pages/` 자체 보유. 공용 UI 는 `src/components/ui/` (shadcn), 공용 hook·유틸은 `src/lib/`.
+- **디렉토리 구조**: `apps/web/src/features/<domain>/` 으로 도메인별 묶음. 도메인 = `auth` / `dashboard` / `registration` / `templates` / `markets` / `history` (docs/spec/user_flow.md s1~s6 매핑). 각 폴더 안에 `components/`, `hooks/`, `api/`, `types/`, `pages/` 자체 보유. 공용 UI 는 `apps/web/src/components/ui/` (shadcn), 공용 hook·유틸은 `apps/web/src/lib/`.
 - **테스트**: **Vitest + React Testing Library + Playwright**. Vitest = 단위·통합, RTL = 컴포넌트 렌더 테스트(접근성 셀렉터 우선), Playwright = E2E. 골든 패스(s1 로그인 → s5 마켓 연결 → s3 등록 6단계 → s6 이력 확인) 1개는 Playwright 로 자동화 강제 (qa 에이전트 룰).
 - **코드 스타일**: **ESLint + Prettier**. ESLint 는 `typescript-eslint/strict` + `react` + `react-hooks` + `tanstack/query` 플러그인. `no-explicit-any` 는 error 레벨 — PR 차단. Prettier 는 포맷팅만.
 - **에러 추적**: **Sentry**. 프론트 + Edge Functions 양쪽 SDK. **OAuth access/refresh 토큰·셀러 PII 자동 마스킹 룰을 SDK 초기화 시 강제** (`beforeSend` 훅 + 키 이름 화이트리스트). security 에이전트 검토 필수.
-- **i18n**: 한국어 전용 운영. 단, 텍스트는 컴포넌트에 하드코딩하지 않고 `t('key')` 패턴 + `src/locales/ko.ts` 사전에 집계. 라이브러리는 i18next 또는 경량 자체 dictionary — 도입 시점에 결정. 나중 다국어 확장 시 레이블 대공사 회피.
+- **i18n**: 한국어 전용 운영. 단, 텍스트는 컴포넌트에 하드코딩하지 않고 `t('key')` 패턴 + `apps/web/src/locales/ko.ts` 사전에 집계. 라이브러리는 i18next 또는 경량 자체 dictionary — 도입 시점에 결정. 나중 다국어 확장 시 레이블 대공사 회피.
 - **테마**: **라이트 / 다크 처음부터 병행**. shadcn/Tailwind 의 `class="dark"` 토글 + CSS 변수 토큰. 색상·spacing 은 raw 값 금지 — 토큰만 사용 (ESLint 룰로 `no-restricted-syntax` 또는 `tailwindcss/no-custom-classname` 으로 강제 검토). 프로토타입 styles.css 의 라이트 토큰을 1차 이식, 다크 토큰은 첫 화면 구현 시 함께 정의.
 - **접근성**: **WCAG 2.1 AA** 준수. 자동 검출: `eslint-plugin-jsx-a11y` (lint 시점) + `@axe-core/playwright` (E2E 시점). 수동 검증: 모든 새 화면에 키보드만으로의 전체 동선 확인, 색상 대비 4.5:1 이상, aria 라벨 명시. qa 에이전트가 수락 기준에 포함.
 - **CI/CD**: **GitHub Actions**. PR 트리거: `pnpm install` → `tsc --noEmit` → `eslint` → `vitest` → `pnpm build` (debug 모드 sanity check). `main` push 트리거: real 모드 빌드 → GitHub Pages 배포 + Edge Functions 는 `supabase functions deploy` 동일 워크플로우. 시크릿은 GitHub Secrets (Supabase service role key, Sentry DSN 등). Edge Function 환경 변수는 Supabase 대시보드 별도 관리.
@@ -228,8 +248,8 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - s1 인증 — 이메일/소셜 로그인, 회원가입, 비밀번호 재설정 (PRD §2.1.1, §2.1.5)
 - s2 대시보드 — 요약 통계 + 최근 등록 내역만 (마켓별 상세 통계는 v2)
 - s3 상품 등록 — 5단계 위저드 (정보 → 이미지 → 마켓·카테고리 → 미리보기 → 결과)
-- s5 마켓 계정 — **v1 정식 = 네이버 스마트스토어 1개**. 쿠팡/11번가/G마켓/옥션 = '오픈 준비중' 라벨 (어댑터 인터페이스 호환 보존, 실 구현은 v2). OAuth 흐름, 토큰 갱신, 연결 해제.
-  - 근거: 쿠팡은 HMAC 인증으로 OAuth 가정 인터페이스와 부정합 — v2 어댑터 재설계 시 통합 (2026-05-19 결정, OQ-10).
+- s5 마켓 계정 — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개** (real 어댑터까지 동작). **11번가 = '오픈 준비중'** (IP 화이트리스트 정책 미해결로 v2 이관). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
+  - 근거: 4개 마켓 모두 v1 출시 가능. 11번가는 Supabase Edge Function 의 outbound IP 동적 문제로 11번가 IP 화이트리스트 정책과 충돌 — Pro 고정 IP / 외부 프록시 / 11번가 해제 신청 중 결정 후 v2 진입 (2026-05-19 결정, OQ-10 갱신).
 - s6 등록 이력 — 목록 + 기본 필터, 재시도/마켓 제외 후 등록 (PRD §4.3)
 
 **제외 (v2 이후):**
@@ -239,7 +259,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - 알림 설정 (§1.4.3, §2.3.4)
 - CSV/Excel 내보내기 (§1.4.2, §4.4.3)
 - 등록 이력 고급 필터·통계 (§4.4.2)
-- 쿠팡 / 11번가 / G마켓 / 옥션 = v2 어댑터 재설계 + HMAC 지원 어댑터 인터페이스 확장 필요 (현 5메서드 OAuth 가정 인터페이스는 v1 유지)
+- 11번가 = v2 (IP 화이트리스트 정책 해결 후 진입)
 
 **결제·정산 모델 (v1):** 전면 무료. 사용 패턴 수집을 위해 **월간 등록 건수 소프트 제한** (정확한 한도는 베타 운영 데이터 기반 후속 결정). Stripe·PG 연동·구독 결제는 v2+ 로 보류. PCI-DSS 적용 범위는 v1 에 없음.
 
@@ -255,7 +275,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 
 ## User Flow 구조
 
-`user_flow.md` 의 46 노드는 6 섹션으로 구성된다. 라우팅/네비게이션 구조의 ground truth 다:
+`docs/spec/user_flow.md` 의 46 노드는 6 섹션으로 구성된다. 라우팅/네비게이션 구조의 ground truth 다:
 
 - **s1 인증** — 로그인 / 소셜 로그인 / 회원가입 / 비밀번호 찾기 → 대시보드
 - **s2 대시보드** — 등록 현황 요약 / 마켓별 통계 / 최근 등록 내역. 다른 모든 섹션의 진입점.
@@ -264,7 +284,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - **s5 마켓 계정** — 연결된 계정 목록 / 신규 연결 → OAuth → 계정 연결. 해제 / 상태 확인.
 - **s6 등록 이력** — 이력 목록 / 상세 / 오류 분석 / 기간·마켓 필터.
 
-화면 추가/변경 시 user_flow.md 의 노드·엣지와 정합성이 깨지지 않도록 한다. 새 화면이 생기면 user_flow.md 도 함께 업데이트.
+화면 추가/변경 시 docs/spec/user_flow.md 의 노드·엣지와 정합성이 깨지지 않도록 한다. 새 화면이 생기면 docs/spec/user_flow.md 도 함께 업데이트.
 
 ## 작업 시 주의
 
@@ -278,10 +298,10 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 
 새 기능 설계 시 아래 순서를 따른다:
 
-1. **화면 흐름 설계** — `user_flow.md` 노드·엣지 갱신 + `docs/architecture/v1/` 의 UI 설계문서. 어떤 화면이 추가되는지, 어떤 라우트로 진입하는지.
+1. **화면 흐름 설계** — `docs/spec/user_flow.md` 노드·엣지 갱신 + `docs/architecture/v1/` 의 UI 설계문서. 어떤 화면이 추가되는지, 어떤 라우트로 진입하는지.
 2. **데이터 모델 + API 스키마 정의** — Postgres 테이블/RLS 정책 SQL + Edge Function 시그니처 (`Request`/`Response` 타입은 zod 스키마로). `docs/architecture/v1/features/<feature>.md` 에 작성.
 3. **백엔드 구현** — Postgres 마이그레이션 → Edge Functions 구현. 외부 마켓 API 호출은 `MarketAdapter` 인터페이스로.
-4. **프론트엔드 구현** — `src/features/<domain>/` 안에서 화면 + hook + api 클라이언트. zod 스키마는 백엔드와 공유 (가능하면 `src/lib/schemas/` 에 단일 소스).
+4. **프론트엔드 구현** — `apps/web/src/features/<domain>/` 안에서 화면 + hook + api 클라이언트. zod 스키마는 백엔드와 공유 (가능하면 `apps/web/src/lib/schemas/` 에 단일 소스).
 
 ### 3개 산출물 동기화
 
@@ -289,7 +309,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 
 - **설계문서** — `docs/architecture/v1/` (디렉토리 구조는 "디렉토리 구조" 결정에 따름)
 - **HTML 프로토타입** — `docs/frontend_html_design/v1/` (정식 산출물). 기존 `prototype/` 는 v0 (초기 시각 레퍼런스) 로 유지하며 v1 신설은 첫 화면 작업 시점.
-- **실제 구현** — `src/features/<domain>/` (디렉토리 구조 결정에 따름)
+- **실제 구현** — `apps/web/src/features/<domain>/` (디렉토리 구조 결정에 따름)
 
 **변경 크기와 무관하게 예외 없음.** 사소한 스타일 변경(텍스트 색상, 뱃지 스타일, 버튼 정렬 등) 도 반드시 3개를 함께 수정한다. 매 코드 변경 후 설계문서·HTML 프로토타입에 관련 내용이 있는지 검색하고, 있으면 "동기화할까요?" 확인 후 반영한다. *(주: 로컬 hook 이 토큰 절감을 위해 iteration 중 sync 보류 / commit 직전 일괄 sweep 예외를 자동 주입한다 — 매 prompt 마다 hook 출력으로 확인 가능. 그 hook 예외가 우선 작동한다.)*
 
@@ -331,13 +351,13 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 
 새 화면 개발 시 공통 규칙을 반드시 따른다:
 
-- **shadcn/ui 컴포넌트 통일** — `<Button>`, `<Input>`, `<Dialog>` 등 `src/components/ui/` 의 것을 사용. raw `<button>` / `<input>` 사용 금지 (단, shadcn 으로 못 표현하는 특수 케이스는 PR 에 사유 명시).
+- **shadcn/ui 컴포넌트 통일** — `<Button>`, `<Input>`, `<Dialog>` 등 `apps/web/src/components/ui/` 의 것을 사용. raw `<button>` / `<input>` 사용 금지 (단, shadcn 으로 못 표현하는 특수 케이스는 PR 에 사유 명시).
 - **버튼 유형별 동작 구분** — 검색/필터류(즉시 결과 갱신, 페이지 이동 없음) vs 실행류(서버 변경·등록·삭제) 를 시각적으로 구분 (variant 다르게).
 - **실행류 버튼 비활성 사유 표시** — `disabled` 처리만 하지 말고 `blockingReasons` 배열을 hover/focus tooltip 으로 노출 (예: "이미지 1장 이상 필요", "마켓 1개 이상 선택 필요").
-- **긴 에러 메시지 접기/펼치기** — 공통 `ErrorMessage` 컴포넌트 (`src/components/ui/error-message.tsx`) 사용. 마켓 API 오류는 stack/raw response 가 길어 접힘 기본.
+- **긴 에러 메시지 접기/펼치기** — 공통 `ErrorMessage` 컴포넌트 (`apps/web/src/components/ui/error-message.tsx`) 사용. 마켓 API 오류는 stack/raw response 가 길어 접힘 기본.
 - **4상태 + partial 처리** — 모든 비동기 UI 는 `loading` / `data` / `error` / `empty` 를 빠짐없이 처리. RegistrationJob 화면은 `partial` 추가.
 - **접근성** — WCAG 2.1 AA. 키보드 동선 + aria 라벨 + 색상 대비 4.5:1.
-- **색상·spacing·radius 는 토큰만** — `src/styles/globals.css` 의 CSS 변수 또는 `tailwind.config.ts` 의 키만 사용. raw HEX·임의 px 금지. 토큰 추가가 필요하면 `docs/architecture/v1/ui-system.md` 먼저 갱신 후 globals.css·tailwind.config.ts 동기화.
+- **색상·spacing·radius 는 토큰만** — `apps/web/src/styles/globals.css` 의 CSS 변수 또는 `tailwind.config.ts` 의 키만 사용. raw HEX·임의 px 금지. 토큰 추가가 필요하면 `docs/architecture/v1/ui-system.md` 먼저 갱신 후 globals.css·tailwind.config.ts 동기화.
 
 ### 신규 파일 생성 시 .gitignore 검토
 

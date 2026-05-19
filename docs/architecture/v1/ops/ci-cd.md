@@ -445,7 +445,7 @@ grep -rE "sntrys_|sbp_|service_role" dist/assets/ && exit 1 || true
 ## 7. Supabase 마이그레이션
 
 ### 7.1 단일 소스
-- 마이그레이션 SQL: `supabase/migrations/<timestamp>_<slug>.sql` — Supabase CLI 규약.
+- 마이그레이션 SQL: `apps/api/supabase/migrations/<timestamp>_<slug>.sql` — Supabase CLI 규약.
 - **debug / real 두 프로젝트 모두 동일한 마이그레이션을 적용**. drift 금지.
 
 ### 7.2 적용 시점

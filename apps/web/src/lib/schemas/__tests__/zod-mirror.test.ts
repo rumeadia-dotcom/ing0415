@@ -11,8 +11,8 @@ import { MARKET_IDS as CLIENT_MARKET_IDS } from '@/lib/schemas/common'
  * 클라이언트 ↔ Edge Function zod 미러 동기화 검증 (testing.md §12, R-006).
  *
  * 배경:
- *   - `src/lib/schemas/*` 는 클라이언트 단일 진실 (Vite/Node ESM).
- *   - `supabase/functions/_shared/schemas.ts` 는 Deno 측 미러 (`npm:zod@...` import).
+ *   - `apps/web/src/lib/schemas/*` 는 클라이언트 단일 진실 (Vite/Node ESM).
+ *   - `apps/api/supabase/functions/_shared/schemas.ts` 는 Deno 측 미러 (`npm:zod@...` import).
  *   - 두 파일이 같은 ENUM 값을 가지지 않으면 클라이언트가 보내는 값과 Edge Function 이
  *     기대하는 값 사이에 격차 → 마켓 등록 실패 회귀가 production 에서만 발견되는 최악.
  *
@@ -27,7 +27,7 @@ import { MARKET_IDS as CLIENT_MARKET_IDS } from '@/lib/schemas/common'
 
 const SHARED_SCHEMA_PATH = path.resolve(
   process.cwd(),
-  'supabase/functions/_shared/schemas.ts',
+  'apps/api/supabase/functions/_shared/schemas.ts',
 )
 
 /**

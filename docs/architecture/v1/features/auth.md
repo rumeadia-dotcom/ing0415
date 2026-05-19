@@ -64,7 +64,7 @@
 `auth.users` 는 Supabase 가 관리하는 스키마이므로 직접 컬럼 추가가 위험하다. `public.sellers` 가 1:1 확장이며 `id` 가 `auth.users.id` 외래키.
 
 ```sql
--- supabase/migrations/<ts>_create_sellers.sql
+-- apps/api/supabase/migrations/<ts>_create_sellers.sql
 
 CREATE TABLE public.sellers (
   id                   uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -156,7 +156,7 @@ CREATE TRIGGER trg_sellers_protect_immutable
 회원가입 직후 `public.sellers` row 가 누락되면 모든 후속 도메인 RLS (`products`, `market_accounts`) 가 외래키 무결성 위반 또는 빈 화면을 발생시킨다. Auth signup 이벤트에서 즉시 행을 생성한다.
 
 ```sql
--- supabase/migrations/<ts>_seller_signup_trigger.sql
+-- apps/api/supabase/migrations/<ts>_seller_signup_trigger.sql
 
 CREATE OR REPLACE FUNCTION public.handle_new_seller()
 RETURNS trigger
@@ -414,7 +414,7 @@ CREATE TRIGGER trg_auth_user_created
 #### Supabase client 초기화 (단일 ground truth)
 
 ```ts
-// src/lib/supabase.ts
+// apps/web/src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -452,7 +452,7 @@ export const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_AN
 `supabase.auth.signUp({ emailRedirectTo })`, `signInWithOAuth({ redirectTo })`, `resetPasswordForEmail(_, { redirectTo })` 의 redirect URL 은 다음 화이트리스트만 허용. 코드 상수.
 
 ```ts
-// src/features/auth/lib/redirect-allowlist.ts
+// apps/web/src/features/auth/lib/redirect-allowlist.ts
 import { APP_MODE } from '@/lib/mode';
 
 const ALLOWED_ORIGINS: Record<'debug' | 'real', readonly string[]> = {
@@ -484,7 +484,7 @@ export function safeRedirectTo(input: string | null | undefined): string {
 - IP 원본 / User-Agent 원본 **DB 저장 금지**.
 - `ip_hash = sha256(ip + daily_salt)` / `ua_hash = sha256(ua + daily_salt)`.
 - `daily_salt` 는 Edge Function 환경변수에서 1일마다 회전 — 동일 IP 도 다음 날 다른 hash. 추적성·익명성 균형.
-- 적재 Edge Function: `supabase/functions/auth-event-log/index.ts` (요청 body 의 event + meta 만 받고, IP/UA 는 `req.headers` 에서 추출 후 즉시 hash 후 적재).
+- 적재 Edge Function: `apps/api/supabase/functions/auth-event-log/index.ts` (요청 body 의 event + meta 만 받고, IP/UA 는 `req.headers` 에서 추출 후 즉시 hash 후 적재).
 
 ### 4.4 enumeration 방지
 
@@ -501,17 +501,17 @@ export function safeRedirectTo(input: string | null | undefined): string {
 
 ### 4.6 토큰 / 세션 마스킹 (security.md §6.1)
 
-- Sentry breadcrumb / 로그에서 `access_token`, `refresh_token`, `password`, `email`, `phone` 키 마스킹은 `src/lib/security/redact.ts` (security.md §6.2) 가 일괄 처리.
+- Sentry breadcrumb / 로그에서 `access_token`, `refresh_token`, `password`, `email`, `phone` 키 마스킹은 `apps/web/src/lib/security/redact.ts` (security.md §6.2) 가 일괄 처리.
 - 본 도메인에서 추가로 마스킹 필요한 키: `display_name` 은 PII 등급 (security.md §8.1) 으로는 **공개 가까운 준식별** — 로그 허용. 단 외부 분석 SDK 송출은 금지.
 
 ---
 
-## 5. 클라이언트 zod 스키마 (`src/lib/schemas/auth.ts`)
+## 5. 클라이언트 zod 스키마 (`apps/web/src/lib/schemas/auth.ts`)
 
 ### 5.1 공통 헬퍼
 
 ```ts
-// src/lib/schemas/auth.ts
+// apps/web/src/lib/schemas/auth.ts
 import { z } from 'zod';
 
 // security.md §2.3 비밀번호 정책
@@ -653,7 +653,7 @@ export const AuthCallbackQuerySchema = z.discriminatedUnion('type', [
 #### `auth-event-log` (POST)
 
 ```ts
-// supabase/functions/auth-event-log/index.ts (시그니처만)
+// apps/api/supabase/functions/auth-event-log/index.ts (시그니처만)
 
 // request (zod)
 const AuthEventRequestSchema = z.object({
@@ -1115,11 +1115,11 @@ CLAUDE.md "Rules / 3개 산출물 동기화" 의무. 본 도메인 작업 시:
 |---|---|---|
 | 설계문서 (본 문서) | `docs/architecture/v1/features/auth.md` | 모든 변경 |
 | HTML 프로토타입 | `docs/frontend_html_design/v1/auth/` (신설 예정 — 첫 화면 작업 시) | UI 와이어 / 문구 변경 |
-| 실제 구현 | `src/features/auth/` (pages: login / signup / forgot-password / reset-password / auth-callback) | 코드 변경 |
-| SQL 마이그레이션 | `supabase/migrations/<ts>_create_sellers.sql`, `<ts>_seller_signup_trigger.sql` | 데이터 모델 변경 |
-| Edge Function | `supabase/functions/auth-event-log/` | API 변경 |
-| zod 스키마 | `src/lib/schemas/auth.ts` | API / 폼 변경 |
-| i18n 사전 | `src/locales/ko.ts` (`auth.*` 키) | 문구 변경 |
+| 실제 구현 | `apps/web/src/features/auth/` (pages: login / signup / forgot-password / reset-password / auth-callback) | 코드 변경 |
+| SQL 마이그레이션 | `apps/api/supabase/migrations/<ts>_create_sellers.sql`, `<ts>_seller_signup_trigger.sql` | 데이터 모델 변경 |
+| Edge Function | `apps/api/supabase/functions/auth-event-log/` | API 변경 |
+| zod 스키마 | `apps/web/src/lib/schemas/auth.ts` | API / 폼 변경 |
+| i18n 사전 | `apps/web/src/locales/ko.ts` (`auth.*` 키) | 문구 변경 |
 
 ---
 

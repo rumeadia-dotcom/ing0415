@@ -239,8 +239,8 @@ authorization, Authorization, cookie, Cookie, set-cookie
 ### 6.2 마스킹 코드 (Edge Function / 프론트 공용)
 
 ```ts
-// src/lib/security/redact.ts (프론트)
-// supabase/functions/_shared/redact.ts (Edge)
+// apps/web/src/lib/security/redact.ts (프론트)
+// apps/api/supabase/functions/_shared/redact.ts (Edge)
 
 const REDACT_KEYS = new Set([
   'access_token', 'refresh_token', 'id_token',
@@ -283,7 +283,7 @@ export function redact(value: unknown, depth = 0): unknown {
 ### 6.3 Sentry 초기화 시 강제
 
 ```ts
-// src/lib/sentry.ts
+// apps/web/src/lib/sentry.ts
 import * as Sentry from '@sentry/react';
 import { redact } from '@/lib/security/redact';
 
@@ -315,7 +315,7 @@ Sentry.init({
 });
 ```
 
-- **필수**: 프론트엔드 `src/lib/sentry.ts` + Edge Function `supabase/functions/_shared/sentry.ts` **둘 다** 위 beforeSend 적용. 한쪽만 적용된 PR 차단.
+- **필수**: 프론트엔드 `apps/web/src/lib/sentry.ts` + Edge Function `apps/api/supabase/functions/_shared/sentry.ts` **둘 다** 위 beforeSend 적용. 한쪽만 적용된 PR 차단.
 - **필수**: 신규 키 이름이 등장하면 `REDACT_KEYS` 에 추가하는 PR 을 동반.
 - **금지**: `console.log(token)` / `console.log(user)` 같은 원시 출력. ESLint `no-console` warn 으로 가시화.
 

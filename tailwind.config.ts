@@ -4,13 +4,13 @@ import type { Config } from 'tailwindcss'
  * MarketCast — Tailwind v3 디자인 시스템.
  *
  * 토큰 마스터: docs/architecture/v1/ui-system.md
- * - 색상은 RGB triplet CSS 변수 (src/styles/globals.css) → `rgb(var(--*) / <alpha-value>)` 로 alpha 변형 지원.
+ * - 색상은 RGB triplet CSS 변수 (apps/web/src/styles/globals.css) → `rgb(var(--*) / <alpha-value>)` 로 alpha 변형 지원.
  * - 라이트/다크는 `[data-theme="dark"]` 또는 `.dark` 양쪽 모두 동작 (테마 토글이 data-theme 기록).
  * - 마켓 브랜드색은 모드 무관 단일값 (법적 가이드라인 회피) — HEX 직접 박지 않고 CSS 변수로 wrap (다크 톤업도 변수에서 처리).
  * - xl breakpoint 는 1200px 로 override (D1 결정).
  */
 const config: Config = {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  content: ['./apps/web/index.html', './apps/web/src/**/*.{ts,tsx}'],
   darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     screens: {

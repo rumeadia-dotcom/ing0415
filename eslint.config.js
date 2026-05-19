@@ -8,7 +8,12 @@ import globals from 'globals'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'prototype/**', 'docs/**', 'coverage/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'docs/**', // includes legacy/prototype-v0/, spec/, handoff/, architecture/, frontend_html_design/
+      'coverage/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strict,

@@ -521,7 +521,7 @@ alter publication supabase_realtime add table public.registration_job_market_res
 
 ## 10. 상태 전이 순수 함수 (TypeScript)
 
-`src/lib/registration/state.ts` (백엔드·프론트엔드 공유). zod 와 동일 위치.
+`apps/web/src/lib/registration/state.ts` (백엔드·프론트엔드 공유). zod 와 동일 위치.
 
 ### 10.1. 타입
 
@@ -621,7 +621,7 @@ export function decideTerminalStatus(
 
 ### 10.4. 단위 테스트 케이스 매트릭스
 
-`src/lib/registration/state.test.ts` (Vitest).
+`apps/web/src/lib/registration/state.test.ts` (Vitest).
 
 ```ts
 import { describe, it, expect } from 'vitest';

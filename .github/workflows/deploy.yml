@@ -211,7 +211,10 @@ jobs:
             exit 1
           fi
 
+      # Supabase CLI 는 ./supabase/ 디렉토리를 cwd 기준으로 찾는다.
+      # 모노레포 정리(2026-05-19) 후 supabase/ 가 apps/api/ 하위로 이동했으므로 cwd 를 옮긴다.
       - name: Link Supabase project
+        working-directory: apps/api
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       # ⚠ 위험 결정: `supabase db push` 는 default 비활성.
@@ -219,6 +222,7 @@ jobs:
       # workflow_dispatch 의 apply_db_migrations=true 일 때만 실행.
       - name: Apply DB migrations
         if: ${{ github.event.inputs.apply_db_migrations == 'true' }}
+        working-directory: apps/api
         run: |
           echo "::warning::Applying DB migrations to real project. Ensure migrations are reviewed."
           supabase db push --linked
@@ -230,6 +234,7 @@ jobs:
 
       - name: Deploy Edge Functions
         # 함수 디렉토리 전체 일괄 deploy. _shared 폴더는 제외해야 함.
+        working-directory: apps/api
         run: |
           shopt -s nullglob
           for fn_dir in supabase/functions/*/; do
