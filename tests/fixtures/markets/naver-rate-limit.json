@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "market": "naver",
+    "scenario": "429-rate-limit",
+    "capturedFrom": "synthetic (rate limit 시뮬레이션)",
+    "capturedAt": "2026-05-19T00:00:00+09:00",
+    "note": "어댑터는 본 응답 수신 시 MarketError('rate_limit', retryAfterMs) throw. 호출측이 지수 백오프."
+  },
+  "httpStatus": 429,
+  "headers": {
+    "Retry-After": "2",
+    "X-RateLimit-Limit": "100",
+    "X-RateLimit-Remaining": "0",
+    "X-RateLimit-Reset": "2026-05-19T00:00:02+09:00"
+  },
+  "body": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "초당 요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "expectedMarketError": {
+    "code": "rate_limit",
+    "retryAfterMs": 2000
+  }
+}
