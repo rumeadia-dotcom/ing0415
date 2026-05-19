@@ -41,16 +41,19 @@ const SEED_SELLER = {
 test.describe('Golden Path @golden — s1 로그인 → s5 마켓 연결(네이버) → s3 등록 5단계 → s6 이력', () => {
   test('G0: 라우트 셸 진입 + AuthLayout 네비게이션 동작', async ({ page }) => {
     // 본 단계는 항상 active. 라우터/레이아웃/lazy import 가 깨지면 즉시 fail.
-    // RequireAuth 가 AppLayout 그룹에 걸려있어 /dashboard 직접 진입은 /login 으로
-    // 리다이렉트되므로, 가드 영향 없는 AuthLayout 페이지로 셸 sanity 검증.
-    await page.goto('/login')
+    //
+    // vite preview 는 SPA fallback 미지원 — `/login` 직접 GET 은 404. 그래서 `/` 로
+    // 진입해 React Router 가 client-side 로 `/dashboard` → (RequireAuth 가드) → `/login`
+    // 까지 라우팅하도록 한다. anonymous 상태이므로 가드가 자동으로 /login 으로 보낸다.
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/login$/)
 
     // LoginPage 의 로그인 카드 헤딩.
     await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible()
     // 이메일 라벨이 보여야 폼 마운트 OK.
     await expect(page.getByLabel('이메일')).toBeVisible()
 
-    // AuthLayout 의 다른 페이지(/signup) 로 lazy 이동 — Suspense + Router 동작 검증.
+    // AuthLayout 의 다른 페이지(/signup) 로 client-side 이동 — Suspense + Router 동작 검증.
     await page.getByRole('link', { name: '회원가입' }).click()
     await expect(page).toHaveURL(/\/signup$/)
     await expect(page.getByRole('heading', { name: '회원가입' })).toBeVisible()
