@@ -109,13 +109,18 @@ Stage A → B → C → D → E → F → G → H → ✅ 부트스트랩 완료
 
 ## B. Phase 2 실 화면 구현 (Stage D 이후 본 작업)
 
-### B-1. 환경 셋업 (1일)
-- [ ] Supabase 프로젝트 2개 생성 (debug / real)
-- [ ] `supabase link` 후 마이그레이션 17개 적용 (`supabase db push`)
-- [ ] GitHub Secrets 등록 (최소): `REAL_SUPABASE_URL`, `REAL_SUPABASE_ANON_KEY`, `REAL_SUPABASE_PROJECT_REF`, `SUPABASE_ACCESS_TOKEN`
-- [ ] GitHub Pages 활성 (Source: GitHub Actions)
-- [ ] Branch protection (develop/main 에 5 status check 강제)
-- [ ] `.env.local` 작성 (debug 모드 anon key)
+### B-1. 환경 셋업 ✅ (2026-05-19 완료)
+- ✅ Supabase 프로젝트 2개 생성 (debug `eqoywqoalwkwbrdsulfl` / real `lfrnythcujxdhehvkmtg`)
+- ✅ `supabase link` + `supabase db push` — 17개 마이그레이션을 두 프로젝트에 모두 적용. 진행 중 발견된 호환성 fix 4건 별도 commit: `events_kpi` 의 date_trunc IMMUTABLE 회피 (AT TIME ZONE 'UTC'), `views_kpi` 의 `trailing` reserved keyword 리네임, `storage_buckets` 의 COMMENT ON POLICY 제거 (관리형 storage 권한), `config.toml` PG 17 갱신.
+- ✅ GitHub Secrets 5개 등록 — `REAL_SUPABASE_URL`, `REAL_SUPABASE_ANON_KEY`, `REAL_SUPABASE_PROJECT_REF`, `DEBUG_SUPABASE_ANON_KEY`, `SUPABASE_ACCESS_TOKEN`. Sentry 관련 4개(`*_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`)는 Sentry 프로젝트 생성 후 후속 등록.
+- ✅ GitHub Pages 활성 — `build_type=workflow`. URL: https://rumeadia-dotcom.github.io/ing0415/
+- ✅ Branch protection — develop (5 status check + linear history + force push 차단), main (위 + enforce_admins + PR 리뷰 dismiss stale).
+- ✅ `apps/web/.env.local` (debug 모드, gitignore 등록).
+- ✅ CI 6/6 통과 검증 — 진행 중 발견된 3건 fix: golden-path `@golden` 태그 + RequireAuth 가드 호환, vite `base: './'` 와 router basename 호환 (resolveBasename 헬퍼), env zod 스키마의 빈 문자열 옵셔널 처리, Tabs panel ↔ input 셀렉터 충돌.
+
+**B-1 후속 (사용자 콘솔에서 별도)**:
+- Supabase Auth → URL Configuration → **Site URL** 과 **Redirect URLs** 화이트리스트 등록 (auth.md §4.2). debug 는 `http://localhost:5173`, real 은 GitHub Pages URL.
+- (선택) Sentry 프로젝트 생성 후 4개 secret 추가.
 
 ### B-2. s1 인증 구현 (2026-05-19 본구현 완료)
 - ✅ LoginPage: RHF + zod + Supabase Auth signInWithPassword + 에러 매핑 + password 토글 + redirect (location.state.from)
