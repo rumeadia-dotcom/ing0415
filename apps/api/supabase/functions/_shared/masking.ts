@@ -72,7 +72,7 @@ const REDACT_KEYS: ReadonlySet<string> = new Set([
 
 const JWT_PATTERN = /^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 /** Bearer xxx 형태에서 토큰 추출 (Authorization 헤더 등). */
-const BEARER_PATTERN = /Bearer\s+([A-Za-z0-9._\-]+)/g
+const BEARER_PATTERN = /Bearer\s+([A-Za-z0-9._-]+)/g
 
 function maskString(key: string, value: string): string {
   if (REDACT_KEYS.has(key.toLowerCase())) {

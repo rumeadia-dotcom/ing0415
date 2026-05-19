@@ -13,6 +13,8 @@ export default tseslint.config(
       'node_modules/**',
       'docs/**', // includes legacy/prototype-v0/, spec/, handoff/, architecture/, frontend_html_design/
       'coverage/**',
+      'apps/api/supabase/.branches/**',
+      'apps/api/supabase/.temp/**',
     ],
   },
   js.configs.recommended,
@@ -48,10 +50,28 @@ export default tseslint.config(
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
+      // 의도된 미사용 인자는 `_` prefix 로 표기 (인터페이스 구현체에서 자주 발생)
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {
     files: ['vite.config.ts', 'eslint.config.js', 'vitest.config.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    // Node 환경 설정·스크립트 파일 (process, console, module 등)
+    files: ['**/*.cjs', '**/*.mjs', 'scripts/**/*.{js,mjs,cjs}'],
     languageOptions: {
       globals: {
         ...globals.node,

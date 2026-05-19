@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
  * - 모바일 h ≥44px 위해 lg 변형 분리 (필요 시 className 으로 `h-11` override)
  * - error 상태는 `aria-invalid="true"` 로 분기 (별도 prop 안 둠)
  */
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {}
+export type InputProps = InputHTMLAttributes<HTMLInputElement>
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { className, type = 'text', ...props },

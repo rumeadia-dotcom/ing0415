@@ -151,7 +151,7 @@ export function withRequest(
       return err(500, 'internal', 'internal server error', { correlationId })
     } finally {
       // 짧은 수명 Edge Function — Sentry 이벤트 flush 보장
-      await flushSentry(1500).catch(() => {})
+      await flushSentry(1500).catch(() => undefined)
     }
   }
 }

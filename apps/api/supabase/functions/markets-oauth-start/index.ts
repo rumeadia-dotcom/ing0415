@@ -213,13 +213,8 @@ export default Deno.serve(
       throw HttpErrors.internal('internal', 'failed to persist oauth state')
     }
 
-    let authorizeUrl: string
-    try {
-      authorizeUrl = buildAuthorizeUrl(market, state, redirectUri)
-    } catch (e) {
-      // env 누락 등. oauth_state 는 이미 INSERT — 만료로 자동 정리.
-      throw e
-    }
+    // env 누락 등으로 buildAuthorizeUrl 이 throw 하면 oauth_state 는 이미 INSERT 됨 — 만료로 자동 정리.
+    const authorizeUrl = buildAuthorizeUrl(market, state, redirectUri)
 
     // market_account_audit (connect_initiated)
     const { error: accAuditErr } = await supabase

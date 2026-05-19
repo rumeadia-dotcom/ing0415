@@ -1,6 +1,0 @@
-node_modules
-dist
-docs
-coverage
-apps/api/supabase/.branches
-apps/api/supabase/.temp
