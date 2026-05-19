@@ -7,14 +7,16 @@
 ```
 tests/fixtures/
 ├── markets/                   ← 마켓 어댑터 mock 응답
-│   ├── naver-happy.json
-│   ├── naver-rate-limit.json
-│   └── coupang-happy.json
+│   ├── naver-happy.json       (v1 활성)
+│   ├── naver-rate-limit.json  (v1 활성)
+│   └── coupang-happy.json     (v1 미사용 — v2 재설계 시 참고)
 ├── images/                    ← 업로드 이미지
 │   └── sample.jpg             (1x1 placeholder — 본 단계에선 자리 보존만)
 └── products/                  ← Product 도메인 픽스처
     └── valid-product.json
 ```
+
+> **쿠팡 fixture (`coupang-happy.json`)는 v2 어댑터 재설계 시 참고 — v1 미사용** (2026-05-19 결정 — OQ-10). 쿠팡 OpenAPI 는 OAuth 가 아닌 HMAC 기반이라 OAuth 가정 어댑터 인터페이스와 부정합. v2 인터페이스 확장 시점에 실제 sandbox 캡처본으로 교체.
 
 ## 규약 (testing.md §11.2)
 

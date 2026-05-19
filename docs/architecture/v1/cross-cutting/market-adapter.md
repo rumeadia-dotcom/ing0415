@@ -16,7 +16,7 @@
 ## 1. 목적 · 범위
 
 - **목적**: 마켓 API 의 변덕(엔드포인트·페이로드·rate limit·OAuth)을 5메서드 인터페이스 1장 뒤에 격리한다.
-- **범위**: v1 = 네이버 스마트스토어 + 쿠팡 실 구현. 11번가 / G마켓 / 옥션 = 인터페이스 stub + 단위 테스트 (v2 구현 보류).
+- **범위**: **v1 = 네이버 스마트스토어 1개만 실 구현 (2026-05-19 결정 — OQ-10)**. 쿠팡 / 11번가 / G마켓 / 옥션 = 인터페이스 stub + 단위 테스트만 유지, 호출 시 즉시 throw (v2 구현 보류). 쿠팡은 OpenAPI 가 HMAC 기반이므로 현 5메서드 OAuth 가정 인터페이스와 부정합 — v2 어댑터 인터페이스 확장 후 통합.
 - **비범위**: 재시도·rate limit·이미지 변환·로깅·감사 — 어댑터 **바깥**(`registration-run` Edge Function 오케스트레이터 + `_shared/*`).
 
 ---
@@ -235,13 +235,17 @@ export async function getAdapter(market: MarketId): Promise<MarketAdapter> {
       const { createNaverAdapter } = await import('./naver/adapter');
       return createNaverAdapter();
     }
-    case 'coupang': {
-      const { createCoupangAdapter } = await import('./coupang/adapter');
-      return createCoupangAdapter();
+    case 'coupang':
+    case '11st':
+    case 'gmarket':
+    case 'auction':
+      // v1 = naver 1개만 활성. 나머지는 인터페이스 호환을 위해 stub 만 유지 (호출 시 즉시 throw).
+      // 쿠팡 HMAC 부정합으로 v2 인터페이스 확장 시 통합 — 2026-05-19 결정 (OQ-10).
+      throw new Error(`Adapter ${market} is not in v1 (오픈 준비중) — see CLAUDE.md MVP 범위`);
+    default: {
+      const _exhaustive: never = market;
+      throw new Error(`unknown market: ${String(_exhaustive)}`);
     }
-    default:
-      // v1 에서는 11st/gmarket/auction 은 stub 만 (호출 시 즉시 throw).
-      throw new Error(`market ${market} not implemented in v1`);
   }
 }
 ```
@@ -667,63 +671,72 @@ export class MarketError extends Error {
 
 ---
 
-## 9. 마켓별 차이 매트릭스 (v1: 네이버 스마트스토어 vs 쿠팡)
+## 9. 마켓별 차이 매트릭스 (v1: 네이버 스마트스토어만)
 
-> 본 표의 잠정값은 Phase 2 의 실제 통합 테스트 후 갱신. 갱신 시 본 문서 §13 미해결 사안 행 제거.
+> v1 활성 = naver 1개. 쿠팡 / 11번가 / G마켓 / 옥션 = **v2 예정** (인터페이스 호환 stub).
+> 잠정값은 Phase 2 통합 테스트 후 갱신. 갱신 시 본 문서 §13 미해결 사안 행 제거.
 
 ### 9.1 호출 / OAuth
 
-| 항목 | 네이버 스마트스토어 (naver) | 쿠팡 (coupang) |
+| 항목 | 네이버 스마트스토어 (naver) — v1 활성 | 쿠팡 / 11st / gmarket / auction |
 |---|---|---|
-| OAuth 표준 | OAuth 2.0 Authorization Code | OAuth 2.0 (벤더 절차 일부 비표준 가능 — Phase 2 확인) |
-| 인증 endpoint | `https://api.commerce.naver.com/...` (잠정) | `https://api-gateway.coupang.com/...` (잠정) |
-| 토큰 endpoint | 위와 동일 도메인 / `/oauth2/token` (잠정) | 동일 / 확인 필요 |
-| `scope` | 상품 등록·조회 권한 (실제 키 이름 Phase 2 확인) | 동일 |
-| refresh TTL | 잠정 14일 | 잠정 30일 |
-| HTTP timeout (어댑터 fetch) | 15s | 20s |
-| 일일 호출 한도 | Phase 2 실측 | Phase 2 실측 |
-| RPS (동시 호출 한도, §5.3) | 3 | 5 |
-| 429 헤더 | `Retry-After` (초) | `Retry-After` 또는 마켓 자체 헤더 (Phase 2 확인) |
+| OAuth 표준 | OAuth 2.0 Authorization Code (`type=SELF`) | **v2 예정** — 쿠팡은 HMAC, 그 외는 Phase 2 확인 |
+| 토큰 endpoint | `https://api.commerce.naver.com/external/v1/oauth2/token` (확정, form-urlencoded) | v2 |
+| `scope` | 상품 등록·조회 권한 (실제 키 이름 Phase 2 확인) | v2 |
+| refresh TTL | 잠정 14일 | v2 |
+| HTTP timeout (어댑터 fetch) | 15s | v2 |
+| 일일 호출 한도 | Phase 2 실측 | v2 |
+| RPS (동시 호출 한도, §5.3) | 3 | v2 |
+| 429 헤더 | `Retry-After` (초) | v2 |
 
 ### 9.2 카테고리 트리
 
-| 항목 | 네이버 스마트스토어 | 쿠팡 |
-|---|---|---|
-| 최대 깊이 | 4 (잠정) | 5 (잠정) |
-| 조회 방식 | 전체 트리 1회 조회 | 부모 id 별 children 조회 (lazy) |
-| 캐시 정책 | 24시간 TTL (호출측 책임) | 24시간 TTL |
-| 변경 통지 | webhook 없음 → polling | webhook 없음 → polling |
+| 항목 | 네이버 스마트스토어 |
+|---|---|
+| 최대 깊이 | 4 (잠정) |
+| 조회 방식 | 전체 트리 1회 조회 |
+| 캐시 정책 | 24시간 TTL (호출측 책임) |
+| 변경 통지 | webhook 없음 → polling |
+
+> 쿠팡 / 11st / gmarket / auction 의 카테고리 트리 사양은 v2 인터페이스 확정 후 본 표에 행 추가.
 
 ### 9.3 이미지 규격
 
-| 항목 | 네이버 스마트스토어 | 쿠팡 |
-|---|---|---|
-| 권장 해상도 | 1000 × 1000 이상 | 500 × 500 이상 |
-| 허용 포맷 | JPEG / PNG | JPEG / PNG / WebP (Phase 2 확인) |
-| 최대 용량 | 10 MB | 10 MB |
-| 최대 장수 | 10 | 20 |
-| 워터마크 정책 | 금지 (마켓 정책) | 일부 허용 |
+| 항목 | 네이버 스마트스토어 |
+|---|---|
+| 권장 해상도 | 1000 × 1000 이상 |
+| 허용 포맷 | JPEG / PNG |
+| 최대 용량 | 10 MB |
+| 최대 장수 | 10 |
+| 워터마크 정책 | 금지 (마켓 정책) |
 
 > 이미지 변환 파이프라인은 본 문서 범위 밖. `features/registration.md` §이미지 파이프라인 참조.
+> 쿠팡 등 v2 마켓별 이미지 규격은 v2 진입 직전 추가.
 
 ### 9.4 필수 필드 / quirks
 
-| 항목 | 네이버 스마트스토어 | 쿠팡 |
-|---|---|---|
-| 필수 필드 | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 인증정보(품목별) | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 모델명 |
-| 알려진 quirk | 상품명 한도 100자 (잠정), 특수문자 일부 거부 | 200 응답에 `code` 필드로 실패 표기 — 어댑터에서 unknown 으로 매핑 |
-| 부분 성공 가능성 | 적음 | 있음 (`status='partial'` + warnings 사용) |
+| 항목 | 네이버 스마트스토어 |
+|---|---|
+| 필수 필드 | 카테고리 / 상품명 / 가격 / 재고 / 배송 / 이미지 / 인증정보(품목별) |
+| 알려진 quirk | 상품명 한도 100자 (잠정), 특수문자 일부 거부 |
+| 부분 성공 가능성 | 적음 |
 
 ### 9.5 mock 시나리오 매핑 (debug)
 
-| 시나리오 | naver mock | coupang mock |
-|---|---|---|
-| happy | 성공 응답 | 성공 응답 |
-| 5xx | `server` throw | 동일 |
-| 401 | `unauthorized` throw (`invalid_grant`) | 동일 |
-| 429 | `rate_limit` (retryAfterMs=1500) | `rate_limit` (retryAfterMs=2000) |
-| timeout | `network` throw after 15s | `network` after 20s |
-| partial | createProduct status='partial' + warnings | 동일 |
+| 시나리오 | naver mock |
+|---|---|
+| happy | 성공 응답 |
+| 5xx | `server` throw |
+| 401 | `unauthorized` throw (`invalid_grant`) |
+| 429 | `rate_limit` (retryAfterMs=1500) |
+| timeout | `network` throw after 15s |
+| partial | createProduct status='partial' + warnings (v2 다중 마켓 시뮬레이션용 케이스 — v1 단일 마켓에서는 의미 제한적) |
+
+### 9.6 확장 정책 (v2 인터페이스 확장)
+
+- **`authenticate` input 확장 필요**: 현재 `code: string` 으로 OAuth code 만 받음. **v2 어댑터 인터페이스 확장 — `authenticate` 의 input 을 `{kind:'oauth_code'|'hmac_key', ...}` union 으로 확대 필요 (쿠팡 HMAC 대응)**.
+- 호환 보존: v1 stub 어댑터 (coupang / 11st / gmarket / auction) 는 5메서드 시그니처를 유지하되 호출 시 즉시 `MarketError('unknown')` throw. 인터페이스 확장 시 stub 의 시그니처도 union 으로 확대 적용.
+- v2 진입 시점: 본 §확장 정책 → §9 표로 통합 + `MarketAdapter` 인터페이스 PR (architect + security 합의) + 마켓별 어댑터 본문 구현.
 
 ---
 

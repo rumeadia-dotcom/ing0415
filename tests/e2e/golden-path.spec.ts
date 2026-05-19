@@ -6,17 +6,21 @@ import AxeBuilder from '@axe-core/playwright'
  *
  * **이게 안 돌면 main 머지 차단.**
  *
- * 시나리오:
+ * v1 활성 마켓 = 네이버 스마트스토어 1개 (2026-05-19 결정 — OQ-10).
+ * 쿠팡 / 11번가 / G마켓 / 옥션 = 오픈 준비중 (v2 어댑터 인터페이스 확장 후 통합).
+ *
+ * 시나리오 (단일 마켓 가정):
  *   G1  로그인 (이메일+비밀번호)
  *   G2  /markets 진입 — empty 상태
  *   G3  스마트스토어 OAuth 연결 (mock)
- *   G4  쿠팡 OAuth 연결 (mock)
  *   G5  /register/info — 상품 정보 입력
  *   G6  /register/images — 이미지 업로드
- *   G7  /register/markets + /register/categories — 마켓·카테고리 매핑
+ *   G7  /register/markets + /register/categories — 마켓·카테고리 매핑 (네이버 단일)
  *   G8  /register/preview — 미리보기
  *   G9  일괄 등록 실행 — running → succeeded
  *   G10 /history — 잡 1행 succeeded 확인
+ *
+ *   (G4 쿠팡 OAuth 연결 단계는 v2 백로그로 이관 — 본 sweep 에서 삭제)
  *
  * Stage G 현재:
  *   - 각 페이지가 Stage C placeholder 상태 (실제 폼/액션 미구현).
@@ -34,7 +38,7 @@ const SEED_SELLER = {
   password: 'Qa!12345',
 }
 
-test.describe('Golden Path — s1 로그인 → s5 마켓 연결 → s3 등록 5단계 → s6 이력', () => {
+test.describe('Golden Path — s1 로그인 → s5 마켓 연결(네이버) → s3 등록 5단계 → s6 이력', () => {
   test('G0: 라우트 셸 진입 + 사이드바 네비 동작', async ({ page }) => {
     // 본 단계는 항상 active. 라우터/레이아웃이 깨지면 즉시 fail.
     await page.goto('/dashboard')
@@ -74,7 +78,9 @@ test.describe('Golden Path — s1 로그인 → s5 마켓 연결 → s3 등록 5
     expect(axe.violations).toEqual([])
   })
 
-  test.fixme('G3: 스마트스토어 OAuth 연결 → status=connected', async ({ page }) => {
+  test.fixme('G3: 스마트스토어 OAuth 연결 → status=connected (v1 활성 마켓 1개)', async ({
+    page,
+  }) => {
     // MSW oauth handler 가 200 + access/refresh 반환하도록 설정 (tests/fixtures/msw/oauth.ts).
     await page.goto('/markets/connect')
     await page.getByRole('button', { name: '스마트스토어 연결' }).click()
@@ -82,16 +88,13 @@ test.describe('Golden Path — s1 로그인 → s5 마켓 연결 → s3 등록 5
     await expect(page).toHaveURL(/\/markets$/)
     await expect(page.getByText(/스마트스토어/).first()).toBeVisible()
     await expect(page.getByText(/연결됨|connected/i)).toBeVisible()
+    // v1 단일 마켓 — 1개만 연결됨 확인.
+    await expect(page.getByText(/연결됨|connected/i)).toHaveCount(1)
     // 보안: DB 검증 (access_token 평문 부재) 은 별도 RLS-SQL 테스트에서 (R-007).
   })
 
-  test.fixme('G4: 쿠팡 OAuth 연결 → 마켓 카드 2개', async ({ page }) => {
-    await page.goto('/markets/connect')
-    await page.getByRole('button', { name: '쿠팡 연결' }).click()
-    await expect(page).toHaveURL(/\/markets$/)
-    // 두 마켓 모두 connected.
-    await expect(page.getByText(/연결됨|connected/i)).toHaveCount(2)
-  })
+  // G4 쿠팡 OAuth 연결 단계는 v2 백로그로 이관 (2026-05-19 결정 — OQ-10).
+  // 쿠팡은 HMAC 인증이라 OAuth 가정 어댑터 인터페이스와 부정합 → v2 인터페이스 확장 후 시나리오 복원.
 
   test.fixme('G5: /register/info — 상품 정보 입력', async ({ page }) => {
     await page.goto('/register/info')
@@ -105,37 +108,36 @@ test.describe('Golden Path — s1 로그인 → s5 마켓 연결 → s3 등록 5
     await expect(page).toHaveURL(/\/register\/images$/)
   })
 
-  test.fixme('G6: /register/images — 1024x1024 jpg 3장 업로드', async ({ page }) => {
+  test.fixme('G6: /register/images — 1024x1024 jpg 3장 업로드 (v1 = 네이버 변환본 1종)', async ({
+    page,
+  }) => {
     await page.goto('/register/images')
     const file = 'tests/fixtures/images/sample.jpg'
     await page.getByLabel('이미지 업로드').setInputFiles([file, file, file])
-    // 마켓별 변환 미리보기 3종 (원본 + 스마트스토어 + 쿠팡).
-    await expect(page.getByRole('img', { name: /원본|스마트스토어|쿠팡/ })).toHaveCount(
-      9,
-    ) // 3장 × 3변환.
+    // 마켓별 변환 미리보기 (원본 + 스마트스토어).
+    await expect(page.getByRole('img', { name: /원본|스마트스토어/ })).toHaveCount(
+      6,
+    ) // 3장 × 2변환 (원본 + 네이버).
   })
 
-  test.fixme('G7: /register/markets + /register/categories — 매핑', async ({
+  test.fixme('G7: /register/markets + /register/categories — 매핑 (네이버 단일)', async ({
     page,
   }) => {
     await page.goto('/register/markets')
     await page.getByRole('checkbox', { name: /스마트스토어/ }).check()
-    await page.getByRole('checkbox', { name: /쿠팡/ }).check()
     await page.getByRole('button', { name: '다음' }).click()
     await expect(page).toHaveURL(/\/register\/categories$/)
     // 카테고리 매핑 — 셀러터는 카테고리 콤보박스 라벨로.
     await page.getByLabel('스마트스토어 카테고리').click()
     await page.getByRole('option', { name: /가전 > 주방가전/ }).click()
-    await page.getByLabel('쿠팡 카테고리').click()
-    await page.getByRole('option', { name: /가전 > 주방가전/ }).click()
   })
 
-  test.fixme('G8: /register/preview — 마켓별 페이로드 요약 + axe', async ({
+  test.fixme('G8: /register/preview — 마켓 페이로드 요약 + axe', async ({
     page,
   }) => {
     await page.goto('/register/preview')
-    // 마켓별 페이로드 요약 카드 2개 노출.
-    await expect(page.getByRole('region', { name: /스마트스토어|쿠팡/ })).toHaveCount(2)
+    // 마켓 페이로드 요약 카드 1개 노출 (네이버).
+    await expect(page.getByRole('region', { name: /스마트스토어/ })).toHaveCount(1)
     // 경고/에러 없음.
     await expect(page.getByRole('alert')).toHaveCount(0)
     const axe = await new AxeBuilder({ page }).analyze()
@@ -144,7 +146,7 @@ test.describe('Golden Path — s1 로그인 → s5 마켓 연결 → s3 등록 5
 
   test.fixme('G9: 등록 실행 → 잡 succeeded', async ({ page }) => {
     await page.goto('/register/preview')
-    await page.getByRole('button', { name: /등록 시작|일괄 등록/ }).click()
+    await page.getByRole('button', { name: /등록 시작|등록 실행/ }).click()
     // 결과 페이지로 이동, jobId 가 path 에.
     await expect(page).toHaveURL(/\/register\/result\/[0-9a-f-]+$/)
     // Realtime 으로 status running → succeeded.
@@ -156,6 +158,7 @@ test.describe('Golden Path — s1 로그인 → s5 마켓 연결 → s3 등록 5
     // 가장 최근 row.
     const firstRow = page.getByRole('row').nth(1) // 0 은 header.
     await expect(firstRow).toContainText(/성공|succeeded/i)
-    await expect(firstRow.getByRole('link', { name: /외부|상품 URL/ })).toHaveCount(2)
+    // v1 = 네이버 단일 마켓이라 외부 상품 URL 1개.
+    await expect(firstRow.getByRole('link', { name: /외부|상품 URL/ })).toHaveCount(1)
   })
 })

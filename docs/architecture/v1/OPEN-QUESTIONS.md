@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|---|
 | OQ-01 | `display_name` unique 정책 | auth.md §12 #1 | auth | Phase 0 | (a) 전역 unique / (b) seller 단위 unique / (c) 비-unique | TBD | architect |
 | OQ-02 | 비밀번호 강도 알고리즘 (zxcvbn vs 자체) | auth.md §12 #5 | auth | Phase 0 | (a) zxcvbn (~400KB) / (b) 자체 룰 (길이+문자종) | TBD | security, frontend |
-| OQ-03 | Naver/Kakao PKCE 지원 사실 확인 | auth.md §12 #8 | auth | Phase 0 | (a) PKCE 지원 → 강제 / (b) 미지원 → state 만 | TBD | security |
+| OQ-03 | Naver/Kakao PKCE 지원 사실 확인 | auth.md §12 #8 | auth | Phase 0 | (a) PKCE 지원 → 강제 / (b) 미지원 → state 만 | **결정 완료 → 결정 완료 섹션 참조** | security |
 | OQ-04 | 자격증명 암호화 방식 | credential-vault.md §2, security.md §4.2 | markets, credential | Phase 1 | (a) pgcrypto / (b) Supabase Vault / (c) KMS 외부 | **결정 완료 → 결정 완료 섹션 참조** | architect |
 | OQ-05 | 실시간 전송 방식 (Realtime vs polling) | platform.md #2 | frontend, registration, dashboard, history | Phase 1 | (a) Supabase Realtime / (b) TanStack Query refetchInterval / (c) 혼합 | TBD | architect, frontend |
 | OQ-06 | RLS 단위 테스트 도구 | platform.md #10 | testing | Phase 1 | (a) pgTAP / (b) Supabase JS + Vitest / (c) 둘 다 | TBD | qa, backend |
@@ -36,14 +36,14 @@
 
 | ID | 항목 | 출처 | 영향 영역 | 결정 시점 | 후보 옵션 | 결정 (TBD) | 결정자 |
 |---|---|---|---|---|---|---|---|
-| OQ-10 | 네이버·쿠팡 실제 OAuth endpoint/scope/refresh TTL | markets.md O-1/O-2, market-adapter.md O-1/O-2 | adapter | Phase 2 | 공식 문서 + 파트너 콘솔 등록 후 확정 | TBD | backend |
+| OQ-10 | 네이버·쿠팡 실제 OAuth endpoint/scope/refresh TTL | markets.md O-1/O-2, market-adapter.md O-1/O-2 | adapter | Phase 2 | 공식 문서 + 파트너 콘솔 등록 후 확정 | **결정 완료 → 결정 완료 섹션 참조** | backend |
 | OQ-11 | 마켓별 실측 RPS / 429 헤더 포맷 | market-adapter.md O-3/O-4 | limiter.ts | Phase 2 | 샌드박스 실측 → token bucket 파라미터 산출 | TBD | backend |
 | OQ-12 | revoke endpoint = 6번째 어댑터 메서드 vs 외부 헬퍼 | markets.md O-3 | market-adapter 인터페이스 | Phase 2 | (a) `MarketAdapter.revoke()` 추가 / (b) 어댑터 외부 헬퍼 함수 | TBD | architect |
 | OQ-13 | `markets-verify` ping (categoryTree 재사용 vs 별도) | markets.md O-4 | adapter | Phase 2 | (a) `fetchCategoryTree` head 1회 / (b) 별도 `ping()` 메서드 | TBD | backend |
-| OQ-14 | PKCE 지원 여부 (네이버·쿠팡) | markets.md O-7 | OAuth | Phase 2 | 사실 확인 후 강제/생략 결정 | TBD | security |
-| OQ-15 | 장기 잡 재시도 스케줄러 (pg_cron vs scheduled functions) | platform.md #3 | registration | Phase 2 | (a) pg_cron + DB 큐 / (b) Supabase scheduled edge function | TBD | backend |
+| OQ-14 | PKCE 지원 여부 (네이버·쿠팡) | markets.md O-7 | OAuth | Phase 2 | 사실 확인 후 강제/생략 결정 | **결정 완료 → 결정 완료 섹션 참조** | security |
+| OQ-15 | 장기 잡 재시도 스케줄러 (pg_cron vs scheduled functions) | platform.md #3 | registration | Phase 2 | (a) pg_cron + DB 큐 / (b) Supabase scheduled edge function | **결정 완료 → 결정 완료 섹션 참조** | backend |
 | OQ-16 | 이미지 변환 실행 위치 | platform.md #5 | image-pipeline | Phase 2 | (a) Edge Function 인라인 / (b) 별도 worker function / (c) 클라이언트 사전 변환 | TBD | architect |
-| OQ-17 | wasm-vips Deno 호환성 | image-pipeline.md §11 | image-pipeline | Phase 2 | (a) wasm-vips / (b) Deno 네이티브 imagescript / (c) Sharp via subprocess (불가능) | TBD | backend |
+| OQ-17 | wasm-vips Deno 호환성 | image-pipeline.md §11 | image-pipeline | Phase 2 | (a) wasm-vips / (b) Deno 네이티브 imagescript / (c) Sharp via subprocess (불가능) | **결정 완료 → 결정 완료 섹션 참조** | backend |
 | OQ-18 | 마켓 정책 변경 모니터링 방식 | platform.md #11 | markets | Phase 2 | (a) 공식 changelog RSS 폴링 / (b) 어댑터 버전 + 계약 테스트 / (c) 양쪽 | TBD | architect |
 
 ---
@@ -94,3 +94,7 @@
 | ID | 항목 | 결정 | 근거 | 결정자/일자 |
 |---|---|---|---|---|
 | OQ-04 | 자격증명 암호화 방식 | **pgcrypto 1차** (Vault 도입은 운영 트래픽 증가 시 재검토) | Vault 운영 난이도 + Edge Function 통합 비용. pgcrypto 는 Postgres 네이티브로 RLS·마이그레이션과 일관 관리 가능. 거부: (b) Vault — 별도 운영 부담, (c) KMS 외부 — Supabase 단일 인프라 원칙 위배 | architect / 2026-05-18 |
+| OQ-10 | v1 활성 마켓 & 네이버 OAuth endpoint | **v1 = 네이버만 활성 (쿠팡 HMAC 부정합으로 v2 이관)**. 네이버 endpoint = `https://api.commerce.naver.com/external/v1/oauth2/token`, `application/x-www-form-urlencoded`, `type=SELF` 만 발급 | 쿠팡 OpenAPI 는 OAuth 가 아닌 HMAC 기반(VENDOR_ID + ACCESS_KEY + SECRET_KEY) 으로 현 5메서드 OAuth 가정 인터페이스와 부정합. v1 어댑터 인터페이스 재설계 비용 회피 → 쿠팡/11st/gmarket/auction 은 인터페이스 호환 stub 만 유지, 실 구현은 v2 인터페이스 확장 후. 네이버 endpoint 는 커머스 API 공식 문서 확정 | user + architect / 2026-05-19 |
+| OQ-15 | Edge Function timeout & 운영 가정 | **Free 150s / Pro 400s timeout, 256MB 메모리, body/response 한도 미명시. v1 운영 = Pro 가정 (400s 가드)** | Supabase Edge Function 한도가 플랜별 다름. 일괄 등록·이미지 변환의 최대 단일 호출 budget 을 400s 로 산정. 마켓당 호출 1회 분할 원칙 (market-adapter.md §5.4) 과 정합. 256MB 메모리는 wasm-vips 실측 시 보정 필요 | architect / 2026-05-19 |
+| OQ-17 | wasm-vips Deno 호환성 | **wasm-vips Deno npm: import 호환 (v1.16+)**. Edge 256MB 메모리 한계 실측은 Phase 2 | npm: specifier 로 Deno 에서 직접 import 가능함이 v1.16+ 에서 확인. Sharp 는 native binding 으로 Edge Function 사용 불가. imagescript 는 포맷 지원 빈약. 거부: (b)/(c) | backend / 2026-05-19 |
+| OQ-3 / OQ-14 | PKCE 지원 (네이버 / 쿠팡) | **네이버 `type=SELF` 는 PKCE 불요. 쿠팡 HMAC 무관 (OAuth 자체 미사용)** | 네이버 커머스 자가 발급 모드(`type=SELF`)는 PKCE 없이 client_id + client_secret 으로 토큰 발급. 쿠팡은 HMAC 인증이라 PKCE 개념 자체가 적용 불가 — v2 어댑터 인터페이스 확장 시 별도 검토 | security / 2026-05-19 |

@@ -37,6 +37,10 @@ export const ko = {
     gmarket: 'G마켓',
     auction: '옥션',
   },
+  marketStatus: {
+    ready: '연결 가능',
+    coming_soon: '오픈 준비중',
+  },
 } as const
 
 export type Locale = typeof ko

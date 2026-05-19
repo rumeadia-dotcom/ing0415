@@ -11,10 +11,9 @@
     Wave 3 / s3 위저드 — Step 4 (등록 미리보기).
     user_flow 노드 n20, registration.md §10.6.
 
-    상태:
-      - 네이버 ✓ 검증 OK
-      - 쿠팡 ⚠ 경고 (상품명 80자 초과 → 자동 줄임 적용)
-      - 둘 다 등록 가능 (경고는 차단 아님)
+    상태 (2026-05-19 결정 — OQ-10):
+      - 네이버 스마트스토어 ✓ 검증 OK (v1 활성 마켓 1개)
+      - 쿠팡 / 11번가 / G마켓 / 옥션 = 오픈 준비중 (v2 어댑터 인터페이스 확장 후 통합)
   -->
 
   <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
@@ -137,11 +136,11 @@
           <h2 id="step4-heading" class="t-h3" style="margin:0 0 var(--sp-2);">등록 미리보기</h2>
           <p class="t-sm t-muted" style="margin:0 0 var(--sp-5);">각 마켓에 등록될 변환 결과입니다. 경고가 있는 경우 자동 조정 내용을 확인하고 진행해주세요.</p>
 
-          <!-- 요약 banner (경고 1건) -->
-          <div class="summary-banner warn" role="status" aria-live="polite">
-            <svg aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+          <!-- 요약 banner -->
+          <div class="summary-banner" role="status" aria-live="polite">
+            <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
             <div>
-              <strong>2/2 마켓 등록 가능 · 경고 1건</strong> — 쿠팡 상품명이 80자 초과로 자동 줄임이 적용됩니다.
+              <strong>1/1 마켓 등록 가능</strong> — 네이버 스마트스토어 검증 통과.
             </div>
           </div>
 
@@ -220,87 +219,7 @@
               </div>
             </article>
 
-            <!-- ─────────────── 쿠팡 (경고) ─────────────── -->
-            <article class="preview-card has-warning coupang-style" aria-labelledby="pv-coupang-title">
-              <header class="preview-head">
-                <span class="market-tile coupang" aria-hidden="true">C</span>
-                <h3 id="pv-coupang-title">쿠팡</h3>
-                <span class="verify-pill warn">
-                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
-                  경고 1
-                </span>
-              </header>
-
-              <div class="preview-thumb" aria-label="대표 이미지 미리보기 (780×780 JPEG 으로 변환됨)">
-                대표 이미지<br>(780×780 JPEG)
-              </div>
-
-              <div class="preview-body">
-
-                <!-- 경고 alert (마켓 변환 결과 안내) -->
-                <div class="alert alert-warning" role="alert" style="margin-bottom: var(--sp-4);">
-                  <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
-                  <div class="alert-body">
-                    <p class="alert-title">상품명 자동 줄임 적용</p>
-                    <p class="alert-message">쿠팡 정책상 상품명은 80자 이내여야 합니다. 입력하신 82자에서 80자로 줄여 등록됩니다.</p>
-                  </div>
-                </div>
-
-                <p class="preview-name">가을 미니 원피스 (블랙) · 부드러운 폴리에스터 100%…</p>
-
-                <div class="preview-price-row">
-                  <span class="preview-price">29,900원</span>
-                  <span class="preview-price-original">39,000원</span>
-                  <span class="preview-discount">23% 할인</span>
-                </div>
-
-                <dl class="preview-meta">
-                  <dt>카테고리</dt>
-                  <dd>패션의류/잡화 &gt; 여성 &gt; 원피스</dd>
-
-                  <dt>배송</dt>
-                  <dd>택배 · 3,000원 · 평균 2일</dd>
-
-                  <dt>이미지</dt>
-                  <dd>대표 1장 + 추가 2장 (780×780 JPEG)</dd>
-
-                  <dt>예상 수수료</dt>
-                  <dd class="t-muted">자료 없음</dd>
-                </dl>
-
-                <h4 class="t-sm" style="margin: 0 0 var(--sp-2); font-weight:700;">필수 필드 충족</h4>
-                <ul class="checklist">
-                  <li>
-                    <span class="ck-ico ck-warn" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
-                    </span>
-                    <span class="ck-label">상품명</span>
-                    <span class="ck-meta">82 → 80자 (줄임)</span>
-                  </li>
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">카테고리</span>
-                    <span class="ck-meta">3 depth</span>
-                  </li>
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">대표 이미지</span>
-                    <span class="ck-meta">780×780</span>
-                  </li>
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">배송 정책</span>
-                    <span class="ck-meta">택배 / 3,000원</span>
-                  </li>
-                </ul>
-              </div>
-            </article>
+            <!-- 쿠팡 미리보기 카드 제거 (2026-05-19 결정 — OQ-10): v1 활성 = 네이버 1개. 쿠팡은 오픈 준비중. -->
 
           </div>
 
@@ -313,8 +232,8 @@
 
             <div class="footer-actions">
               <!-- 실행류 버튼 — 큰 primary -->
-              <a href="./step5-result.html" class="btn btn-primary btn-lg" aria-label="2개 마켓에 일괄 등록 실행">
-                일괄 등록 실행 (2개 마켓) →
+              <a href="./step5-result.html" class="btn btn-primary btn-lg" aria-label="1개 마켓에 등록 실행">
+                등록 실행 (네이버 스마트스토어) →
               </a>
               <!--
                 blockingReasons 예시 (검증 실패):

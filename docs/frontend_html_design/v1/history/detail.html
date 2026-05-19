@@ -16,6 +16,10 @@
     Mock 시나리오: partial 잡 (네이버 success / 쿠팡 failed_final — 재시도 한도 초과)
     이 케이스가 "실패 1차 / 성공 보조" UX 강제 (CLAUDE.md "손실 회피 UX" + history.md §8.3) 의 핵심 데모.
 
+    ※ 본 화면은 v2 다중 마켓 활성 시 본 partial 흐름 적용 — 시각 레퍼런스로 유지 (2026-05-19 결정, OQ-10).
+      v1 활성 마켓은 네이버 1개라 partial 상태가 발생하지 않으나, 손실 회피 UX 디자인 검증 + v2 도입 시점
+      갱신 비용 절감을 위해 본 mock 시나리오는 그대로 둔다.
+
     상태 분기 시뮬레이션 (정적 HTML, JS 없음):
       - 결과 / 에러 탭 전환: .tab-active 클래스 이동 + aria-selected 토글
       - ErrorMessage 펼침: <details open> 토글
@@ -210,6 +214,17 @@
              패널: 결과 (기본 활성)
              ============================================================ -->
         <section id="panel-result" role="tabpanel" aria-labelledby="tab-result">
+
+          <!-- v2 시각 레퍼런스 노트 (2026-05-19 결정 — OQ-10) -->
+          <div class="alert alert-info" role="note" style="margin-bottom: var(--sp-4);">
+            <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+            <div class="alert-body">
+              <p class="alert-message t-sm">
+                v2 다중 마켓 활성 시 본 partial 흐름 적용 — v1 (네이버 단일 마켓) 운영에서는 partial 상태 발생 없음.
+                본 화면은 손실 회피 UX 디자인 검증용 시각 레퍼런스입니다.
+              </p>
+            </div>
+          </div>
 
           <!-- ============================================================
                손실 회피 UX: 실패 카드 먼저 (1차) → 성공 카드 (보조)

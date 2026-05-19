@@ -11,14 +11,15 @@
   <!--
     s5 신규 마켓 선택 (n36, v1)
     -----------------------------------------------------------
-    5개 마켓 카탈로그:
-      - 활성 (v1):    네이버 스마트스토어 / 쿠팡
-      - 비활성 (v2):  11번가 / G마켓 / 옥션
+    5개 마켓 카탈로그 (2026-05-19 결정 — OQ-10):
+      - 활성 (v1):    네이버 스마트스토어 1개만
+      - 비활성 (v2):  쿠팡 / 11번가 / G마켓 / 옥션 — "오픈 준비중"
+        (쿠팡은 OpenAPI 가 OAuth 가 아닌 HMAC 기반이라 v2 어댑터 인터페이스 확장 후 통합)
 
     각 카드:
       - 색상: market-tile.<id> (브랜드 컬러 토큰)
       - 활성 카드: 클릭 → /markets/connect/:provider
-      - 비활성 카드: aria-disabled, "곧 출시" 라벨, hover 시 변화 없음
+      - 비활성 카드: aria-disabled, "오픈 준비중" 라벨, hover 시 변화 없음
 
     상태 4종:
       - data:    이 HTML
@@ -102,7 +103,7 @@
           </a>
           <div>
             <h1 id="page-title">신규 마켓 연결</h1>
-            <p>연결할 마켓을 선택해 주세요 · v1 은 네이버 스마트스토어와 쿠팡을 지원합니다</p>
+            <p>연결할 마켓을 선택해 주세요 · v1 은 네이버 스마트스토어를 지원합니다 (쿠팡 외 4개 마켓은 오픈 준비중)</p>
           </div>
         </div>
 
@@ -131,42 +132,42 @@
             <span class="btn btn-primary catalog-action">연결하기</span>
           </a>
 
-          <!-- 쿠팡 (활성) -->
-          <a href="./connect-provider.html?provider=coupang" class="catalog-card" aria-label="쿠팡 연결하기">
+          <!-- 쿠팡 (v2 비활성 — 2026-05-19 결정, OQ-10. HMAC 인증으로 v2 어댑터 인터페이스 확장 후 통합) -->
+          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="쿠팡 — 오픈 준비중, 현재 사용 불가">
             <span class="catalog-tile coupang" aria-hidden="true">C</span>
             <h2 class="catalog-name">쿠팡</h2>
-            <p class="catalog-sub">상품 등록·수정<br>판매자센터 연동</p>
-            <span class="btn btn-primary catalog-action">연결하기</span>
-          </a>
+            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
+            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
+          </div>
 
           <!-- 11번가 (v2 비활성) -->
-          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="11번가 — v2 출시 예정, 현재 사용 불가">
+          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="11번가 — 오픈 준비중, 현재 사용 불가">
             <span class="catalog-tile eleventh" aria-hidden="true">11</span>
             <h2 class="catalog-name">11번가</h2>
-            <p class="catalog-sub"><span class="badge">v2 예정</span></p>
-            <span class="btn btn-secondary catalog-action" aria-disabled="true">곧 출시</span>
+            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
+            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
           </div>
 
           <!-- G마켓 (v2 비활성) -->
-          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="G마켓 — v2 출시 예정, 현재 사용 불가">
+          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="G마켓 — 오픈 준비중, 현재 사용 불가">
             <span class="catalog-tile gmarket" aria-hidden="true">G</span>
             <h2 class="catalog-name">G마켓</h2>
-            <p class="catalog-sub"><span class="badge">v2 예정</span></p>
-            <span class="btn btn-secondary catalog-action" aria-disabled="true">곧 출시</span>
+            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
+            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
           </div>
 
           <!-- 옥션 (v2 비활성) -->
-          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="옥션 — v2 출시 예정, 현재 사용 불가">
+          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="옥션 — 오픈 준비중, 현재 사용 불가">
             <span class="catalog-tile auction" aria-hidden="true">A</span>
             <h2 class="catalog-name">옥션</h2>
-            <p class="catalog-sub"><span class="badge">v2 예정</span></p>
-            <span class="btn btn-secondary catalog-action" aria-disabled="true">곧 출시</span>
+            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
+            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
           </div>
 
         </section>
 
         <p class="t-xs t-subtle text-center mt-6">
-          원하는 마켓이 목록에 없나요? <a href="#">v2 출시 알림 신청 →</a>
+          원하는 마켓이 목록에 없나요? <a href="#">오픈 알림 신청 →</a>
         </p>
 
       </main>

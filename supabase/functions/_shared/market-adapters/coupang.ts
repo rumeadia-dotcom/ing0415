@@ -1,22 +1,16 @@
 /**
- * 쿠팡 어댑터 (stub).
+ * 쿠팡 어댑터 — v1 미사용 (오픈 준비중).
+ *
+ * 쿠팡 OpenAPI 는 OAuth 가 아닌 HMAC 기반(VENDOR_ID + ACCESS_KEY + SECRET_KEY) 이므로
+ * OAuth 가정 어댑터 인터페이스와 부정합. v2 에서 어댑터 인터페이스 확장
+ * (`authenticate` input 을 `{kind:'oauth_code'|'hmac_key', ...}` union 으로 확대)
+ * + HMAC 어댑터로 재설계 예정 (2026-05-19 결정 — OQ-10).
+ *
+ * 본 파일은 인터페이스 호환을 위해 stub 만 유지 — 사용 시 즉시 throw.
  *
  * 마스터:
- *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (마켓별 차이)
- *
- * 상태: SIGNATURE ONLY — 본문 미구현.
- *
- * 미해결 (OQ-10 — Phase 2 확정):
- *   - 쿠팡 OAuth 표준 준수 여부 (벤더 비표준 절차 가능성)
- *   - 토큰 / 카테고리 / 상품 등록 endpoint URL
- *   - refresh TTL (잠정 30일)
- *   - 429 응답 헤더 포맷 (Retry-After vs 자체)
- *   - HTTP timeout (잠정 20s)
- *   - "200 응답 + 자체 code 필드로 실패 표기" quirk → unknown 매핑 (market-adapter.md §9.4)
- *
- * 강제 (구현 시점):
- *   - 인증 헤더는 HMAC 서명 가능성 — VENDOR_ID + ACCESS_KEY + SECRET_KEY 조합 (env.ts).
- *   - createProduct 응답에서 부분 성공이 빈번 → CreateProductResult.status = 'partial' + warnings 적극 활용.
+ *   - docs/architecture/v1/cross-cutting/market-adapter.md §9.6 (확장 정책)
+ *   - CLAUDE.md "MVP 범위 (v1)"
  */
 
 import { MarketError } from '../errors.ts'
@@ -31,52 +25,33 @@ import type {
 import type { MarketAdapter } from '../market-adapter.ts'
 
 const MARKET = 'coupang' as const
+const NOT_IN_V1 = 'Coupang adapter is not in v1 (오픈 준비중) — see CLAUDE.md MVP 범위'
 
 export function createCoupangAdapter(): MarketAdapter {
   return {
     market: MARKET,
 
     authenticate(_code: string): Promise<TokenSet> {
-      throw new MarketError(
-        'unknown',
-        'coupang adapter not implemented — OQ-10 confirmation required',
-        { market: MARKET },
-      )
+      throw new MarketError('unknown', NOT_IN_V1, { market: MARKET })
     },
 
     refreshToken(_refresh: string): Promise<TokenSet> {
-      throw new MarketError(
-        'unknown',
-        'coupang adapter not implemented — OQ-10 confirmation required',
-        { market: MARKET },
-      )
+      throw new MarketError('unknown', NOT_IN_V1, { market: MARKET })
     },
 
     fetchCategoryTree(): Promise<CategoryNode[]> {
-      throw new MarketError(
-        'unknown',
-        'coupang adapter not implemented — OQ-10 confirmation required',
-        { market: MARKET },
-      )
+      throw new MarketError('unknown', NOT_IN_V1, { market: MARKET })
     },
 
     transformProduct(
       _product: Product,
       _mapping: MarketMapping,
     ): MarketPayload {
-      throw new MarketError(
-        'unknown',
-        'coupang adapter not implemented — OQ-10 confirmation required',
-        { market: MARKET },
-      )
+      throw new MarketError('unknown', NOT_IN_V1, { market: MARKET })
     },
 
     createProduct(_payload: MarketPayload): Promise<CreateProductResult> {
-      throw new MarketError(
-        'unknown',
-        'coupang adapter not implemented — OQ-10 confirmation required',
-        { market: MARKET },
-      )
+      throw new MarketError('unknown', NOT_IN_V1, { market: MARKET })
     },
   }
 }

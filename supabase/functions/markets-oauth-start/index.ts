@@ -14,10 +14,12 @@
  *   - market_account_audit (`connect_initiated`) + audit_log (`markets/oauth_start`).
  *
  * 강제:
- *   - v1 지원 마켓 화이트리스트 = ['naver', 'coupang']. 그 외 `market_not_supported`.
+ *   - v1 활성 마켓 = 'naver' 1개 (2026-05-19 결정 — OQ-10). 'coupang' 은 zod enum 유지로 인터페이스
+ *     호환 보존하되 `getMarketAdapter` 단계에서 즉시 throw 되므로 운영 경로 차단.
+ *   - 그 외 마켓은 `market_not_supported`.
  *   - redirectTo 는 '/' 로 시작 + 절대 URL 거부.
  *   - state 는 응답 body 에 노출 금지 (markets.md §5.2 "금지"). httpOnly Cookie 만.
- *   - 마켓 OAuth endpoint URL 은 §3.1 잠정값 — Phase 2 에서 어댑터로 이관 가능 (OQ-10).
+ *   - 네이버 토큰 endpoint = https://api.commerce.naver.com/external/v1/oauth2/token (확정).
  */
 
 import { z } from 'npm:zod@3.23.8'

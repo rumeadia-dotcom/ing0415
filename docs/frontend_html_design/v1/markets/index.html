@@ -132,7 +132,7 @@
         <div class="page-header">
           <div>
             <h1 id="page-title">마켓 계정</h1>
-            <p>연결된 마켓 2개 · 마지막 검증 7분 전</p>
+            <p>연결된 마켓 1개 · 마지막 검증 7분 전</p>
           </div>
           <a href="./connect.html" class="btn btn-primary">
             <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
@@ -141,14 +141,14 @@
         </div>
 
         <!-- ============================================================
-             토큰 만료 임박 경고 (≤ 3일)
+             오픈 준비중 안내 (v1 = 네이버만 활성)
              ============================================================ -->
-        <div class="alert alert-warning" role="alert" style="margin-bottom: var(--sp-5);">
-          <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+        <div class="alert alert-info" role="note" style="margin-bottom: var(--sp-5);">
+          <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
           <div class="alert-body">
-            <p class="alert-title">쿠팡 계정 토큰이 곧 만료됩니다</p>
+            <p class="alert-title">v1 은 네이버 스마트스토어를 지원합니다</p>
             <p class="alert-message">
-              <strong>2일 4시간 후</strong> refresh token 이 만료됩니다. 등록이 중단되지 않도록 미리 재인증해 주세요.
+              쿠팡 · 11번가 · G마켓 · 옥션 연동은 <strong>오픈 준비중</strong>이며, 다음 버전에서 제공됩니다.
             </p>
           </div>
         </div>
@@ -195,50 +195,13 @@
             </div>
           </article>
 
-          <!-- 카드 2: 쿠팡 (active 이지만 만료 임박) -->
-          <article class="account-card" aria-labelledby="acc-coupang-title">
-            <div class="account-card-head">
-              <span class="market-tile lg coupang" aria-hidden="true">C</span>
-              <div class="account-card-title-area">
-                <h2 id="acc-coupang-title" class="account-card-title">쿠팡</h2>
-                <div class="account-card-label">서브 계정</div>
-              </div>
-              <span class="badge badge-warning" aria-label="상태: 활성, 만료 임박">
-                <span class="dot" aria-hidden="true"></span>만료 임박
-              </span>
-            </div>
-
-            <dl class="account-meta-list">
-              <dt>외부 계정</dt>
-              <dd>konai_sub01</dd>
-              <dt>연결 일자</dt>
-              <dd>2026-02-19</dd>
-              <dt>마지막 검증</dt>
-              <dd><time datetime="2026-05-18T13:55">37분 전</time></dd>
-              <dt>토큰 만료</dt>
-              <dd class="t-danger">2026-05-20 (2일 4시간)</dd>
-            </dl>
-
-            <div class="account-card-actions">
-              <button type="button" class="btn btn-secondary">
-                상태 확인
-              </button>
-              <a href="./connect-provider.html?provider=coupang" class="btn btn-primary">
-                재인증
-              </a>
-              <button type="button" class="btn btn-danger" aria-label="쿠팡 서브 계정 연결 해제">
-                연결 해제
-              </button>
-            </div>
-          </article>
-
-          <!-- 카드 3: 마켓 추가 (CTA, link card) -->
+          <!-- 카드 2: 마켓 추가 (CTA, link card) — 2026-05-19 결정 (OQ-10): v1 활성 = 네이버 1개. 쿠팡 카드 제거. -->
           <a href="./connect.html" class="add-account-card" aria-label="신규 마켓 연결">
             <span class="add-account-icon" aria-hidden="true">+</span>
             <span class="add-account-title">신규 마켓 연결</span>
             <span class="add-account-sub">
-              네이버 스마트스토어 · 쿠팡 지원<br>
-              <span class="t-xs t-subtle">11번가 · G마켓 · 옥션은 v2 예정</span>
+              네이버 스마트스토어 지원<br>
+              <span class="t-xs t-subtle">쿠팡 · 11번가 · G마켓 · 옥션은 오픈 준비중</span>
             </span>
           </a>
 

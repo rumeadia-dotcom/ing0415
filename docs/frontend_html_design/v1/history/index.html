@@ -142,7 +142,7 @@
         <!-- 활성 필터 요약 (R4 대체 — 모바일/데스크탑 공통) -->
         <div class="row-wrap mb-4" aria-label="현재 적용된 필터" role="group">
           <span class="badge badge-accent">기간: 최근 30일</span>
-          <span class="badge badge-accent">마켓: 네이버, 쿠팡</span>
+          <span class="badge badge-accent">마켓: 네이버</span>
           <span class="badge badge-accent">상태: 부분 성공, 실패</span>
           <button type="button" class="btn btn-ghost btn-sm" aria-label="모든 필터 초기화">
             <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
@@ -208,14 +208,15 @@
                     네이버
                   </span>
                 </label>
-                <label class="checkbox">
-                  <input type="checkbox" name="market" value="coupang" checked>
+                <!-- 쿠팡 / 11번가 / G마켓 / 옥션 = 오픈 준비중 (2026-05-19 결정 — OQ-10) -->
+                <label class="checkbox" style="opacity: 0.5;">
+                  <input type="checkbox" name="market" value="coupang" disabled aria-describedby="v2-coupang">
                   <span class="row" style="gap: var(--sp-2);">
                     <span class="market-tile sm coupang" aria-hidden="true">C</span>
                     쿠팡
+                    <span id="v2-coupang" class="t-xs t-subtle">(오픈 준비중)</span>
                   </span>
                 </label>
-                <!-- v2 — disabled -->
                 <label class="checkbox" style="opacity: 0.5;">
                   <input type="checkbox" name="market" value="11st" disabled aria-describedby="v2-11st">
                   <span class="row" style="gap: var(--sp-2);">
@@ -340,20 +341,21 @@
                       <h3 class="t-h3" style="margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         무선 이어폰
                       </h3>
-                      <span class="badge badge-warning" aria-label="상태: 부분 성공">
+                      <!-- partial 뱃지는 v2 다중 마켓 활성 시 적용 — v1 (네이버 단일 마켓)에서는 발생 없음. 단, 디자인 시스템 검증 목적으로 mock 보존. -->
+                      <span class="badge badge-warning" aria-label="상태: 부분 성공 (v2 시각 레퍼런스)">
                         <svg width="12" height="12" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
                         부분 성공
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버 (v2 다중 마켓 시 본 partial 흐름 적용)">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
                       <span class="t-sm t-muted">
                         <strong class="t-success">1 성공</strong>
                         <span class="t-subtle"> · </span>
                         <strong class="t-danger">1 실패</strong>
+                        <span class="t-xs t-subtle">(v2 시각 레퍼런스)</span>
                       </span>
                       <span class="t-xs t-subtle">재시도 1/5</span>
                     </div>
@@ -383,12 +385,11 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
                       <span class="t-sm t-muted">
-                        <strong class="t-success">2 성공</strong>
+                        <strong class="t-success">1 성공</strong>
                       </span>
                     </div>
                     <div class="row-between mt-2">
@@ -417,12 +418,11 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 시도 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 시도 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
                       <span class="t-sm t-muted">
-                        <strong class="t-danger">0 성공 / 2 실패</strong>
+                        <strong class="t-danger">0 성공 / 1 실패</strong>
                       </span>
                       <span class="t-xs t-subtle">재시도 3/5</span>
                       <span class="badge badge-accent">재등록 1건 있음</span>
@@ -453,9 +453,8 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
                       <span class="t-sm t-muted">
                         <strong class="t-success">1 성공</strong>
@@ -489,11 +488,10 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
-                      <span class="t-sm t-muted">쿠팡 5xx → 자동 재시도 2/3</span>
+                      <span class="t-sm t-muted">네이버 5xx → 자동 재시도 2/3</span>
                     </div>
                     <div class="row-between mt-2">
                       <span class="t-xs t-subtle">2026-05-16 11:30</span>
@@ -518,11 +516,10 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
-                      <span class="t-sm t-muted"><strong class="t-success">2 성공</strong></span>
+                      <span class="t-sm t-muted"><strong class="t-success">1 성공</strong></span>
                     </div>
                     <div class="row-between mt-2">
                       <span class="t-xs t-subtle">2026-05-15 21:14</span>
@@ -546,11 +543,10 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
-                      <span class="t-sm t-muted"><strong class="t-success">2 성공</strong></span>
+                      <span class="t-sm t-muted"><strong class="t-success">1 성공</strong></span>
                     </div>
                     <div class="row-between mt-2">
                       <span class="t-xs t-subtle">2026-05-15 14:02</span>
@@ -574,11 +570,10 @@
                       </span>
                     </div>
                     <div class="row mt-2" style="gap: var(--sp-3); flex-wrap: wrap;">
-                      <span class="market-stack" aria-label="등록 시도 마켓: 네이버, 쿠팡">
+                      <span class="market-stack" aria-label="등록 시도 마켓: 네이버">
                         <span class="market-tile sm naver" aria-hidden="true">N</span>
-                        <span class="market-tile sm coupang" aria-hidden="true">C</span>
                       </span>
-                      <span class="t-sm t-muted"><strong class="t-danger">0 성공 / 2 실패</strong></span>
+                      <span class="t-sm t-muted"><strong class="t-danger">0 성공 / 1 실패</strong></span>
                       <span class="t-xs t-subtle">재시도 5/5 (한도 도달)</span>
                     </div>
                     <div class="row-between mt-2">

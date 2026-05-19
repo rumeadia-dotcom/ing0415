@@ -19,7 +19,20 @@ import type { MarketAdapter } from '../market-adapter.ts'
 import type { MarketId } from '../schemas.ts'
 import { createMockAdapter, type MockScenario } from './debug.ts'
 import { createNaverAdapter } from './naver.ts'
-import { createCoupangAdapter } from './coupang.ts'
+
+/**
+ * 마켓 어댑터 단일 진입 (Edge Function 측).
+ *
+ * v1 활성 마켓 (2026-05-19 결정 — OQ-10):
+ *   - naver: 활성 (debug = mock, real = 실 어댑터)
+ *   - coupang | 11st | gmarket | auction: 호출 시 즉시 throw (오픈 준비중)
+ *     쿠팡은 HMAC 인증으로 OAuth 가정 인터페이스와 부정합 → v2 인터페이스 확장 후 통합.
+ *     coupang.ts stub 은 인터페이스 호환을 위해 유지하되 v1 운영 경로에서 차단.
+ *
+ * 강제:
+ *   - 본 함수 외 위치에서 `isDebug` 로 어댑터 본체 분기 금지. 발견 시 PR 차단.
+ *   - real 빌드에서 mock 코드 import 흔적이 발견되면 `grep:mock-leak` 차단.
+ */
 
 export interface GetAdapterOptions {
   scenario?: MockScenario
@@ -29,27 +42,16 @@ export function getMarketAdapter(
   marketId: MarketId,
   opts: GetAdapterOptions = {},
 ): MarketAdapter {
+  // v1 활성 = naver 1개. 그 외는 debug 모드여도 호출 차단.
+  if (marketId !== 'naver') {
+    throw new Error(
+      `Adapter ${marketId} is not in v1 (오픈 준비중) — see CLAUDE.md MVP 범위`,
+    )
+  }
   if (isDebug) {
     return createMockAdapter(marketId, opts.scenario)
   }
-  switch (marketId) {
-    case 'naver':
-      return createNaverAdapter()
-    case 'coupang':
-      return createCoupangAdapter()
-    case '11st':
-    case 'gmarket':
-    case 'auction':
-      // v2 백로그 — 인터페이스만 유지.
-      throw new Error(
-        `market adapter not implemented for ${marketId} (v2 backlog)`,
-      )
-    default: {
-      // exhaustive check
-      const _exhaustive: never = marketId
-      throw new Error(`unknown market: ${String(_exhaustive)}`)
-    }
-  }
+  return createNaverAdapter()
 }
 
 export type { MockScenario } from './debug.ts'

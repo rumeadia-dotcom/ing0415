@@ -30,7 +30,7 @@ export function MarketsListPage(): JSX.Element {
           <CardTitle>마켓 목록 — 준비 중</CardTitle>
           <CardDescription>
             연결된 마켓 카드 그리드 (loading / data / error / empty 4상태) 가 여기에 구현됩니다.
-            v1 우선 = 네이버 스마트스토어 + 쿠팡.
+            v1 정식 = 네이버 스마트스토어. 쿠팡 · 11번가 · G마켓 · 옥션은 오픈 준비중 (2026-05-19 결정 — OQ-10).
           </CardDescription>
         </CardHeader>
         <CardContent>
