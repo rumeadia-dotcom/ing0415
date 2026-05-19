@@ -11,11 +11,11 @@
     Wave 3 / s3 위저드 — Step 3 (마켓 선택 + 카테고리 매핑).
     user_flow 노드 n17 + n19, registration.md §10.5.
 
-    상태 (2026-05-19 결정 — OQ-10):
-      - 활성 마켓 1개 (네이버 스마트스토어) — 선택됨
-      - 오픈 준비중 4개 (쿠팡 / 11번가 / G마켓 / 옥션) — disabled
-        (쿠팡은 HMAC 인증으로 v2 어댑터 인터페이스 확장 후 통합)
-      - 자동 추천 카테고리 표시
+    상태 (2026-05-19 결정 — OQ-10, 5마켓 MVP 확장):
+      - 활성 마켓 4개 (네이버 스마트스토어 / 쿠팡 / G마켓 / 옥션) — 전부 선택됨
+      - 오픈 준비중 1개 (11번가) — disabled
+        (Supabase Edge Function outbound IP 동적 ↔ 11번가 IP 화이트리스트 정책 충돌. v2 이관)
+      - 자동 추천 카테고리 표시 (마켓별 독립)
   -->
 
   <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
@@ -143,9 +143,12 @@
             <div class="row">
               <span class="market-stack">
                 <span class="market-tile sm naver" aria-hidden="true">N</span>
+                <span class="market-tile sm coupang" aria-hidden="true">C</span>
+                <span class="market-tile sm gmarket" aria-hidden="true">G</span>
+                <span class="market-tile sm auction" aria-hidden="true">A</span>
               </span>
               <span class="t-sm" style="font-weight:600; margin-left: var(--sp-2);">
-                선택된 마켓 1 / 1
+                선택된 마켓 4 / 4
               </span>
             </div>
             <a href="../markets/index.html" class="btn-link t-sm" aria-label="마켓 연결 관리 페이지로 이동">마켓 연결 관리 →</a>
@@ -154,7 +157,7 @@
           <!-- ====================== 활성 마켓 카드 ====================== -->
           <div class="market-card-list">
 
-            <!-- ───── 카드 1: 네이버 스마트스토어 (선택) ───── -->
+            <!-- ───── 카드 1: 네이버 스마트스토어 ───── -->
             <article class="market-card is-selected" aria-labelledby="m-naver-title">
               <header class="market-card-head">
                 <span class="market-tile naver" aria-hidden="true">N</span>
@@ -165,7 +168,7 @@
                       <span class="dot" aria-hidden="true"></span>
                       연결 정상
                     </span>
-                    토큰 만료까지 27일
+                    토큰 만료까지 27일 · OAuth
                   </div>
                 </div>
                 <label class="market-toggle">
@@ -174,7 +177,6 @@
                 </label>
               </header>
 
-              <!-- 카테고리 매핑 -->
               <div class="field">
                 <label for="cat-naver" class="label">마켓 카테고리 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
                 <select id="cat-naver" class="select" required>
@@ -184,12 +186,7 @@
                     <option value="naver-1-2" selected>패션의류 &gt; 여성의류 &gt; 원피스 &gt; 미니원피스</option>
                     <option value="naver-1-3">패션의류 &gt; 여성의류 &gt; 원피스 &gt; 롱원피스</option>
                   </optgroup>
-                  <optgroup label="패션잡화">
-                    <option value="naver-2-1">패션잡화 &gt; 가방 &gt; 토트백</option>
-                  </optgroup>
                 </select>
-
-                <!-- 선택된 path 시각화 -->
                 <div class="cat-path" aria-label="선택된 카테고리 경로">
                   <span class="crumb">패션의류</span>
                   <span class="sep" aria-hidden="true">›</span>
@@ -199,14 +196,147 @@
                   <span class="sep" aria-hidden="true">›</span>
                   <span class="crumb" style="background:var(--accent-soft); color:var(--accent-1); font-weight:600;">미니원피스</span>
                 </div>
-
-                <!-- 자동 추천 -->
                 <div class="recommend-box" role="note">
                   <span class="badge" style="height:18px; padding:0 6px; font-size:10px;">AI 추천</span>
                   <span>
                     상품명 <strong>"가을 미니 원피스"</strong> 키워드 기반 추천:
                     <strong>여성의류 &gt; 원피스 &gt; 미니원피스</strong> · 일치도 92%
                   </span>
+                </div>
+              </div>
+            </article>
+
+            <!-- ───── 카드 2: 쿠팡 ───── -->
+            <article class="market-card is-selected" aria-labelledby="m-coupang-title">
+              <header class="market-card-head">
+                <span class="market-tile coupang" aria-hidden="true">C</span>
+                <div style="flex:1; min-width:0;">
+                  <h3 id="m-coupang-title" class="market-card-title">쿠팡</h3>
+                  <div class="market-card-sub">
+                    <span class="badge badge-success" style="margin-right:var(--sp-2);">
+                      <span class="dot" aria-hidden="true"></span>
+                      연결 정상
+                    </span>
+                    HMAC 인증 (만료 없음)
+                  </div>
+                </div>
+                <label class="market-toggle">
+                  <input type="checkbox" checked aria-label="쿠팡 선택">
+                  선택됨
+                </label>
+              </header>
+
+              <div class="field">
+                <label for="cat-coupang" class="label">마켓 카테고리 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <select id="cat-coupang" class="select" required>
+                  <option value="">선택해주세요</option>
+                  <optgroup label="패션의류잡화">
+                    <option value="coupang-1-1">패션의류잡화 &gt; 여성패션 &gt; 원피스</option>
+                    <option value="coupang-1-2" selected>패션의류잡화 &gt; 여성패션 &gt; 원피스 &gt; 미니원피스</option>
+                  </optgroup>
+                </select>
+                <div class="cat-path" aria-label="선택된 카테고리 경로">
+                  <span class="crumb">패션의류잡화</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb">여성패션</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb">원피스</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb" style="background:var(--accent-soft); color:var(--accent-1); font-weight:600;">미니원피스</span>
+                </div>
+                <div class="recommend-box" role="note">
+                  <span class="badge" style="height:18px; padding:0 6px; font-size:10px;">AI 추천</span>
+                  <span><strong>여성패션 &gt; 원피스 &gt; 미니원피스</strong> · 일치도 88%</span>
+                </div>
+              </div>
+            </article>
+
+            <!-- ───── 카드 3: G마켓 ───── -->
+            <article class="market-card is-selected" aria-labelledby="m-gmarket-title">
+              <header class="market-card-head">
+                <span class="market-tile gmarket" aria-hidden="true">G</span>
+                <div style="flex:1; min-width:0;">
+                  <h3 id="m-gmarket-title" class="market-card-title">G마켓</h3>
+                  <div class="market-card-sub">
+                    <span class="badge badge-success" style="margin-right:var(--sp-2);">
+                      <span class="dot" aria-hidden="true"></span>
+                      연결 정상
+                    </span>
+                    ESM JWT (site=G)
+                  </div>
+                </div>
+                <label class="market-toggle">
+                  <input type="checkbox" checked aria-label="G마켓 선택">
+                  선택됨
+                </label>
+              </header>
+
+              <div class="field">
+                <label for="cat-gmarket" class="label">마켓 카테고리 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <select id="cat-gmarket" class="select" required>
+                  <option value="">선택해주세요</option>
+                  <optgroup label="패션의류">
+                    <option value="gmarket-1-1">패션의류 &gt; 여성의류 &gt; 원피스</option>
+                    <option value="gmarket-1-2" selected>패션의류 &gt; 여성의류 &gt; 원피스 &gt; 미니/숏원피스</option>
+                  </optgroup>
+                </select>
+                <div class="cat-path" aria-label="선택된 카테고리 경로">
+                  <span class="crumb">패션의류</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb">여성의류</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb">원피스</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb" style="background:var(--accent-soft); color:var(--accent-1); font-weight:600;">미니/숏원피스</span>
+                </div>
+                <div class="recommend-box" role="note">
+                  <span class="badge" style="height:18px; padding:0 6px; font-size:10px;">AI 추천</span>
+                  <span><strong>여성의류 &gt; 원피스 &gt; 미니/숏원피스</strong> · 일치도 85%</span>
+                </div>
+              </div>
+            </article>
+
+            <!-- ───── 카드 4: 옥션 ───── -->
+            <article class="market-card is-selected" aria-labelledby="m-auction-title">
+              <header class="market-card-head">
+                <span class="market-tile auction" aria-hidden="true">A</span>
+                <div style="flex:1; min-width:0;">
+                  <h3 id="m-auction-title" class="market-card-title">옥션</h3>
+                  <div class="market-card-sub">
+                    <span class="badge badge-success" style="margin-right:var(--sp-2);">
+                      <span class="dot" aria-hidden="true"></span>
+                      연결 정상
+                    </span>
+                    ESM JWT (site=A)
+                  </div>
+                </div>
+                <label class="market-toggle">
+                  <input type="checkbox" checked aria-label="옥션 선택">
+                  선택됨
+                </label>
+              </header>
+
+              <div class="field">
+                <label for="cat-auction" class="label">마켓 카테고리 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <select id="cat-auction" class="select" required>
+                  <option value="">선택해주세요</option>
+                  <optgroup label="패션의류">
+                    <option value="auction-1-1">패션의류 &gt; 여성의류 &gt; 원피스</option>
+                    <option value="auction-1-2" selected>패션의류 &gt; 여성의류 &gt; 원피스 &gt; 미니원피스</option>
+                  </optgroup>
+                </select>
+                <div class="cat-path" aria-label="선택된 카테고리 경로">
+                  <span class="crumb">패션의류</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb">여성의류</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb">원피스</span>
+                  <span class="sep" aria-hidden="true">›</span>
+                  <span class="crumb" style="background:var(--accent-soft); color:var(--accent-1); font-weight:600;">미니원피스</span>
+                </div>
+                <div class="recommend-box" role="note">
+                  <span class="badge" style="height:18px; padding:0 6px; font-size:10px;">AI 추천</span>
+                  <span><strong>여성의류 &gt; 원피스 &gt; 미니원피스</strong> · 일치도 85%</span>
                 </div>
               </div>
             </article>
@@ -219,35 +349,14 @@
               <h3 class="t-h3" style="margin:0;">오픈 준비중 마켓</h3>
               <span class="badge">곧 지원</span>
             </div>
-            <p class="t-sm t-muted" style="margin: 0 0 var(--sp-3);">아래 마켓은 v2 에서 활성화됩니다. 쿠팡은 HMAC 인증 사양 차이로 어댑터 인터페이스 확장 후 통합 예정입니다.</p>
+            <p class="t-sm t-muted" style="margin: 0 0 var(--sp-3);">11번가는 IP 화이트리스트 정책과 Supabase Edge Function 의 동적 outbound IP 충돌로 v2 에서 활성화됩니다.</p>
 
             <div class="v2-grid" role="list">
-              <div class="v2-card" role="listitem" aria-disabled="true">
-                <span class="market-tile coupang" aria-hidden="true">C</span>
-                <div>
-                  <div class="v2-card-name">쿠팡</div>
-                  <div class="t-xs t-subtle">오픈 준비중</div>
-                </div>
-              </div>
               <div class="v2-card" role="listitem" aria-disabled="true">
                 <span class="market-tile eleventh" aria-hidden="true">11</span>
                 <div>
                   <div class="v2-card-name">11번가</div>
-                  <div class="t-xs t-subtle">오픈 준비중</div>
-                </div>
-              </div>
-              <div class="v2-card" role="listitem" aria-disabled="true">
-                <span class="market-tile gmarket" aria-hidden="true">G</span>
-                <div>
-                  <div class="v2-card-name">G마켓</div>
-                  <div class="t-xs t-subtle">오픈 준비중</div>
-                </div>
-              </div>
-              <div class="v2-card" role="listitem" aria-disabled="true">
-                <span class="market-tile auction" aria-hidden="true">A</span>
-                <div>
-                  <div class="v2-card-name">옥션</div>
-                  <div class="t-xs t-subtle">오픈 준비중</div>
+                  <div class="t-xs t-subtle">오픈 준비중 (IP 정책)</div>
                 </div>
               </div>
             </div>
@@ -256,7 +365,7 @@
           <div class="info-note" style="margin-top: var(--sp-5);" role="note">
             <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
             <div>
-              자동 추천은 키워드 매칭 기반(v1)으로, <strong>정확하지 않을 수 있어요</strong>. 등록 전 카테고리를 직접 확인해주세요.
+              자동 추천은 키워드 매칭 기반(v1)으로, <strong>정확하지 않을 수 있어요</strong>. 등록 전 각 마켓의 카테고리를 직접 확인해주세요.
             </div>
           </div>
 
@@ -271,7 +380,7 @@
               <!--
                 blockingReasons 예시:
                 - 마켓 0개: data-tip="마켓 1개 이상 선택 필요"
-                - 카테고리 미지정: data-tip="네이버 스마트스토어 카테고리를 선택해주세요"
+                - 카테고리 미지정: data-tip="<마켓명> 카테고리를 선택해주세요"
               -->
               <a href="./step4-preview.html" class="btn btn-primary btn-lg" aria-label="다음 단계: 등록 미리보기로 이동">
                 다음 (미리보기) →

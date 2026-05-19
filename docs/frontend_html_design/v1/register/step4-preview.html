@@ -11,9 +11,12 @@
     Wave 3 / s3 위저드 — Step 4 (등록 미리보기).
     user_flow 노드 n20, registration.md §10.6.
 
-    상태 (2026-05-19 결정 — OQ-10):
-      - 네이버 스마트스토어 ✓ 검증 OK (v1 활성 마켓 1개)
-      - 쿠팡 / 11번가 / G마켓 / 옥션 = 오픈 준비중 (v2 어댑터 인터페이스 확장 후 통합)
+    상태 (2026-05-19 결정 — OQ-10, 5마켓 MVP 확장):
+      - 네이버 스마트스토어 ✓ 검증 OK
+      - 쿠팡 ✓ 검증 OK
+      - G마켓 ✓ 검증 OK
+      - 옥션 ⚠ 경고 (이미지 자동 리사이즈 안내)
+      - 11번가 = v2 (IP 화이트리스트 정책 미해결)
   -->
 
   <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
@@ -140,7 +143,7 @@
           <div class="summary-banner" role="status" aria-live="polite">
             <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
             <div>
-              <strong>1/1 마켓 등록 가능</strong> — 네이버 스마트스토어 검증 통과.
+              <strong>4/4 마켓 등록 가능</strong> — 네이버·쿠팡·G마켓 검증 통과, 옥션 자동 조정 1건 (이미지 리사이즈).
             </div>
           </div>
 
@@ -158,7 +161,7 @@
                 </span>
               </header>
 
-              <div class="preview-thumb" aria-label="대표 이미지 미리보기 (640×640 JPEG 으로 변환됨)">
+              <div class="preview-thumb" aria-label="대표 이미지 미리보기 (1000×1000 JPEG)">
                 대표 이미지<br>(1000×1000 JPEG)
               </div>
 
@@ -174,52 +177,142 @@
                 <dl class="preview-meta">
                   <dt>카테고리</dt>
                   <dd>패션의류 &gt; 여성의류 &gt; 원피스 &gt; 미니원피스</dd>
-
                   <dt>배송</dt>
-                  <dd>택배 · 3,000원 · 평균 2일</dd>
-
+                  <dd>택배 · 3,000원</dd>
                   <dt>이미지</dt>
-                  <dd>대표 1장 + 추가 2장 (1000×1000 JPEG)</dd>
-
-                  <dt>예상 수수료</dt>
-                  <dd class="t-muted">자료 없음</dd>
+                  <dd>대표 1장 + 추가 2장</dd>
                 </dl>
 
                 <h4 class="t-sm" style="margin: 0 0 var(--sp-2); font-weight:700;">필수 필드 충족</h4>
                 <ul class="checklist">
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">상품명</span>
-                    <span class="ck-meta">15 / 100자</span>
-                  </li>
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">카테고리</span>
-                    <span class="ck-meta">4 depth</span>
-                  </li>
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">대표 이미지</span>
-                    <span class="ck-meta">1000×1000</span>
-                  </li>
-                  <li>
-                    <span class="ck-ico ck-ok" aria-hidden="true">
-                      <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
-                    </span>
-                    <span class="ck-label">배송 정책</span>
-                    <span class="ck-meta">택배 / 3,000원</span>
-                  </li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">상품명</span><span class="ck-meta">15 / 100자</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">카테고리</span><span class="ck-meta">4 depth</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">대표 이미지</span><span class="ck-meta">1000×1000</span></li>
                 </ul>
               </div>
             </article>
 
-            <!-- 쿠팡 미리보기 카드 제거 (2026-05-19 결정 — OQ-10): v1 활성 = 네이버 1개. 쿠팡은 오픈 준비중. -->
+            <!-- ─────────────── 쿠팡 ─────────────── -->
+            <article class="preview-card" aria-labelledby="pv-coupang-title">
+              <header class="preview-head">
+                <span class="market-tile coupang" aria-hidden="true">C</span>
+                <h3 id="pv-coupang-title">쿠팡</h3>
+                <span class="verify-pill ok">
+                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                  검증 OK
+                </span>
+              </header>
+
+              <div class="preview-thumb" aria-label="대표 이미지 미리보기 (1000×1000 JPEG)">
+                대표 이미지<br>(1000×1000 JPEG)
+              </div>
+
+              <div class="preview-body">
+                <p class="preview-name">가을 미니 원피스 (블랙)</p>
+
+                <div class="preview-price-row">
+                  <span class="preview-price">29,900원</span>
+                </div>
+
+                <dl class="preview-meta">
+                  <dt>카테고리</dt>
+                  <dd>패션의류잡화 &gt; 여성패션 &gt; 원피스 &gt; 미니원피스</dd>
+                  <dt>배송</dt>
+                  <dd>택배 · 3,000원</dd>
+                  <dt>이미지</dt>
+                  <dd>대표 1장 + 추가 2장</dd>
+                </dl>
+
+                <h4 class="t-sm" style="margin: 0 0 var(--sp-2); font-weight:700;">필수 필드 충족</h4>
+                <ul class="checklist">
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">상품명</span><span class="ck-meta">15 / 100자</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">카테고리</span><span class="ck-meta">4 depth</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">vendor ID</span><span class="ck-meta">매핑 완료</span></li>
+                </ul>
+              </div>
+            </article>
+
+            <!-- ─────────────── G마켓 ─────────────── -->
+            <article class="preview-card" aria-labelledby="pv-gmarket-title">
+              <header class="preview-head">
+                <span class="market-tile gmarket" aria-hidden="true">G</span>
+                <h3 id="pv-gmarket-title">G마켓</h3>
+                <span class="verify-pill ok">
+                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+                  검증 OK
+                </span>
+              </header>
+
+              <div class="preview-thumb" aria-label="대표 이미지 미리보기 (1000×1000 JPEG)">
+                대표 이미지<br>(1000×1000 JPEG)
+              </div>
+
+              <div class="preview-body">
+                <p class="preview-name">가을 미니 원피스 (블랙)</p>
+
+                <div class="preview-price-row">
+                  <span class="preview-price">29,900원</span>
+                </div>
+
+                <dl class="preview-meta">
+                  <dt>카테고리</dt>
+                  <dd>패션의류 &gt; 여성의류 &gt; 원피스 &gt; 미니/숏원피스</dd>
+                  <dt>인증</dt>
+                  <dd>ESM JWT (site=G)</dd>
+                  <dt>이미지</dt>
+                  <dd>대표 1장 + 추가 2장</dd>
+                </dl>
+
+                <h4 class="t-sm" style="margin: 0 0 var(--sp-2); font-weight:700;">필수 필드 충족</h4>
+                <ul class="checklist">
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">상품명</span><span class="ck-meta">15 / 50자</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">카테고리</span><span class="ck-meta">매핑 OK</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">JWT 토큰</span><span class="ck-meta">유효</span></li>
+                </ul>
+              </div>
+            </article>
+
+            <!-- ─────────────── 옥션 ─────────────── -->
+            <article class="preview-card has-warning" aria-labelledby="pv-auction-title">
+              <header class="preview-head">
+                <span class="market-tile auction" aria-hidden="true">A</span>
+                <h3 id="pv-auction-title">옥션</h3>
+                <span class="verify-pill warn">
+                  <svg aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+                  자동 조정 1건
+                </span>
+              </header>
+
+              <div class="preview-thumb" aria-label="대표 이미지 미리보기 (860×860 JPEG, 자동 리사이즈)">
+                대표 이미지<br>(860×860 JPEG · 자동 리사이즈)
+              </div>
+
+              <div class="preview-body">
+                <p class="preview-name">가을 미니 원피스 (블랙)</p>
+
+                <div class="preview-price-row">
+                  <span class="preview-price">29,900원</span>
+                </div>
+
+                <dl class="preview-meta">
+                  <dt>카테고리</dt>
+                  <dd>패션의류 &gt; 여성의류 &gt; 원피스 &gt; 미니원피스</dd>
+                  <dt>인증</dt>
+                  <dd>ESM JWT (site=A)</dd>
+                  <dt>이미지</dt>
+                  <dd>대표 1장 + 추가 2장 (860×860 으로 자동 변환됨)</dd>
+                </dl>
+
+                <h4 class="t-sm" style="margin: 0 0 var(--sp-2); font-weight:700;">필수 필드 충족</h4>
+                <ul class="checklist">
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">상품명</span><span class="ck-meta">15 / 50자</span></li>
+                  <li><span class="ck-ico ck-ok" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg></span><span class="ck-label">카테고리</span><span class="ck-meta">매핑 OK</span></li>
+                  <li><span class="ck-ico ck-warn" aria-hidden="true"><svg aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg></span><span class="ck-label">이미지 규격</span><span class="ck-meta">1000→860 자동</span></li>
+                </ul>
+              </div>
+            </article>
+
+            <!-- 11번가 미리보기 카드 없음 (2026-05-19 결정 — OQ-10): v1 = 4마켓. 11번가는 v2. -->
 
           </div>
 
@@ -232,11 +325,11 @@
 
             <div class="footer-actions">
               <!-- 실행류 버튼 — 큰 primary -->
-              <a href="./step5-result.html" class="btn btn-primary btn-lg" aria-label="1개 마켓에 등록 실행">
-                등록 실행 (네이버 스마트스토어) →
+              <a href="./step5-result.html" class="btn btn-primary btn-lg" aria-label="4개 마켓에 일괄 등록 실행">
+                일괄 등록 실행 (4개 마켓) →
               </a>
               <!--
-                blockingReasons 예시 (검증 실패):
+                blockingReasons 예시 (검증 실패 시):
                 <span class="tooltip" data-tip="검증 실패한 마켓이 있어요">
                   <button type="button" class="btn btn-primary btn-lg" disabled aria-disabled="true">일괄 등록 실행 →</button>
                 </span>
