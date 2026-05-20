@@ -115,22 +115,17 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 - ✅ `apps/web/.env.local` (debug 모드, gitignore 등록).
 - ✅ CI 6/6 통과 검증 — 진행 중 발견된 3건 fix: golden-path `@golden` 태그 + RequireAuth 가드 호환, vite `base: './'` 와 router basename 호환 (resolveBasename 헬퍼), env zod 스키마의 빈 문자열 옵셔널 처리, Tabs panel ↔ input 셀렉터 충돌.
 
-**⚠ B-1 후속 (사용자 콘솔 작업 — 미완료)**:
+**B-1 후속 (사용자 콘솔 작업)**:
 
-1. **Supabase Auth URL Configuration** (auth.md §4.2 — 화이트리스트 등록):
+1. ✅ **Supabase Auth URL Configuration** (auth.md §4.2 — 화이트리스트 등록, 2026-05-20 사용자 완료):
+   - debug: `eqoywqoalwkwbrdsulfl` — Site URL `http://localhost:5173` + Redirect URLs `http://localhost:5173/**`, `http://localhost:4173/**`
+   - real: `lfrnythcujxdhehvkmtg` — Site URL `https://rumeadia-dotcom.github.io/ing0415/` + Redirect URLs `https://rumeadia-dotcom.github.io/ing0415/**`
 
-   **debug 프로젝트** (https://supabase.com/dashboard/project/eqoywqoalwkwbrdsulfl/auth/url-configuration)
-   - Site URL: `http://localhost:5173`
-   - Redirect URLs: `http://localhost:5173/**`, `http://localhost:4173/**`
-
-   **real 프로젝트** (https://supabase.com/dashboard/project/lfrnythcujxdhehvkmtg/auth/url-configuration)
-   - Site URL: `https://rumeadia-dotcom.github.io/ing0415/`
-   - Redirect URLs: `https://rumeadia-dotcom.github.io/ing0415/**`
-
-   → 등록 안 하면 회원가입 인증 메일의 redirect / 비밀번호 재설정 redirect 가 차단됨.
-
-2. **(선택) Sentry 프로젝트 생성** → 4개 secret 등록:
-   `REAL_SENTRY_DSN`, `DEBUG_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`
+2. ✅ **Sentry 프로젝트 + GitHub Secrets** (2026-05-20 완료):
+   - `marketcast-debug` / `marketcast-real` 두 프로젝트 생성 (React 플랫폼, Error monitoring + Tracing 만 활성)
+   - GitHub Secrets 5개 등록: `REAL_SENTRY_DSN`, `DEBUG_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` (Organization Token), `SENTRY_ORG`, `SENTRY_PROJECT=marketcast-real`
+   - `.env.local` 의 `VITE_SENTRY_DSN` 에 debug DSN 채움 (gitignore)
+   - 로컬 검증 통과: `setTimeout(()=>{throw new Error(...)},0)` → Issues 도착 확인. stack trace 에 `@sentry_react.js` 등장으로 SDK 후킹 확정.
 
 ### B-2. s1 인증 구현 (2026-05-19 본구현 완료)
 - ✅ LoginPage: RHF + zod + Supabase Auth signInWithPassword + 에러 매핑 + password 토글 + redirect (location.state.from)
@@ -162,7 +157,7 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 - ✅ **연결 해제 / 재인증 / verify 동작** — MarketAccountActions (`useDisconnectMarket` / `useVerifyMarket` + Dialog confirm)
 - ✅ **에러 매핑** — `formatMarketError` 13종 + correlationId 노출 (markets.md §10)
 - ✅ **단위 테스트 33건 추가** (market-error-messages 17 / useConnectMarket 2 / MarketsListPage 5 / MarketsConnectProviderPage 4 / OAuthCallbackPage 4 + 기존 통합 92 → 합산 125 통과)
-- [ ] **Golden Path G1~G3 e2e 활성화 (사전 조건 차단)** — 시드 셀러 `qa@marketcast.test` 미생성 + Supabase Auth URL Configuration 미완료 + MSW oauth handler 미설정. (a)(b)(c) 충족 시 묶어서 한꺼번에 fixme 해제. 현 시점 golden-path.spec.ts 코멘트는 갱신됨.
+- [ ] **Golden Path G1~G3 e2e 활성화 (사전 조건 차단)** — 시드 셀러 `qa@marketcast.test` 미생성 + MSW oauth handler 미설정 (Supabase Auth URL Configuration 은 2026-05-20 완료). 시드 셀러 + MSW 충족 시 fixme 해제.
 - [ ] **토큰 자동 갱신 (네이버)** — Phase 3 C-1 으로 이관 (실 OAuth 응답 형태 결정 후 클라이언트 silent refresh + cron 도입). 2026-05-20 사용자 결정.
 
 ### B-4. s3 상품 등록 5단계 본 구현 (2026-05-20 본구현 완료)
@@ -268,9 +263,8 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 
 ## ⚡ 즉시 시작 (5분)
 
-1. **`git push origin develop`** — 4개 commit (`878093d` → `eb9ca18`) push 후 CI 6/6 통과 확인.
-2. **(미완료 시) 콘솔 작업** — 위 "⚠ B-1 후속" 의 Supabase Auth URL Configuration 등록 (debug + real 둘 다). 미등록이면 회원가입 인증 메일 redirect 가 차단됨.
-3. **현재 상태 확인** — `pnpm test` 206 passed 확인 → /dashboard /history /history/:jobId 본구현 동작 확인.
+1. **현재 상태 확인** — `pnpm test` 206 passed 확인 → /dashboard /history /history/:jobId 본구현 동작 확인.
+2. B-1 후속 콘솔 작업은 **모두 완료** (Supabase Auth URL + Sentry 5 secret + 로컬 검증).
 
 ## 다음 작업 — Phase 3 real 어댑터 진입 (3~4주) ⭐
 
