@@ -39,9 +39,8 @@ const RegisterIndexPage = lazy(
 )
 const StepInfoPage = lazy(() => import('@/features/registration/pages/StepInfoPage'))
 const StepImagesPage = lazy(() => import('@/features/registration/pages/StepImagesPage'))
-const StepMarketsPage = lazy(() => import('@/features/registration/pages/StepMarketsPage'))
-const StepCategoriesPage = lazy(
-  () => import('@/features/registration/pages/StepCategoriesPage'),
+const StepMarketsCategoriesPage = lazy(
+  () => import('@/features/registration/pages/StepMarketsCategoriesPage'),
 )
 const StepPreviewPage = lazy(() => import('@/features/registration/pages/StepPreviewPage'))
 const StepResultPage = lazy(() => import('@/features/registration/pages/StepResultPage'))
@@ -110,8 +109,7 @@ const routes: RouteObject[] = [
               { index: true, element: withSuspense(<RegisterIndexPage />) },
               { path: 'info', element: withSuspense(<StepInfoPage />) },
               { path: 'images', element: withSuspense(<StepImagesPage />) },
-              { path: 'markets', element: withSuspense(<StepMarketsPage />) },
-              { path: 'categories', element: withSuspense(<StepCategoriesPage />) },
+              { path: 'markets', element: withSuspense(<StepMarketsCategoriesPage />) },
               { path: 'preview', element: withSuspense(<StepPreviewPage />) },
             ],
           },

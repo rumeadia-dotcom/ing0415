@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
  *
  * Stage C 는 시각만. 단계 간 검증 가드는 Stage D (RHF + zod).
  */
-export type RegisterStepId = 'info' | 'images' | 'markets' | 'categories' | 'preview'
+export type RegisterStepId = 'info' | 'images' | 'markets' | 'preview' | 'result'
 
 interface StepDef {
   id: RegisterStepId
@@ -26,9 +26,9 @@ interface StepDef {
 export const REGISTER_STEPS: readonly StepDef[] = [
   { id: 'info', index: 1, label: '상품 정보' },
   { id: 'images', index: 2, label: '이미지' },
-  { id: 'markets', index: 3, label: '마켓 선택' },
-  { id: 'categories', index: 4, label: '카테고리' },
-  { id: 'preview', index: 5, label: '미리보기' },
+  { id: 'markets', index: 3, label: '마켓·카테고리' },
+  { id: 'preview', index: 4, label: '미리보기' },
+  { id: 'result', index: 5, label: '결과' },
 ] as const
 
 interface StepperProps {
