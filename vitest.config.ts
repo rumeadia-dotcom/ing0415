@@ -28,6 +28,7 @@ export default defineConfig({
       'apps/web/src/**/*.test.ts',
       'apps/web/src/**/*.test.tsx',
       'tests/unit/**/*.test.ts',
+      'tests/integration/**/*.test.ts',
     ],
     // Playwright 와 디렉토리 충돌 회피.
     exclude: [

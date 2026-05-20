@@ -26,6 +26,10 @@ const ROUTES = [
   '/register/preview',
   '/history',
   '/settings',
+  // D-C: 비인증 정적 페이지 (약관 / 개인정보처리방침 / 매뉴얼)
+  '/legal/terms',
+  '/legal/privacy',
+  '/manual',
 ] as const
 
 for (const route of ROUTES) {
