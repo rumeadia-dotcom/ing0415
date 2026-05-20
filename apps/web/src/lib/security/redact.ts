@@ -24,6 +24,15 @@ const REDACT_KEYS: ReadonlySet<string> = new Set([
   'secret',
   'client_secret',
   'clientsecret',
+  // 마켓별 자격증명 (D-D 회귀 — 쿠팡 HMAC / ESM JWT 등 camelCase 필드)
+  'accesskey',
+  'access_key',
+  'secretkey',
+  'secret_key',
+  'vendorid',
+  'vendor_id',
+  'masterid',
+  'master_id',
   // 비밀번호
   'password',
   'passwordconfirm',
@@ -51,6 +60,11 @@ const REDACT_KEYS: ReadonlySet<string> = new Set([
   'authorization',
   'cookie',
   'set-cookie',
+  // OAuth 콜백 (D-D 회귀 — code 는 10분짜리지만 복원 시 토큰 발급 가능)
+  'code',
+  'state',
+  'pkce_verifier',
+  'pkceverifier',
 ])
 
 const JWT_PATTERN = /^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
