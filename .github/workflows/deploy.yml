@@ -61,6 +61,7 @@ jobs:
 
     env:
       VITE_APP_MODE: real
+      VITE_BASE_PATH: /ing0415/
       VITE_SUPABASE_URL: ${{ secrets.REAL_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.REAL_SUPABASE_ANON_KEY }}
       VITE_SENTRY_DSN: ${{ secrets.REAL_SENTRY_DSN }}
