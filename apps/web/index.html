@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0A2540" media="(prefers-color-scheme: dark)" />
+    <title>MarketCast</title>
+    <!--
+      테마 부트스트랩 (ui-system.md §11.2):
+      첫 페인트 깜빡임 회피용 inline 스크립트. React 마운트 전에 실행되어야 함.
+      localStorage.theme 우선 → 없으면 prefers-color-scheme 추종.
+      data-theme 속성 + class 두 형태 모두 세팅 (Tailwind darkMode 호환).
+    -->
+    <script>
+      ;(function () {
+        try {
+          var t = localStorage.getItem('theme')
+          var sys = window.matchMedia('(prefers-color-scheme: dark)').matches
+          var isDark = t === 'dark' || ((t === 'system' || t === null) && sys)
+          if (isDark) {
+            document.documentElement.setAttribute('data-theme', 'dark')
+            document.documentElement.classList.add('dark')
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light')
+          }
+        } catch (_) {
+          /* localStorage 접근 실패 시 라이트 기본 */
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

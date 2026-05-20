@@ -1,0 +1,307 @@
+name: CI
+
+# 인용:
+# - docs/architecture/v1/ops/ci-cd.md §2.2 / §3 / §11
+# - CLAUDE.md "빌드 모드: debug / real" — PR 단계는 debug sanity 까지만.
+# - docs/architecture/v1/security.md — debug 빌드도 실제와 동일 보안 경로 강제.
+#
+# 트리거 매트릭스:
+#   pull_request  → develop / main / release/** / hotfix/**
+#   push          → develop / feature/** / release/** / hotfix/**
+#
+# 의도적으로 PR 모두에서 단일 verify 잡 + debug/real matrix build 잡을 분리.
+# matrix 의 real 잡은 PR 시점에 시크릿 누출 회귀를 잡기 위한 "build dry-run" 이며,
+# 실제 운영 빌드는 deploy.yml 만 수행한다.
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+      - 'release/**'
+  push:
+    branches:
+      - develop
+      - 'feature/**'
+      - 'release/**'
+      - 'hotfix/**'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1. 정적 검증 — typecheck + lint (병렬 진입의 가장 빠른 게이트)
+  # ──────────────────────────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint (src + tests, blocking)
+        run: pnpm lint
+
+      # apps/api/supabase/functions/* 는 Deno 런타임 + 별도 lint 정책이 필요.
+      # 현 시점 lint 에러 31건 정리 전이므로 non-blocking job 으로 표면화만 한다.
+      # 정리 후 continue-on-error 제거 + 메인 lint 잡에 병합.
+      - name: Lint Edge Functions (non-blocking)
+        run: pnpm exec eslint apps/api/supabase/functions --ext .ts,.tsx || true
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. 단위·통합 테스트 (Vitest)
+  # ──────────────────────────────────────────────────────────────────────────
+  unit-test:
+    name: Unit & Integration (Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Vitest (run)
+        run: pnpm test
+        env:
+          # vitest 는 dev 빌드 모드와 무관하지만, Sentry/Supabase init 코드의
+          # zod 검증을 통과시키기 위해 placeholder 환경변수가 필요할 수 있다.
+          VITE_APP_MODE: debug
+          VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+          VITE_SENTRY_DSN: ''
+
+      - name: Upload coverage on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage-${{ github.run_id }}
+          path: coverage/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 3. zod 스키마 미러 검증
+  #    클라이언트 ↔ Edge Function ENUM/스키마 동기화 회귀 차단.
+  #    별도 잡으로 둬서 실패 시 "ENUM mirror drift" 가 PR 머지 차단 사유로
+  #    명확히 보이도록 한다.
+  # ──────────────────────────────────────────────────────────────────────────
+  zod-schema-mirror-check:
+    name: Zod Mirror Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Stage G 에서 `tests/unit/**/zod-mirror.test.ts` 가 추가된다.
+      # 파일 부재 시(현 단계) 통과 처리. 추가 후에는 자동으로 검증된다.
+      - name: Run zod mirror test if present
+        run: |
+          if pnpm exec vitest list 2>/dev/null | grep -qi 'zod-mirror'; then
+            pnpm exec vitest run -t 'zod-mirror'
+          else
+            echo "::notice::zod-mirror.test.ts not present yet — skipping (Stage G follow-up)."
+          fi
+        env:
+          VITE_APP_MODE: debug
+          VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 4. 빌드 sanity — debug / real 두 모드 모두 빌드 성공해야 머지 가능
+  #    real 모드 산출물은 mock 코드 누출 검사를 수행.
+  # ──────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint-and-typecheck
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [debug, real]
+    env:
+      VITE_APP_MODE: ${{ matrix.mode }}
+      # PR CI 는 placeholder 시크릿으로 빌드 가능해야 한다.
+      # 실제 시크릿은 deploy.yml 만 사용. 여기서는 "빌드가 깨지지 않는가" 만 검증.
+      VITE_SUPABASE_URL: ${{ matrix.mode == 'real' && 'https://real.placeholder.supabase.co' || 'https://debug.placeholder.supabase.co' }}
+      VITE_SUPABASE_ANON_KEY: ${{ matrix.mode == 'real' && secrets.REAL_SUPABASE_ANON_KEY || secrets.DEBUG_SUPABASE_ANON_KEY }}
+      VITE_SENTRY_DSN: ${{ matrix.mode == 'real' && secrets.REAL_SENTRY_DSN || secrets.DEBUG_SENTRY_DSN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (${{ matrix.mode }})
+        run: pnpm build:${{ matrix.mode }}
+
+      - name: Verify SPA 404 fallback artifact
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html missing"; exit 1; }
+          test -f dist/404.html  || { echo "::error::dist/404.html missing (postbuild-spa.mjs failed?)"; exit 1; }
+          # 두 파일이 동일해야 SPA 라우팅 복구가 일관됨.
+          diff -q dist/index.html dist/404.html || { echo "::error::index.html ≠ 404.html"; exit 1; }
+
+      - name: Real bundle leak scan
+        if: matrix.mode == 'real'
+        # platform.md / security.md — real 번들에 mock 픽스처·debug 리터럴이 절대 들어가지 않는다.
+        # tree-shaking 회귀를 빌드 시점에 잡는다. 패턴은 휴리스틱이며 false positive 시 룰을 좁힌다.
+        run: |
+          set -e
+          if grep -rE "window\.AppData|__MOCK_FIXTURES__|MockMarketAdapter|MOCK_SELLER" dist/assets/; then
+            echo "::error::Debug-only artifacts leaked into real bundle"
+            exit 1
+          fi
+          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]debug" dist/assets/; then
+            echo "::error::debug mode literal embedded in real bundle"
+            exit 1
+          fi
+          # service_role / supabase secret token 형 패턴이 번들에 들어갔는지 이중 안전망.
+          if grep -rE "service_role|sbp_v0_|sntrys_" dist/assets/; then
+            echo "::error::Sensitive token-like string leaked into real bundle"
+            exit 1
+          fi
+          echo "✓ real bundle leak scan clean"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.mode }}-${{ github.run_id }}
+          path: dist/
+          retention-days: 3
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 5. E2E 골든패스 (Playwright, debug 빌드 산출물 사용)
+  #    PR 모두 + develop push 에서 실행. release/main PR 에도 동일.
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e-golden-path:
+    name: E2E Golden Path (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    env:
+      VITE_APP_MODE: debug
+      VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+      VITE_SENTRY_DSN: ''
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download debug dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-debug-${{ github.run_id }}
+          path: dist/
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit case)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      # playwright.config.ts 의 webServer 가 CI 일 때 `pnpm preview --port 5174` 를 띄운다.
+      # baseURL 은 E2E_BASE_URL 미설정 시 http://localhost:5174 (config default).
+      - name: Run golden path
+        run: pnpm test:e2e --project=chromium --grep "@golden"
+        env:
+          E2E_BASE_URL: http://localhost:5174
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

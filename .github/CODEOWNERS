@@ -1,0 +1,29 @@
+# CODEOWNERS
+# 인용: docs/architecture/v1/ops/ci-cd.md §11.3
+#
+# 실 GitHub handle 매핑은 운영 시점에 결정. 현재는 placeholder.
+# 비어 있는 동안에는 모든 리뷰가 일반 리뷰어 풀에서 처리됨.
+#
+# 활성화 시 GitHub Settings → Branch protection → "Require review from Code Owners" 토글.
+
+# 마켓 어댑터·자격증명 — backend + security
+# /src/features/markets/        @backend-lead @security-lead
+# /supabase/functions/markets-*  @backend-lead @security-lead
+
+# 등록 잡 오케스트레이션 — backend
+# /src/features/registration/                @backend-lead
+# /supabase/functions/registration-*         @backend-lead
+
+# UI 시스템 — frontend + designer
+# /src/components/ui/           @frontend-lead @designer-lead
+# /src/styles/                  @frontend-lead @designer-lead
+
+# DB 마이그레이션 / 스키마 — backend
+# /supabase/migrations/         @backend-lead
+
+# CI/CD / 인프라 — tech-lead
+# /.github/workflows/           @tech-lead
+# /scripts/                     @tech-lead
+
+# 설계 문서 — tech-lead
+# /docs/architecture/v1/        @tech-lead

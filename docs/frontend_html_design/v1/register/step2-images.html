@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 상품 등록 2/5단계: 이미지 업로드">
+  <meta name="robots" content="noindex,nofollow">
+  <title>상품 등록 2/5 · 이미지 업로드 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+  <!--
+    Wave 3 / s3 등록 위저드 — Step 2 (이미지 업로드).
+    user_flow 노드 n18, registration.md §10.4.
+
+    공유 토큰만 사용. 페이지 로컬 <style> 은 step1 의 위저드 셸 CSS 와 동일 +
+    이미지 그리드/드롭존 클래스만 추가. raw 색상 없음.
+
+    상태:
+      - 업로드 3 / 10. 첫 번째 이미지가 대표(★).
+      - 다음 활성 (이미지 1장 이상 + 업로드 진행 중 없음).
+  -->
+
+  <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
+</head>
+<body>
+
+<div class="app-shell" data-sidebar="expanded">
+
+  <!-- ============================== 사이드바 ============================== -->
+  <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo" aria-hidden="true">M</div>
+      <div class="sidebar-name">MarketCast<small>v1</small></div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">메인</div>
+      <a href="../dashboard/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+        <span>대시보드</span>
+      </a>
+      <a href="./step1-info.html" class="nav-item active" aria-current="page">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+        <span>상품 등록</span>
+      </a>
+      <a href="../markets/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+        <span>마켓 계정</span>
+      </a>
+      <a href="../history/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+        <span>등록 이력</span>
+      </a>
+      <div class="sidebar-group-label">보조</div>
+      <a href="../settings/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+        <span>설정</span>
+      </a>
+      <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+        <span>도움말</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+        <span class="avatar" aria-hidden="true">JH</span>
+        <div style="min-width:0; flex:1;">
+          <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">안준형</div>
+          <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+        </div>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================== 메인 영역 ============================== -->
+  <div class="main-area">
+
+    <header class="topbar">
+      <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+      </button>
+      <div class="topbar-title">상품 등록</div>
+      <div class="spacer"></div>
+      <button type="button" class="icon-btn" aria-label="알림 열기">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+      </button>
+      <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+      </button>
+    </header>
+
+    <main class="main-content">
+
+      <section class="wizard" aria-labelledby="wizard-title">
+
+        <header class="wizard-header">
+          <div class="wizard-title-row">
+            <h1 id="wizard-title" class="wizard-title">새 상품 등록</h1>
+            <span class="wizard-step-pill">2 / 5 단계</span>
+          </div>
+
+          <ol class="stepper" role="list" aria-label="등록 진행 단계">
+            <li class="stepper-item is-done">
+              <span class="stepper-marker" aria-hidden="true">
+                <svg class="check-ico" aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+              </span>
+              <span class="stepper-label">상품 정보</span>
+              <span class="sr-only">(완료)</span>
+            </li>
+            <li class="stepper-item is-current" aria-current="step">
+              <span class="stepper-marker" aria-hidden="true">2</span>
+              <span class="stepper-label">이미지</span>
+              <span class="sr-only">(현재 단계)</span>
+            </li>
+            <li class="stepper-item">
+              <span class="stepper-marker" aria-hidden="true">3</span>
+              <span class="stepper-label">마켓·카테고리</span>
+            </li>
+            <li class="stepper-item">
+              <span class="stepper-marker" aria-hidden="true">4</span>
+              <span class="stepper-label">미리보기</span>
+            </li>
+            <li class="stepper-item">
+              <span class="stepper-marker" aria-hidden="true">5</span>
+              <span class="stepper-label">결과</span>
+            </li>
+          </ol>
+
+          <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="40" aria-label="등록 진행률 40%">
+            <div class="progress-fill" style="width:40%;"></div>
+          </div>
+          <div class="progress-meta">
+            <span>진행률 40%</span>
+            <span class="t-subtle">언제든 임시저장됩니다</span>
+          </div>
+        </header>
+
+        <form class="wizard-body" action="#" method="post" novalidate aria-labelledby="step2-heading">
+
+          <h2 id="step2-heading" class="t-h3" style="margin:0 0 var(--sp-2);">이미지 업로드</h2>
+          <p class="t-sm t-muted" style="margin:0 0 var(--sp-5);">대표 1장 + 추가 최대 9장 (총 10장). JPG · PNG · WebP, 각 10MB 이하. 마켓별 규격(크기·포맷)으로 등록 시 자동 변환됩니다.</p>
+
+          <!-- 드롭존 -->
+          <label class="dropzone" tabindex="0" role="button" aria-label="이미지 파일 선택 또는 드래그 앤 드롭 영역">
+            <svg aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+            <span class="dz-title">파일을 끌어다 놓거나 클릭해 선택</span>
+            <span class="dz-sub">최대 10장 · 1장당 10MB 이하 · 가로·세로 500px 이상 권장</span>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp" class="sr-only">
+          </label>
+
+          <!-- 마켓별 변환 안내 -->
+          <div class="market-transform-list" aria-label="마켓별 자동 변환 규격">
+            <span class="market-transform-chip">
+              <span class="market-tile sm naver" aria-hidden="true">N</span>
+              스마트스토어 · 1000×1000 JPEG
+            </span>
+            <span class="market-transform-chip">
+              <span class="market-tile sm coupang" aria-hidden="true">C</span>
+              쿠팡 · 780×780 JPEG
+            </span>
+          </div>
+
+          <div class="divider" role="presentation"></div>
+
+          <!-- 업로드 상태 메타 -->
+          <div class="row-between" style="margin-bottom: var(--sp-3);">
+            <div>
+              <span class="t-sm" style="font-weight:600;">업로드된 이미지</span>
+              <span class="t-sm t-muted"> · 3 / 10 장</span>
+            </div>
+            <span class="badge badge-success">
+              <span class="dot" aria-hidden="true"></span>
+              모두 업로드 완료
+            </span>
+          </div>
+
+          <!-- 이미지 그리드 -->
+          <div class="image-grid" role="list" aria-label="업로드된 이미지 목록">
+
+            <!-- 카드 1: 대표 -->
+            <article class="image-card is-main demo-1" role="listitem" aria-label="대표 이미지: image-001.jpg">
+              <div class="image-card-badge" aria-label="대표 이미지">
+                <span class="star" aria-hidden="true"></span>
+                대표
+              </div>
+              <div class="image-card-thumb" aria-hidden="true">이미지 1</div>
+              <div class="image-card-meta">
+                <span style="color:var(--text-2); font-weight:600;">image-001.jpg</span>
+                <span>1024 × 1024 · 234KB</span>
+              </div>
+              <div class="image-card-actions">
+                <button type="button" class="drag-handle" aria-label="순서 변경 (드래그)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="9" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/>
+                    <circle cx="15" cy="6" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="15" cy="18" r="1.2"/>
+                  </svg>
+                </button>
+                <button type="button" class="icon-btn" aria-label="image-001.jpg 삭제">
+                  <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+                </button>
+              </div>
+            </article>
+
+            <!-- 카드 2 -->
+            <article class="image-card demo-2" role="listitem" aria-label="image-002.jpg">
+              <div class="image-card-thumb" aria-hidden="true">이미지 2</div>
+              <div class="image-card-meta">
+                <span style="color:var(--text-2); font-weight:600;">image-002.jpg</span>
+                <span>1024 × 1024 · 198KB</span>
+              </div>
+              <div class="image-card-actions">
+                <button type="button" class="drag-handle" aria-label="순서 변경 (드래그)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="9" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/>
+                    <circle cx="15" cy="6" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="15" cy="18" r="1.2"/>
+                  </svg>
+                </button>
+                <span class="tooltip" data-tip="대표 이미지로 설정">
+                  <button type="button" class="btn btn-ghost btn-sm" aria-label="대표 이미지로 설정">★ 대표</button>
+                </span>
+                <button type="button" class="icon-btn" aria-label="image-002.jpg 삭제">
+                  <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+                </button>
+              </div>
+            </article>
+
+            <!-- 카드 3 -->
+            <article class="image-card demo-3" role="listitem" aria-label="image-003.jpg">
+              <div class="image-card-thumb" aria-hidden="true">이미지 3</div>
+              <div class="image-card-meta">
+                <span style="color:var(--text-2); font-weight:600;">image-003.jpg</span>
+                <span>1200 × 1200 · 312KB</span>
+              </div>
+              <div class="image-card-actions">
+                <button type="button" class="drag-handle" aria-label="순서 변경 (드래그)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="9" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/>
+                    <circle cx="15" cy="6" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="15" cy="18" r="1.2"/>
+                  </svg>
+                </button>
+                <span class="tooltip" data-tip="대표 이미지로 설정">
+                  <button type="button" class="btn btn-ghost btn-sm" aria-label="대표 이미지로 설정">★ 대표</button>
+                </span>
+                <button type="button" class="icon-btn" aria-label="image-003.jpg 삭제">
+                  <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-x"/></svg>
+                </button>
+              </div>
+            </article>
+
+            <!-- 추가 카드 -->
+            <button type="button" class="image-card is-add" aria-label="이미지 추가">
+              <div class="image-card-thumb">
+                <span class="plus-icon" aria-hidden="true">+</span>
+              </div>
+              <div class="image-card-meta" style="text-align:center; padding-top:0;">
+                <span>추가</span>
+              </div>
+            </button>
+
+          </div>
+
+          <div class="info-note" style="margin-top: var(--sp-5);" role="note">
+            <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+            <div>
+              <strong>대표 이미지 변경:</strong> 카드의 [★ 대표] 버튼을 누르세요. <strong>순서 변경:</strong> 좌상단 핸들을 드래그 (모바일은 길게 눌러 이동).
+            </div>
+          </div>
+
+          <!-- 푸터 -->
+          <div class="wizard-footer">
+            <a href="./step1-info.html" class="btn btn-outline" aria-label="이전 단계: 상품 정보로 돌아가기">
+              <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-arrow-left"/></svg>
+              이전
+            </a>
+
+            <div class="footer-actions">
+              <!--
+                blockingReasons 예시 (이미지 0장):
+                <span class="tooltip" data-tip="이미지 1장 이상 필요">
+                  <button type="button" class="btn btn-primary btn-lg" disabled aria-disabled="true">다음 →</button>
+                </span>
+              -->
+              <a href="./step3-markets.html" class="btn btn-primary btn-lg" aria-label="다음 단계: 마켓·카테고리로 이동">
+                다음 (마켓·카테고리) →
+              </a>
+            </div>
+          </div>
+
+        </form>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+</body>
+</html>
