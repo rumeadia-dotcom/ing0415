@@ -1,5 +1,6 @@
 import { History, LayoutDashboard, LifeBuoy, PackagePlus, Settings, Store } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { BrandMark, Wordmark } from '@/components/brand'
 import { ko } from '@/locales/ko'
 import { cn } from '@/lib/utils'
 
@@ -43,14 +44,9 @@ export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
       className="flex h-full w-full flex-col gap-4 border-r border-border bg-surface px-3 py-4 md:w-64"
     >
       <div className="flex items-center gap-2 px-2 py-1">
-        <div
-          aria-hidden="true"
-          className="flex h-8 w-8 items-center justify-center rounded-md bg-accent font-bold text-white"
-        >
-          M
-        </div>
+        <BrandMark size={32} tone="gradient" />
         <div className="min-w-0">
-          <div className="text-h3 text-text">{ko.app.name}</div>
+          <Wordmark size="md" tone="two-tone" aria-label={ko.app.name} />
           <div className="text-xs text-text-tertiary">v1</div>
         </div>
       </div>

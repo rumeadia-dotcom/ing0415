@@ -76,6 +76,20 @@ const config: Config = {
           auction: 'rgb(var(--market-auction) / <alpha-value>)',
           coupang: 'rgb(var(--market-coupang) / <alpha-value>)',
         },
+        // 브랜드 alias — 마크/워드마크/그래디언트 고정색 (theme-invariant)
+        navy: 'rgb(var(--navy) / <alpha-value>)',
+        ink: 'rgb(var(--ink) / <alpha-value>)',
+        'blue-deep': 'rgb(var(--blue-deep) / <alpha-value>)',
+        blue: 'rgb(var(--blue) / <alpha-value>)',
+        teal: {
+          DEFAULT: 'rgb(var(--teal) / <alpha-value>)',
+          bright: 'rgb(var(--teal-bright) / <alpha-value>)',
+        },
+        cream: 'rgb(var(--cream) / <alpha-value>)',
+      },
+      backgroundImage: {
+        'brand-grad': 'var(--brand-grad)',
+        'brand-grad-soft': 'var(--brand-grad-soft)',
       },
       borderRadius: {
         sm: 'var(--radius-sm)', // 6
@@ -96,6 +110,15 @@ const config: Config = {
           '-apple-system',
           'BlinkMacSystemFont',
           '"Apple SD Gothic Neo"',
+          'system-ui',
+          'sans-serif',
+        ],
+        // 브랜드 워드마크 / 영문 hero 전용. Hangul 은 fallback Pretendard 로 자동 처리.
+        brand: [
+          '"Plus Jakarta Sans"',
+          'Pretendard',
+          '-apple-system',
+          'BlinkMacSystemFont',
           'system-ui',
           'sans-serif',
         ],
