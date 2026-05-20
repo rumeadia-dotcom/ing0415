@@ -1,0 +1,51 @@
+# Dependabot 설정
+# 인용: docs/architecture/v1/ops/ci-cd.md 부록 A — 자동 머지는 비활성. 알림만.
+#
+# 주간 (월요일 09:00 KST = 00:00 UTC) — 운영자가 수동 검토 후 머지.
+
+version: 2
+updates:
+  # npm / pnpm 의존성
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '00:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 5
+    target-branch: 'develop'
+    labels:
+      - 'dependencies'
+      - 'npm'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: 'scope'
+    # major 버전 업그레이드는 별도 PR 로 분리 (review 부담 분산).
+    groups:
+      minor-and-patch:
+        update-types:
+          - 'minor'
+          - 'patch'
+    ignore:
+      # React 19 등 major bump 는 별도 의식적 결정으로 진행.
+      - dependency-name: 'react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-dom'
+        update-types: ['version-update:semver-major']
+
+  # GitHub Actions 자체 업데이트
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '00:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 3
+    target-branch: 'develop'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    commit-message:
+      prefix: 'chore(actions)'

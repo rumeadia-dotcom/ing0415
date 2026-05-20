@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "market": "naver",
+    "scenario": "happy",
+    "capturedFrom": "createMockAdapter (Stage G placeholder)",
+    "capturedAt": "2026-05-19T00:00:00+09:00",
+    "note": "Stage F 에서 sandbox 실 응답 캡처본으로 교체"
+  },
+  "authenticate": {
+    "accessToken": "mock_access_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "refreshToken": "mock_refresh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "expiresAt": "2026-05-19T01:00:00+09:00",
+    "scope": "product.write",
+    "tokenType": "Bearer"
+  },
+  "refreshToken": {
+    "accessToken": "mock_access_rotated_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "refreshToken": "mock_refresh_rotated_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "expiresAt": "2026-05-19T01:00:00+09:00",
+    "tokenType": "Bearer"
+  },
+  "fetchCategoryTree": [
+    {
+      "id": "C-100",
+      "name": "패션의류",
+      "depth": 1,
+      "leaf": false,
+      "parentId": null,
+      "children": [
+        {
+          "id": "C-100-10",
+          "name": "여성의류",
+          "depth": 2,
+          "leaf": true,
+          "parentId": "C-100",
+          "children": []
+        }
+      ]
+    }
+  ],
+  "createProduct": {
+    "market": "naver",
+    "externalId": "MOCK-NAVER-001",
+    "productUrl": "https://mock.naver.example.com/p/123",
+    "status": "succeeded",
+    "warnings": []
+  }
+}

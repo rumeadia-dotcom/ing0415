@@ -1,0 +1,7 @@
+export { default as RegisterIndexPage } from './pages/RegisterIndexPage'
+export { default as StepInfoPage } from './pages/StepInfoPage'
+export { default as StepImagesPage } from './pages/StepImagesPage'
+export { default as StepMarketsCategoriesPage } from './pages/StepMarketsCategoriesPage'
+export { default as StepPreviewPage } from './pages/StepPreviewPage'
+export { default as StepResultPage } from './pages/StepResultPage'
+export { Stepper, REGISTER_STEPS, type RegisterStepId } from './components/Stepper'

@@ -1,0 +1,251 @@
+/**
+ * MarketCast — 글로벌 토큰 & Tailwind 진입.
+ *
+ * 마스터 문서: docs/architecture/v1/ui-system.md §3 / §11 / §12
+ * - 색상 변수는 RGB triplet (Tailwind `rgb(var(--*) / <alpha-value>)` alpha 지원).
+ * - 라이트 = `:root`, 다크 = `[data-theme="dark"]` 또는 `.dark` (양쪽 지원).
+ * - raw HEX 사용 금지 — 모든 색은 이 파일에서만 선언.
+ *
+ * v1.1 브랜드 리스킨 (2026-05-20):
+ *  - text 기본색 navy(#0A2540) 로 전환.
+ *  - surface-subtle/muted 를 cream 톤(#F7F6F1 계열) 로 이동.
+ *  - accent = blue-deep #1747C2 (브랜드 그래디언트 시작색).
+ *  - success 를 emerald → teal(#0F9488) 로 교체.
+ *  - 브랜드 alias 토큰(navy/ink/teal/teal-bright/cream) + brand-grad 신설.
+ *
+ * Pretendard:
+ *  - v1 운영은 self-host 권장 (ui-system.md D2). 현 단계는 CDN 으로 시작.
+ *  - Plus Jakarta Sans 는 워드마크 전용 (Hangul fallback 자동으로 Pretendard).
+ *  - TODO(Stage C+): /public 에 woff2 배치 + @font-face self-host 전환.
+ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── 라이트 모드 ─────────────────────────────────────────────── */
+    /* surface */
+    --surface: 255 255 255; /* paper #FFFFFF */
+    --surface-subtle: 247 246 241; /* cream #F7F6F1 */
+    --surface-muted: 239 237 226; /* cream-100 #EFEDE2 */
+
+    /* text */
+    --text: 10 37 64; /* navy #0A2540 */
+    --text-secondary: 62 82 102; /* navy-soft #3E5266 */
+    --text-tertiary: 91 111 132; /* #5B6F84 — 4.5:1 on cream (AA, ≥16px 권장) */
+
+    /* border */
+    --border: 227 225 214; /* cream-tinted #E3E1D6 */
+    --border-strong: 200 197 181; /* #C8C5B5 */
+
+    /* accent (브랜드 그래디언트 시작색 = blue-deep) */
+    --accent: 23 71 194; /* #1747C2 */
+    --accent-hover: 15 54 160; /* #0F36A0 */
+    --accent-soft: 231 237 251; /* #E7EDFB */
+    --accent-soft-border: 200 213 244; /* #C8D5F4 */
+
+    /* status */
+    --success: 15 148 136; /* teal-700 #0F9488 */
+    --success-soft: 230 250 246; /* #E6FAF6 */
+    --success-on-soft: 11 110 102; /* #0B6E66 */
+    --warning: 245 158 11; /* #F59E0B */
+    --warning-soft: 255 251 235; /* #FFFBEB */
+    --warning-on-soft: 180 83 9; /* #B45309 */
+    --danger: 220 38 38; /* #DC2626 */
+    --danger-soft: 254 242 242; /* #FEF2F2 */
+    --danger-on-soft: 185 28 28; /* #B91C1C */
+    --info-soft: 234 241 251; /* #EAF1FB */
+    --info-on-soft: 10 37 64; /* navy on soft */
+
+    /* focus ring */
+    --ring: 23 71 194; /* = accent */
+
+    /* 브랜드 alias (theme-invariant — 마크/워드마크는 모드 무관 동일색) */
+    --navy: 10 37 64; /* #0A2540 */
+    --ink: 15 27 45; /* #0F1B2D */
+    --blue-deep: 23 71 194; /* #1747C2 */
+    --blue: 37 99 235; /* #2563EB — 그래디언트 midpoint */
+    --teal: 20 184 166; /* #14B8A6 */
+    --teal-bright: 45 212 191; /* #2DD4BF */
+    --cream: 247 246 241; /* #F7F6F1 */
+
+    /* 브랜드 그래디언트 */
+    --brand-grad: linear-gradient(135deg, #1747c2 0%, #2563eb 55%, #14b8a6 100%);
+    --brand-grad-soft: linear-gradient(135deg, #e7edfb 0%, #eaf1fb 55%, #e6faf6 100%);
+
+    /* 마켓 브랜드 */
+    --market-naver: 3 199 90; /* #03C75A */
+    --market-eleventh: 255 0 56; /* #FF0038 */
+    --market-gmarket: 0 177 71; /* #00B147 */
+    --market-auction: 231 57 54; /* #E73936 */
+    --market-coupang: 241 31 68; /* #F11F44 */
+
+    /* radius */
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+
+    /* shadow — 라이트 (낮은 노출) */
+    --shadow-sm: 0 1px 2px 0 rgb(10 37 64 / 0.04);
+    --shadow: 0 1px 3px 0 rgb(10 37 64 / 0.06), 0 1px 2px -1px rgb(10 37 64 / 0.04);
+    --shadow-lg: 0 10px 15px -3px rgb(10 37 64 / 0.08), 0 4px 6px -4px rgb(10 37 64 / 0.06);
+    --shadow-pop: 0 20px 25px -5px rgb(10 37 64 / 0.10), 0 8px 10px -6px rgb(10 37 64 / 0.06);
+
+    /* layout */
+    --topbar-h: 56px;
+    --sidebar-w: 240px;
+    --sidebar-w-collapsed: 64px;
+    --row-h: 44px;
+
+    color-scheme: light;
+  }
+
+  [data-theme='dark'],
+  .dark {
+    /* ── 다크 모드 ───────────────────────────────────────────────── */
+    --surface: 11 22 34; /* paper-dark #0B1622 */
+    --surface-subtle: 15 27 45; /* ink #0F1B2D */
+    --surface-muted: 22 38 62; /* #16263E */
+
+    --text: 241 245 249; /* #F1F5F9 */
+    --text-secondary: 203 213 225; /* #CBD5E1 */
+    --text-tertiary: 148 163 184; /* #94A3B8 */
+
+    --border: 27 42 64; /* #1B2A40 */
+    --border-strong: 42 59 85; /* #2A3B55 */
+
+    --accent: 77 123 232; /* #4D7BE8 */
+    --accent-hover: 107 146 238; /* #6B92EE */
+    --accent-soft: 19 38 90; /* #13265A */
+    --accent-soft-border: 30 58 138; /* #1E3A8A */
+
+    --success: 45 212 191; /* teal-bright #2DD4BF */
+    --success-soft: 11 44 42; /* #0B2C2A */
+    --success-on-soft: 94 234 212; /* #5EEAD4 */
+    --warning: 251 191 36; /* #FBBF24 */
+    --warning-soft: 59 42 10; /* #3B2A0A */
+    --warning-on-soft: 252 211 77; /* #FCD34D */
+    --danger: 248 113 113; /* #F87171 */
+    --danger-soft: 59 20 20; /* #3B1414 */
+    --danger-on-soft: 252 165 165; /* #FCA5A5 */
+    --info-soft: 11 37 72; /* #0B2548 */
+    --info-on-soft: 186 230 253; /* #BAE6FD */
+
+    --ring: 77 123 232; /* = accent dark */
+
+    /* 마켓 브랜드 — 다크 톤업 (ui-system.md §3.2) */
+    --market-naver: 3 199 90;
+    --market-eleventh: 255 61 92; /* #FF3D5C */
+    --market-gmarket: 0 177 71;
+    --market-auction: 242 89 85; /* #F25955 */
+    --market-coupang: 249 77 106; /* #F94D6A */
+
+    /* 브랜드 alias — 모드 무관 동일 값 (마크는 자신만의 색 보유) */
+    --navy: 10 37 64;
+    --ink: 15 27 45;
+    --blue-deep: 23 71 194;
+    --blue: 37 99 235;
+    --teal: 20 184 166;
+    --teal-bright: 45 212 191;
+    --cream: 247 246 241;
+
+    /* 다크 그래디언트 — 어두운 surface 위에서도 식별되도록 톤업 */
+    --brand-grad: linear-gradient(135deg, #3b5bff 0%, #4d7be8 55%, #2dd4bf 100%);
+    --brand-grad-soft: linear-gradient(135deg, #13265a 0%, #0b2548 55%, #0b2c2a 100%);
+
+    /* shadow — 다크는 더 깊게 */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.45);
+    --shadow-pop: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+
+    color-scheme: dark;
+  }
+
+  /* 기본 html / body */
+  html {
+    font-family:
+      'Pretendard',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Apple SD Gothic Neo',
+      system-ui,
+      sans-serif;
+    font-feature-settings: 'tnum';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface text-text;
+    @apply text-body;
+    min-height: 100vh;
+  }
+
+  /* focus-visible — 키보드 only 포커스 (ui-system.md §12.4) */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* 마우스 클릭으로 들어온 포커스는 outline 안 그림 */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* prefers-reduced-motion: 사용자가 동작 줄이면 transition/animation 즉시 종료 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* 모바일 본문 ≥16px 강제 (ui-system.md §4.2) */
+  @media (max-width: 767px) {
+    body {
+      @apply text-body-mobile;
+    }
+  }
+
+  /* 접근성: 텍스트 선택 색 */
+  ::selection {
+    background-color: rgb(var(--accent) / 0.2);
+    color: rgb(var(--text));
+  }
+}
+
+@layer utilities {
+  /* 화면 리더 전용 — shadcn 표준 */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* 브랜드 그래디언트 텍스트 (워드마크 'Cast' / hero 강조) */
+  .text-brand-grad {
+    background: var(--brand-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}

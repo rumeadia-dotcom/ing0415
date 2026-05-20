@@ -1,0 +1,271 @@
+name: Deploy (real)
+
+# 인용:
+# - docs/architecture/v1/ops/ci-cd.md §2.2 / §4 / §5 / §9
+# - docs/architecture/v1/platform.md — Pages + Edge Functions + Supabase 단일 소스
+# - docs/architecture/v1/security.md — service_role 비저장, OAuth secret 은 Edge Function env
+# - CLAUDE.md "빌드 모드: debug / real" + "인프라 결정"
+#
+# 트리거:
+#   push main / 태그 v*.*.*  → 자동 운영 배포
+#   workflow_dispatch         → 수동 트리거 (ref 지정 가능 — 롤백 경로)
+#
+# 워크플로우는 큐잉되며 절대 cancel 되지 않는다 (배포 도중 중단 = 중간 상태 노출).
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '배포할 ref (롤백 시 이전 안정 태그 또는 SHA)'
+        required: false
+        type: string
+      deploy_edge_functions:
+        description: 'Supabase Edge Functions 배포 여부 (false = 프론트만)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      apply_db_migrations:
+        description: 'Supabase DB 마이그레이션 자동 적용 (위험 — 검토 후 true)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+concurrency:
+  group: deploy-real
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1. real 빌드 — 시크릿 inject, mock 누출 검사, sourcemap 분리
+  # ──────────────────────────────────────────────────────────────────────────
+  build-real:
+    name: Build (real mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      VITE_APP_MODE: real
+      VITE_SUPABASE_URL: ${{ secrets.REAL_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.REAL_SUPABASE_ANON_KEY }}
+      VITE_SENTRY_DSN: ${{ secrets.REAL_SENTRY_DSN }}
+
+    outputs:
+      release-version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute release version
+        id: release
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ github.event.inputs.ref }}" ]]; then
+            # workflow_dispatch 로 임의 ref 재배포 시 ref 자체를 버전으로.
+            echo "version=manual-${{ github.event.inputs.ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=main-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify required secrets present
+        run: |
+          if [[ -z "$VITE_SUPABASE_URL" || -z "$VITE_SUPABASE_ANON_KEY" ]]; then
+            echo "::error::REAL_SUPABASE_URL / REAL_SUPABASE_ANON_KEY 시크릿 누락"
+            exit 1
+          fi
+
+      - name: Build (real)
+        run: pnpm build:real
+        env:
+          VITE_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+
+      - name: Verify SPA 404 fallback
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html missing"; exit 1; }
+          test -f dist/404.html  || { echo "::error::dist/404.html missing"; exit 1; }
+          diff -q dist/index.html dist/404.html || { echo "::error::index.html ≠ 404.html"; exit 1; }
+
+      - name: Real bundle leak scan
+        # security.md 동등성 — 빌드 시점에 디버그 산출물 누출 차단. CI 와 deploy 양쪽에서 동일.
+        run: |
+          set -e
+          if grep -rE "window\.AppData|__MOCK_FIXTURES__|MockMarketAdapter|MOCK_SELLER" dist/assets/; then
+            echo "::error::Debug-only artifacts leaked into real bundle"
+            exit 1
+          fi
+          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]debug" dist/assets/; then
+            echo "::error::debug mode literal embedded in real bundle"
+            exit 1
+          fi
+          if grep -rE "service_role|sbp_v0_|sntrys_" dist/assets/; then
+            echo "::error::Sensitive token-like string leaked into real bundle"
+            exit 1
+          fi
+          echo "✓ real bundle leak scan clean"
+
+      # Sentry sourcemap 업로드는 SENTRY_AUTH_TOKEN 이 설정된 경우에만 실행.
+      # 토큰 미설정 시 release 미생성 (warn 만). 운영 안정화 후 필수화 검토.
+      - name: Upload Sentry source maps
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          pnpm dlx @sentry/cli@2 releases new "${{ steps.release.outputs.version }}"
+          pnpm dlx @sentry/cli@2 releases files "${{ steps.release.outputs.version }}" \
+            upload-sourcemaps dist/assets \
+            --url-prefix '~/assets' \
+            --validate
+          pnpm dlx @sentry/cli@2 releases set-commits "${{ steps.release.outputs.version }}" --auto || true
+          pnpm dlx @sentry/cli@2 releases finalize "${{ steps.release.outputs.version }}"
+
+      - name: Strip source maps from public bundle
+        # 소스맵을 Sentry 에만 보존, 공개 dist 에서는 제거.
+        run: find dist -name "*.map" -delete
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. GitHub Pages 배포
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build-real
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 3. Supabase Edge Functions 배포 (옵션)
+  #    - apply_db_migrations 입력이 true 일 때만 `supabase db push` 실행.
+  #    - 기본은 false. ci-cd.md §7 — drift 검출과 함께 수동 운용 권장.
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-edge-functions:
+    name: Deploy Supabase Edge Functions
+    needs: build-real
+    if: ${{ github.event.inputs.deploy_edge_functions != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.REAL_SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify required secrets present
+        run: |
+          if [[ -z "$SUPABASE_ACCESS_TOKEN" || -z "$SUPABASE_PROJECT_REF" ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN / REAL_SUPABASE_PROJECT_REF 누락"
+            exit 1
+          fi
+
+      # Supabase CLI 는 ./supabase/ 디렉토리를 cwd 기준으로 찾는다.
+      # 모노레포 정리(2026-05-19) 후 supabase/ 가 apps/api/ 하위로 이동했으므로 cwd 를 옮긴다.
+      - name: Link Supabase project
+        working-directory: apps/api
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      # ⚠ 위험 결정: `supabase db push` 는 default 비활성.
+      # ci-cd.md §7.2 / §7.3 — drift 검출과 수동 적용을 권장.
+      # workflow_dispatch 의 apply_db_migrations=true 일 때만 실행.
+      - name: Apply DB migrations
+        if: ${{ github.event.inputs.apply_db_migrations == 'true' }}
+        working-directory: apps/api
+        run: |
+          echo "::warning::Applying DB migrations to real project. Ensure migrations are reviewed."
+          supabase db push --linked
+
+      - name: Skip DB migrations (default)
+        if: ${{ github.event.inputs.apply_db_migrations != 'true' }}
+        run: |
+          echo "::notice::DB 마이그레이션 자동 적용 비활성 (기본값). 'supabase db push --linked' 를 운영자가 수동 실행하세요. ci-cd.md §7 참고."
+
+      - name: Deploy Edge Functions
+        # 함수 디렉토리 전체 일괄 deploy. _shared 폴더는 제외해야 함.
+        working-directory: apps/api
+        run: |
+          shopt -s nullglob
+          for fn_dir in supabase/functions/*/; do
+            fn_name=$(basename "$fn_dir")
+            if [[ "$fn_name" == _* ]]; then
+              continue
+            fi
+            echo "→ deploy $fn_name"
+            supabase functions deploy "$fn_name" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt=false
+          done
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 4. Sentry 배포 알림 (release 가 생성된 경우만)
+  # ──────────────────────────────────────────────────────────────────────────
+  notify-sentry:
+    name: Finalize Sentry release
+    needs: [build-real, deploy-pages]
+    if: ${{ always() && needs.deploy-pages.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    steps:
+      - name: Notify deployment to Sentry
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        run: |
+          pnpm dlx @sentry/cli@2 releases deploys "${{ needs.build-real.outputs.release-version }}" \
+            new -e production
+
+      - name: Skip Sentry notify
+        if: ${{ env.SENTRY_AUTH_TOKEN == '' }}
+        run: echo "::notice::SENTRY_AUTH_TOKEN 미설정 — Sentry release 알림 생략"

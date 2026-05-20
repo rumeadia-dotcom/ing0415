@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "schema": "src/lib/schemas/market.ts ProductSchema",
+    "note": "ProductSchema.parse() 통과 보장. 골든패스·단위 테스트 공통 사용."
+  },
+  "id": "11111111-1111-1111-1111-111111111111",
+  "sellerId": "22222222-2222-2222-2222-222222222222",
+  "name": "테스트 텀블러",
+  "priceKrw": 15000,
+  "stock": 50,
+  "images": [
+    {
+      "url": "https://cdn.example.com/products/tumbler-1.jpg",
+      "alt": "텀블러 정면",
+      "order": 0
+    },
+    {
+      "url": "https://cdn.example.com/products/tumbler-2.jpg",
+      "alt": "텀블러 측면",
+      "order": 1
+    }
+  ],
+  "descriptionHtml": "<p>고급 스테인리스 텀블러입니다.</p>",
+  "brand": "TestBrand",
+  "shippingFeeKrw": 3000
+}
