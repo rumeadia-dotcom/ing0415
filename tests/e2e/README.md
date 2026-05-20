@@ -7,7 +7,9 @@
 - `golden-path.spec.ts` — 골든 패스 1 시나리오. **main 머지 게이트**.
   현재는 placeholder 라우트 진입 검증 1단계만 active (`G0`), G1~G10 은 `test.fixme` 상태.
   각 페이지가 실제 폼/액션을 구현하면 단계별 어설션을 활성화한다.
-- `a11y.spec.ts` — placeholder 라우트 axe 0 violation 회귀 테스트.
+- `a11y.spec.ts` — placeholder 라우트 axe 0 violation 회귀 테스트 (Stage C/D, 비인증·placeholder 화면 위주).
+- `a11y/all-routes-axe.spec.ts` — D-A 14 라우트 + 4분기 provider + Dialog 상태 axe 회귀. 인증 라우트는 시드 셀러 미구현으로 `test.fixme` 보류.
+- `a11y/_fixtures/login-as-seller.ts` — 시드 셀러 세션 주입 fixture (D-A 후속에서 본구현).
 
 ## 실행
 
