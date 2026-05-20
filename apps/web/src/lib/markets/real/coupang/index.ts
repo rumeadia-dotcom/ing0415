@@ -1,9 +1,9 @@
 /**
- * 쿠팡 Wing OpenAPI real 어댑터 (Edge Function / Deno 측).
+ * 쿠팡 Wing OpenAPI real 어댑터 (프론트엔드 / Vite 환경).
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9
- *   - WIP-5markets-mvp.md C-2 Phase 2
+ *   - WIP-5markets-mvp.md C-2 Phase 1
  *
  * 인증 방식: HMAC-SHA256 (credential kind = 'hmac').
  *   - refreshToken 없음 (영구 키).
@@ -11,37 +11,37 @@
  *
  * API 기반:
  *   - COUPANG_API_BASE = https://api-gateway.coupang.com
- *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/categorization/display-categories/{id}
+ *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/categorization/display-categories/{categoryId}
  *   - 상품 생성: POST /v2/providers/seller_api/apis/api/v1/marketplace/seller-products
  *
- * 에러 매핑:
- *   - 401 / 403 → MarketError('unauthorized')
- *   - 400 / 422 → MarketError('validation')
- *   - 429       → MarketError('rate_limit')
- *   - 5xx       → MarketError('server')
- *   - timeout   → MarketError('network')
- *
- * 보안 강제:
- *   - accessKey / secretKey / vendorId 는 절대 로그 포함 금지.
+ * 중요 제약:
+ *   - accessKey / secretKey / vendorId 는 절대 로그에 포함 금지.
  *   - 모든 외부 호출에 correlationId 부여.
- *   - 상품명 최대 50자 (Wing OpenAPI 요건).
+ *   - 상품명 최대 50자 (Wing OpenAPI 요건), 초과 시 truncate.
+ *   - 카테고리 트리는 depth 3 까지 재귀 fetch (timeout 10s).
+ *
+ * 현재 제약 (베타):
+ *   - 실제 자격증명 미보유. 통합 테스트는 fetch mock 으로.
+ *   - 상품 등록 API 최종 payload 스펙 베타 셀러 확인 후 보정 예정.
  */
 
-import { z } from 'npm:zod@3.23.8'
-import { MarketError } from '../errors.ts'
-import { createLogger } from '../logger.ts'
-import { generateCorrelationId } from '../correlation.ts'
-import type {
-  AuthInput,
-  CategoryNode,
-  CreateProductResult,
-  MarketMapping,
-  MarketPayload,
-  Product,
-  StoredCredential,
-} from '../schemas.ts'
-import type { MarketAdapter } from '../market-adapter.ts'
-import { buildCoupangSignature } from './coupang-hmac.ts'
+import { z } from 'zod'
+import { MarketError } from '../../errors'
+import type { MarketAdapter } from '../../types'
+import {
+  HmacKeyAuthInputSchema,
+  StoredCredentialSchema,
+  CategoryNodeSchema,
+  CreateProductResultSchema,
+  type AuthInput,
+  type CategoryNode,
+  type CreateProductResult,
+  type MarketMapping,
+  type MarketPayload,
+  type Product,
+  type StoredCredential,
+} from '@/lib/schemas'
+import { buildCoupangSignature } from './hmac'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -50,13 +50,10 @@ import { buildCoupangSignature } from './coupang-hmac.ts'
 export const COUPANG_API_BASE = 'https://api-gateway.coupang.com'
 const MARKET = 'coupang' as const
 const CATEGORY_TIMEOUT_MS = 10_000
-const DEFAULT_TIMEOUT_MS = 15_000
 const PRODUCT_NAME_MAX_LENGTH = 50
 
-const logger = createLogger('market-adapter:coupang')
-
 // ─────────────────────────────────────────────
-// Wing OpenAPI 응답 zod 스키마
+// Wing OpenAPI 응답 zod 스키마 (런타임 검증)
 // ─────────────────────────────────────────────
 
 const CoupangCategoryResponseSchema = z.object({
@@ -92,21 +89,70 @@ const CoupangCreateProductResponseSchema = z.object({
     .optional(),
 })
 
-// CategoryNode 재귀 스키마 (Deno 측 수동 정의)
-interface CategoryNode {
-  id: string
-  name: string
-  depth: number
-  leaf: boolean
-  parentId: string | null
-  children: CategoryNode[]
-}
-
 // ─────────────────────────────────────────────
 // 내부 유틸리티
 // ─────────────────────────────────────────────
 
-/** HTTP 상태 → MarketError code 매핑. */
+/**
+ * 쿠팡 Wing OpenAPI fetch wrapper.
+ * - HMAC Authorization 헤더 자동 부여.
+ * - timeout abort.
+ * - HTTP 에러 → MarketError 변환.
+ */
+async function coupangFetch(opts: {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  path: string
+  accessKey: string
+  secretKey: string
+  body?: unknown
+  correlationId: string
+  timeoutMs?: number
+}): Promise<Response> {
+  const { method, path, accessKey, secretKey, body, correlationId, timeoutMs = 15_000 } =
+    opts
+
+  const { authorization } = await buildCoupangSignature({
+    method,
+    path,
+    accessKey,
+    secretKey,
+  })
+
+  const controller = new AbortController()
+  const timerId = setTimeout(() => { controller.abort() }, timeoutMs)
+
+  try {
+    const response = await fetch(`${COUPANG_API_BASE}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+        Authorization: authorization,
+        'X-Correlation-Id': correlationId,
+      },
+      body: body !== undefined ? JSON.stringify(body) : null,
+      signal: controller.signal,
+    })
+    return response
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new MarketError('network', '쿠팡 API 요청 timeout', {
+        market: MARKET,
+        cause: err,
+        marketErrorCode: 'timeout',
+      })
+    }
+    throw new MarketError('network', '쿠팡 API 네트워크 오류', {
+      market: MARKET,
+      cause: err,
+    })
+  } finally {
+    clearTimeout(timerId)
+  }
+}
+
+/**
+ * HTTP 상태 → MarketError code 매핑.
+ */
 function httpStatusToMarketError(
   status: number,
   message: string,
@@ -121,16 +167,12 @@ function httpStatusToMarketError(
     })
   }
   if (status === 400 || status === 422) {
-    return new MarketError(
-      'validation',
-      `쿠팡 요청 검증 실패 (${status}): ${message}`,
-      {
-        market: MARKET,
-        status,
-        marketErrorMessage: message,
-        marketErrorCode: String(status),
-      },
-    )
+    return new MarketError('validation', `쿠팡 요청 검증 실패 (${status}): ${message}`, {
+      market: MARKET,
+      status,
+      marketErrorMessage: message,
+      marketErrorCode: String(status),
+    })
   }
   if (status === 429) {
     return new MarketError('rate_limit', '쿠팡 API rate limit 초과', {
@@ -141,94 +183,23 @@ function httpStatusToMarketError(
     })
   }
   if (status >= 500) {
-    return new MarketError(`쿠팡 서버 오류 (${status})` as never, `쿠팡 서버 오류 (${status})`, {
+    return new MarketError('server', `쿠팡 서버 오류 (${status})`, {
       market: MARKET,
       status,
       marketErrorMessage: message,
       marketErrorCode: String(status),
     })
   }
-  return new MarketError(
-    'unknown',
-    `쿠팡 API 오류 (${status}) correlationId=${correlationId}`,
-    { market: MARKET, status, marketErrorMessage: message },
-  )
-}
-
-/** Wing OpenAPI fetch wrapper — HMAC 서명 + timeout + 로깅. */
-async function coupangFetch(opts: {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  path: string
-  accessKey: string
-  secretKey: string
-  body?: unknown
-  correlationId: string
-  jobId?: string
-  timeoutMs?: number
-}): Promise<Response> {
-  const {
-    method,
-    path,
-    accessKey,
-    secretKey,
-    body,
-    correlationId,
-    jobId,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-  } = opts
-
-  const { authorization } = await buildCoupangSignature({
-    method,
-    path,
-    accessKey,
-    secretKey,
+  return new MarketError('unknown', `쿠팡 API 오류 (${status}) correlationId=${correlationId}`, {
+    market: MARKET,
+    status,
+    marketErrorMessage: message,
   })
-
-  const url = `${COUPANG_API_BASE}${path}`
-  const reqLogger = logger.with({ correlationId, jobId, market: MARKET })
-
-  reqLogger.info({ method, url: path }, '→ market request')
-
-  const controller = new AbortController()
-  const timerId = setTimeout(() => { controller.abort() }, timeoutMs)
-
-  const start = Date.now()
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json;charset=UTF-8',
-        Authorization: authorization,
-        'X-Correlation-Id': correlationId,
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    })
-
-    const latencyMs = Date.now() - start
-    reqLogger.info({ status: response.status, latencyMs }, '← market response')
-    return response
-  } catch (err) {
-    const latencyMs = Date.now() - start
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      reqLogger.error({ latencyMs, marketErrorCode: 'timeout' }, '← market error')
-      throw new MarketError('network', '쿠팡 API 요청 timeout', {
-        market: MARKET,
-        cause: err,
-        marketErrorCode: 'timeout',
-      })
-    }
-    reqLogger.error({ latencyMs }, '← market error')
-    throw new MarketError('network', '쿠팡 API 네트워크 오류', {
-      market: MARKET,
-      cause: err,
-    })
-  } finally {
-    clearTimeout(timerId)
-  }
 }
 
-/** 카테고리 단건 fetch + depth 3까지 재귀. */
+/**
+ * 카테고리 단건 fetch + 하위 3depth 재귀.
+ */
 async function fetchCategoryNode(
   categoryId: number,
   depth: number,
@@ -265,13 +236,14 @@ async function fetchCategoryNode(
     throw new MarketError('server', '쿠팡 카테고리 데이터 없음', {
       market: MARKET,
       marketErrorCode: parsed.data.code,
-      marketErrorMessage: parsed.data.message,
+      ...(parsed.data.message !== undefined ? { marketErrorMessage: parsed.data.message } : {}),
     })
   }
 
   const isLeaf = data.isLeafCategory || depth >= 3
   const children: CategoryNode[] = []
 
+  // depth 3 미만이고 하위 카테고리가 있으면 재귀 fetch
   if (!isLeaf && data.subCategories && data.subCategories.length > 0) {
     for (const sub of data.subCategories) {
       const child = await fetchCategoryNode(
@@ -285,7 +257,7 @@ async function fetchCategoryNode(
     }
   }
 
-  return {
+  const node: CategoryNode = {
     id: String(data.categoryId),
     name: data.displayCategoryName,
     depth,
@@ -293,23 +265,26 @@ async function fetchCategoryNode(
     parentId: depth === 1 ? null : String(categoryId),
     children,
   }
+
+  return CategoryNodeSchema.parse(node)
 }
 
 // ─────────────────────────────────────────────
-// HMAC credential 타입 (내부)
+// 어댑터 구현
 // ─────────────────────────────────────────────
 
+/**
+ * HMAC 자격증명 — StoredCredential.payload (runtime).
+ * 어댑터 인스턴스에 저장, 외부 노출 금지.
+ */
 interface HmacCred {
   accessKey: string
   secretKey: string
   vendorId: string
 }
 
-// ─────────────────────────────────────────────
-// 어댑터 팩토리
-// ─────────────────────────────────────────────
-
-export function createCoupangAdapter(): MarketAdapter {
+function createCoupangRealAdapter(): MarketAdapter {
+  // 인스턴스 자격증명 (authenticate 후 설정)
   let cred: HmacCred | null = null
 
   function getCredOrThrow(): HmacCred {
@@ -321,12 +296,12 @@ export function createCoupangAdapter(): MarketAdapter {
     return cred
   }
 
-  return {
+  const adapter: MarketAdapter = {
     market: MARKET,
     credentialKind: 'hmac',
 
     // ───────────────────────────────────────────
-    // authenticate
+    // authenticate — API 호출 없이 자격증명 검증 + 저장
     // ───────────────────────────────────────────
     async authenticate(input: AuthInput): Promise<StoredCredential> {
       if (input.kind !== 'hmac_key') {
@@ -337,65 +312,84 @@ export function createCoupangAdapter(): MarketAdapter {
         )
       }
 
-      const { accessKey, secretKey, vendorId } = input
-      if (!accessKey || !secretKey || !vendorId) {
-        throw new MarketError('validation', '쿠팡: accessKey / secretKey / vendorId 필수', {
-          market: MARKET,
-        })
+      // zod 검증 (min(1) 확인)
+      const parsed = HmacKeyAuthInputSchema.safeParse(input)
+      if (!parsed.success) {
+        throw new MarketError(
+          'validation',
+          `쿠팡: 자격증명 형식 오류 — ${parsed.error.message}`,
+          { market: MARKET, cause: parsed.error },
+        )
       }
 
+      const { accessKey, secretKey, vendorId } = parsed.data
+
+      // 자격증명 인스턴스 저장
       cred = { accessKey, secretKey, vendorId }
 
-      return {
+      return StoredCredentialSchema.parse({
         kind: 'hmac',
         payload: { accessKey, secretKey, vendorId },
-      } as StoredCredential
+      })
     },
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree
+    // fetchCategoryTree — depth 3까지 재귀
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const { accessKey, secretKey } = getCredOrThrow()
-      const correlationId = generateCorrelationId()
+      const correlationId = crypto.randomUUID()
+
+      // 쿠팡 루트 카테고리 ID = 1
       const rootNode = await fetchCategoryNode(1, 1, accessKey, secretKey, correlationId)
       return [rootNode]
     },
 
     // ───────────────────────────────────────────
-    // transformProduct — 순수 함수
+    // transformProduct — 순수 함수. Date.now / Math.random 금지.
     // ───────────────────────────────────────────
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
+      // 상품명 50자 제한 (Wing OpenAPI 요건)
       const truncatedName =
         product.name.length > PRODUCT_NAME_MAX_LENGTH
           ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
           : product.name
 
+      // Wing OpenAPI 상품 생성 payload 구조 (부분 구현 — 베타 셀러 확인 후 보정)
       const raw = {
         sellerProductName: truncatedName,
         vendorId: cred?.vendorId ?? '',
+        // 가격 (원 단위, 정수)
         salePrice: product.priceKrw,
         stockQuantity: product.stock,
+        // 대표 이미지 URL 배열 (order 순 정렬)
         images: mapping.transformedImageUrls.map((url, idx) => ({
           imageOrder: idx,
           imageType: 'REPRESENTATION',
           cdnPath: url,
         })),
+        // 카테고리 (Wing API: displayCategoryCode)
         displayCategoryCode: Number(mapping.categoryId),
+        // 배송 정보
         shippingFee: product.shippingFeeKrw,
+        // 브랜드 (optional)
         brand: product.brand ?? '',
+        // 추가 매핑 필드 (마켓별 extra)
         ...mapping.extra,
       }
 
-      return { market: MARKET, raw }
+      return {
+        market: MARKET,
+        raw,
+      }
     },
 
     // ───────────────────────────────────────────
-    // createProduct
+    // createProduct — Wing OpenAPI POST
     // ───────────────────────────────────────────
     async createProduct(payload: MarketPayload): Promise<CreateProductResult> {
       const { accessKey, secretKey } = getCredOrThrow()
-      const correlationId = generateCorrelationId()
+      const correlationId = crypto.randomUUID()
 
       if (payload.market !== MARKET) {
         throw new MarketError('validation', `잘못된 payload.market: ${payload.market}`, {
@@ -445,7 +439,9 @@ export function createCoupangAdapter(): MarketAdapter {
           {
             market: MARKET,
             marketErrorCode: parsed.data.code,
-            marketErrorMessage: parsed.data.message,
+            ...(parsed.data.message !== undefined
+              ? { marketErrorMessage: parsed.data.message }
+              : {}),
           },
         )
       }
@@ -454,13 +450,17 @@ export function createCoupangAdapter(): MarketAdapter {
       const productUrl =
         data.productUrl ?? `https://www.coupang.com/vp/products/${externalId}`
 
-      return {
+      return CreateProductResultSchema.parse({
         market: MARKET,
         externalId,
         productUrl,
         status: 'succeeded',
         warnings: [],
-      } as CreateProductResult
+      })
     },
   }
+
+  return adapter
 }
+
+export const coupangRealAdapter: MarketAdapter = createCoupangRealAdapter()
