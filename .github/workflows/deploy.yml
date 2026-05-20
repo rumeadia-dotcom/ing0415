@@ -264,7 +264,7 @@ jobs:
       - name: Notify deployment to Sentry
         if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
         run: |
-          pnpm dlx @sentry/cli@2 releases deploys "${{ needs.build-real.outputs.release-version }}" \
+          npx @sentry/cli@2 releases deploys "${{ needs.build-real.outputs.release-version }}" \
             new -e production
 
       - name: Skip Sentry notify
