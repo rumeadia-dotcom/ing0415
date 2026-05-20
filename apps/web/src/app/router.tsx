@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router-dom'
 import { AppLayout } from './layouts/AppLayout'
 import { AuthLayout } from './layouts/AuthLayout'
 import { RegisterLayout } from './layouts/RegisterLayout'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { NotFoundPage } from './NotFoundPage'
+import { Footer } from '@/components/layout/Footer'
 import { Skeleton } from '@/components/ui'
 import { RequireAuth } from '@/features/auth'
 
@@ -56,6 +57,10 @@ const HistoryListPage = lazy(() => import('@/features/history/pages/HistoryListP
 const HistoryDetailPage = lazy(() => import('@/features/history/pages/HistoryDetailPage'))
 // settings
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'))
+// legal (비인증 접근 가능)
+const TermsPage = lazy(() => import('@/features/legal/pages/TermsPage'))
+const PrivacyPage = lazy(() => import('@/features/legal/pages/PrivacyPage'))
+const ManualPage = lazy(() => import('@/features/legal/pages/ManualPage'))
 
 // ── Suspense 폴백 ──────────────────────────────────────────────────────────────
 function PageFallback(): JSX.Element {
@@ -77,6 +82,22 @@ function withSuspense(node: JSX.Element): JSX.Element {
   return <Suspense fallback={<PageFallback />}>{node}</Suspense>
 }
 
+/**
+ * PublicLegalShell — `/legal/*`, `/manual` 진입용 비인증 셸.
+ * 사이드바·헤더 없이 본문 + 푸터만. 비로그인 사용자(예비 셀러)도 약관·매뉴얼을
+ * 자유롭게 열람할 수 있어야 회원가입 단계에서 동의 의미가 성립.
+ */
+function PublicLegalShell(): JSX.Element {
+  return (
+    <div className="flex min-h-screen flex-col bg-surface-subtle">
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
+    </div>
+  )
+}
+
 // ── 라우트 트리 ────────────────────────────────────────────────────────────────
 const routes: RouteObject[] = [
   {
@@ -93,6 +114,17 @@ const routes: RouteObject[] = [
       { path: 'signup', element: withSuspense(<SignupPage />) },
       { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
       { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
+    ],
+  },
+  {
+    // 비인증 접근 가능한 정적 페이지 (D-C: 약관 / 개인정보처리방침 / 매뉴얼)
+    path: '/',
+    element: <PublicLegalShell />,
+    errorElement: <RouteErrorBoundary />,
+    children: [
+      { path: 'legal/terms', element: withSuspense(<TermsPage />) },
+      { path: 'legal/privacy', element: withSuspense(<PrivacyPage />) },
+      { path: 'manual', element: withSuspense(<ManualPage />) },
     ],
   },
   {

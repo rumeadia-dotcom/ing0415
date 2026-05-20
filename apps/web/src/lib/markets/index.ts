@@ -51,8 +51,17 @@ export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter>
       const { coupangRealAdapter } = await import('./real/coupang')
       return coupangRealAdapter
     }
+    case 'naver': {
+      // C-1 Phase 1: 스켈레톤 + token exchange + refresh.
+      // - authenticate(oauth_code) 는 의도적으로 차단 — 실 OAuth code exchange 는
+      //   Edge Function `markets-oauth-callback/naver.ts` 가 권위.
+      // - refreshToken / fetchCategoryTree / transformProduct / createProduct 는
+      //   클라이언트에서 직접 호출 가능 (단위 테스트, silent refresh 시나리오).
+      const { naverRealAdapter } = await import('./real/naver')
+      return naverRealAdapter
+    }
     default:
-      // 나머지 마켓 (naver / gmarket / auction) — Wave 5 / OQ-11 확정 후 구현.
+      // 나머지 마켓 (gmarket / auction) — Wave 5 / OQ-11 확정 후 구현.
       throw new Error(
         `real 모드 마켓 어댑터(${market})는 Wave 5 에서 구현 예정입니다 (OQ-11 확정 후)`,
       )
