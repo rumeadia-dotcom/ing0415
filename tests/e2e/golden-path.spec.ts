@@ -22,13 +22,21 @@ import AxeBuilder from '@axe-core/playwright'
  *
  *   (G4 쿠팡 OAuth 연결 단계는 v2 백로그로 이관 — 본 sweep 에서 삭제)
  *
- * Stage G 현재:
- *   - 각 페이지가 Stage C placeholder 상태 (실제 폼/액션 미구현).
- *   - 따라서 G1~G10 은 모두 `test.fixme` 상태로 시나리오 골격만 보존.
- *   - 단, G0 (라우트 진입 + 사이드바 네비게이션 가능) 1단계는 active. 라우터 자체가 깨지면 즉시 검출.
+ * Stage G 현재 (2026-05-20 B-3 진행 후):
+ *   - G2 (/markets empty) 와 G3 (네이버 OAuth 연결) 의 화면 본구현은 완료
+ *     (B-3 s5 마켓계정 본구현 — apps/web/src/features/markets/pages/*).
+ *   - 그러나 G1~G10 활성화는 다음 사전 조건이 모두 충족돼야 함:
+ *       (a) 시드 셀러 계정(`qa@marketcast.test`, `Qa!12345`) 이 두 Supabase 프로젝트
+ *           (debug / real) 에 모두 등록되어 있어야 한다 — 현재 미생성.
+ *       (b) Supabase Auth URL Configuration (Site URL + Redirect URLs) 등록 완료 —
+ *           debug `eqoywqoalwkwbrdsulfl` / real `lfrnythcujxdhehvkmtg` 양쪽 콘솔.
+ *       (c) MSW oauth handler (tests/fixtures/msw/oauth.ts) 또는 동등한 mock authorize URL
+ *           대응이 e2e 진입로에 셋업되어 있어야 한다.
+ *   - 위 (a)(b)(c) 가 풀리는 시점에 G1 부터 묶어서 한꺼번에 fixme 해제 권장.
+ *   - 현재는 G0 (라우트 셸 진입) 1단계만 active. 라우터/lazy import 가 깨지면 즉시 검출.
  *
- * 활성화 절차 (Stage D 이후):
- *   - 각 step 의 `fixme(true)` 를 제거하고 어설션 채움.
+ * 활성화 절차:
+ *   - 각 step 의 `test.fixme(...)` 를 `test(...)` 로 바꾸고 어설션 채움.
  *   - 셀러터는 testing.md §2 RTL 셀러터 우선순위 따른다 — `getByRole`, `getByLabel` 우선.
  *   - `data-testid` 사용 시 PR 사유 명시 (R-008).
  */

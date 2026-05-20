@@ -95,21 +95,25 @@ export type OAuthCallbackResponse = z.infer<typeof OAuthCallbackResponseSchema>
 export const DisconnectRequestSchema = z.object({
   accountId: z.string().uuid(),
 })
+export type DisconnectRequest = z.infer<typeof DisconnectRequestSchema>
 export const DisconnectResponseSchema = z.object({
   accountId: z.string().uuid(),
   status: z.literal('revoked'),
   correlationId: z.string().uuid(),
 })
+export type DisconnectResponse = z.infer<typeof DisconnectResponseSchema>
 
 export const VerifyRequestSchema = z.object({
   accountId: z.string().uuid(),
 })
+export type VerifyRequest = z.infer<typeof VerifyRequestSchema>
 export const VerifyResponseSchema = z.object({
   accountId: z.string().uuid(),
   status: MarketAccountStatusSchema,
   lastVerifiedAt: z.string().datetime({ offset: true }),
   correlationId: z.string().uuid(),
 })
+export type VerifyResponse = z.infer<typeof VerifyResponseSchema>
 
 // ─────────────────────────────────────────────
 // ConnectionMethod — 마켓별 신규 연결 방식 (UI 분기 키)
