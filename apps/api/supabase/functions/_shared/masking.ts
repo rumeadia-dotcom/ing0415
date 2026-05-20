@@ -33,6 +33,15 @@ const REDACT_KEYS: ReadonlySet<string> = new Set([
   'secret',
   'client_secret',
   'clientsecret',
+  // 마켓별 자격증명 (D-D 회귀 — 쿠팡 HMAC / ESM JWT camelCase 필드)
+  'accesskey',
+  'access_key',
+  'secretkey',
+  'secret_key',
+  'vendorid',
+  'vendor_id',
+  'masterid',
+  'master_id',
   // pgcrypto 마스터 키
   'master_key',
   'masterkey',

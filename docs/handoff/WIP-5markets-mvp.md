@@ -238,8 +238,8 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 - [ ] 골든패스 E2E 100% (Playwright Chromium)
 - [ ] axe 0 violation (14 라우트 + 신규 화면)
 - [ ] 보안 감사 — 토큰 마스킹 + RLS 격리 cross-tenant (pgTAP)
-- [ ] Sentry 마스킹 운영환경 검증
-- [ ] KPI view 정확도
+- [~] Sentry 마스킹 운영환경 검증 — D-D 단위 회귀 (FE redact 18 + Edge masking 23 + Sentry init 9 = 50) 완료, 실 Sentry Issues 수동 QA 남음
+- [~] KPI view 정확도 — D-D pgTAP 16 케이스 (월간/MAU/avg/NPS × 4) 완료, `supabase test db --linked` 실 실행은 PR 머지 후
 - [ ] 부하 테스트 (동시 잡 10 / 마켓 4 fan-out)
 - [ ] release/v0.1 컷 → 수동 QA → main 머지
 

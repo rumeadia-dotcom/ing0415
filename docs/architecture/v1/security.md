@@ -229,9 +229,11 @@ ALTER TABLE public.market_credentials ENABLE ROW LEVEL SECURITY;
 ```
 access_token, refresh_token, id_token, accessToken, refreshToken, idToken,
 apiKey, api_key, secret, client_secret, password, passwordConfirm,
+accessKey, secretKey, vendorId, masterId,            -- 마켓 자격증명 (쿠팡 HMAC / ESM JWT, D-D 추가)
 email, phone, phoneNumber, name, fullName, realName,
 businessNumber, businessRegistrationNumber, bankAccount, accountNumber,
-authorization, Authorization, cookie, Cookie, set-cookie
+authorization, Authorization, cookie, Cookie, set-cookie,
+code, state, pkce_verifier                            -- OAuth 콜백 (D-D 추가)
 ```
 
 대소문자·camelCase·snake_case 변형 모두 동일하게 마스킹한다.
@@ -246,12 +248,17 @@ const REDACT_KEYS = new Set([
   'access_token', 'refresh_token', 'id_token',
   'accesstoken', 'refreshtoken', 'idtoken',
   'apikey', 'api_key', 'secret', 'client_secret',
+  // 마켓 자격증명 (D-D 회귀 — 쿠팡 HMAC / ESM JWT camelCase 필드)
+  'accesskey', 'access_key', 'secretkey', 'secret_key',
+  'vendorid', 'vendor_id', 'masterid', 'master_id',
   'password', 'passwordconfirm',
   'email', 'phone', 'phonenumber',
   'name', 'fullname', 'realname',
   'businessnumber', 'businessregistrationnumber',
   'bankaccount', 'accountnumber',
   'authorization', 'cookie', 'set-cookie',
+  // OAuth 콜백 (D-D 추가 — code 는 10분짜리지만 복원 시 토큰 발급 가능)
+  'code', 'state', 'pkce_verifier', 'pkceverifier',
 ]);
 
 const looksLikeJwt = (v: string) => /^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(v);
