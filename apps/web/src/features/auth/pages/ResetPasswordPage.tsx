@@ -23,6 +23,7 @@ import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
+import { trackAuthEvent } from '../api/auth-event-log'
 import { evaluatePasswordStrength } from '../lib/password-strength'
 
 /**
@@ -75,7 +76,9 @@ export function ResetPasswordPage(): JSX.Element {
       reset({ password: '', passwordConfirm: '' })
       return
     }
+    void trackAuthEvent({ event: 'auth.password_reset_completed' })
     // auth.md §3.4: 재설정 후 모든 기존 세션 무효화
+    void trackAuthEvent({ event: 'auth.session_revoked_global' })
     await signOut()
     toast.success(ko.auth.reset.successToast)
     navigate('/login', { replace: true })

@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui'
-import { useAuth } from '@/features/auth'
+import { useAuth, trackAuthEvent } from '@/features/auth'
 import { ko } from '@/locales/ko'
 import { logger } from '@/lib/logger'
 
@@ -34,6 +34,7 @@ export function SettingsPage(): JSX.Element {
   async function handleSignOut(): Promise<void> {
     setSubmitting(true)
     try {
+      void trackAuthEvent({ event: 'auth.logout' })
       await signOut()
       toast.success(ko.settings.account.signOutSuccess)
       navigate('/login', { replace: true })

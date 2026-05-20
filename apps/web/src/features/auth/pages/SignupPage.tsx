@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
 import { evaluatePasswordStrength } from '../lib/password-strength'
+import { trackAuthEvent } from '../api/auth-event-log'
 
 /**
  * SignupPage — auth.md §6.3 / user_flow s1 (n5)
@@ -77,6 +78,9 @@ export function SignupPage(): JSX.Element {
           { code: 'signup_attempted_existing_email' },
           'signup attempted with existing email',
         )
+        void trackAuthEvent({
+          event: 'auth.signup_attempted_existing_email',
+        })
         return
       }
       setSubmitError(mapped)

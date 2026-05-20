@@ -22,6 +22,7 @@ import { ko } from '@/locales/ko'
 import { logger } from '@/lib/logger'
 import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
+import { trackAuthEvent } from '../api/auth-event-log'
 
 /**
  * LoginPage — auth.md §6.2 / user_flow s1 (n2~n4)
@@ -60,10 +61,18 @@ export function LoginPage(): JSX.Element {
       } else {
         logger.warn({ code: mapped.code }, 'login rejected')
       }
+      void trackAuthEvent({
+        event: 'auth.login_failure',
+        meta: { provider: 'email', code: mapped.code },
+      })
       // auth.md §4.1: submit 직후 password 폼 state 비움
       reset({ email: values.email, password: '' })
       return
     }
+    void trackAuthEvent({
+      event: 'auth.login_success',
+      meta: { provider: 'email' },
+    })
     const from =
       typeof location.state === 'object' &&
       location.state !== null &&

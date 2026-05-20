@@ -21,6 +21,7 @@ import { ko } from '@/locales/ko'
 import { logger } from '@/lib/logger'
 import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
+import { trackAuthEvent } from '../api/auth-event-log'
 
 /**
  * ForgotPasswordPage — auth.md §3.4 / §6.4 / user_flow s1 (n6)
@@ -64,6 +65,7 @@ export function ForgotPasswordPage(): JSX.Element {
         return
       }
     }
+    void trackAuthEvent({ event: 'auth.password_reset_requested' })
     setDone(true)
   }
 
