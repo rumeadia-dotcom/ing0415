@@ -1,10 +1,18 @@
 /**
- * 네이버 스마트스토어 어댑터 (real stub).
+ * 네이버 스마트스토어 Edge Function 어댑터 (real stub).
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9.1 (OAuth / 호출)
+ *   - WIP-5markets-mvp.md C-1 Phase 5 (wiring)
  *
- * 상태: SIGNATURE ONLY — 본문 미구현 (real 빌드 진입 시 throw).
+ * 상태 (C-1 Phase 1~5 완료):
+ *   - authenticate / refreshToken / fetchCategoryTree / transformProduct /
+ *     createProduct 본 stub 는 여전히 SIGNATURE ONLY (`unknown` throw).
+ *   - 실 OAuth token exchange 는 본 어댑터가 아닌
+ *     `markets-oauth-callback/naver.ts` (`exchangeNaverAuthCode`) 가 권위.
+ *   - 실 OAuth refresh 는 `markets-token-refresh-cron` + `markets-token-refresh`
+ *     (on_demand) 가 권위 — 본 어댑터 stub 의 refreshToken 호출은 도달하지 않음.
+ *   - 카테고리·상품 등록 호출은 Wave 5 추후 PR 에서 FE real 어댑터 미러로 채움.
  *
  * v1 변경 (2026-05-19, Wave 1/2):
  *   - authenticate(input: AuthInput) — input.kind='oauth_code' 만 수용.
@@ -12,8 +20,7 @@
  *   - refreshToken 은 OAuth 전용으로 제공 (네이버 한정).
  *
  * 미해결 (OQ-11 — Wave 5 시작 시 확정):
- *   - 실제 OAuth authorize / token endpoint URL
- *   - scope 키 이름
+ *   - scope 키 이름 (잠정 `commerce.products`)
  *   - refresh TTL (잠정 14일)
  *   - 429 Retry-After 헤더 표준 준수 여부
  *   - HTTP timeout (잠정 15s)
