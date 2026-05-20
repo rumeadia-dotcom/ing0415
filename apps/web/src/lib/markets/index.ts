@@ -60,10 +60,19 @@ export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter>
       const { naverRealAdapter } = await import('./real/naver')
       return naverRealAdapter
     }
+    case 'gmarket': {
+      const { gmarketRealAdapter } = await import('./real/gmarket')
+      return gmarketRealAdapter
+    }
+    case 'auction': {
+      const { auctionRealAdapter } = await import('./real/auction')
+      return auctionRealAdapter
+    }
     default:
-      // 나머지 마켓 (gmarket / auction) — Wave 5 / OQ-11 확정 후 구현.
+      // 4개 마켓 (naver / coupang / gmarket / auction) 모두 구현 완료 —
+      // exhaustive check 용 가드 (도달 불가).
       throw new Error(
-        `real 모드 마켓 어댑터(${market})는 Wave 5 에서 구현 예정입니다 (OQ-11 확정 후)`,
+        `real 모드 마켓 어댑터(${market}) 미구현`,
       )
   }
 }
