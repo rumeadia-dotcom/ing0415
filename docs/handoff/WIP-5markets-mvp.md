@@ -237,7 +237,8 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 ## D. Phase 4 — 운영 게이트 (2주)
 - [ ] 골든패스 E2E 100% (Playwright Chromium)
 - [ ] axe 0 violation (14 라우트 + 신규 화면)
-- [ ] 보안 감사 — 토큰 마스킹 + RLS 격리 cross-tenant (pgTAP)
+- [~] 보안 감사 — 토큰 마스킹 + RLS 격리 cross-tenant (pgTAP)
+  - D-B: `apps/api/supabase/tests/rls-cross-tenant.sql` — 17 엔티티 × 6 시나리오 = 102 케이스 (PR feature/d-b-pgtap-rls-cross-tenant). CI 통합·토큰 마스킹 별도 진행.
 - [ ] Sentry 마스킹 운영환경 검증
 - [ ] KPI view 정확도
 - [ ] 부하 테스트 (동시 잡 10 / 마켓 4 fan-out)
