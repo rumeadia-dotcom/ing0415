@@ -229,17 +229,20 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 - Plan: `~/.claude/plans/2026-05-20-c3-esm-jwt-real.md` (4 phase, +36 단위)
 
 ### C-4. 통합 검증 (1주)
-- [ ] 4마켓 동시 등록 시나리오
-- [ ] partial 실패 / 재시도 / 마켓 제외 후 재등록
-- [ ] 토큰 만료·갱신 (네이버)
-- [ ] 이미지 변환 256MB 메모리 한도 (wasm-vips)
+- [x] 4마켓 동시 등록 시나리오 — in-memory 12종 (`tests/integration/multi-market-fanout.test.ts`, 38 단위)
+- [x] partial 실패 / 재시도 / 마켓 제외 후 재등록 — S2/S5/S8/S9/S12 커버
+- [ ] 토큰 만료·갱신 (네이버) — refresh 흐름 자체는 markets 단위 spec (별도), 본 PR 미포함
+- [ ] 이미지 변환 256MB 메모리 한도 (wasm-vips) — 별도 PR
+- [ ] 실 마켓 API E2E (C-1/C-3 완료 후 별도 PR)
+- [ ] 부하 테스트 (동시 잡 10 / 마켓 4) — 별도 PR
 
 ## D. Phase 4 — 운영 게이트 (2주)
 - [ ] 골든패스 E2E 100% (Playwright Chromium)
 - [ ] axe 0 violation (14 라우트 + 신규 화면)
-- [ ] 보안 감사 — 토큰 마스킹 + RLS 격리 cross-tenant (pgTAP)
-- [~] Sentry 마스킹 운영환경 검증 — D-D 단위 회귀 (FE redact 18 + Edge masking 23 + Sentry init 9 = 50) 완료, 실 Sentry Issues 수동 QA 남음
-- [~] KPI view 정확도 — D-D pgTAP 16 케이스 (월간/MAU/avg/NPS × 4) 완료, `supabase test db --linked` 실 실행은 PR 머지 후
+- [~] 보안 감사 — 토큰 마스킹 + RLS 격리 cross-tenant (pgTAP)
+  - D-B: `apps/api/supabase/tests/rls-cross-tenant.sql` — 17 엔티티 × 6 시나리오 = 102 케이스 (PR feature/d-b-pgtap-rls-cross-tenant). CI 통합·토큰 마스킹 별도 진행.
+- [ ] Sentry 마스킹 운영환경 검증
+- [ ] KPI view 정확도
 - [ ] 부하 테스트 (동시 잡 10 / 마켓 4 fan-out)
 - [ ] release/v0.1 컷 → 수동 QA → main 머지
 
