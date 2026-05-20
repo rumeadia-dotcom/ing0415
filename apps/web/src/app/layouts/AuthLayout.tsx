@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import { Wordmark } from '@/components/brand'
+import { Footer } from '@/components/layout/Footer'
 
 /**
  * AuthLayout — 사이드바 없는 인증 화면용 셸.
@@ -7,7 +8,8 @@ import { Wordmark } from '@/components/brand'
  *
  * - 좌우 가운데 정렬 + 상단 브랜드(마크 + 워드마크) + 카드 컨테이너
  * - 반응형: 모바일 16px 좌우 패딩, 데스크탑은 max-width 420 중앙
- * - 테마 토글은 추후 우상단 fixed 로 추가 (Stage D)
+ * - 하단 Footer 상시 노출 (D-C: 약관/개인정보처리방침/매뉴얼) — 회원가입 단계에서도
+ *   약관 본문에 접근할 수 있어야 동의의 의미가 성립한다.
  */
 export function AuthLayout(): JSX.Element {
   return (
@@ -20,6 +22,7 @@ export function AuthLayout(): JSX.Element {
           <Outlet />
         </div>
       </main>
+      <Footer />
     </div>
   )
 }

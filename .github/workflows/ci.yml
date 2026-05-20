@@ -305,3 +305,74 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 6. E2E a11y 회귀 (axe-core, 14 라우트 + 모달 케이스)
+  #    골든패스와 분리된 잡 — 위반 발생 시 회귀 원인을 즉시 표면화하고,
+  #    golden path 잡과 병렬 실행으로 PR turnaround 를 늘리지 않는다.
+  #    (D-A / WIP-5markets-mvp.md Phase 4 운영 게이트.)
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e-a11y:
+    name: E2E a11y (axe, Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    env:
+      VITE_APP_MODE: debug
+      VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+      VITE_SENTRY_DSN: ''
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download debug dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-debug-${{ github.run_id }}
+          path: dist/
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit case)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run a11y axe regression
+        run: pnpm test:e2e --project=chromium tests/e2e/a11y/
+        env:
+          E2E_BASE_URL: http://localhost:5174
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-a11y-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
