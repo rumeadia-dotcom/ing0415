@@ -60,3 +60,16 @@ export const RecentJobSchema = z.object({
 export type RecentJob = z.infer<typeof RecentJobSchema>
 
 export const RecentJobsResponseSchema = z.array(RecentJobSchema).max(50)
+
+// ─────────────────────────────────────────────
+// MarketHealth — market_accounts 의 status 그룹 집계
+// 클라이언트가 from('market_accounts').select('status') 후 groupBy 한 결과의 zod 형태.
+// ─────────────────────────────────────────────
+export const MarketHealthSchema = z.object({
+  active: z.number().int().nonnegative(),
+  expired: z.number().int().nonnegative(),
+  revoked: z.number().int().nonnegative(),
+  error: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+})
+export type MarketHealth = z.infer<typeof MarketHealthSchema>

@@ -25,11 +25,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-accent text-white hover:bg-accent-hover',
+        primary: 'bg-accent !text-white hover:bg-accent-hover',
         secondary: 'bg-surface-muted text-text hover:bg-border',
         ghost: 'text-text hover:bg-surface-muted',
         outline: 'border border-border-strong bg-surface text-text hover:bg-surface-muted',
-        danger: 'bg-danger text-white hover:bg-danger/90',
+        danger: 'bg-danger !text-white hover:bg-danger/90',
         link: 'text-accent underline-offset-4 hover:underline px-0 h-auto',
       },
       size: {

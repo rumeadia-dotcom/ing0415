@@ -26,7 +26,7 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
     return (
       <div
         ref={ref}
-        className={cn('flex flex-col space-y-1.5 p-4 md:p-5', className)}
+        className={cn('flex flex-col space-y-1.5 p-4 pb-3 md:p-5 md:pb-3', className)}
         {...props}
       />
     )
@@ -53,9 +53,15 @@ export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<H
   },
 )
 
+/**
+ * 정책 (2026-05-20 수정):
+ * - CardContent / CardFooter 는 항상 모든 면 padding 적용.
+ * - CardHeader 와 페어로 쓸 때는 header 의 pb-3 가 사이 간격을 조절 — 이중 패딩 보이지 않음.
+ * - 표준 shadcn 의 `pt-0` 룰은 standalone 사용 시 카드 상단이 깨지는 문제로 제거.
+ */
 export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   function CardContent({ className, ...props }, ref) {
-    return <div ref={ref} className={cn('p-4 pt-0 md:p-5 md:pt-0', className)} {...props} />
+    return <div ref={ref} className={cn('p-4 md:p-5', className)} {...props} />
   },
 )
 
@@ -64,7 +70,7 @@ export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
     return (
       <div
         ref={ref}
-        className={cn('flex items-center p-4 pt-0 md:p-5 md:pt-0', className)}
+        className={cn('flex items-center p-4 md:p-5', className)}
         {...props}
       />
     )
