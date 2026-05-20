@@ -236,7 +236,11 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 
 ## D. Phase 4 — 운영 게이트 (2주)
 - [ ] 골든패스 E2E 100% (Playwright Chromium)
-- [ ] axe 0 violation (14 라우트 + 신규 화면)
+- [~] axe 0 violation (14 라우트 + 신규 화면)
+  - **D-A 회귀 인프라 완료** — `tests/e2e/a11y/all-routes-axe.spec.ts` 18 케이스 (14 라우트 + 4분기 provider + Dialog 1) + `_fixtures/login-as-seller.ts` + CI `e2e-a11y` 잡.
+  - 비인증 4 라우트 (`/login` `/signup` `/forgot-password` `/reset-password`) 즉시 활성 → 0 violation 통과.
+  - 인증 라우트 14 케이스는 시드 셀러 (`qa@marketcast.test`) + `loginAsSeller` 본구현 대기 → `test.fixme` 보류. 시드 풀리는 시점에 fixme 해제 1줄 수정으로 일괄 활성.
+  - 검출되는 위반은 본 회귀 spec 이 아닌 별도 fix PR 로 처리 (본 PR 은 인프라만).
 - [ ] 보안 감사 — 토큰 마스킹 + RLS 격리 cross-tenant (pgTAP)
 - [ ] Sentry 마스킹 운영환경 검증
 - [ ] KPI view 정확도
