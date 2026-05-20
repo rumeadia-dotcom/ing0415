@@ -19,6 +19,8 @@ build/
 # Supabase local
 apps/api/supabase/.branches/
 apps/api/supabase/.temp/
+# CLI 가 잘못된 CWD 에서 실행될 때 만드는 repo-root stray (canonical: apps/api/supabase)
+/supabase/
 
 # Test / coverage
 coverage/

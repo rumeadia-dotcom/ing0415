@@ -54,6 +54,8 @@ const OAuthCallbackPage = lazy(() => import('@/features/markets/pages/OAuthCallb
 // history
 const HistoryListPage = lazy(() => import('@/features/history/pages/HistoryListPage'))
 const HistoryDetailPage = lazy(() => import('@/features/history/pages/HistoryDetailPage'))
+// settings
+const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'))
 
 // ── Suspense 폴백 ──────────────────────────────────────────────────────────────
 function PageFallback(): JSX.Element {
@@ -137,6 +139,7 @@ const routes: RouteObject[] = [
               { path: ':jobId', element: withSuspense(<HistoryDetailPage />) },
             ],
           },
+          { path: 'settings', element: withSuspense(<SettingsPage />) },
         ],
       },
     ],

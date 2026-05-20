@@ -27,7 +27,7 @@ const MAIN_NAV: readonly NavItem[] = [
 ] as const
 
 const AUX_NAV: readonly NavItem[] = [
-  { to: '#', label: ko.nav.settings, Icon: Settings, disabled: true },
+  { to: '/settings', label: ko.nav.settings, Icon: Settings },
   { to: '#', label: ko.nav.help, Icon: LifeBuoy, disabled: true },
 ] as const
 

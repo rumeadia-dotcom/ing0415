@@ -25,6 +25,7 @@ const ROUTES = [
   '/register/categories',
   '/register/preview',
   '/history',
+  '/settings',
 ] as const
 
 for (const route of ROUTES) {

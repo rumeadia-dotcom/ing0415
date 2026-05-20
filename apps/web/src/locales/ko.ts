@@ -104,6 +104,23 @@ export const ko = {
       hasAccount: '이미 계정이 있으신가요?',
     },
   },
+  settings: {
+    title: '설정',
+    subtitle: '계정 정보와 환경 설정을 관리합니다',
+    account: {
+      title: '계정',
+      description: '현재 로그인된 계정 정보',
+      email: '이메일',
+      signOut: '로그아웃',
+      signOutSubmitting: '로그아웃 중…',
+      signOutDescription: '현재 기기에서 로그아웃합니다. 다른 기기의 세션은 유지됩니다.',
+      signOutConfirmTitle: '로그아웃하시겠어요?',
+      signOutConfirmBody: '로그아웃하면 로그인 화면으로 이동합니다.',
+      signOutCancel: '취소',
+      signOutSuccess: '로그아웃되었습니다.',
+      signOutError: '로그아웃 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.',
+    },
+  },
 } as const
 
 export type Locale = typeof ko
