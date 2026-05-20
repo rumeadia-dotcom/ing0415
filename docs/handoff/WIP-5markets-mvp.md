@@ -62,7 +62,7 @@ CI 6/6 ✓ + Pages      105 단위테스트   33 단위 (합산 125)    Phase 0~
   - Dashboard summary cards empty 상태 — "—" 대신 "0건"
   - lib/format-time.ts 공용 신설 (formatRelativeTime + formatDurationSec)
 
-## 현재 develop 브랜치 (HEAD = `eb9ca18`, 2026-05-20 13:xx, origin 보다 4개 commit 앞섬)
+## 현재 develop 브랜치 (HEAD = `d4d04c5`, 2026-05-20 16:xx, origin 보다 2개 commit 앞섬)
 
 최근 commit (오래된 → 최신):
 
@@ -70,20 +70,24 @@ CI 6/6 ✓ + Pages      105 단위테스트   33 단위 (합산 125)    Phase 0~
 878093d feat: 설정 페이지 + 로그아웃 기능 추가
 1b95d03 feat: B-5 Phase 0~2 — 대시보드 + 등록이력 목록 본구현
 d393589 feat: B-5 Phase 3 — 등록이력 상세 본구현 (재시도/제외 액션)
-eb9ca18 feat: 브랜드 리스킨 v1.1 — BrandMark / Wordmark + navy·cream·teal 토큰  ⬅ HEAD
+eb9ca18 feat: 브랜드 리스킨 v1.1 — BrandMark / Wordmark + navy·cream·teal 토큰
+e841059 docs(handoff): WIP 갱신 — B-5 전체 완료 + Phase 3 real 어댑터 진입 가이드
+f9eea5b docs(handoff): B-1 후속 콘솔 작업 완료 마킹 (Supabase Auth URL + Sentry)
+d4d04c5 test: s1 통합 테스트 + 세션 라이프사이클 + auth-event-log wiring  ⬅ HEAD
 ```
 
-검증 상태 (2026-05-20 13:46, HEAD = `eb9ca18`):
+검증 상태 (2026-05-20 16:04, HEAD = `d4d04c5`):
 - `pnpm typecheck` ✅
 - `pnpm lint` ✅ 0 error
-- `pnpm test` ✅ **206 passed / 0 failed / 26 todo**
+- `pnpm test` ✅ **226 passed / 0 failed / 26 todo** (s1 통합 +10 + 세션 +5 + auth-event-log +5)
 - `pnpm build:debug` ✅ (산출 OK + 404.html fallback 생성)
-- CI on `eb9ca18`: 푸시 안된 상태. 다음 push 시 CI 6/6 검증.
+- 미푸시 commit 2개 (`f9eea5b`, `d4d04c5`). 다음 push 시 CI 5/5 검증.
 
 **다음 작업**:
-1. **(권장)** `git push origin develop` — 4개 commit push + CI 6/6 통과 확인.
-2. Phase 3 real 어댑터 진입 — **C-1 네이버 OAuth (5일)**. Plan: 신규 필요 (현재 plan 은 B-5 전용).
-3. 또는 B-5 외 잔여 처리 — s1 LoginPage / SignupPage 통합 테스트, auth-event-log Edge Function, 소셜 로그인 provider (모두 v2 백로그 후보).
+1. **(권장)** `git push origin develop` — 2개 commit push + CI 통과 확인.
+2. **Phase 3 real 어댑터 진입 — C-2 쿠팡 HMAC 우선** (네이버 type=SERVICE 자격 미확정으로 C-1 보류). 베타 셀러로부터 `accessKey`/`secretKey`/`vendorId` 전달 + Wing OpenAPI 호출 IP 정책 확인 후 진입. Plan: `~/.claude/plans/2026-05-20-c2-coupang-hmac-real.md`.
+3. **C-3 G·옥션 ESM JWT** — 베타 셀러 ESM+ 키 발급 심사 (~1주) 진행하면서 병행 가능. Plan: `~/.claude/plans/2026-05-20-c3-esm-jwt-real.md`.
+4. **C-1 네이버 OAuth** — `apicenter.commerce.naver.com` 에서 외부 SaaS 용 type 확인 후 plan 재개. Plan 초안: `~/.claude/plans/2026-05-20-c1-naver-oauth-real.md` (type 자격 확인 차단).
 
 ---
 
@@ -138,10 +142,10 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 - ✅ supabase.ts: `flowType:'pkce'` + `storageKey:'mc.auth'`
 - ✅ auth-error-map: Supabase Auth 에러 → 한국어 + Sentry 송출 정책 (auth.md §7.2/§7.3)
 - ✅ 단위 테스트 13건 (auth-error-map 7 + password-strength 6)
-- [ ] 소셜 로그인 (Google / Naver provider 설정) — B-1 Supabase 콘솔 설정 의존
-- [ ] auth-event-log Edge Function 연동 (audit_log) — v2 백로그 가능
-- [ ] LoginPage / SignupPage 통합 테스트 (RTL — submit, validation, navigate)
-- [ ] 세션 만료 자동 로그아웃 동작 검증 (refresh token rotation 시나리오)
+- ✅ LoginPage / SignupPage 통합 테스트 (RTL) — 2026-05-20 완료 (commit `d4d04c5`, +10건)
+- ✅ AuthContext 세션 라이프사이클 (hydrate / TOKEN_REFRESHED / SIGNED_OUT 만료 / SIGNED_IN) — 2026-05-20 완료 (+5건)
+- ✅ auth-event-log Edge Function 연동 (audit_log) — 2026-05-20 완료. `features/auth/api/auth-event-log.ts` Fire-and-forget wrapper + 5개 진입 지점(Login/Signup/Forgot/Reset/Settings) 7개 이벤트 적재 + 단위 5건
+- [ ] 소셜 로그인 (Google / Naver provider 설정) — Supabase Auth 콘솔 provider 활성화 의존, v2 백로그 가능
 
 ### B-3. s5 마켓계정 본 구현 (2026-05-20 본구현 완료, 시드 의존 보류 1건)
 - ✅ **MarketsListPage placeholder → 본구현** (`apps/web/src/features/markets/pages/MarketsListPage.tsx`)
@@ -183,11 +187,13 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 
 ## C. Phase 3 — real 어댑터 (3~4주)
 
-### C-1. 네이버 OAuth (5일)
-- [ ] Naver Commerce API 셀러 계약 + 앱 등록 (type=SELF)
+### C-1. 네이버 OAuth (5일) — ⚠ type=SERVICE 자격 확인 후 진입
+- [ ] **사전 차단 항목**: `apicenter.commerce.naver.com` 에서 외부 SaaS 용 type 옵션 확인. 우리 서비스 모델 = 우리(MarketCast) 명의 type=SERVICE 앱으로 여러 셀러가 OAuth 동의. 검색 결과로는 type=SERVICE 의 명시적 등록 조건 미확인. 사업자등록/통신판매업/심사 필요 여부 사용자 직접 확인 필요. **현 단계 C-1 진입 보류**.
+- [ ] Naver Commerce API 앱 등록 (type 확인 후)
 - [ ] CLIENT_ID / CLIENT_SECRET 발급
 - [ ] real 어댑터 5메서드 본문
 - [ ] OAuth 흐름 E2E
+- Plan 초안: `~/.claude/plans/2026-05-20-c1-naver-oauth-real.md`
 
 **📝 테스트 환경 메모 (2026-05-20, 옵션 C 채택)**
 
@@ -208,15 +214,19 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 
 → Phase 3 C-1 진입 직전에 **베타 셀러 모집 채널** (커뮤니티 / 지인 / 셀러 카페) 확보가 선행 작업. 모집 못 하면 C-1 5일짜리 일정이 늘어남.
 
-### C-2. 쿠팡 HMAC (5일)
-- [ ] Coupang Wing API 가입 + accessKey/secretKey/vendorId 발급
-- [ ] HMAC-SHA256 시그니처 생성
-- [ ] 카테고리/상품 등록 API
+### C-2. 쿠팡 HMAC (4~5일) — ⭐ 우선 진입 후보 (네이버보다 진입 장벽 낮음)
+- [ ] 베타 셀러가 Wing OpenAPI 에서 self-development 통합방식으로 `accessKey`/`secretKey`/`vendorId` 발급 (회사명 `MarketCast` / URL `https://rumeadia-dotcom.github.io/ing0415/`)
+- [ ] Wing OpenAPI 호출 IP 화이트리스트 정책 사전 확인 (11번가 같은 차단 이슈 회피)
+- [ ] HMAC-SHA256 시그니처 (datetime + method + path + secret) 모듈
+- [ ] 카테고리/상품 등록 API real 어댑터 본문
+- Plan: `~/.claude/plans/2026-05-20-c2-coupang-hmac-real.md` (4 phase, +34 단위)
 
-### C-3. G마켓·옥션 ESM JWT (5일)
-- [ ] ESM+ 마스터 ID + secretKey 발급
-- [ ] JWT (HS256) sub='sell' / aud='sa.esmplus.com' / site='G'|'A'
-- [ ] 통합 어댑터 (site 분기)
+### C-3. G마켓·옥션 ESM JWT (5일) — 2마켓 통합 어댑터
+- [ ] 베타 셀러가 ESM+ 콘솔에서 Master ID + Access Key + Secret Key 발급 신청 → 관리자 심사 (~1주 가정)
+- [ ] 호출 IP 화이트리스트 + selling tool company 등록 필요 여부 사전 확인
+- [ ] JWT (HS256) `kid=MasterID`, `sub='sell'`, `aud='sa.esmplus.com'`, `site='G'|'A'`
+- [ ] 통합 어댑터 1파일 (`EsmRealAdapter`, site 분기)
+- Plan: `~/.claude/plans/2026-05-20-c3-esm-jwt-real.md` (4 phase, +36 단위)
 
 ### C-4. 통합 검증 (1주)
 - [ ] 4마켓 동시 등록 시나리오
@@ -287,12 +297,13 @@ Plan: 신규 필요 (현재 plan 은 B-5 전용으로 종료).
 
 위 C 섹션 참조.
 
-## B-5 외 잔여 (v2 백로그)
-- [ ] s1 LoginPage / SignupPage 통합 테스트 (RTL).
-- [ ] auth-event-log Edge Function 호출 통합.
-- [ ] 소셜 로그인 provider 활성화 (Google / Naver).
-- [ ] 마켓 단건 재시도 (현재는 전체 재시도 일괄).
-- [ ] 11번가 통합 (Pro 고정 IP / 외부 프록시 / 11번가 해제 신청 중 결정).
+## B-5 외 잔여
+- ✅ s1 LoginPage / SignupPage 통합 테스트 (RTL) — 2026-05-20 완료 (`d4d04c5`).
+- ✅ AuthContext 세션 라이프사이클 회귀 (refresh token rotation 시나리오) — 2026-05-20 완료.
+- ✅ auth-event-log Edge Function 호출 통합 — 2026-05-20 완료.
+- [ ] 소셜 로그인 provider 활성화 (Google / Naver) — v2 백로그. Supabase Auth 콘솔 + provider 발급 필요.
+- [ ] 마켓 단건 재시도 (현재는 전체 재시도 일괄) — v2 백로그.
+- [ ] 11번가 통합 (Pro 고정 IP / 외부 프록시 / 11번가 해제 신청 중 결정) — v2 백로그.
 
 ## 한 줄 진입 명령
 
@@ -300,7 +311,7 @@ Plan: 신규 필요 (현재 plan 은 B-5 전용으로 종료).
 git pull origin develop && pnpm install && pnpm test && pnpm dev
 ```
 
-→ http://localhost:5173/dashboard /history /history/:jobId 본구현 동작 확인. 다음 코드 작업은 `apps/web/src/lib/markets/real/naver/` 신설부터 (C-1 진입).
+→ http://localhost:5173/dashboard /history /history/:jobId 본구현 동작 확인. 다음 코드 작업은 `apps/web/src/lib/markets/real/coupang/hmac.ts` 신설부터 (**C-2 우선**, C-1 네이버는 type=SERVICE 자격 확인 후).
 
 ## B-5 commit 전략 (2026-05-20 회고)
 
