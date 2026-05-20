@@ -15,6 +15,7 @@ export default tseslint.config(
       'coverage/**',
       'apps/api/supabase/.branches/**',
       'apps/api/supabase/.temp/**',
+      '.claude/**', // worktree 내 prototype / legacy JS 파일 제외
     ],
   },
   js.configs.recommended,

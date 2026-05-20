@@ -45,11 +45,18 @@ export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter>
     }
   }
 
-  // real 모드: Wave 5 / OQ-11 확정 후 마켓별 real 어댑터 dynamic import.
-  // 현 단계는 stub 미구현 — 즉시 throw 로 운영 진입 차단.
-  throw new Error(
-    `real 모드 마켓 어댑터(${market})는 Wave 5 에서 구현 예정입니다 (OQ-11 확정 후)`,
-  )
+  // real 모드: 구현된 마켓별 real 어댑터 dynamic import.
+  switch (market) {
+    case 'coupang': {
+      const { coupangRealAdapter } = await import('./real/coupang')
+      return coupangRealAdapter
+    }
+    default:
+      // 나머지 마켓 (naver / gmarket / auction) — Wave 5 / OQ-11 확정 후 구현.
+      throw new Error(
+        `real 모드 마켓 어댑터(${market})는 Wave 5 에서 구현 예정입니다 (OQ-11 확정 후)`,
+      )
+  }
 }
 
 export type { MarketAdapter } from './types'
