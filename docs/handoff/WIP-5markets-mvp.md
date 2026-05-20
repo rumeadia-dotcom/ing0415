@@ -37,58 +37,53 @@ Stage A → B → C → D → E → F → G → H → ✅ 부트스트랩 완료
 시스템         계층   마이그   Fn    인프라
 ```
 
-## Phase 2 진행 중 (2026-05-20 — B-1·B-2·B-3·B-4·B-5(0~2) 완료, Phase 3 다음)
+## Phase 2 진행 중 (2026-05-20 — B-1·B-2·B-3·B-4·B-5 전체 ✅ 완료, Phase 3 real 어댑터 다음)
 
 ```
-B-1 환경 셋업 ✅ → B-2 s1 인증 ✅ → B-3 s5 마켓계정 ✅ → B-4 s3 상품등록 ✅ → B-5 s2 대시보드 + s6 등록이력 🔶 진행 중
+B-1 환경 셋업 ✅ → B-2 s1 인증 ✅ → B-3 s5 마켓계정 ✅ → B-4 s3 상품등록 ✅ → B-5 s2 대시보드 + s6 등록이력 ✅
    ↓                  ↓                 ↓                    ↓                    ↓
-Supabase 2 프로젝트   4페이지 본구현    4페이지 본구현       5단계 위저드본구현    Phase 0~2 ✅ / Phase 3~4 ⬜
-GitHub Secrets        AuthProvider     useQuery + Realtime   RHF + zod + zustand   /dashboard ✅ / /history ✅
-Branch protection     RequireAuth      4상태 + partial       이미지 파이프라인     /history/:jobId ⬜
-CI 6/6 ✓ + Pages      105 단위테스트   33 단위 (합산 125)    Phase 0~6 ✅          DB 작업 0 (RPC/view 기존)
-누적 테스트: 202 passed / 0 failed / 26 todo (B-5 Phase 0+1+2 후, +29건)
+Supabase 2 프로젝트   4페이지 본구현    4페이지 본구현       5단계 위저드본구현    /dashboard ✅ /history ✅ /history/:jobId ✅
+GitHub Secrets        AuthProvider     useQuery + Realtime   RHF + zod + zustand   useHistoryDetail 2채널 Realtime
+Branch protection     RequireAuth      4상태 + partial       이미지 파이프라인     재시도/제외 액션 Dialog flow
+CI 6/6 ✓ + Pages      105 단위테스트   33 단위 (합산 125)    Phase 0~6 ✅          Phase 0~3 ✅ +33 단위 (합산 206)
+누적 테스트: 206 passed / 0 failed / 26 todo (B-5 Phase 0+1+2+3 후, +33건)
 ```
 
-추가 작업물 (2026-05-20 13:xx, working tree untracked + uncommitted):
-- **B-5 Phase 0**: dashboard-api / history-api / hooks 6종 (useDashboardSummary, useRecentJobs, useMarketHealth, useHistoryList, useHistoryDetail, useHistoryFilterState) + schemas 확장 (MarketHealth + URL ↔ filter round-trip + periodToRange) + 단위 19건
-- **B-5 Phase 1 — DashboardPage 본구현**: SummaryCard / MarketDotStack / RecentJobsTable / MarketHealthCard / DashboardEmptyState + V2PlaceholderCard + 단위 5건
-- **B-5 Phase 2 — HistoryListPage 본구현**: HistoryFilterSidebar (period preset + 마켓/상태 다중 + 검색 + brand color dot) / HistoryListRow (table+card variant) / HistoryListTable (IntersectionObserver 무한 스크롤) / HistoryEmptyState (절대/필터 empty 분기) + 단위 5건
-- **UI 트윅 sweep** (사용자 피드백 5건):
+추가 작업물 (2026-05-20, 모두 commit 완료):
+- **B-5 Phase 0**: dashboard-api / history-api / hooks 6종 + schemas 확장 + 단위 19건 — commit `1b95d03`
+- **B-5 Phase 1 — DashboardPage 본구현**: SummaryCard / MarketDotStack / RecentJobsTable / MarketHealthCard / DashboardEmptyState + V2PlaceholderCard + 단위 5건 — commit `1b95d03`
+- **B-5 Phase 2 — HistoryListPage 본구현**: HistoryFilterSidebar / HistoryListRow / HistoryListTable (IntersectionObserver 무한 스크롤) / HistoryEmptyState + 단위 5건 — commit `1b95d03`
+- **B-5 Phase 3 — HistoryDetailPage 본구현**: HistoryDetailHeader (메타 + 부모/자식 잡 Link + actions slot) / HistoryMarketResultCard (success URL / failed errorCode + ErrorMessage 접기/펼치기 / excluded 배지) / HistoryErrorTabs (결과/에러 탭, failed 0건 시 에러 탭 숨김) / HistoryRetryDialog (Dialog confirm + useRegistrationRetry) / HistoryExcludeDialog (체크박스 1개 이상 강제 + parentJobId 전달 → 새 jobId navigate) + 단위 4건 — commit `d393589`
+- **브랜드 리스킨 v1.1**: BrandMark (Sparkline M 심볼, gradient/navy/white tone) + Wordmark (Plus Jakarta Sans 700, two-tone/mono/white/gradall) + 디자인 토큰 navy/cream/teal 전환 + favicon.svg + theme-color 메타. AuthLayout / Sidebar 의 임시 'M' 마크 교체 — commit `eb9ca18`
+- **UI 트윅 sweep** (사용자 피드백 5건, commit `1b95d03` 에 포함):
   - AppLayout main padding 증가 (`pt-8/10 pb-10/12`)
   - Button primary/danger 폰트 `!text-white` 강제 (asChild + Link 상속 깨지는 케이스 차단)
-  - CardContent / CardFooter 디폴트 `pt-0` 제거 (standalone 사용 시 상단 패딩 누락 회피). CardHeader 는 `pb-3` 로 축소해 페어 간격 조절.
-  - Dashboard summary cards empty 상태 — "—" 대신 "0건" 표시
+  - CardContent / CardFooter 디폴트 `pt-0` 제거. CardHeader 는 `pb-3` 로 축소.
+  - Dashboard summary cards empty 상태 — "—" 대신 "0건"
   - lib/format-time.ts 공용 신설 (formatRelativeTime + formatDurationSec)
 
-## 현재 develop 브랜치 (HEAD = `878093d`, 2026-05-20 12:xx)
-
-**Working tree 상태**: B-5 Phase 0+1+2 + UI 트윅 untracked/modified (이번 commit 대상).
+## 현재 develop 브랜치 (HEAD = `eb9ca18`, 2026-05-20 13:xx, origin 보다 4개 commit 앞섬)
 
 최근 commit (오래된 → 최신):
 
 ```
-6214a3b feat(auth): s1 인증 4페이지 본구현 + 가드/세션 인프라
-3856638 fix(migrations): Supabase 클라우드 push 호환성 3건 + config.toml PG 17
-a3ebc37 fix(e2e): golden path 매칭 + RequireAuth 가드 호환
-d275571 fix(e2e): G0 진입을 vite preview SPA fallback 한계 우회
-dd14a36 fix(router): basename 가 vite base './' 환경에서 '.' 으로 평가되어 라우팅 실패
-94e542a fix(env): VITE_SENTRY_DSN 등 옵셔널 URL 의 빈 문자열 허용
-1d466b4 fix(e2e): G0 의 이메일 input 셀렉터 충돌 해소
-76d52fe docs(handoff): B-1 환경 셋업 완료 + 후속 메모
-cd88ed3 docs(handoff): WIP 갱신 — Phase 2 진행도 + 다음 세션 진입 가이드
-a58f424 feat(markets): B-3 s5 마켓계정 본구현 — 4페이지 + Realtime + 4분기 인증
-0014ae9 feat: B-4 s3 상품등록 5단계 위저드 본구현
-878093d feat: 설정 페이지 + 로그아웃 기능 추가  ⬅ HEAD
+878093d feat: 설정 페이지 + 로그아웃 기능 추가
+1b95d03 feat: B-5 Phase 0~2 — 대시보드 + 등록이력 목록 본구현
+d393589 feat: B-5 Phase 3 — 등록이력 상세 본구현 (재시도/제외 액션)
+eb9ca18 feat: 브랜드 리스킨 v1.1 — BrandMark / Wordmark + navy·cream·teal 토큰  ⬅ HEAD
 ```
 
-검증 상태 (2026-05-20 13:xx, working tree 포함):
+검증 상태 (2026-05-20 13:46, HEAD = `eb9ca18`):
 - `pnpm typecheck` ✅
-- `pnpm test` ✅ **202 passed / 0 failed / 26 todo** (B-5 Phase 0~2 단위 29건 신규)
-- `pnpm lint` — 다음 commit 직전 1회 (로컬 hook 룰)
-- `pnpm build:debug` — 다음 commit 직전 1회
-- CI on `878093d`: 푸시 안된 상태. 다음 push 는 본 commit + Phase 3~4 완료 후
+- `pnpm lint` ✅ 0 error
+- `pnpm test` ✅ **206 passed / 0 failed / 26 todo**
+- `pnpm build:debug` ✅ (산출 OK + 404.html fallback 생성)
+- CI on `eb9ca18`: 푸시 안된 상태. 다음 push 시 CI 6/6 검증.
 
-**다음 작업**: B-5 Phase 3 (History 상세 + 재시도/제외 액션). Plan: `~/.claude/plans/2026-05-20-b5-dashboard-history.md` Phase 3 섹션.
+**다음 작업**:
+1. **(권장)** `git push origin develop` — 4개 commit push + CI 6/6 통과 확인.
+2. Phase 3 real 어댑터 진입 — **C-1 네이버 OAuth (5일)**. Plan: 신규 필요 (현재 plan 은 B-5 전용).
+3. 또는 B-5 외 잔여 처리 — s1 LoginPage / SignupPage 통합 테스트, auth-event-log Edge Function, 소셜 로그인 provider (모두 v2 백로그 후보).
 
 ---
 
@@ -183,10 +178,13 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 
 **Out of scope (B-4 외)**: HTML WYSIWYG 상세 에디터 (v2), image-transform 실제 wasm-vips (Phase 3), 자동 카테고리 매핑 ML (v2), 위저드 draft persistence (v2), dnd-kit 정식 드래그 정렬 (v2 — 현재 화살표 정렬), Golden Path G1~G10 e2e 활성화 (시드 셀러 사전 조건 차단).
 
-### B-5. s2 대시보드 + s6 등록이력 (5~7일)
-- [ ] DashboardPage: 요약 카드 4개 + 최근 잡 + 마켓 연결 상태 + Realtime
-- [ ] HistoryListPage: 필터 사이드바 + 페이지네이션 + Realtime
-- [ ] HistoryDetailPage: 마켓별 결과 + 재시도/제외 액션
+### B-5. s2 대시보드 + s6 등록이력 ✅ (2026-05-20 완료, commits `1b95d03` + `d393589`)
+- ✅ **Phase 0** — api/hooks/schemas 기반 + 단위 19건. dashboard-api / history-api / 6 hooks (useDashboardSummary, useRecentJobs, useMarketHealth, useHistoryList, useHistoryDetail, useHistoryFilterState).
+- ✅ **Phase 1** — DashboardPage 본구현: SummaryCard 4개 / MarketDotStack / RecentJobsTable / MarketHealthCard / DashboardEmptyState + Realtime invalidate. 단위 5건.
+- ✅ **Phase 2** — HistoryListPage 본구현: HistoryFilterSidebar (period preset + 마켓·상태 다중 + 검색) / HistoryListRow (table+card variant) / HistoryListTable (IntersectionObserver 무한 스크롤) / HistoryEmptyState (절대 vs 필터 empty 분기) + URL ↔ filter round-trip. 단위 5건.
+- ✅ **Phase 3** — HistoryDetailPage 본구현: HistoryDetailHeader (메타 + 부모/자식 잡 Link + actions slot) / HistoryMarketResultCard (success URL / failed errorCode + ErrorMessage 접기/펼치기 / excluded 배지) / HistoryErrorTabs (n44 단순형) / HistoryRetryDialog (Dialog confirm + useRegistrationRetry, partial/failed 잡에서만 활성) / HistoryExcludeDialog (체크박스 1개 이상 강제 + parentJobId 전달 → 새 jobId navigate) + 2채널 Realtime. 단위 4건.
+
+**Out of scope (B-5 외)**: 마켓별 통계 위젯 n11 (v2), 오류 유형별 통계 차트 PRD §4.4.2 (v2), CSV/Excel 내보내기 (v2), 전문 검색 pg_trgm (v2), Golden Path G11~G15 e2e 활성화 (시드 셀러 사전 조건 차단), 마켓 단건 재시도 (현재는 전체 재시도 일괄, v2).
 
 ## C. Phase 3 — real 어댑터 (3~4주)
 
@@ -270,29 +268,37 @@ lint 0 error 달성 + HTML 프로토타입 step3/step4 4마켓 sync + Edge Funct
 
 ## ⚡ 즉시 시작 (5분)
 
-1. **(미완료 시) 콘솔 작업** — 위 "⚠ B-1 후속" 의 Supabase Auth URL Configuration 등록 (debug + real 둘 다). 미등록이면 회원가입 인증 메일 redirect 가 차단됨.
-2. **현재 상태 확인** — `pnpm test` 202 passed 확인 → /dashboard /history 본구현 확인 → B-5 Phase 3 진입.
+1. **`git push origin develop`** — 4개 commit (`878093d` → `eb9ca18`) push 후 CI 6/6 통과 확인.
+2. **(미완료 시) 콘솔 작업** — 위 "⚠ B-1 후속" 의 Supabase Auth URL Configuration 등록 (debug + real 둘 다). 미등록이면 회원가입 인증 메일 redirect 가 차단됨.
+3. **현재 상태 확인** — `pnpm test` 206 passed 확인 → /dashboard /history /history/:jobId 본구현 동작 확인.
 
-## 다음 작업 — B-5 Phase 3 (History 상세 + 재시도/제외 액션, 1~1.5일) ⭐
+## 다음 작업 — Phase 3 real 어댑터 진입 (3~4주) ⭐
 
-Plan: `~/.claude/plans/2026-05-20-b5-dashboard-history.md` Phase 3 섹션 참조.
+Plan: 신규 필요 (현재 plan 은 B-5 전용으로 종료).
+
+### C-1. 네이버 OAuth (5일) — 진입 우선순위 1
+
+선행 조건:
+- 통합매니저 계정으로 `apicenter.commerce.naver.com` 에서 개발업체 계정 생성 + CLIENT_ID/SECRET 발급
+- **베타 셀러 1~2명 모집** — 실 사업자 OAuth 자격증명 필요 (운영 API E2E)
+- Sentry 프로젝트 생성 + 4개 secret 등록 (운영 모니터링)
 
 핵심 산출물:
-- [ ] **HistoryDetailHeader** — 잡 메타 + 부모/자식 잡 링크 + actions slot (재시도 / 마켓 제외 버튼)
-- [ ] **HistoryMarketResultCard** — 마켓별 결과 카드 (success URL / failed code+message + ErrorMessage 접기/펼치기 / excluded 배지)
-- [ ] **HistoryErrorTabs** — '결과' / '에러' 탭 (n44)
-- [ ] **재시도 액션** — 기존 `useRegistrationRetry` (B-4) import + Dialog confirm + toast + invalidate
-- [ ] **마켓 제외 재등록** — 기존 `useRegistrationStart` import + parentJobId + excludedMarketIds → 새 jobId 응답 → navigate
-- [ ] **HistoryDetailPage 본문** — Header + Tabs + 마켓 카드 리스트 + 부모/자식 잡 네비
-- [ ] 단위 테스트 +4건 — retry Dialog flow / exclude validate / partial 분기
+- [ ] `apps/web/src/lib/markets/real/naver/` — Adapter 5메서드 본문 (authenticate / refreshToken / fetchCategoryTree / transformProduct / createProduct)
+- [ ] `apps/api/supabase/functions/markets-oauth-callback/` — 네이버 token exchange 실 구현
+- [ ] 토큰 자동 갱신 — silent refresh (클라이언트) + cron 백업 (Edge Function)
+- [ ] OAuth E2E — Golden Path G1~G3 활성화 (시드 셀러 + MSW oauth handler)
 
-후속 Phase:
-- **Phase 4** sync sweep + 검증 + commit (0.5~1일)
+### C-2~C-4. 쿠팡 HMAC / G·옥션 ESM JWT / 통합 검증
 
-후속 (B-5 외 잔여):
-- [ ] s1 LoginPage / SignupPage 통합 테스트 (RTL) — B-2 후속, v2.
-- [ ] auth-event-log Edge Function 호출 통합 — v2 백로그.
-- [ ] 소셜 로그인 provider 활성화 (Google / Naver) — v2 백로그.
+위 C 섹션 참조.
+
+## B-5 외 잔여 (v2 백로그)
+- [ ] s1 LoginPage / SignupPage 통합 테스트 (RTL).
+- [ ] auth-event-log Edge Function 호출 통합.
+- [ ] 소셜 로그인 provider 활성화 (Google / Naver).
+- [ ] 마켓 단건 재시도 (현재는 전체 재시도 일괄).
+- [ ] 11번가 통합 (Pro 고정 IP / 외부 프록시 / 11번가 해제 신청 중 결정).
 
 ## 한 줄 진입 명령
 
@@ -300,8 +306,13 @@ Plan: `~/.claude/plans/2026-05-20-b5-dashboard-history.md` Phase 3 섹션 참조
 git pull origin develop && pnpm install && pnpm test && pnpm dev
 ```
 
-→ http://localhost:5173/dashboard /history 본구현 확인. Phase 3 작업은 `apps/web/src/features/history/pages/HistoryDetailPage.tsx` 본구현부터.
+→ http://localhost:5173/dashboard /history /history/:jobId 본구현 동작 확인. 다음 코드 작업은 `apps/web/src/lib/markets/real/naver/` 신설부터 (C-1 진입).
 
-## B-5 commit 전략 (2026-05-20 갱신)
+## B-5 commit 전략 (2026-05-20 회고)
 
-원래 B-4 처럼 Phase 0~3 누적 후 단일 commit 계획이었으나, 사용자 요청으로 **Phase 0~2 + UI 트윅 sweep 을 중간 commit** 으로 분리 (이번 commit). Phase 3 + Phase 4 는 별도 commit. UI 트윅 (CardContent 패딩 정책 변경 등) 이 layout-wide 영향이라 단일 commit boundary 가 의미 있음.
+원래 B-4 처럼 Phase 0~3 누적 후 단일 commit 계획이었으나, 사용자 요청으로 **3개 commit 으로 분리**:
+- `1b95d03` — B-5 Phase 0~2 + UI 트윅 sweep (CardContent 패딩 정책 변경 등 layout-wide 영향)
+- `d393589` — B-5 Phase 3 (HistoryDetailPage 본구현 + 재시도/제외 액션)
+- `eb9ca18` — 브랜드 리스킨 v1.1 (BrandMark / Wordmark 컴포넌트 + navy/cream/teal 토큰)
+
+브랜드 리스킨은 B-5 와 무관한 독립 작업이라 분리 commit. 향후 Phase 3 real 어댑터는 마켓별 분리 commit 권장 (`feat(naver)`, `feat(coupang)`, …).
