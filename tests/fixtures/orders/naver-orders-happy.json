@@ -1,0 +1,37 @@
+{
+  "description": "네이버 Commerce API GET /external/v1/pay-order/seller/orders/new-pay-waiting happy 응답 (mock).",
+  "data": [
+    {
+      "productOrderId": "2026052100000001",
+      "orderId": "2026052100000001-01",
+      "buyerName": "홍길동",
+      "shippingAddress": {
+        "name": "홍길동",
+        "tel1": "010-1234-5678",
+        "baseAddress": "서울특별시 강남구 테헤란로 1",
+        "detailAddress": "타워 5F"
+      },
+      "productName": "테스트 상품 A",
+      "quantity": 2,
+      "totalPaymentAmount": 24000,
+      "productOrderStatus": "PAYED",
+      "paymentDate": "2026-05-21T03:00:00+00:00"
+    },
+    {
+      "productOrderId": "2026052100000002",
+      "orderId": "2026052100000002-01",
+      "buyerName": "김철수",
+      "shippingAddress": {
+        "name": "김철수",
+        "tel1": "010-9999-8888",
+        "baseAddress": "부산광역시 해운대구 센텀로 99",
+        "detailAddress": ""
+      },
+      "productName": "테스트 상품 B",
+      "quantity": 1,
+      "totalPaymentAmount": 50000,
+      "productOrderStatus": "PAYED",
+      "paymentDate": "2026-05-21T04:15:00+00:00"
+    }
+  ]
+}

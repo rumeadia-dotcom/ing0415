@@ -1,17 +1,23 @@
 import {
   CategoryNodeSchema,
   CreateProductResultSchema,
+  MarketOrderSchema,
+  MarketSubmitTrackingResultSchema,
   StoredCredentialSchema,
   TokenSetSchema,
   type AuthInput,
   type CategoryNode,
   type CreateProductResult,
+  type FetchOrdersInput,
   type MarketCredentialKind,
   type MarketId,
   type MarketMapping,
+  type MarketOrder,
   type MarketPayload,
+  type MarketSubmitTrackingResult,
   type Product,
   type StoredCredential,
+  type SubmitTrackingInput,
   type TokenSet,
 } from '@/lib/schemas'
 import { MarketError } from '../errors'
@@ -218,6 +224,92 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
         productUrl: `https://mock.${market}.example.com/p/123`,
         status: 'succeeded',
         warnings: [],
+      })
+    },
+
+    // ─────────────────────────────────────────────
+    // v2 Extension (market-adapter.md §9)
+    // ─────────────────────────────────────────────
+
+    async fetchOrders(
+      _input: FetchOrdersInput,
+      _credential?: StoredCredential,
+    ): Promise<MarketOrder[]> {
+      const s = readScenario()
+      if (s === '5xx')
+        throw new MarketError('server', 'mock 5xx', { market })
+      if (s === '401')
+        throw new MarketError('unauthorized', 'mock 401', { market })
+      if (s === '429')
+        throw new MarketError('rate_limit', 'mock 429', {
+          market,
+          retryAfterMs: 1500,
+        })
+      if (s === 'timeout') {
+        await new Promise((r) => setTimeout(r, 60_000))
+        throw new MarketError('network', 'mock timeout', { market })
+      }
+      // happy / partial 둘 다 정상 응답 반환 (partial 은 createProduct 만 의미가 있음).
+      const orders: MarketOrder[] = [
+        {
+          market,
+          externalOrderId: `MOCK-${market.toUpperCase()}-0001`,
+          buyerName: '홍길동',
+          receiverName: '홍길동',
+          receiverAddress: '서울특별시 강남구 테헤란로 1 타워 5F',
+          receiverPhone: '010-1234-5678',
+          productName: `mock ${market} 상품`,
+          quantity: 2,
+          orderAmount: 24_000,
+          status: 'new_pay',
+          paidAt: '2026-05-21T03:00:00+00:00',
+        },
+        {
+          market,
+          externalOrderId: `MOCK-${market.toUpperCase()}-0002`,
+          buyerName: '김철수',
+          receiverName: '김철수',
+          receiverAddress: '부산광역시 해운대구 센텀로 99',
+          receiverPhone: '010-9999-8888',
+          productName: `mock ${market} 상품 B`,
+          quantity: 1,
+          orderAmount: 50_000,
+          status: 'new_pay',
+          paidAt: '2026-05-21T04:15:00+00:00',
+        },
+      ]
+      return orders.map((o) => MarketOrderSchema.parse(o))
+    },
+
+    async submitTracking(
+      input: SubmitTrackingInput,
+      _credential?: StoredCredential,
+    ): Promise<MarketSubmitTrackingResult> {
+      const s = readScenario()
+      if (s === '5xx')
+        throw new MarketError('server', 'mock 5xx', { market })
+      if (s === '401')
+        throw new MarketError('unauthorized', 'mock 401', { market })
+      if (s === '429')
+        throw new MarketError('rate_limit', 'mock 429', {
+          market,
+          retryAfterMs: 1500,
+        })
+      if (s === 'timeout') {
+        await new Promise((r) => setTimeout(r, 60_000))
+        throw new MarketError('network', 'mock timeout', { market })
+      }
+      if (s === 'partial') {
+        // 부분 실패 시나리오 — 마켓이 정상 거부 (예: 이미 발송됨).
+        return MarketSubmitTrackingResultSchema.parse({
+          ok: false,
+          errorCode: 'already_dispatched',
+          errorMessage: '해당 주문은 이미 발송 처리되었습니다',
+        })
+      }
+      return MarketSubmitTrackingResultSchema.parse({
+        ok: true,
+        dispatchId: `MOCK-DISPATCH-${input.externalOrderId}`,
       })
     },
   }

@@ -40,11 +40,15 @@ import {
   type AuthInput,
   type CategoryNode,
   type CreateProductResult,
+  type FetchOrdersInput,
   type MarketId,
   type MarketMapping,
+  type MarketOrder,
   type MarketPayload,
+  type MarketSubmitTrackingResult,
   type Product,
   type StoredCredential,
+  type SubmitTrackingInput,
 } from '@/lib/schemas'
 import { buildEsmJwt } from './jwt'
 
@@ -485,7 +489,44 @@ export function createEsmRealAdapter(options: EsmAdapterOptions): MarketAdapter 
         warnings: [],
       })
     },
+
+    // ───────────────────────────────────────────
+    // v2 Extension — fetchOrders / submitTracking
+    // ───────────────────────────────────────────
+    async fetchOrders(
+      input: FetchOrdersInput,
+      credential?: StoredCredential,
+    ): Promise<MarketOrder[]> {
+      const c = credential ?? buildStoredCredentialFromInstance(cred)
+      const { esmFetchOrders } = await import('./orders')
+      return esmFetchOrders({ market, site, input, credential: c })
+    },
+
+    async submitTracking(
+      input: SubmitTrackingInput,
+      credential?: StoredCredential,
+    ): Promise<MarketSubmitTrackingResult> {
+      const c = credential ?? buildStoredCredentialFromInstance(cred)
+      const { esmSubmitTracking } = await import('./orders')
+      return esmSubmitTracking({ market, site, input, credential: c })
+    },
   }
 
   return adapter
+}
+
+/** 인스턴스 EsmCred → StoredCredential (cred 없으면 undefined). */
+function buildStoredCredentialFromInstance(
+  cred: EsmCred | null,
+): StoredCredential | undefined {
+  if (!cred) return undefined
+  return {
+    kind: 'esm_jwt',
+    payload: {
+      masterId: cred.masterId,
+      secretKey: cred.secretKey,
+      sellerId: cred.sellerId,
+      site: cred.site,
+    },
+  }
 }

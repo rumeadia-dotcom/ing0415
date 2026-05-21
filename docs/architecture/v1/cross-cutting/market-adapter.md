@@ -920,6 +920,62 @@ export class MarketError extends Error {
   4. 단위 테스트 1파일
 - **호환 보존**: 본 절차로 기존 어댑터 4개 코드 0줄 수정. 인터페이스 5메서드 시그니처 그대로.
 
+### 9.7 v2 Extension — fetchOrders + submitTracking (2026-05-21 도입)
+
+v2 배송 흐름 (PRD-v2-shipping.md §2.1 / §2.4) 도입에 따라 `MarketAdapter` 인터페이스가 5 → 7 메서드로 확장된다. 인터페이스 시그니처는 다음 두 메서드 추가:
+
+```ts
+// 마켓 주문 목록 조회 (PRD-v2-shipping §2.1)
+fetchOrders(
+  input: FetchOrdersInput,
+  credential?: StoredCredential,
+): Promise<MarketOrder[]>
+
+// 송장 번호 제출 (PRD-v2-shipping §2.4)
+submitTracking(
+  input: SubmitTrackingInput,
+  credential?: StoredCredential,
+): Promise<MarketSubmitTrackingResult>
+```
+
+**Why now:**
+- v1 5 메서드는 "등록" 흐름만 다룬다 (auth/category/transform/create). v2 배송 흐름은 **등록된 상품의 주문 처리** 라는 별도 도메인이 추가되며, 마켓별 API 매트릭스가 4 마켓 모두 다른 엔드포인트·페이로드·status 매핑을 요구.
+- 횡단 관심사(주문 캐시·셀러 권한·재시도) 는 `orders-sync` / `shipping-dispatch-job` Edge Function 이 담당. 어댑터는 **마켓 API 호출 + 응답 정규화** 만 책임.
+
+**4 마켓 매트릭스 (간략):**
+
+| 항목 | naver | coupang | gmarket (ESM site=G) | auction (ESM site=A) |
+|---|---|---|---|---|
+| fetchOrders 엔드포인트 | GET `/external/v1/pay-order/seller/orders/new-pay-waiting` | GET `/v2/.../ordersheets?status=ACCEPT` | GET `/order?site=G` | GET `/order?site=A` |
+| submitTracking 엔드포인트 | PATCH `/external/v1/orders/{orderId}/dispatch` | PUT `/v2/.../orders/{shipmentBoxId}/ordersheets/shipments` | POST `/shipment` (site=G) | POST `/shipment` (site=A) |
+| 인증 | OAuth Bearer | HMAC | ESM JWT | ESM JWT |
+| 정상 거부 응답 | 400/422 → `ok=false` | 400/422 → `ok=false` | 200 + resultCode≠SUCCESS / 400 | 동일 |
+| 횡단 실패 | 401/429/5xx → `MarketError` throw | 동일 | 동일 | 동일 |
+
+**`submitTracking` 의 반환 정책 (throw 가 아닌 discriminated union):**
+
+부분 실패가 정상 흐름의 일부 (`shipping-dispatch-job` 의 다중 주문 처리에서 한 건의 마켓 정상 거부가 다른 주문 진행을 멈추지 않도록). RegistrationJob 의 `partial` 상태 패턴(§3 registration-job-state.md) 과 동일한 설계.
+
+- `{ ok: true, dispatchId?: string }` — 발송 처리 성공.
+- `{ ok: false, errorCode: string, errorMessage: string }` — 마켓 정상 거부 (이미 발송 / 송장 형식 오류 / 검증 실패 등).
+- `MarketError` throw — 네트워크 / 인증 / 5xx / rate_limit 같은 횡단 실패.
+
+**파일 배치:**
+- `apps/web/src/lib/markets/real/{naver,coupang}/orders.ts` — 마켓별 fetchOrders + submitTracking 구현.
+- `apps/web/src/lib/markets/real/{naver,coupang}/tracking.ts` — submitTracking re-export thin wrapper (호출측 import 경로 일관성).
+- `apps/web/src/lib/markets/real/esm/orders.ts` — G·A 공용 ESM 로직 단일 소스.
+- `apps/web/src/lib/markets/real/{gmarket,auction}/{orders,tracking}.ts` — `esm/orders.ts` 를 site='G' / 'A' 로 호출하는 thin wrapper.
+- `apps/web/src/lib/markets/debug/{naver,coupang,gmarket,auction}-{orders,tracking}.ts` — debug 어댑터 진입 점 (마켓별 mock 인스턴스 함수 export).
+- `apps/web/src/lib/schemas/market-orders.ts` — `FetchOrdersInput` / `MarketOrder` / `SubmitTrackingInput` / `MarketSubmitTrackingResult` zod 단일 소스.
+
+**테스트 (R-006 회귀 강제):**
+- `apps/web/src/lib/markets/__tests__/parity.spec.ts` — mock ↔ real 시그니처 동일성 회귀.
+- 마켓별 `*-orders.test.ts` 4개 — fetch mock + happy / 5xx / 401 / 429 / validation / 정상 거부 시나리오.
+
+**호환 정책:**
+- v1 코드 (registration-run / market-connect / OAuth callback) 는 본 확장의 영향 없음. 어댑터 인스턴스에 메서드 2개가 추가되었을 뿐 v1 호출 경로 변경 X.
+- `getMarketAdapter()` 진입은 그대로. 신규 호출자 (`orders-sync` / `shipping-dispatch-job`) 는 동일 진입을 사용한다.
+
 ---
 
 ## 10. 신규 마켓 추가 절차
