@@ -13,14 +13,15 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 const STORAGE_KEY = 'theme'
 
 function readStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'system'
+  // TEMP: 다크/시스템 모드 임시 비활성 — 라이트 default. 다시 켤 때 'system' 으로 복구.
+  if (typeof window === 'undefined') return 'light'
   try {
     const v = window.localStorage.getItem(STORAGE_KEY)
     if (v === 'light' || v === 'dark' || v === 'system') return v
   } catch {
     /* noop */
   }
-  return 'system'
+  return 'light'
 }
 
 function systemPrefersDark(): boolean {

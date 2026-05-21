@@ -24,6 +24,9 @@
       data-theme 속성 + class 두 형태 모두 세팅 (Tailwind darkMode 호환).
     -->
     <script>
+      // TEMP: 다크/시스템 모드 임시 비활성 — 라이트 강제. 다시 켤 때 아래 주석 블록 복구.
+      document.documentElement.setAttribute('data-theme', 'light')
+      /*
       ;(function () {
         try {
           var t = localStorage.getItem('theme')
@@ -36,9 +39,10 @@
             document.documentElement.setAttribute('data-theme', 'light')
           }
         } catch (_) {
-          /* localStorage 접근 실패 시 라이트 기본 */
+          // localStorage 접근 실패 시 라이트 기본
         }
       })()
+      */
     </script>
   </head>
   <body>
