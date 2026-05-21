@@ -1,13 +1,17 @@
 /**
- * shipping-dispatch-market-worker 본체:
- *   - 마켓별 워커가 본 PR 의 핵심.
- *   - 한 마켓 안의 N개 orderIds 를 순회 — 각 주문은 격리 (한 주문 실패가 다른 주문 진행을 막지 않음).
- *   - 주문당 흐름:
- *       1) result_status pending → in_flight
- *       2) adapter.submitTracking(externalOrderId, waybillNumber, carrierCode) withRetry
- *       3) 성공: result.success + orders.status='tracking_submitted'
- *       4) 실패: error_code 매핑 + final 판정 + orders.status='dispatch_failed' (final 일 때)
- *       5) recomputeShippingJobStatus — Realtime push.
+ * shipping-dispatch-market-worker 본체.
+ *
+ * 마스터: docs/spec/PRD-v2-shipping.md §4.
+ *
+ * - 한 마켓 안의 N개 orderIds 를 순회 — 각 주문은 격리 (한 주문 실패가 다른 주문 진행을 막지 않음).
+ * - 주문당 흐름:
+ *     1) status pending → in_flight (PRD §4 컬럼명 `status`)
+ *     2) adapter.submitTracking(externalOrderId, waybillNumber, carrierCode) withRetry
+ *     3) 성공: result.success + orders.status='tracking_submitted'
+ *              + bumpJobCounters({ success: 1 })
+ *     4) 실패: error_code 매핑 + final 판정 + orders.status='dispatch_failed' (final 일 때)
+ *              + bumpJobCounters({ failed: 1 }) — final 시점에만 증분
+ *     5) recomputeShippingJobStatus — Realtime push.
  *
  * - adapter.submitTracking 이 정의되지 않은 마켓 (예: 11번가 v2) 은
  *   본 워커가 'validation' final 로 처리 후 다음 주문으로 진행.
@@ -32,6 +36,7 @@ import {
   mapMarketErrorToShippingCode,
 } from './error-map.ts'
 import {
+  bumpJobCounters,
   getResultAttemptCount,
   markResultInFlight,
   recomputeShippingJobStatus,
@@ -253,6 +258,9 @@ async function processSingleOrder(args: {
     trackingReceiptId: result.trackingReceiptId ?? null,
   })
 
+  // PRD §4: shipping_jobs.success_count 증분 (atomic RPC).
+  await bumpJobCounters(service, input.jobId, { success: 1 })
+
   logger.info(
     {
       jobId: input.jobId,
@@ -301,6 +309,12 @@ async function handleOrderFailure(args: {
     attemptCount: attempts,
     final,
   })
+
+  // PRD §4: failed_count 는 최종(final) 결정 시점에만 증분.
+  // 재시도 대기(failed-but-retryable)는 카운트 안 함 — 다음 시도에서 결정.
+  if (final) {
+    await bumpJobCounters(service, input.jobId, { failed: 1 })
+  }
 
   logger.error(
     {

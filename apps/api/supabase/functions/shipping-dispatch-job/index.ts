@@ -105,9 +105,10 @@ export default Deno.serve(
     const perMarket = groupOrdersByMarket(orders)
 
     // 3) shipping_jobs + shipping_job_results INSERT.
+    //    PRD §4: shipping_jobs.order_count = orders.length (preflight 결과).
     const jobId = await insertShippingJob(
       service,
-      { sellerId, correlationId },
+      { sellerId, orderCount: orders.length, correlationId },
       logger,
     )
     await insertShippingJobResults(service, jobId, orders, logger)

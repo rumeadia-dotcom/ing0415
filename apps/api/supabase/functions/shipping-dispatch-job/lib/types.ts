@@ -1,28 +1,41 @@
 /**
  * shipping-dispatch-job / shipping-dispatch-market-worker 공유 zod 스키마.
  *
- * 마스터 (의존 — 본 PR 범위 외 정의):
- *   - docs/spec/PRD-v2-shipping.md §2.4 (스펙 문서는 PR 시점에 별도 작성 예정)
- *   - docs/spec/user_flow-v2-shipping.md s8 n53/n54/n55/n56
- *   - PR2: shipping_jobs / shipping_job_results / orders 마이그레이션
+ * 마스터 (ground truth):
+ *   - docs/spec/PRD-v2-shipping.md §2.4 (마켓 송장 일괄 제출 플로우)
+ *   - docs/spec/PRD-v2-shipping.md §4 (데이터 모델)
  *
- * 본 PR 가정:
- *   - shipping_jobs(id, seller_id, status, created_at, started_at, completed_at, correlation_id)
- *   - shipping_job_results(id, job_id, order_id, market_id, market_account_id,
- *       result_status, error_code, error_message, waybill_number, carrier_code,
- *       attempt_count, last_attempted_at)
- *   - orders(id, seller_id, market_id, market_account_id, external_order_id, status,
- *       waybill_number, carrier_code)
- *   - orders.status ENUM: 'waybill_printed' | 'tracking_submitted' | 'dispatch_failed' | ...
+ * PRD §4 정합 — shipping_jobs:
+ *   - id, seller_id, status, order_count, success_count, failed_count,
+ *     created_at, completed_at
+ *   - status ENUM 5값: pending | running | partial | succeeded | failed
+ *     (PRD §4 에 'cancelled' 없음 — 본 PR 도 5값 유지.)
+ *   - 본 PR 이 order_count = preflight orders.length 으로 INSERT 시점에 채움.
+ *     success_count / failed_count 는 마켓 워커가 row 갱신 시점에 누적 UPDATE.
  *
- * 스펙 문서 (PRD-v2-shipping.md) 가 작성되면 본 가정과 정합 확인 + zod 미러 갱신.
+ * PRD §4 정합 — shipping_job_results:
+ *   - id, job_id, order_id, market_id, status, error_code, error_message
+ *   - 컬럼명: PRD §4 = `status` (본 PR 도 `status` 로 통일. result_status 아님).
+ *   - PRD §4 ENUM = ('success' | 'failed') 2값.
+ *     본 PR 워커는 재시도 / 진행 표시가 필요하므로 ENUM 을 5값
+ *     (pending | in_flight | success | failed | failed_final) 으로 확장 사용.
+ *     **PR2 마이그레이션이 PRD §4 의 2값에서 본 5값으로 확장 정의 필요.**
+ *     (확장 사유: registration_jobs / registration_job_market_results 와 동등한
+ *      재시도·격리 표현. PR2 머지 전 PRD §4 갱신 또는 별도 cross-cutting 문서로 정합.)
+ *
+ * PRD §4 정합 — orders.status ENUM 6값:
+ *   - collected | logen_registered | logen_failed |
+ *     waybill_printed | tracking_submitted | dispatch_failed
+ *   - 본 워커가 전이하는 경로:
+ *       waybill_printed → tracking_submitted (success)
+ *       waybill_printed → dispatch_failed   (final 실패)
  */
 
 import { z } from 'npm:zod@3.23.8'
 import { MarketIdSchema, UuidSchema } from '../../_shared/index.ts'
 
 // ─────────────────────────────────────────────
-// shipping_jobs.status ENUM (registration_jobs 와 동등 패턴)
+// shipping_jobs.status ENUM — PRD §4 5값.
 // ─────────────────────────────────────────────
 export const SHIPPING_JOB_STATUSES = [
   'pending',
@@ -30,13 +43,15 @@ export const SHIPPING_JOB_STATUSES = [
   'partial',
   'succeeded',
   'failed',
-  'cancelled',
 ] as const
 export const ShippingJobStatusSchema = z.enum(SHIPPING_JOB_STATUSES)
 export type ShippingJobStatus = z.infer<typeof ShippingJobStatusSchema>
 
 // ─────────────────────────────────────────────
-// shipping_job_results.result_status ENUM
+// shipping_job_results.status ENUM.
+//
+// PRD §4 명세 = 2값 ('success' | 'failed'). 본 PR 은 워커의 재시도·격리
+// 표현을 위해 5값으로 확장 — PR2 마이그레이션이 같은 5값으로 정의해야 함.
 // ─────────────────────────────────────────────
 export const SHIPPING_RESULT_STATUSES = [
   'pending',
