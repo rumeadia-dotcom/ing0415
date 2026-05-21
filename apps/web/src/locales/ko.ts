@@ -211,6 +211,17 @@ export const ko = {
   settings: {
     title: '설정',
     subtitle: '계정 정보와 환경 설정을 관리합니다',
+    nav: {
+      heading: '설정',
+      account: '계정',
+      shipping: '배송 설정',
+      notifications: '알림',
+      billing: '청구',
+      team: '팀',
+      developer: '개발자',
+      v2Pill: 'v2',
+      openMobileNav: '설정 메뉴 열기',
+    },
     account: {
       title: '계정',
       description: '현재 로그인된 계정 정보',
@@ -470,6 +481,7 @@ export const ko = {
   legal: {
     common: {
       tocHeading: '목차',
+      tocMobileToggle: '목차 펼치기',
       skipToContent: '본문으로 건너뛰기',
       lastUpdated: '최종 개정일: 2026년 5월 20일',
       effectiveFrom: '시행일: 2026년 6월 1일',
