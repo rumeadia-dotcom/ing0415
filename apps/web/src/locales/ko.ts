@@ -151,6 +151,22 @@ export const ko = {
         disabled: '현재 오픈 준비중입니다',
       },
       issuanceGuide: '발급 가이드 ↗',
+      docLinkFallback: 'API 가이드 바로가기 ↗',
+      docLink: {
+        naver: '네이버 커머스 API 바로가기 ↗',
+        coupang: '쿠팡 Wing API 바로가기 ↗',
+        esmplus: 'ESM Plus 콘솔 바로가기 ↗',
+      },
+      oauth: {
+        guideTitle: '연결 절차 — 네이버 스마트스토어',
+        guideSteps: [
+          '네이버 스마트스토어 판매자 계정이 준비된 상태에서 시작합니다',
+          '아래 버튼을 누르면 네이버 로그인 화면으로 이동합니다',
+          '스마트스토어 판매자 계정으로 로그인하세요',
+          'MarketCast의 스토어 접근 권한에 동의하면 자동으로 돌아옵니다',
+          '연결 완료 후 OAuth 토큰은 만료 전에 자동 갱신됩니다',
+        ] as const,
+      },
       labelOptional: '계정 라벨 (구분용)',
       labelHint: '1~40자 · 동일 마켓에서 라벨 중복 불가',
       labelPlaceholder: '예: 메인 스토어',
@@ -171,10 +187,11 @@ export const ko = {
         secretKeyPlaceholder: '40자 이상의 영문 + 숫자',
         guideTitle: '키 발급 절차 — 쿠팡 Wing',
         guideSteps: [
-          '쿠팡 Wing 셀러 콘솔에 로그인',
-          '관리 › 인증정보 관리 메뉴 진입',
-          '액세스/시크릿 키 신규 발급',
-          '벤더 ID 는 상단 프로필에서 확인',
+          '쿠팡 Wing(wing.coupang.com)에 판매자 계정으로 로그인합니다',
+          '상단 메뉴 [관리] → [인증정보 관리]로 진입합니다',
+          '[Open API 키 발급] 버튼을 클릭해 Access Key / Secret Key를 생성합니다',
+          '발급된 키를 안전한 곳에 즉시 복사해 보관합니다 (재확인 불가)',
+          'Vendor ID는 Wing 우측 상단 프로필 정보에서 확인합니다',
         ] as const,
       },
       esm: {
@@ -188,10 +205,11 @@ export const ko = {
           `site 코드는 자동으로 ${site} (${label}) 으로 설정됩니다.`,
         guideTitle: '키 발급 절차 — ESM Plus',
         guideSteps: [
-          'ESM Plus 콘솔 로그인',
-          '판매자 도구 › API 관리 메뉴 진입',
-          'API 키 발급 후 Master/Secret 복사',
-          'Seller ID 는 상점 정보에서 확인',
+          'ESM Plus(www.esmplus.com)에 통합 마스터 계정으로 로그인합니다',
+          '[판매자 도구] → [API 관리] 메뉴로 진입합니다',
+          '[API 키 발급] 버튼을 클릭해 Master ID / Secret Key를 생성합니다',
+          '발급된 키를 안전한 곳에 즉시 복사해 보관합니다 (재확인 불가)',
+          'Seller ID는 [내 정보] → [상점 정보]에서 확인합니다',
         ] as const,
       },
       reveal: {
@@ -485,6 +503,15 @@ export const ko = {
         backLink: '배송 설정으로',
         helperContract:
           '로젠택배 영업소를 통해 B2B 계약을 완료한 셀러만 사용 가능합니다.',
+        guideTitle: 'API 코드 발급 절차 — 로젠택배',
+        guideSteps: [
+          '가까운 로젠택배 영업소 또는 고객센터(1588-9988)에 B2B 계약을 신청합니다',
+          '계약 완료 후 담당자로부터 연동업체코드(userId)를 발급받습니다',
+          '함께 제공되는 거래처코드(custCd)를 확인합니다',
+          '위 코드를 입력 후 [저장 후 연결 테스트]를 클릭해 정상 여부를 확인합니다',
+          '연결 완료 시 주문 집하 등록이 자동화됩니다',
+        ] as const,
+        docLinkLabel: '로젠택배 B2B 서비스 바로가기 ↗',
       },
       senderPage: {
         title: '발송인 정보',

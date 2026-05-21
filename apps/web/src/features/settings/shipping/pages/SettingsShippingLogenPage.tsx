@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, ExternalLink } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   Button,
@@ -135,6 +135,34 @@ export function SettingsShippingLogenPage(): JSX.Element {
   return (
     <div className="mx-auto w-full max-w-[640px]">
       <PageHeader title={t.title} subtitle={t.subtitle} />
+
+      {/* 발급 가이드 */}
+      <section className="mb-4 rounded-xl border border-border bg-surface p-4">
+        <h3 className="mb-3 text-sm font-bold text-text">{t.guideTitle}</h3>
+        <ol className="flex flex-col gap-2.5">
+          {(t.guideSteps as readonly string[]).map((step, i) => (
+            <li key={i} className="flex gap-2.5 text-[12.5px] text-text-secondary">
+              <span
+                aria-hidden
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-bold text-accent"
+              >
+                {i + 1}
+              </span>
+              <span className="leading-relaxed">{step}</span>
+            </li>
+          ))}
+        </ol>
+        <a
+          href="https://www.ilogen.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+        >
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t.docLinkLabel}
+          <span className="sr-only">(새 창에서 열림)</span>
+        </a>
+      </section>
 
       <Card>
         <CardHeader>
