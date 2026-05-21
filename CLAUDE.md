@@ -13,11 +13,12 @@ apps/web/                  # 프론트엔드 (Vite root)
 apps/api/
   supabase/                # 백엔드 (Edge Functions + migrations, Supabase CLI workdir)
 docs/
-  spec/                    # 제품 요구사항·플로우 (PRD.md, docs/spec/user_flow.md)
-  architecture/v1/         # 영구 설계 결정
-  frontend_html_design/v1/ # HTML 프로토타입 (정식)
-  handoff/                 # 세션 간 WIP 메모 (일회성)
-  legacy/prototype-v0/     # v0 시각 레퍼런스 (읽기 전용)
+  spec/                          # 제품 요구사항·플로우 (PRD.md, docs/spec/user_flow.md)
+  architecture/v1/               # 영구 설계 결정
+  design-renewal/                # 외부 디자이너 인계용 화면 정의 (.md) — 디자인 ground truth
+  handoff/                       # 세션 간 WIP 메모 (일회성)
+  legacy/prototype-v0/           # v0 시각 레퍼런스 (읽기 전용)
+  legacy/frontend_html_design-v1/ # v1 HTML 프로토타입 — deprecate (디자이너 인계 채널이 design-renewal/*.md 로 이동)
 tests/                     # cross-cutting (Vitest unit + Playwright e2e + fixtures)
 scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 ```
@@ -235,15 +236,24 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 3. **백엔드 구현** — Postgres 마이그레이션 → Edge Functions 구현. 외부 마켓 API 호출은 `MarketAdapter` 인터페이스로.
 4. **프론트엔드 구현** — `apps/web/src/features/<domain>/` 안에서 화면 + hook + api 클라이언트. zod 스키마는 백엔드와 공유 (가능하면 `apps/web/src/lib/schemas/` 에 단일 소스).
 
-### 3개 산출물 동기화
+### 2개 산출물 동기화
 
-코드 수정 시 관련된 3개를 항상 함께 맞춘다:
+코드 수정 시 관련된 2개를 함께 맞춘다 (이전 "3개 산출물" 의 HTML 프로토타입은 deprecate — `docs/legacy/frontend_html_design-v1/`):
 
-- **설계문서** — `docs/architecture/v1/` (디렉토리 구조는 "디렉토리 구조" 결정에 따름)
-- **HTML 프로토타입** — `docs/frontend_html_design/v1/` (정식 산출물). 기존 `prototype/` 는 v0 (초기 시각 레퍼런스) 로 유지하며 v1 신설은 첫 화면 작업 시점.
-- **실제 구현** — `apps/web/src/features/<domain>/` (디렉토리 구조 결정에 따름)
+- **설계문서** — `docs/architecture/v1/features/<feature>.md` (영구 설계) 와 `docs/design-renewal/s{N}-<domain>.md` (외부 디자이너 인계용 정의서, 디자인 ground truth)
+- **실제 구현** — `apps/web/src/features/<domain>/`
 
-**변경 크기와 무관하게 예외 없음.** 사소한 스타일 변경(텍스트 색상, 뱃지 스타일, 버튼 정렬 등) 도 반드시 3개를 함께 수정한다. 매 코드 변경 후 설계문서·HTML 프로토타입에 관련 내용이 있는지 검색하고, 있으면 "동기화할까요?" 확인 후 반영한다. *(주: 로컬 hook 이 토큰 절감을 위해 iteration 중 sync 보류 / commit 직전 일괄 sweep 예외를 자동 주입한다 — 매 prompt 마다 hook 출력으로 확인 가능. 그 hook 예외가 우선 작동한다.)*
+**즉시 sync 가 필요한 변경** (예외 없음 룰 유지):
+- 신규 화면 / 페이지 추가
+- 컴포넌트 자체 추가/제거
+- 레이아웃 구조 변경
+- API/데이터 모델 변경 (스키마·RPC·Edge Function 시그니처)
+
+**iteration 중 sync 보류**: 색상/텍스트/패딩/버튼 위치 같은 사소한 스타일 트윅은 코드만 수정. 설계문서·정의서 동기화는 보류. "동기화할까요?" 질문도 생략.
+
+**commit 직전 일괄 sync sweep**: `git-commit` 실행 시 그동안 미뤄둔 변경을 일괄 반영. commit 시점에 정합 충족.
+
+*(주: 로컬 hook 이 위 룰을 매 prompt 마다 자동 주입한다 — 사용자 머신 한정 토큰 절감 규약.)*
 
 ### 외부 API 로깅 패턴
 
@@ -300,4 +310,5 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 
 - `docs/architecture/v1/` — 플랫폼 · 프론트엔드 · UI 스타일 설계문서. 글로벌 아키텍처 결정, 디자인 토큰, 공통 컴포넌트 명세.
 - `docs/architecture/v1/features/` — 기능별 백엔드/UI 설계. 파일명은 도메인 매핑 (`registration.md`, `markets.md`, `templates.md`, …). 각 문서에 데이터 모델 + API 스키마 + 화면 흐름 + 수락 기준 포함.
-- `docs/frontend_html_design/v1/` — 정식 HTML 프로토타입. 화면별 디렉토리 (`dashboard/`, `register/`, …). 첫 화면 작업 시점에 신설. 기존 `prototype/` 은 v0 시각 레퍼런스로 유지.
+- `docs/design-renewal/` — 외부 디자이너 인계용 화면 정의 (s1~s9 도메인별 `.md`). 화면 정의 / 기능 / 워크플로우 / 컴포넌트 / 데이터 의존 / 디자인 리뉴얼 시 고려사항. v1 의 디자인 ground truth.
+- `docs/legacy/frontend_html_design-v1/` — **deprecate**. 과거 정식 HTML 프로토타입. 인계 채널이 `design-renewal/*.md` 로 이동하며 더 이상 정식 산출물 아님. 시각 레퍼런스로만 참조.
