@@ -14,6 +14,8 @@ export const ko = {
   nav: {
     main: '메인',
     aux: '보조',
+    sales: '판매',
+    env: '환경',
     dashboard: '대시보드',
     register: '상품 등록',
     markets: '마켓 계정',
@@ -29,6 +31,13 @@ export const ko = {
       history: '배송 이력',
       settings: '배송 설정',
     },
+  },
+  shell: {
+    brandTagline: '한 번의 등록, 모든 마켓',
+    openMenu: '메뉴 열기',
+    primaryNavLabel: '주요 메뉴',
+    sellerPlaceholderName: 'konai 셀러',
+    sellerPlaceholderEmail: 'seller@konai.com',
   },
   status: {
     pending: '대기',
