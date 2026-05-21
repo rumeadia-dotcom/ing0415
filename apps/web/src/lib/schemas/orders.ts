@@ -63,58 +63,16 @@ export const OrderSchema = z.object({
 })
 export type Order = z.infer<typeof OrderSchema>
 
-// ─────────────────────────────────────────────
-// 목록 필터 (PRD-v2 §2.5 — 마켓별 / 상태별 / 검색 / 기간)
-// ─────────────────────────────────────────────
-export const OrderListFilterSchema = z
-  .object({
-    marketId: MarketIdSchema.optional(),
-    status: OrderStatusEnum.optional(),
-    /** ISO 8601 (offset 없이도 허용). collected_at 기준. */
-    dateFrom: IsoDateTimeSchema.optional(),
-    dateTo: IsoDateTimeSchema.optional(),
-    /** 키워드 (상품명 / 수취인명) — server-side LIKE. 빈 문자열은 무시. */
-    keyword: z.string().max(100).optional(),
-    /** 페이지네이션 (1~100). */
-    limit: z.number().int().min(1).max(100).default(20),
-    offset: z.number().int().min(0).default(0),
-  })
-  .refine(
-    (d) =>
-      !d.dateFrom || !d.dateTo || new Date(d.dateFrom) <= new Date(d.dateTo),
-    {
-      message: 'dateFrom 은 dateTo 이전이어야 합니다',
-      path: ['dateTo'],
-    },
-  )
-export type OrderListFilter = z.infer<typeof OrderListFilterSchema>
-
-// ─────────────────────────────────────────────
-// 수동 송장 입력 (logen_failed → 수동 보정 다이얼로그)
-//   PRD-v2 §2.2 "최종 실패 시 수동 처리 다이얼로그 유도"
-// ─────────────────────────────────────────────
-export const ManualWaybillResolveInputSchema = z.object({
-  orderId: UuidSchema,
-  /** 셀러가 로젠 콘솔에서 직접 채번한 슬립번호. */
-  waybillNumber: z.string().min(1).max(50),
-  /** 운반사 (현재 LOGEN 만 지원하나 미래 대비 default LOGEN). */
-  carrierCode: z.string().min(1).max(20).default('LOGEN'),
-  /** 셀러 직접 입력 사유 (옵션) — audit 용. */
-  note: z.string().max(500).optional(),
-})
-export type ManualWaybillResolveInput = z.infer<
-  typeof ManualWaybillResolveInputSchema
->
-
 // ═════════════════════════════════════════════
-// PR8 (#34) / PR10 (#37) 정합용 별칭 + 추가 스키마
-//   - 페이지/hook/api 가 사용하는 이름을 PR2 의 ground truth 와 다리 놓는다.
-//   - 신규 정의가 아니라 PR2 schema 의 view 표현이므로 단일 소스 원칙 유지.
+// 목록 필터·수동 송장·요약 (PRD-v2 §2.5 / §2.2 — PR8 keyset cursor 채택)
+//   - 페이징은 keyset cursor (offset 은 대용량 OFFSET 성능 문제로 폐기).
+//   - carrierCode 는 RPC 가 LOGEN 고정 — FE 에서 강제 입력 받지 않음.
 // ═════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
 // 배송 진행 상태 — 타임라인 UI 5단계
-//   (PR2 의 `dispatch_failed` 는 marketDispatchStatus 측 실패이므로 timeline 에서 제외 — ko.orders.timeline 키와 1:1)
+//   ko.orders.timeline 에 dispatch_failed 라벨이 추가돼 OrderStatusEnum (6개) 와 1:1 lookup 가능.
+//   타임라인 컴포넌트는 5단계 진행만 그리지만 라벨 lookup 은 OrderStatusEnum 전 범위.
 // ─────────────────────────────────────────────
 export const ORDER_SHIPPING_STATUSES = [
   'collected',
@@ -208,8 +166,8 @@ export const OrdersSummarySchema = z.object({
 export type OrdersSummary = z.infer<typeof OrdersSummarySchema>
 
 // ─────────────────────────────────────────────
-// 필터 (keyset cursor 기반 — `OrderListFilterSchema` 와 별도 view)
-//   - PR8 의 api/hook 이 사용. `OrderListFilterSchema` (offset 기반) 는 보존하되 별칭 export 추가.
+// 목록 필터 (keyset cursor 기반 — PR8 채택, offset 페이지네이션은 폐기)
+//   PRD-v2 §2.5 — 마켓 / 상태 / 검색 / 기간 + keyset cursor (ordered_at + id tiebreaker).
 // ─────────────────────────────────────────────
 export const OrdersFilterSchema = z
   .object({
@@ -239,7 +197,9 @@ export type OrdersFilter = z.infer<typeof OrdersFilterSchema>
 
 // ─────────────────────────────────────────────
 // 수동 송장 보정 (PR8 dialog → manual_resolve_waybill RPC)
-//   PR2 의 ManualWaybillResolveInputSchema 와 동일 의미 — carrierCode 는 RPC 가 LOGEN 고정.
+//   PRD-v2 §2.2 "최종 실패 시 수동 처리 다이얼로그 유도".
+//   carrierCode 는 DB (manual_resolve_waybill RPC / orders.carrier_code default) 가 LOGEN 으로 보정 —
+//   FE 는 강제 입력 받지 않는다. v2 다중 택배사 진입 시 DB 단에서 결정.
 // ─────────────────────────────────────────────
 export const ManualResolveWaybillSchema = z.object({
   orderId: UuidSchema,

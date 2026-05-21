@@ -401,6 +401,7 @@ export const ko = {
       logen_failed: '로젠 등록 실패',
       waybill_printed: '운송장 출력',
       tracking_submitted: '마켓 송장 제출',
+      dispatch_failed: '송장 제출 실패',
     },
     dispatch: {
       pending: '제출 대기',
