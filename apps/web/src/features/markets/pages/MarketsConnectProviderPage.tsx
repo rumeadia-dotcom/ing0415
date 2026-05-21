@@ -4,18 +4,18 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { Eye, EyeOff } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ErrorMessage,
   Input,
   Label,
 } from '@/components/ui'
+import { ko } from '@/locales/ko'
+import { cn } from '@/lib/utils'
 import { useOAuthStart } from '../hooks/useOAuthStart'
 import { useConnectMarket } from '../hooks/useConnectMarket'
 import { MarketApiInvocationError } from '../api/markets-api'
@@ -27,16 +27,20 @@ import {
   type HmacConnectForm,
   type EsmJwtConnectForm,
 } from '@/lib/schemas/markets-feature'
+import { ProviderConnectShell } from '../components/ProviderConnectShell'
+import { ProviderGuideCard, ProviderSecurityNote } from '../components/ProviderGuideCard'
+import { MarketIdentity } from '../components/MarketIdentity'
 
 /**
- * MarketsConnectProviderPage — n37 4분기 본 동작 (Phase 2).
+ * MarketsConnectProviderPage — n37 4분기 본 동작 (Phase 2 — Studio 룩).
  * 마스터: docs/architecture/v1/features/markets.md §7.3
+ * Studio s5 reference: studio-extras.jsx StudioMarketConnect (좌 form / 우 가이드 aside).
  *
  *  - naver   → OAuth 안내 + useOAuthStart → window.location.assign(authorizeUrl)
- *  - coupang → HMAC 폼 + useConnectMarket
- *  - gmarket → ESM JWT 폼 + useConnectMarket
- *  - auction → ESM JWT 폼 + useConnectMarket
- *  - 11st    → disabled 안내
+ *  - coupang → HMAC 폼 (Vendor / Access / Secret + Reveal toggle) + 발급가이드 aside
+ *  - gmarket → ESM JWT 폼 (Master / Secret / Seller) + ESM 가이드 aside (site=G)
+ *  - auction → ESM JWT 폼 (Master / Secret / Seller) + ESM 가이드 aside (site=A)
+ *  - 11st    → disabled 안내 (가이드 aside 없음)
  */
 function isMarketId(value: string | undefined): value is MarketId {
   return typeof value === 'string' && (MARKET_IDS as readonly string[]).includes(value)
@@ -51,7 +55,7 @@ export function MarketsConnectProviderPage(): JSX.Element {
         <Card>
           <CardContent>
             <Button asChild variant="ghost">
-              <Link to="/markets/connect">마켓 선택으로</Link>
+              <Link to="/markets/connect">{ko.markets.connect.backToSelect}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -60,36 +64,61 @@ export function MarketsConnectProviderPage(): JSX.Element {
   }
 
   const entry = MARKET_CATALOG[provider]
-  const label = entry.label
 
+  if (entry.authMode === 'disabled') {
+    return <DisabledScreen marketId={provider} />
+  }
+
+  if (entry.authMode === 'oauth') {
+    return (
+      <ProviderConnectShell
+        marketId={provider}
+        authMode="oauth"
+        form={<OAuthForm marketId={provider} />}
+      />
+    )
+  }
+
+  if (entry.authMode === 'hmac') {
+    return (
+      <ProviderConnectShell
+        marketId={provider}
+        authMode="hmac"
+        form={<HmacForm marketId={provider} />}
+        aside={
+          <>
+            <ProviderGuideCard
+              title={ko.markets.form.hmac.guideTitle}
+              steps={ko.markets.form.hmac.guideSteps}
+            />
+            <ProviderSecurityNote />
+          </>
+        }
+      />
+    )
+  }
+
+  // esm_jwt
   return (
-    <div className="mx-auto w-full max-w-[640px]">
-      <PageHeader title={`${label} 연결`} subtitle={authSubtitle(entry.authMode)} />
-      {entry.authMode === 'oauth' && <OAuthSection label={label} />}
-      {entry.authMode === 'hmac' && <HmacSection label={label} />}
-      {entry.authMode === 'esm_jwt' && (
-        <EsmJwtSection label={label} market={provider === 'gmarket' ? 'gmarket' : 'auction'} />
-      )}
-      {entry.authMode === 'disabled' && <DisabledSection label={label} />}
-    </div>
+    <ProviderConnectShell
+      marketId={provider}
+      authMode="esm_jwt"
+      form={<EsmJwtForm marketId={provider} site={provider === 'gmarket' ? 'G' : 'A'} />}
+      aside={
+        <>
+          <ProviderGuideCard
+            title={ko.markets.form.esm.guideTitle}
+            steps={ko.markets.form.esm.guideSteps}
+          />
+          <ProviderSecurityNote />
+        </>
+      }
+    />
   )
 }
 
-function authSubtitle(mode: (typeof MARKET_CATALOG)[MarketId]['authMode']): string {
-  switch (mode) {
-    case 'oauth':
-      return 'OAuth 2.0 인증으로 마켓 계정을 안전하게 연결합니다.'
-    case 'hmac':
-      return 'API 키(Access / Secret / Vendor ID) 를 입력해 연결합니다.'
-    case 'esm_jwt':
-      return 'ESM 인증 키(Master ID / Secret / Seller ID) 를 입력해 연결합니다.'
-    case 'disabled':
-      return '현재 오픈 준비중인 마켓입니다.'
-  }
-}
-
 // ─────────────────────────────────────────────
-// OAuth 섹션 — 네이버
+// OAuth (네이버)
 // ─────────────────────────────────────────────
 
 const OAuthLabelFormSchema = z.object({
@@ -97,9 +126,14 @@ const OAuthLabelFormSchema = z.object({
 })
 type OAuthLabelForm = z.infer<typeof OAuthLabelFormSchema>
 
-function OAuthSection({ label }: { label: string }): JSX.Element {
+function OAuthForm({ marketId }: { marketId: MarketId }): JSX.Element {
   const oauthStart = useOAuthStart()
-  const [serverError, setServerError] = useState<{ message: string; correlationId: string | null } | null>(null)
+  const [serverError, setServerError] = useState<{
+    message: string
+    correlationId: string | null
+  } | null>(null)
+  const label = MARKET_CATALOG[marketId].label
+  const t = ko.markets.form
 
   const form = useForm<OAuthLabelForm>({
     resolver: zodResolver(OAuthLabelFormSchema) as Resolver<OAuthLabelForm>,
@@ -116,7 +150,6 @@ function OAuthSection({ label }: { label: string }): JSX.Element {
       },
       {
         onSuccess: (data) => {
-          // 외부 OAuth 페이지로 이동
           window.location.assign(data.authorizeUrl)
         },
         onError: (err) => {
@@ -132,63 +165,66 @@ function OAuthSection({ label }: { label: string }): JSX.Element {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>OAuth 인증</CardTitle>
-        <CardDescription>
-          버튼을 누르면 {label} 인증 화면으로 이동합니다. 마켓 로그인 정보는 MarketCast 에 전달되지
-          않으며, 발급된 토큰은 암호화 저장됩니다.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="oauth-accountLabel">계정 라벨 (구분용)</Label>
-            <Input
-              id="oauth-accountLabel"
-              type="text"
-              autoComplete="off"
-              placeholder="예: 메인 스토어"
-              aria-invalid={form.formState.errors.accountLabel ? true : undefined}
-              {...form.register('accountLabel')}
-            />
-            <p className="text-xs text-text-tertiary">1~40자. 동일 마켓에서 라벨 중복 불가.</p>
-            {form.formState.errors.accountLabel && (
-              <p role="alert" className="text-xs text-danger-on-soft">
-                {form.formState.errors.accountLabel.message}
-              </p>
-            )}
-          </div>
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={form.handleSubmit(onSubmit)}
+      noValidate
+    >
+      <FieldShell
+        id="oauth-accountLabel"
+        label={t.labelOptional}
+        hint={t.labelHint}
+        error={form.formState.errors.accountLabel?.message}
+      >
+        <Input
+          id="oauth-accountLabel"
+          type="text"
+          autoComplete="off"
+          placeholder={t.labelPlaceholder}
+          aria-invalid={form.formState.errors.accountLabel ? true : undefined}
+          {...form.register('accountLabel')}
+        />
+      </FieldShell>
 
-          {serverError && (
-            <ErrorMessage
-              message={serverError.message}
-              {...(serverError.correlationId ? { details: `요청 ID: ${serverError.correlationId}` } : {})}
-            />
-          )}
+      <p className="rounded-lg border border-border bg-surface-subtle px-4 py-3 text-[12.5px] leading-relaxed text-text-secondary">
+        버튼을 누르면 {label} 인증 화면으로 이동합니다. 마켓 로그인 정보는 MarketCast 에 전달되지
+        않으며, 발급된 토큰은 암호화 저장됩니다.
+      </p>
 
-          <div className="mt-2 flex gap-2">
-            <Button asChild variant="ghost" type="button">
-              <Link to="/markets/connect">취소</Link>
-            </Button>
-            <Button type="submit" variant="primary" disabled={oauthStart.isPending}>
-              {oauthStart.isPending ? '이동 중…' : `${label} 로그인으로 이동 →`}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      {serverError && (
+        <ErrorMessage
+          message={serverError.message}
+          {...(serverError.correlationId
+            ? { details: `요청 ID: ${serverError.correlationId}` }
+            : {})}
+        />
+      )}
+
+      <div className="mt-2 flex justify-end gap-2">
+        <Button asChild variant="ghost" type="button">
+          <Link to="/markets/connect">{ko.markets.connect.cancel}</Link>
+        </Button>
+        <Button type="submit" variant="primary" disabled={oauthStart.isPending}>
+          {oauthStart.isPending ? t.submit.oauthPending : t.submit.oauth(label)}
+        </Button>
+      </div>
+    </form>
   )
 }
 
 // ─────────────────────────────────────────────
-// HMAC 섹션 — 쿠팡
+// HMAC (쿠팡)
 // ─────────────────────────────────────────────
 
-function HmacSection({ label }: { label: string }): JSX.Element {
+function HmacForm({ marketId }: { marketId: MarketId }): JSX.Element {
   const navigate = useNavigate()
   const connect = useConnectMarket()
-  const [serverError, setServerError] = useState<{ message: string; correlationId: string | null } | null>(null)
+  const [serverError, setServerError] = useState<{
+    message: string
+    correlationId: string | null
+  } | null>(null)
+  const label = MARKET_CATALOG[marketId].label
+  const t = ko.markets.form
 
   const form = useForm<HmacConnectForm>({
     resolver: zodResolver(HmacConnectFormSchema) as Resolver<HmacConnectForm>,
@@ -220,80 +256,113 @@ function HmacSection({ label }: { label: string }): JSX.Element {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{label} HMAC 키 입력</CardTitle>
-        <CardDescription>
-          쿠팡 윙(Wing) → 개발자 메뉴 → API Key 발급 화면에서 받은 3개 값을 입력하세요. 입력값은
-          Edge Function 만 접근 가능한 영역에 암호화 저장됩니다.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-col gap-3" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          <FormField
-            id="hmac-accountLabel"
-            label="계정 라벨"
-            register={form.register('accountLabel')}
-            error={form.formState.errors.accountLabel?.message}
-            placeholder="예: 메인 스토어"
-          />
-          <FormField
-            id="hmac-accessKey"
-            label="Access Key"
-            register={form.register('accessKey')}
-            error={form.formState.errors.accessKey?.message}
-            placeholder="예: aaaa-bbbb-cccc-dddd"
-          />
-          <FormField
-            id="hmac-secretKey"
-            label="Secret Key"
-            type="password"
-            register={form.register('secretKey')}
-            error={form.formState.errors.secretKey?.message}
-            placeholder="40자 이상의 영문 + 숫자"
-          />
-          <FormField
-            id="hmac-vendorId"
-            label="Vendor ID"
-            register={form.register('vendorId')}
-            error={form.formState.errors.vendorId?.message}
-            placeholder="예: A00012345"
-          />
+    <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <FieldShell
+        id="hmac-accountLabel"
+        label={t.labelOptional}
+        hint={t.labelHint}
+        error={form.formState.errors.accountLabel?.message}
+      >
+        <Input
+          id="hmac-accountLabel"
+          type="text"
+          autoComplete="off"
+          placeholder={t.labelPlaceholder}
+          aria-invalid={form.formState.errors.accountLabel ? true : undefined}
+          {...form.register('accountLabel')}
+        />
+      </FieldShell>
 
-          {serverError && (
-            <ErrorMessage
-              message={serverError.message}
-              {...(serverError.correlationId ? { details: `요청 ID: ${serverError.correlationId}` } : {})}
-            />
-          )}
+      <FieldShell
+        id="hmac-vendorId"
+        label={`Vendor ID — ${t.hmac.vendorId}`}
+        hint={t.hmac.vendorIdHint}
+        required
+        error={form.formState.errors.vendorId?.message}
+      >
+        <Input
+          id="hmac-vendorId"
+          type="text"
+          autoComplete="off"
+          placeholder={t.hmac.vendorIdPlaceholder}
+          aria-invalid={form.formState.errors.vendorId ? true : undefined}
+          className="font-mono tracking-wide"
+          {...form.register('vendorId')}
+        />
+      </FieldShell>
 
-          <div className="mt-2 flex gap-2">
-            <Button asChild variant="ghost" type="button">
-              <Link to="/markets/connect">취소</Link>
-            </Button>
-            <Button type="submit" variant="primary" disabled={connect.isPending}>
-              {connect.isPending ? '연결 중…' : '연결'}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <FieldShell
+        id="hmac-accessKey"
+        label={`Access Key — ${t.hmac.accessKey}`}
+        required
+        error={form.formState.errors.accessKey?.message}
+      >
+        <Input
+          id="hmac-accessKey"
+          type="text"
+          autoComplete="off"
+          placeholder={t.hmac.accessKeyPlaceholder}
+          aria-invalid={form.formState.errors.accessKey ? true : undefined}
+          className="font-mono tracking-wide"
+          {...form.register('accessKey')}
+        />
+      </FieldShell>
+
+      <SecretField
+        id="hmac-secretKey"
+        label={`Secret Key — ${t.hmac.secretKey}`}
+        placeholder={t.hmac.secretKeyPlaceholder}
+        register={form.register('secretKey')}
+        error={form.formState.errors.secretKey?.message}
+      />
+
+      <SecurityHintLine />
+
+      {serverError && (
+        <ErrorMessage
+          message={serverError.message}
+          {...(serverError.correlationId
+            ? { details: `요청 ID: ${serverError.correlationId}` }
+            : {})}
+        />
+      )}
+
+      <div className="mt-2 flex justify-end gap-2">
+        <Button asChild variant="ghost" type="button">
+          <Link to="/markets/connect">{ko.markets.connect.cancel}</Link>
+        </Button>
+        <Button type="submit" variant="primary" disabled={connect.isPending}>
+          {connect.isPending ? t.submit.savePending : t.submit.save}
+        </Button>
+      </div>
+    </form>
   )
 }
 
 // ─────────────────────────────────────────────
-// ESM JWT 섹션 — G마켓 / 옥션
+// ESM JWT (G마켓 / 옥션)
 // ─────────────────────────────────────────────
 
-function EsmJwtSection({ label, market }: { label: string; market: 'gmarket' | 'auction' }): JSX.Element {
+function EsmJwtForm({
+  marketId,
+  site,
+}: {
+  marketId: MarketId
+  site: 'G' | 'A'
+}): JSX.Element {
   const navigate = useNavigate()
   const connect = useConnectMarket()
-  const [serverError, setServerError] = useState<{ message: string; correlationId: string | null } | null>(null)
+  const [serverError, setServerError] = useState<{
+    message: string
+    correlationId: string | null
+  } | null>(null)
+  const label = MARKET_CATALOG[marketId].label
+  const t = ko.markets.form
 
   const form = useForm<EsmJwtConnectForm>({
     resolver: zodResolver(EsmJwtConnectFormSchema) as Resolver<EsmJwtConnectForm>,
     defaultValues: {
-      market,
+      market: marketId === 'gmarket' ? 'gmarket' : 'auction',
       accountLabel: '',
       masterId: '',
       secretKey: '',
@@ -319,124 +388,204 @@ function EsmJwtSection({ label, market }: { label: string; market: 'gmarket' | '
     })
   }
 
-  const site: 'G' | 'A' = market === 'gmarket' ? 'G' : 'A'
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{label} ESM 키 입력</CardTitle>
-        <CardDescription>
-          ESM Plus → 판매자 도구 → API 관리에서 받은 3개 값을 입력하세요. site 코드는 자동으로{' '}
-          <code>{site}</code> 로 설정됩니다 ({label} 전용). 입력값은 암호화 저장됩니다.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-col gap-3" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          <FormField
-            id="esm-accountLabel"
-            label="계정 라벨"
-            register={form.register('accountLabel')}
-            error={form.formState.errors.accountLabel?.message}
-            placeholder="예: 메인 스토어"
-          />
-          <FormField
-            id="esm-masterId"
-            label="Master ID"
-            register={form.register('masterId')}
-            error={form.formState.errors.masterId?.message}
-            placeholder="ESM 통합 마스터 ID"
-          />
-          <FormField
-            id="esm-secretKey"
-            label="Secret Key"
-            type="password"
-            register={form.register('secretKey')}
-            error={form.formState.errors.secretKey?.message}
-            placeholder="ESM 발급 시크릿"
-          />
-          <FormField
-            id="esm-sellerId"
-            label="Seller ID"
-            register={form.register('sellerId')}
-            error={form.formState.errors.sellerId?.message}
-            placeholder={`${label} 셀러 ID`}
-          />
+    <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <FieldShell
+        id="esm-accountLabel"
+        label={t.labelOptional}
+        hint={t.labelHint}
+        error={form.formState.errors.accountLabel?.message}
+      >
+        <Input
+          id="esm-accountLabel"
+          type="text"
+          autoComplete="off"
+          placeholder={t.labelPlaceholder}
+          aria-invalid={form.formState.errors.accountLabel ? true : undefined}
+          {...form.register('accountLabel')}
+        />
+      </FieldShell>
 
-          {serverError && (
-            <ErrorMessage
-              message={serverError.message}
-              {...(serverError.correlationId ? { details: `요청 ID: ${serverError.correlationId}` } : {})}
-            />
-          )}
+      <FieldShell
+        id="esm-masterId"
+        label={t.esm.masterId}
+        required
+        error={form.formState.errors.masterId?.message}
+      >
+        <Input
+          id="esm-masterId"
+          type="text"
+          autoComplete="off"
+          placeholder={t.esm.masterIdPlaceholder}
+          aria-invalid={form.formState.errors.masterId ? true : undefined}
+          className="font-mono tracking-wide"
+          {...form.register('masterId')}
+        />
+      </FieldShell>
 
-          <div className="mt-2 flex gap-2">
-            <Button asChild variant="ghost" type="button">
-              <Link to="/markets/connect">취소</Link>
-            </Button>
-            <Button type="submit" variant="primary" disabled={connect.isPending}>
-              {connect.isPending ? '연결 중…' : '연결'}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
-  )
-}
+      <SecretField
+        id="esm-secretKey"
+        label={t.esm.secretKey}
+        placeholder={t.esm.secretKeyPlaceholder}
+        register={form.register('secretKey')}
+        error={form.formState.errors.secretKey?.message}
+      />
 
-// ─────────────────────────────────────────────
-// Disabled — 11번가
-// ─────────────────────────────────────────────
+      <FieldShell
+        id="esm-sellerId"
+        label={t.esm.sellerId}
+        required
+        error={form.formState.errors.sellerId?.message}
+      >
+        <Input
+          id="esm-sellerId"
+          type="text"
+          autoComplete="off"
+          placeholder={t.esm.sellerIdPlaceholder(label)}
+          aria-invalid={form.formState.errors.sellerId ? true : undefined}
+          className="font-mono tracking-wide"
+          {...form.register('sellerId')}
+        />
+      </FieldShell>
 
-function DisabledSection({ label }: { label: string }): JSX.Element {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{label} — 오픈 준비중</CardTitle>
-        <CardDescription>
-          {label} 연동은 v2 에 제공될 예정입니다. 현재는 활성 4개 마켓 (네이버 · 쿠팡 · G마켓 ·
-          옥션) 만 연결 가능합니다.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button asChild variant="ghost">
-          <Link to="/markets/connect">마켓 선택으로</Link>
+      <p className="rounded-lg border border-border bg-surface-subtle px-4 py-2.5 text-[12px] text-text-secondary">
+        {t.esm.siteNote(site, label)}
+      </p>
+
+      <SecurityHintLine />
+
+      {serverError && (
+        <ErrorMessage
+          message={serverError.message}
+          {...(serverError.correlationId
+            ? { details: `요청 ID: ${serverError.correlationId}` }
+            : {})}
+        />
+      )}
+
+      <div className="mt-2 flex justify-end gap-2">
+        <Button asChild variant="ghost" type="button">
+          <Link to="/markets/connect">{ko.markets.connect.cancel}</Link>
         </Button>
-      </CardContent>
-    </Card>
+        <Button type="submit" variant="primary" disabled={connect.isPending}>
+          {connect.isPending ? t.submit.savePending : t.submit.save}
+        </Button>
+      </div>
+    </form>
   )
 }
 
 // ─────────────────────────────────────────────
-// FormField — register / error 매핑 묶음
+// Disabled (11번가)
 // ─────────────────────────────────────────────
 
-interface FormFieldProps {
+function DisabledScreen({ marketId }: { marketId: MarketId }): JSX.Element {
+  const label = MARKET_CATALOG[marketId].label
+  const t = ko.markets.form
+
+  return (
+    <div className="mx-auto w-full max-w-[640px]">
+      <Card>
+        <CardContent className="flex flex-col items-center gap-5 px-6 py-12 text-center">
+          <MarketIdentity marketId={marketId} size="lg" className="h-14 w-14 text-lg opacity-60" />
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-text">{t.disabled.title(label)}</h2>
+            <p className="text-sm leading-relaxed text-text-secondary">{t.disabled.body}</p>
+          </div>
+          <Button asChild variant="ghost">
+            <Link to="/markets/connect">{ko.markets.connect.backToSelect}</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// 공통 폼 헬퍼
+// ─────────────────────────────────────────────
+
+interface FieldShellProps {
   id: string
   label: string
-  type?: string
-  placeholder?: string
-  register: ReturnType<ReturnType<typeof useForm>['register']>
-  error: string | undefined
+  hint?: string
+  required?: boolean
+  error?: string | undefined
+  children: React.ReactNode
 }
 
-function FormField({ id, label, type = 'text', placeholder, register, error }: FormFieldProps): JSX.Element {
+function FieldShell({ id, label, hint, required, error, children }: FieldShellProps): JSX.Element {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type={type}
-        autoComplete="off"
-        {...(placeholder ? { placeholder } : {})}
-        aria-invalid={error ? true : undefined}
-        {...register}
-      />
+      <Label htmlFor={id} className="text-[12.5px] font-semibold text-text-secondary">
+        {label}
+        {required && <span className="ml-1 text-danger">*</span>}
+      </Label>
+      {children}
+      {hint && !error && <p className="text-[11.5px] text-text-tertiary">{hint}</p>}
       {error && (
-        <p role="alert" className="text-xs text-danger-on-soft">
+        <p role="alert" className="text-[11.5px] font-medium text-danger-on-soft">
           {error}
         </p>
       )}
     </div>
+  )
+}
+
+interface SecretFieldProps {
+  id: string
+  label: string
+  placeholder?: string
+  register: ReturnType<ReturnType<typeof useForm>['register']>
+  error?: string | undefined
+}
+
+function SecretField({ id, label, placeholder, register, error }: SecretFieldProps): JSX.Element {
+  const [reveal, setReveal] = useState(false)
+  const t = ko.markets.form
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id} className="text-[12.5px] font-semibold text-text-secondary">
+        {label}
+        <span className="ml-1 text-danger">*</span>
+      </Label>
+      <div className="relative">
+        <Input
+          id={id}
+          type={reveal ? 'text' : 'password'}
+          autoComplete="off"
+          {...(placeholder ? { placeholder } : {})}
+          aria-invalid={error ? true : undefined}
+          className={cn('font-mono pr-16 tracking-wide')}
+          {...register}
+        />
+        <button
+          type="button"
+          onClick={() => setReveal((v) => !v)}
+          className="absolute right-2 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-md px-2 text-[11.5px] font-semibold text-text-tertiary hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={reveal ? t.reveal.hide : t.reveal.show}
+          aria-pressed={reveal}
+        >
+          {reveal ? <EyeOff aria-hidden className="h-3.5 w-3.5" /> : <Eye aria-hidden className="h-3.5 w-3.5" />}
+          <span>{reveal ? t.reveal.hide : t.reveal.show}</span>
+        </button>
+      </div>
+      {error ? (
+        <p role="alert" className="text-[11.5px] font-medium text-danger-on-soft">
+          {error}
+        </p>
+      ) : (
+        <p className="text-[11.5px] text-text-tertiary">{t.securityNote}</p>
+      )}
+    </div>
+  )
+}
+
+function SecurityHintLine(): JSX.Element {
+  return (
+    <p className="text-[11.5px] leading-relaxed text-text-tertiary">
+      {ko.markets.form.securityNote}
+    </p>
   )
 }
 

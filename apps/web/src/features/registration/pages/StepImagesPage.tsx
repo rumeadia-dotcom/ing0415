@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { Upload } from 'lucide-react'
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ErrorMessage,
   Tooltip,
   TooltipContent,
@@ -24,12 +20,12 @@ import { ImageApiError } from '../api/image-api'
 const MAX_IMAGES = 10
 
 /**
- * StepImagesPage — n18 이미지 업로드 (2/5).
+ * StepImagesPage — n18 이미지 업로드 (2/5). Studio 룩.
  * 마스터: docs/architecture/v1/features/registration.md §10.4
  *
  * - 드롭존 → uploadOneImage (signed URL → PUT → register) → store.images push
- * - 진행률은 개별 카드 + 전체 % 표시
- * - 대표(main) 토글 / 삭제 / 순서 변경
+ * - 진행률 카드 (info-soft 톤) + 전체 % 표시
+ * - 대표(main) 토글 / 삭제 / 순서 변경 (ImageThumbnailGrid)
  * - "다음" 활성 조건: Step2Schema.parse 성공 (1~10장 + main 1장)
  */
 
@@ -144,68 +140,111 @@ export function StepImagesPage(): JSX.Element {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>2단계 — 이미지</CardTitle>
-          <CardDescription>상품 이미지를 1~10장 업로드합니다. 대표 이미지 1장 지정 필수.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {remainingSlots > 0 ? (
-            <ImageDropzone onFilesSelected={handleFiles} remainingSlots={remainingSlots} />
-          ) : (
-            <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-warning-on-soft">
-              최대 {MAX_IMAGES}장까지 업로드 가능합니다. 기존 이미지를 삭제 후 추가해 주세요.
-            </p>
-          )}
+      <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <header className="mb-4">
+          <h2 className="text-[15px] font-bold text-text">상품 이미지</h2>
+          <p className="mt-1 text-[12.5px] text-text-tertiary">
+            1~10장, 대표 1장 필수. 마켓별 규격은 업로드 후 자동 최적화돼요.
+          </p>
+        </header>
 
-          {uploading.length > 0 && (
-            <ul className="space-y-1.5">
-              {uploading.map((u) => (
-                <li key={u.id} className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="truncate font-medium">{u.filename}</span>
-                    <span className="text-xs text-text-tertiary">
-                      {u.error
-                        ? `❌ ${u.error}`
-                        : `${Math.round((u.loaded / Math.max(u.total, 1)) * 100)}%`}
-                    </span>
-                  </div>
-                  {!u.error && (
-                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-border">
-                      <div
-                        className="h-full bg-accent transition-all"
-                        style={{ width: `${Math.min(100, (u.loaded / Math.max(u.total, 1)) * 100)}%` }}
-                      />
+        {remainingSlots > 0 ? (
+          <ImageDropzone onFilesSelected={handleFiles} remainingSlots={remainingSlots} />
+        ) : (
+          <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-warning-on-soft">
+            최대 {MAX_IMAGES}장까지 업로드 가능합니다. 기존 이미지를 삭제 후 추가해 주세요.
+          </p>
+        )}
+
+        {uploading.length > 0 && (
+          <ul className="mt-4 space-y-2">
+            {uploading.map((u) => {
+              const pct = Math.round((u.loaded / Math.max(u.total, 1)) * 100)
+              return (
+                <li
+                  key={u.id}
+                  className="flex items-center gap-3 rounded-md bg-info-soft px-3.5 py-2.5 text-sm text-info-on-soft"
+                >
+                  <span
+                    aria-hidden
+                    className="inline-flex h-6 w-6 items-center justify-center rounded bg-info-on-soft/80 text-white"
+                  >
+                    <Upload className="h-3 w-3" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[12.5px] font-medium">
+                        {u.filename}
+                      </span>
+                      <span className="font-mono text-[11.5px]">
+                        {u.error ? '실패' : `${pct}%`}
+                      </span>
                     </div>
-                  )}
+                    {!u.error && (
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded bg-white/60">
+                        <div
+                          className="h-full bg-info-on-soft transition-all"
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                        />
+                      </div>
+                    )}
+                    {u.error && (
+                      <p className="mt-1 text-[11.5px] text-danger-on-soft">{u.error}</p>
+                    )}
+                  </div>
                 </li>
-              ))}
-            </ul>
-          )}
+              )
+            })}
+          </ul>
+        )}
 
-          {images.length > 0 && (
+        {images.length > 0 && (
+          <div className="mt-5">
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <h3 className="text-[13.5px] font-bold text-text">
+                업로드된 이미지 {images.length}장
+              </h3>
+              <span className="text-[11.5px] text-text-tertiary">
+                별표로 대표 지정 · 화살표로 순서 변경
+              </span>
+            </div>
             <ImageThumbnailGrid
               images={images}
               onSetMain={handleSetMain}
               onRemove={handleRemove}
               onMove={handleMove}
             />
-          )}
+          </div>
+        )}
 
-          {pageError && <ErrorMessage message={pageError} />}
-        </CardContent>
-      </Card>
+        {pageError && (
+          <div className="mt-4">
+            <ErrorMessage message={pageError} />
+          </div>
+        )}
+      </section>
 
-      <div className="mt-6 flex justify-between gap-2">
-        <Button variant="ghost" onClick={() => navigate('/register/info')}>
-          ← 이전
+      {/* Action bar */}
+      <div className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-surface px-5 py-3 shadow-sm">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => navigate('/register/info')}
+          className="border border-border"
+        >
+          ← 상품 정보
         </Button>
+        <div className="flex-1 text-[12.5px] text-text-tertiary">
+          {blockingReasons.length > 0
+            ? blockingReasons[0]
+            : `이미지 ${images.length}장 · 대표 지정 완료`}
+        </div>
         {blockingReasons.length > 0 ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
                 <Button variant="primary" disabled aria-disabled>
-                  다음: 마켓 선택
+                  다음: 마켓 선택 →
                 </Button>
               </span>
             </TooltipTrigger>
@@ -219,7 +258,7 @@ export function StepImagesPage(): JSX.Element {
           </Tooltip>
         ) : (
           <Button variant="primary" onClick={handleNext}>
-            다음: 마켓 선택
+            다음: 마켓 선택 →
           </Button>
         )}
       </div>

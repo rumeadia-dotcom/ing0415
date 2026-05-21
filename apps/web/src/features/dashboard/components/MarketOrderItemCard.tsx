@@ -1,35 +1,23 @@
 import { Link } from 'react-router-dom'
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui'
+import { AlertCircle, ChevronRight, Loader2 } from 'lucide-react'
 import { ko } from '@/locales/ko'
-import type { MarketId } from '@/lib/schemas/common'
 import type { MarketOrderItem } from '@/lib/schemas/dashboard-summary'
-
-/** 마켓 brand color (MarketDotStack 과 동일 - markets.md §7.2). */
-const BRAND_COLOR: Record<MarketId, string> = {
-  naver: '#03C75A',
-  coupang: '#F11F44',
-  gmarket: '#00B147',
-  auction: '#E73936',
-  '11st': '#FF0038',
-}
+import { MarketLogo } from './MarketLogo'
 
 interface MarketOrderItemCardProps {
   item: MarketOrderItem
 }
 
 /**
- * 단일 마켓 주문 카드 — s2 대시보드 "마켓별 주문 현황" 위젯 내부.
- * 마스터: docs/design-renewal/s2-dashboard.md §3.4 / §6.1 / §6.3.
+ * 단일 마켓 주문 row — s2 대시보드 "마켓별 주문 현황" 위젯 내부.
+ * 마스터: docs/design-renewal/s2-dashboard.md §3.4 / §6.1 / §6.3
+ * 디자인: docs/design-renewal/designFile/concepts/studio.jsx (마켓 연결 list pattern)
  *
- * 시각 hierarchy:
- *   ① 색상 도트 + 마켓명
- *   ② 신규 주문 카운트 (큰 숫자) — 가중치 최고
- *   ③ 오늘 총합 (보조 숫자)
- *   ④ 마지막 sync 시각 + 상태 뱃지 (작은 글자)
+ * Studio 룩 (vertical list row):
+ *   logo(initial 박스) + 마켓명 + 우측 mini stats (신규/오늘) + sync 상태 + 화살표
  *
- * sync 오류 카드는 좌측 컬러바 강조 + 재인증 유도 (`/markets`).
- * 신규 0건 카드는 dim 처리 (지금 처리할 일이 없는 마켓).
+ * sync 오류 row 는 좌측 컬러바 강조 + /markets 재인증 유도.
+ * 신규 0 row 는 dim 처리.
  */
 export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Element {
   const marketLabel = ko.market[item.marketId]
@@ -37,94 +25,85 @@ export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Ele
   const isError = item.syncStatus === 'error'
   const isSyncing = item.syncStatus === 'syncing'
 
-  const content = (
-    <Card
-      data-market={item.marketId}
-      data-sync-status={item.syncStatus}
-      className={[
-        'relative h-full overflow-hidden transition-shadow',
-        isError ? 'border-danger' : '',
-        hasNew ? 'shadow-sm' : 'opacity-75',
-        'group-hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-accent',
-      ].join(' ')}
-    >
-      {/* 좌측 컬러바 */}
-      <span
-        aria-hidden
-        className="absolute left-0 top-0 h-full w-1"
-        style={{ backgroundColor: isError ? undefined : BRAND_COLOR[item.marketId] }}
-      />
-      <CardContent className="flex min-h-[88px] flex-col gap-2 py-4 pl-5 pr-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: BRAND_COLOR[item.marketId] }}
-            />
-            <span className="text-sm font-medium text-text">{marketLabel}</span>
-          </div>
-          <SyncBadge status={item.syncStatus} />
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span
-            className={[
-              'text-[28px] leading-none font-semibold tabular-nums',
-              hasNew ? 'text-text' : 'text-text-tertiary',
-            ].join(' ')}
-          >
-            {item.newOrdersCount}
-          </span>
-          <span className="text-xs text-text-secondary">신규</span>
-          <span className="ml-2 text-xs text-text-tertiary">
-            오늘 {item.todayTotalCount}건
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-xs text-text-tertiary">
-          <span>
-            {isError
-              ? '연결 오류 — 재인증 필요'
-              : item.lastSyncedAt
-                ? `최근 동기화 ${formatRelativeShort(item.lastSyncedAt)}`
-                : '동기화 기록 없음'}
-          </span>
-          {isError ? (
-            <span className="text-danger" aria-hidden>
-              →
-            </span>
-          ) : isSyncing ? null : (
-            <span className="text-text-tertiary" aria-hidden>
-              →
-            </span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-
   // 오류 시 /markets 로 재인증 유도, 그 외엔 /orders/list?market=<id>.
   const to = isError
     ? `/markets`
     : `/orders/list?market=${encodeURIComponent(item.marketId)}`
   const aria = isError
     ? `${marketLabel} 연결 오류, 재인증 페이지로 이동`
-    : `${marketLabel} 주문 ${item.newOrdersCount}건, 목록으로 이동`
+    : `${marketLabel} 신규 ${item.newOrdersCount}건, 오늘 ${item.todayTotalCount}건, 주문 목록으로 이동`
 
   return (
     <Link
       to={to}
       aria-label={aria}
-      className="group block rounded-md focus-visible:outline-none"
+      data-market={item.marketId}
+      data-sync-status={item.syncStatus}
+      className={[
+        'group relative flex items-center gap-3 rounded-[10px] border px-3 py-3 transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
+        isError
+          ? 'border-danger/30 bg-danger-soft hover:bg-danger-soft/80'
+          : hasNew
+            ? 'border-border bg-white hover:bg-card-2'
+            : 'border-border bg-card-2 hover:bg-white',
+      ].join(' ')}
     >
-      {content}
+      <MarketLogo id={item.marketId} size="md" label={marketLabel} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[13.5px] font-semibold text-ink">
+            {marketLabel}
+          </span>
+          <SyncBadge status={item.syncStatus} />
+        </div>
+        <div className="mt-0.5 text-[11.5px] text-faint">
+          {isError
+            ? '연결 오류 — 재인증 필요'
+            : item.lastSyncedAt
+              ? `최근 동기화 ${formatRelativeShort(item.lastSyncedAt)}`
+              : '동기화 기록 없음'}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-baseline gap-3 text-right">
+        <div>
+          <div
+            className={[
+              'font-mono text-[20px] font-bold leading-none tabular-nums tracking-[-0.02em]',
+              hasNew ? 'text-ink' : 'text-faint',
+            ].join(' ')}
+          >
+            {item.newOrdersCount}
+          </div>
+          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
+            신규
+          </div>
+        </div>
+        <div>
+          <div className="font-mono text-[15px] font-semibold leading-none tabular-nums text-dim">
+            {item.todayTotalCount}
+          </div>
+          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
+            오늘
+          </div>
+        </div>
+      </div>
+      <ChevronRight
+        aria-hidden
+        className={[
+          'h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5',
+          isError ? 'text-danger' : 'text-faint',
+          isSyncing ? 'opacity-50' : '',
+        ].join(' ')}
+      />
     </Link>
   )
 }
 
-function SyncBadge({ status }: { status: MarketOrderItem['syncStatus'] }): JSX.Element {
+function SyncBadge({ status }: { status: MarketOrderItem['syncStatus'] }): JSX.Element | null {
   if (status === 'error') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-medium text-danger">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-[10.5px] font-semibold text-danger">
         <AlertCircle className="h-3 w-3" aria-hidden />
         오류
       </span>
@@ -132,18 +111,13 @@ function SyncBadge({ status }: { status: MarketOrderItem['syncStatus'] }): JSX.E
   }
   if (status === 'syncing') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-medium text-info-on-soft">
+      <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[10.5px] font-semibold text-info">
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
         동기화 중
       </span>
     )
   }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success-on-soft">
-      <CheckCircle2 className="h-3 w-3" aria-hidden />
-      정상
-    </span>
-  )
+  return null
 }
 
 /** 상대 시간 짧은 포맷 — "방금 / N분 전 / N시간 전 / N일 전". */

@@ -14,6 +14,8 @@ export const ko = {
   nav: {
     main: '메인',
     aux: '보조',
+    sales: '판매',
+    env: '환경',
     dashboard: '대시보드',
     register: '상품 등록',
     markets: '마켓 계정',
@@ -22,13 +24,20 @@ export const ko = {
     settings: '설정',
     help: '도움말',
     shipping: {
-      group: '배송 (v2)',
+      group: '배송',
       orders: '주문 현황',
       print: '운송장 출력',
       dispatch: '송장 일괄 제출',
       history: '배송 이력',
       settings: '배송 설정',
     },
+  },
+  shell: {
+    brandTagline: '한 번의 등록, 모든 마켓',
+    openMenu: '메뉴 열기',
+    primaryNavLabel: '주요 메뉴',
+    sellerPlaceholderName: 'konai 셀러',
+    sellerPlaceholderEmail: 'seller@konai.com',
   },
   status: {
     pending: '대기',
@@ -49,6 +58,176 @@ export const ko = {
   marketStatus: {
     ready: '연결 가능',
     coming_soon: '오픈 준비중',
+  },
+  markets: {
+    page: {
+      title: '마켓 계정',
+      subtitleLine1: '연결된 마켓을 관리하고 새 마켓을 연결합니다',
+      newConnect: '+ 새 연결',
+      live: '실시간 동기화 켜짐',
+      sectionConnected: '연결된 계정',
+    },
+    summary: {
+      connectedHeading: '연결된 마켓',
+      activeOf: (n: number, total: number) => `${n} / ${total}`,
+      countersAria: '마켓 연결 요약',
+      activeCount: (n: number) => `${n}개 활성`,
+      expiringCount: (n: number) => `${n}개 갱신 필요`,
+      errorCount: (n: number) => `${n}개 인증 실패`,
+      comingSoonCount: (n: number) => `${n}개 v2 예정`,
+    },
+    table: {
+      colMarket: '마켓 · 인증 방식',
+      colAccount: '계정',
+      colExpiry: '토큰 만료',
+      colStatus: '상태',
+      colActions: '액션',
+      verifiedAt: (rel: string) => `마지막 검증 ${rel}`,
+      verifyPending: '검증 전',
+      autoRefresh: '자동 갱신',
+      manualRefresh: '수동 갱신',
+      comingSoonNote: 'v2 예정',
+      noAccount: '—',
+    },
+    status: {
+      active: '연결됨',
+      expiring: '만료 임박',
+      expired: '재인증 필요',
+      revoked: '해제됨',
+      error: '인증 실패',
+      coming_soon: '준비 중',
+    },
+    actions: {
+      manage: '관리',
+      reverify: '상태 확인',
+      reverifying: '확인 중…',
+      reauth: '재인증',
+      reconnect: '재연결',
+      disconnect: '연결 해제',
+      disconnecting: '해제 중…',
+      cancel: '취소',
+      alreadyRevoked: '이미 해제된 계정입니다',
+    },
+    banners: {
+      noActiveTitle: '연결된 활성 마켓이 없습니다',
+      noActiveBody: '상품 등록 전에 1개 이상의 마켓을 다시 연결하세요.',
+      expiringTitle: (label: string, days: number) =>
+        `${label} 토큰이 ${days}일 후 만료돼요`,
+      expiringBody: '자동 갱신되지 않는 인증 방식이라 재인증이 필요해요.',
+      expiringCta: '지금 재인증',
+    },
+    empty: {
+      title: '아직 연결된 마켓이 없습니다.',
+      body: '상품을 등록하려면 먼저 1개 이상의 마켓 계정을 연결하세요.',
+      cta: '+ 첫 마켓 연결하기',
+      hint: 'v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4종 · 11번가는 오픈 준비중',
+    },
+    connect: {
+      pageTitle: '마켓 연결',
+      pageSubtitle:
+        '연결할 마켓을 선택하세요. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션. 11번가는 오픈 준비중.',
+      breadcrumb: {
+        markets: '마켓 계정',
+        new: '신규 연결',
+      },
+      authHint: {
+        oauth: 'OAuth 2.0 · 마켓 로그인 페이지로 이동',
+        hmac: 'HMAC · Access / Secret / Vendor ID 입력',
+        esm_jwt: 'ESM JWT · Master / Secret / Seller ID 입력',
+        disabled: 'v2 예정 · IP 화이트리스트 해소 후 진입',
+      },
+      cardCta: '연결 시작 →',
+      cardCtaDisabled: 'v2 예정',
+      backToList: '마켓 목록으로',
+      backToSelect: '마켓 선택으로',
+      cancel: '취소',
+    },
+    form: {
+      sectionHeading: (label: string) => `${label} 계정 연결`,
+      sectionHint: {
+        oauth: 'OAuth 2.0 방식 · 마켓 로그인 페이지에서 동의',
+        hmac: 'HMAC 방식 · Wing 셀러 콘솔에서 발급',
+        esm_jwt: 'ESM JWT 방식 · ESM Plus 콘솔에서 발급',
+        disabled: '현재 오픈 준비중입니다',
+      },
+      issuanceGuide: '발급 가이드 ↗',
+      labelOptional: '계정 라벨 (구분용)',
+      labelHint: '1~40자 · 동일 마켓에서 라벨 중복 불가',
+      labelPlaceholder: '예: 메인 스토어',
+      required: '필수',
+      submit: {
+        oauth: (label: string) => `${label} 로그인으로 이동 →`,
+        oauthPending: '이동 중…',
+        save: '연결',
+        savePending: '연결 중…',
+      },
+      hmac: {
+        vendorId: '벤더 ID (Vendor ID)',
+        vendorIdHint: '예: A로 시작하는 9자리 코드',
+        vendorIdPlaceholder: '예: A00012345',
+        accessKey: '액세스 키 (Access Key)',
+        accessKeyPlaceholder: '예: aaaa-bbbb-cccc-dddd',
+        secretKey: '시크릿 키 (Secret Key)',
+        secretKeyPlaceholder: '40자 이상의 영문 + 숫자',
+        guideTitle: '키 발급 절차 — 쿠팡 Wing',
+        guideSteps: [
+          '쿠팡 Wing 셀러 콘솔에 로그인',
+          '관리 › 인증정보 관리 메뉴 진입',
+          '액세스/시크릿 키 신규 발급',
+          '벤더 ID 는 상단 프로필에서 확인',
+        ] as const,
+      },
+      esm: {
+        masterId: 'Master ID',
+        masterIdPlaceholder: 'ESM 통합 마스터 ID',
+        secretKey: 'Secret Key',
+        secretKeyPlaceholder: 'ESM 발급 시크릿',
+        sellerId: 'Seller ID',
+        sellerIdPlaceholder: (label: string) => `${label} 셀러 ID`,
+        siteNote: (site: 'G' | 'A', label: string) =>
+          `site 코드는 자동으로 ${site} (${label}) 으로 설정됩니다.`,
+        guideTitle: '키 발급 절차 — ESM Plus',
+        guideSteps: [
+          'ESM Plus 콘솔 로그인',
+          '판매자 도구 › API 관리 메뉴 진입',
+          'API 키 발급 후 Master/Secret 복사',
+          'Seller ID 는 상점 정보에서 확인',
+        ] as const,
+      },
+      reveal: {
+        show: '표시',
+        hide: '숨김',
+      },
+      securityNote:
+        '입력값은 pgcrypto 로 암호화되어 저장돼요. 화면에 다시 노출되지 않아요.',
+      securityWarn:
+        '시크릿 키는 절대 외부에 공유하지 마세요. 분실 시 발급처에서 재발급해야 해요.',
+      disabled: {
+        title: (label: string) => `${label} — 오픈 준비중`,
+        body: 'IP 화이트리스트 정책 해결 후 v2 단계에서 진입합니다. 현재는 네이버 · 쿠팡 · G마켓 · 옥션 4개 마켓만 연결할 수 있습니다.',
+      },
+    },
+    callback: {
+      headerNote: '마켓 계정 연결 · OAuth 콜백',
+      loadingTitle: '연결 처리 중…',
+      loadingBody: (label: string) =>
+        `${label} 토큰을 안전하게 저장하고 계정 정보를 확인하는 중입니다.`,
+      loadingProgress: '진행 중',
+      successTitle: (label: string) => `${label} 연결 완료`,
+      successBody: (account: string) =>
+        `계정 ${account} 가 정상 연결됐어요. OAuth 토큰은 만료 전에 자동으로 갱신돼요.`,
+      successAutoRedirect: '3초 후 자동 이동돼요',
+      successCta: '마켓 계정 목록으로 →',
+      meta: {
+        method: '방식',
+        expiry: '만료',
+        scope: '스코프',
+      },
+      failedTitle: '연결에 실패했습니다',
+      failedSubtitle: (label: string) => `${label} 인증을 완료하지 못했습니다`,
+      retry: '처음부터 다시 시도',
+      backToList: '마켓 목록으로',
+    },
   },
   auth: {
     login: {
@@ -104,6 +283,7 @@ export const ko = {
       successToast: '비밀번호가 변경되었습니다. 다시 로그인해주세요.',
       invalidSession: '재설정 링크가 만료되었거나 유효하지 않습니다.',
       requestAgain: '다시 요청하기',
+      checkingSession: '세션을 확인하는 중…',
     },
     strength: {
       label: '비밀번호 강도',
@@ -142,15 +322,23 @@ export const ko = {
       filterFrom: '시작일',
       filterTo: '종료일',
       filterReset: '필터 초기화',
-      searchPlaceholder: '주문번호·상품명으로 검색',
+      searchPlaceholder: '상품명 · 주문번호 · 수취인 검색',
       tableProduct: '상품',
       tableMarket: '마켓',
       tableBuyer: '주문자',
       tableStatus: '배송 상태',
       tableWaybill: '운송장',
       tableOrderedAt: '주문일시',
+      tableOrderId: '주문번호',
+      tableProductBuyer: '상품 · 주문자',
       empty: '조건에 맞는 주문이 없습니다',
       emptyAbsolute: '아직 주문이 없습니다',
+      emptyFilteredHint:
+        '필터를 넓혀보세요. 마켓 / 상태 / 검색어를 조정하면 더 많은 주문이 표시됩니다.',
+      emptyAbsoluteHint:
+        '주문 동기화는 10분 주기로 자동 실행돼요. 들어오면 이 화면에서 바로 확인할 수 있습니다.',
+      emptySyncHint:
+        '팁: 주문 동기화는 10분 주기로 자동 실행됩니다. 최근 동기화 시각은 화면 상단에서 확인할 수 있어요.',
       errorLoad: '주문 목록을 불러오지 못했습니다',
       loading: '주문 목록 불러오는 중',
       totalCount: (n: number) => `총 ${n.toLocaleString()}건`,
@@ -177,6 +365,11 @@ export const ko = {
       noWaybill: '아직 발급되지 않음',
       manualResolveCta: '운송장 수동 입력',
       manualResolveHint: '로젠 자동 등록이 실패한 주문은 직접 입력할 수 있습니다',
+      failureBannerTitle: '로젠 자동 등록 3회 실패 — 수동 처리가 필요해요',
+      failureBannerBody:
+        '로젠 콜센터에서 운송장을 수기 발급받은 뒤, 운송장 번호를 입력하면 자동 흐름으로 복귀합니다.',
+      timelinePending: '대기 중',
+      dispatchHint: '운송장 발급 후 자동으로 마켓 송장 API에 제출됩니다.',
       errorLoad: '주문 상세를 불러오지 못했습니다',
       notFound: '주문을 찾을 수 없습니다',
     },
@@ -211,6 +404,17 @@ export const ko = {
   settings: {
     title: '설정',
     subtitle: '계정 정보와 환경 설정을 관리합니다',
+    nav: {
+      heading: '설정',
+      account: '계정',
+      shipping: '배송 설정',
+      notifications: '알림',
+      billing: '청구',
+      team: '팀',
+      developer: '개발자',
+      v2Pill: 'v2',
+      openMobileNav: '설정 메뉴 열기',
+    },
     account: {
       title: '계정',
       description: '현재 로그인된 계정 정보',
@@ -322,6 +526,12 @@ export const ko = {
   },
   shipping: {
     placeholder: '작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
+    tabs: {
+      ariaLabel: '배송 페이지 탭',
+      print: '운송장 출력',
+      dispatch: '송장 일괄 제출',
+      history: '배송 이력',
+    },
     print: {
       title: '운송장 출력',
       subtitle: '로젠 등록이 완료된 주문의 운송장을 1클릭으로 출력하세요',
@@ -470,6 +680,7 @@ export const ko = {
   legal: {
     common: {
       tocHeading: '목차',
+      tocMobileToggle: '목차 펼치기',
       skipToContent: '본문으로 건너뛰기',
       lastUpdated: '최종 개정일: 2026년 5월 20일',
       effectiveFrom: '시행일: 2026년 6월 1일',

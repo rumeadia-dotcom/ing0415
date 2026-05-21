@@ -141,7 +141,7 @@ describe('DashboardPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('empty no-markets: 연결 마켓 0건 → "먼저 마켓을 연결하세요" hero', () => {
+  it('empty no-markets: 연결 마켓 0건 → onboarding hero (2-step checklist)', () => {
     mockSummary.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -152,7 +152,10 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    expect(screen.getByText('먼저 마켓을 연결하세요')).toBeInTheDocument()
+    // Studio onboarding hero — gradient + 2-step checklist
+    expect(screen.getByText(/첫 상품을 등록하면/)).toBeInTheDocument()
+    expect(screen.getByText('마켓 연결')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /마켓 연결하기/ })).toBeInTheDocument()
     expect(screen.queryByText('마켓별 주문 현황')).not.toBeInTheDocument()
   })
 

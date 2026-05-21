@@ -1,16 +1,17 @@
-import { Check, AlertTriangle, Circle } from 'lucide-react'
+import { Check, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ko } from '@/locales/ko'
 import { formatRelativeTime } from '@/lib/format-time'
 import type { OrderDetail, OrderShippingStatus } from '@/lib/schemas/orders'
 
 /**
- * 배송 진행 상태 타임라인 (n49).
+ * 배송 진행 상태 타임라인 (n49) — Studio 룩 가로형 4단계.
+ *
  * 흐름: collected → logen_registered → waybill_printed → tracking_submitted.
  * logen_failed 분기는 logen_registered 자리에 경고 아이콘으로 표시.
  *
- * 마스터: docs/architecture/v1/features/orders.md §4.2 (PR2 신설).
  * a11y: ol > li 구조 + 각 단계 aria-current="step" 으로 현재 위치 명시.
+ * 모바일(<sm)은 세로 stack 으로 fallback.
  */
 
 interface TimelineStep {
@@ -35,7 +36,6 @@ function statusReachedFlag(
   current: OrderShippingStatus,
   target: TimelineStep['key'],
 ): boolean {
-  // failed 는 collected 까지만 reached
   if (current === 'logen_failed') return target === 'collected'
   const currentIdx = STEP_ORDER.indexOf(current as TimelineStep['key'])
   const targetIdx = STEP_ORDER.indexOf(target)
@@ -60,42 +60,81 @@ export function OrderStatusTimeline({ order }: OrderStatusTimelineProps): JSX.El
     return { key, reached, failed, timestamp }
   })
 
+  const currentIdx = (() => {
+    if (failedAtLogen) return STEP_ORDER.indexOf('logen_registered')
+    const firstUnreached = steps.findIndex((s) => !s.reached)
+    return firstUnreached === -1 ? steps.length - 1 : Math.max(0, firstUnreached - 1)
+  })()
+
   return (
     <ol
-      className="grid gap-2"
+      className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-0"
       aria-label={ko.orders.detail.sectionTimeline}
     >
       {steps.map((s, idx) => {
-        const isCurrent =
-          (s.reached && idx === steps.findIndex((x) => !x.reached) - 1) ||
-          (s.failed && order.shippingStatus === 'logen_failed')
-        const Icon = s.failed ? AlertTriangle : s.reached ? Check : Circle
-        const label = s.failed
-          ? ko.orders.timeline.logen_failed
-          : ko.orders.timeline[s.key]
+        const isCurrent = idx === currentIdx
+        const isReached = s.reached
+        const isFailed = s.failed
+        const label = isFailed ? ko.orders.timeline.logen_failed : ko.orders.timeline[s.key]
+        const nextReached = idx < steps.length - 1 ? steps[idx + 1]?.reached ?? false : false
         return (
           <li
             key={s.key}
             {...(isCurrent ? { 'aria-current': 'step' as const } : {})}
-            className={cn(
-              'flex items-start gap-3 rounded-md border px-3 py-2 text-sm',
-              s.failed
-                ? 'border-danger/40 bg-danger-soft/40 text-danger-on-soft'
-                : s.reached
-                  ? 'border-success/40 bg-success-soft/40 text-success-on-soft'
-                  : 'border-border bg-surface text-text-tertiary',
-            )}
+            className="relative flex flex-1 items-start gap-3 sm:flex-col sm:items-center sm:text-center"
           >
-            <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">{label}</div>
+            {/* 연결선 (sm+, 다음 단계로) */}
+            {idx < steps.length - 1 ? (
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute left-4 top-8 hidden h-px sm:left-[calc(50%+18px)] sm:right-[calc(-50%+18px)] sm:top-4 sm:block',
+                  nextReached ? 'bg-success' : 'bg-border',
+                )}
+              />
+            ) : null}
+
+            {/* 마커 */}
+            <span
+              aria-hidden
+              className={cn(
+                'relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold',
+                isFailed
+                  ? 'bg-danger text-white'
+                  : isReached
+                    ? 'bg-success text-white'
+                    : 'border-[1.5px] border-dashed border-border-strong bg-surface-muted text-text-tertiary',
+              )}
+            >
+              {isFailed ? (
+                <AlertTriangle className="h-4 w-4" />
+              ) : isReached ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                idx + 1
+              )}
+            </span>
+
+            <div className="min-w-0 flex-1 sm:mt-2.5 sm:flex-none">
+              <div
+                className={cn(
+                  'text-sm font-bold',
+                  isReached || isFailed ? 'text-text' : 'text-text-tertiary',
+                )}
+              >
+                {label}
+              </div>
               {s.timestamp ? (
-                <div className="text-xs text-text-tertiary">
+                <div className="mt-0.5 text-[11px] text-text-tertiary">
                   {formatRelativeTime(s.timestamp)}
                 </div>
+              ) : !isReached ? (
+                <div className="mt-0.5 text-[11px] text-text-tertiary">
+                  {ko.orders.detail.timelinePending}
+                </div>
               ) : null}
-              {s.failed && order.logenErrorMessage ? (
-                <div className="mt-1 text-xs text-danger-on-soft/80">
+              {isFailed && order.logenErrorMessage ? (
+                <div className="mt-1 text-[11px] text-danger-on-soft">
                   {order.logenErrorMessage}
                 </div>
               ) : null}

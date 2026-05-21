@@ -13,11 +13,12 @@ import { formatDurationSec } from '@/lib/format-time'
 
 /**
  * DashboardPage — s2 (n9~n14, v1).
- * 마스터: docs/design-renewal/s2-dashboard.md + docs/architecture/v1/features/dashboard.md.
+ * 마스터: docs/design-renewal/s2-dashboard.md + docs/architecture/v1/features/dashboard.md
+ * 디자인: docs/design-renewal/designFile/concepts/studio.jsx (KPI strip + market list + recent jobs)
  *
- * 레이아웃 (desktop):
+ * Studio 룩 — 레이아웃 (desktop ≥ lg):
  *   PageHeader
- *   ─ Summary cards row (4)
+ *   ─ KPI strip (4 카드, display 34 ink, uppercase label, tone dot)
  *   ─ Empty state OR 2-column (MarketOrdersSummary 좌, MarketHealth + v2 placeholder 우)
  *
  * 4상태 + partial 시각화는 각 자식 컴포넌트가 책임.
@@ -50,7 +51,7 @@ export function DashboardPage(): JSX.Element {
         title="대시보드"
         subtitle="오늘의 주문과 등록 현황을 한눈에 확인하세요"
         actions={
-          <Button asChild>
+          <Button asChild className="rounded-[10px]">
             <Link to="/register">
               <PackagePlus className="mr-2 h-4 w-4" aria-hidden />
               상품 등록
@@ -62,11 +63,11 @@ export function DashboardPage(): JSX.Element {
       <SummaryGrid summary={summary} />
 
       {emptyVariant !== null ? (
-        <div className="mt-6">
+        <div className="mt-5">
           <DashboardEmptyState variant={emptyVariant} />
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <MarketOrdersSummaryCard
               state={
@@ -120,12 +121,14 @@ function SummaryGrid({
         label="오늘 등록"
         value={`${data?.jobs_today_count ?? 0}건`}
         state={baseState}
+        tone="accent"
         icon={<PackagePlus className="h-4 w-4" aria-hidden />}
       />
       <SummaryCard
         label="진행 중"
         value={`${data?.jobs_in_progress_count ?? 0}건`}
         state={baseState}
+        tone="info"
         icon={<Clock className="h-4 w-4" aria-hidden />}
       />
       <SummaryCard
@@ -137,6 +140,7 @@ function SummaryGrid({
             : '집계 데이터 없음'
         }
         state={baseState}
+        tone="ok"
         icon={<CheckCircle2 className="h-4 w-4" aria-hidden />}
       />
       <SummaryCard
@@ -144,6 +148,7 @@ function SummaryGrid({
         value={data && data.avg_duration_sec_7d > 0 ? formatDurationSec(data.avg_duration_sec_7d) : '—'}
         hint="성공 잡 기준"
         state={baseState}
+        tone="dim"
         icon={<Timer className="h-4 w-4" aria-hidden />}
       />
     </div>
@@ -152,15 +157,20 @@ function SummaryGrid({
 
 function V2PlaceholderCard(): JSX.Element {
   return (
-    <Card data-feature="market-stats-v2" className="opacity-60">
-      <CardHeader>
-        <CardTitle className="text-base">마켓별 통계 — v2</CardTitle>
-        <CardDescription>
+    <Card
+      data-feature="market-stats-v2"
+      className="rounded-[14px] border-dashed border-border-strong bg-card-2 opacity-70"
+    >
+      <CardHeader className="px-4 py-4 pb-2">
+        <CardTitle className="text-[13.5px] font-bold text-dim">
+          마켓별 통계 — v2
+        </CardTitle>
+        <CardDescription className="text-[11.5px] text-faint">
           마켓별 성공률·평균 소요·실패 유형 차트가 v2 에서 추가됩니다.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <p className="text-xs text-text-tertiary">자리만 비워두었습니다.</p>
+      <CardContent className="px-4 pb-4 pt-0">
+        <p className="text-[11px] text-faint">자리만 비워두었습니다.</p>
       </CardContent>
     </Card>
   )

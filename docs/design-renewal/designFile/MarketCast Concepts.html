@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MarketCast · Studio 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles/base.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #f0eee9; }
+  body { font-family: "Manrope", system-ui, sans-serif; }
+  #root { height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="frames/ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<!-- Studio core (tokens, shell, marketIdentity) -->
+<script type="text/babel" src="concepts/studio.jsx"></script>
+<!-- Studio screens -->
+<script type="text/babel" src="concepts/studio-domains.jsx"></script>
+<script type="text/babel" src="concepts/studio-register.jsx"></script>
+<script type="text/babel" src="concepts/studio-orders.jsx"></script>
+<script type="text/babel" src="concepts/studio-extras.jsx"></script>
+<script type="text/babel" src="concepts/studio-empty.jsx"></script>
+<script type="text/babel" src="concepts/studio-mobile.jsx"></script>
+<script type="text/babel" src="concepts/studio-tokens.jsx"></script>
+<!-- Tweaks integration — must load after studio.jsx (defines studioTokens) -->
+<script type="text/babel" src="concepts/studio-tweaks.jsx"></script>
+<!-- Reference: earlier exploration -->
+<script type="text/babel" src="concepts/console.jsx"></script>
+<script type="text/babel" src="concepts/grid.jsx"></script>
+
+<script type="text/babel">
+  const W = 1280;
+  const H = 800;
+
+  function App() {
+    return (
+      <StudioTweaksWrapper>
+        <DesignCanvas>
+        <DCSection
+          id="studio-main"
+          title="Studio · 메인 3화면"
+          subtitle="대시보드(주문 우선) · 상품 등록 Step 4 · 주문 현황"
+        >
+          <DCArtboard id="s2" label="s2 · 대시보드 (주문 우선)" width={W} height={H}>
+            <StudioDashboard />
+          </DCArtboard>
+          <DCArtboard id="s3" label="s3 · 상품 등록 · Step 4" width={W} height={H}>
+            <StudioRegister />
+          </DCArtboard>
+          <DCArtboard id="s7" label="s7 · 주문 현황" width={W} height={H}>
+            <StudioOrders />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-domains"
+          title="Studio · 도메인 확장"
+          subtitle="s1 · s5 · s6 · s8 · s9 · s4 — 각 도메인 메인 화면"
+        >
+          <DCArtboard id="s1" label="s1 · 로그인" width={W} height={H}>
+            <StudioLogin />
+          </DCArtboard>
+          <DCArtboard id="s5" label="s5 · 마켓 계정" width={W} height={H}>
+            <StudioMarkets />
+          </DCArtboard>
+          <DCArtboard id="s6" label="s6 · 등록 이력" width={W} height={H}>
+            <StudioHistory />
+          </DCArtboard>
+          <DCArtboard id="s8" label="s8 · 배송 처리" width={W} height={H}>
+            <StudioShipping />
+          </DCArtboard>
+          <DCArtboard id="s9" label="s9 · 설정 (배송)" width={W} height={H}>
+            <StudioSettings />
+          </DCArtboard>
+          <DCArtboard id="s4" label="s4 · 템플릿 (v2 미리보기)" width={W} height={H}>
+            <StudioTemplates />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-register"
+          title="Studio · 상품 등록 위저드 (s3 전체)"
+          subtitle="Step 1 → 5 — 모든 단계를 풀어본 위저드 시퀀스"
+        >
+          <DCArtboard id="s3-1" label="Step 1 · 상품 정보" width={W} height={H}>
+            <StudioRegisterStep1 />
+          </DCArtboard>
+          <DCArtboard id="s3-2" label="Step 2 · 이미지" width={W} height={H}>
+            <StudioRegisterStep2 />
+          </DCArtboard>
+          <DCArtboard id="s3-3" label="Step 3 · 마켓 · 카테고리" width={W} height={H}>
+            <StudioRegisterStep3 />
+          </DCArtboard>
+          <DCArtboard id="s3-4" label="Step 4 · 미리보기 (메인)" width={W} height={H}>
+            <StudioRegister />
+          </DCArtboard>
+          <DCArtboard id="s3-5" label="Step 5 · 결과" width={W} height={H}>
+            <StudioRegisterStep5 />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-orders-suite"
+          title="Studio · 주문 도메인 보조 화면 (s7)"
+          subtitle="목록 · 상세 — 마켓 식별은 컬러바(테이블) + 로고(필터)"
+        >
+          <DCArtboard id="s7-list" label="s7 · 주문 목록" width={W} height={H}>
+            <StudioOrdersList />
+          </DCArtboard>
+          <DCArtboard id="s7-detail" label="s7 · 주문 상세 (수동 처리)" width={W} height={H}>
+            <StudioOrdersDetail />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-empty"
+          title="Studio · 빈 상태 + 보조 화면"
+          subtitle="s2 첫 진입 · s7 필터 0건 · s6 이력 상세 (에러 분석) · s9 발송인 폼"
+        >
+          <DCArtboard id="s2-empty" label="s2 · 빈 상태 (첫 진입)" width={W} height={H}>
+            <StudioDashboardEmpty />
+          </DCArtboard>
+          <DCArtboard id="s7-empty" label="s7 · 필터 결과 0건" width={W} height={H}>
+            <StudioOrdersEmpty />
+          </DCArtboard>
+          <DCArtboard id="s6-detail" label="s6 · 이력 상세 (에러 분석)" width={W} height={H}>
+            <StudioHistoryDetail />
+          </DCArtboard>
+          <DCArtboard id="s9-sender" label="s9 · 발송인 정보 폼" width={W} height={H}>
+            <StudioSenderSetup />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-extras"
+          title="Studio · 인증 · 자격증명 폼"
+          subtitle="s5 OAuth 콜백 · s5 마켓 연결 폼 · s9 로젠 자격증명"
+        >
+          <DCArtboard id="s5-cb" label="s5 · OAuth 콜백 (성공)" width={W} height={H}>
+            <StudioOAuthCallback />
+          </DCArtboard>
+          <DCArtboard id="s5-form" label="s5 · 마켓 연결 폼 (쿠팡 HMAC)" width={W} height={H}>
+            <StudioMarketConnect />
+          </DCArtboard>
+          <DCArtboard id="s9-logen" label="s9 · 로젠 API 연동" width={W} height={H}>
+            <StudioLogenSetup />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-mobile"
+          title="Studio · 모바일 (~375px)"
+          subtitle="iOS 프레임 안의 mobile 시안 — 대시보드 / 주문 목록"
+        >
+          <DCArtboard id="m-dash" label="모바일 · 대시보드" width={420} height={900}>
+            <div style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%' }}>
+              <IOSDevice width={402} height={874}>
+                <StudioDashboardMobile />
+              </IOSDevice>
+            </div>
+          </DCArtboard>
+          <DCArtboard id="m-orders" label="모바일 · 주문 목록" width={420} height={900}>
+            <div style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%' }}>
+              <IOSDevice width={402} height={874}>
+                <StudioOrdersMobile />
+              </IOSDevice>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="studio-system"
+          title="Studio · 시스템 정의"
+          subtitle="마켓 아이덴티티 변종 · 디자인 토큰"
+        >
+          <DCArtboard id="identity" label="마켓 식별 표현 (3종 비교)" width={1280} height={720}>
+            <StudioIdentityVariants />
+          </DCArtboard>
+          <DCArtboard id="tokens" label="디자인 토큰 명세" width={1280} height={1500}>
+            <StudioTokens />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="reference"
+          title="참고 · 이전 컨셉 탐색"
+          subtitle="A · Console / C · Grid (비교용)"
+        >
+          <DCArtboard id="ref-console" label="A · Console" width={W} height={H}>
+            <ConsoleDashboard />
+          </DCArtboard>
+          <DCArtboard id="ref-grid" label="C · Grid" width={W} height={H}>
+            <GridDashboard />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+      </StudioTweaksWrapper>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
