@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0A2540" media="(prefers-color-scheme: dark)" />
+    <!-- Studio 디자인 토큰 매칭: light = warm off-white bg, dark = warm dark page -->
+    <meta name="theme-color" content="oklch(0.975 0.008 75)" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="oklch(0.18 0.012 60)" media="(prefers-color-scheme: dark)" />
+    <!-- Google Fonts preconnect (Manrope + JetBrains Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
     <title>MarketCast</title>
     <!--
       테마 부트스트랩 (ui-system.md §11.2):
