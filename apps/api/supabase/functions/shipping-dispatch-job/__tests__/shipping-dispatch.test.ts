@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  decideCounterDelta,
   decideFinal,
   determineJobStatus,
   groupOrdersByMarket,
@@ -183,6 +184,20 @@ describe('shipping-dispatch / pure / summarizeMarketOutcomes', () => {
       failed: 0,
       failedFinal: 4,
     })
+  })
+})
+
+describe('shipping-dispatch / pure / decideCounterDelta (PRD §4)', () => {
+  it('success → success_count +1', () => {
+    expect(decideCounterDelta('success')).toEqual({ success: 1, failed: 0 })
+  })
+
+  it('failed_final → failed_count +1', () => {
+    expect(decideCounterDelta('failed_final')).toEqual({ success: 0, failed: 1 })
+  })
+
+  it('failed (재시도 대기) → 둘 다 0', () => {
+    expect(decideCounterDelta('failed')).toEqual({ success: 0, failed: 0 })
   })
 })
 

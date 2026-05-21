@@ -1,15 +1,18 @@
 /**
  * shipping-dispatch fan-out 의 순수 함수 모음.
  *
+ * 마스터: docs/spec/PRD-v2-shipping.md §4.
+ *
  * - Deno specifier (`npm:zod`) / Supabase 클라이언트 / 환경변수 등 일체의 부수효과 의존 없음.
  * - 본 모듈만 Vitest (Node ESM) 에서 직접 import 하여 단위·통합 테스트로 검증.
  *   → Edge Function 본체는 Deno 런타임에서 실행 (vitest 는 픽업 안 함).
  *
  * 검증 대상:
  *   - groupOrdersByMarket: 마켓별 그룹화
- *   - determineJobStatus: result_status 집합 → shipping_jobs.status 결정
+ *   - determineJobStatus: shipping_job_results.status 집합 → shipping_jobs.status 결정
  *   - mapMarketErrorToShippingCode / isFinalShippingErrorCode (마켓 워커 측 미러)
  *   - decideFinal: attempt_count + errorCode → final 여부
+ *   - decideCounterDelta: 결과 → shipping_jobs.success_count / failed_count 증분
  */
 
 // ─────────────────────────────────────────────
@@ -23,13 +26,13 @@ export type ShippingResultStatus =
   | 'failed'
   | 'failed_final'
 
+// PRD §4: shipping_jobs.status ENUM 5값 (cancelled 없음).
 export type ShippingJobStatus =
   | 'pending'
   | 'running'
   | 'partial'
   | 'succeeded'
   | 'failed'
-  | 'cancelled'
 
 export type ShippingErrorCode =
   | 'rate_limit'
@@ -166,4 +169,25 @@ export function summarizeMarketOutcomes(
     else failedFinal += 1
   }
   return { total: outcomes.length, success, failed, failedFinal }
+}
+
+// ─────────────────────────────────────────────
+// PRD §4: shipping_jobs.success_count / failed_count 증분 규칙.
+//
+// - 'success'       → { success: 1, failed: 0 }
+// - 'failed_final'  → { success: 0, failed: 1 }
+// - 'failed' (재시도 대기) → { success: 0, failed: 0 }
+//   다음 시도에서 최종 결정될 때까지 카운트 안 함.
+// ─────────────────────────────────────────────
+export interface CounterDelta {
+  success: number
+  failed: number
+}
+
+export function decideCounterDelta(
+  outcome: 'success' | 'failed' | 'failed_final',
+): CounterDelta {
+  if (outcome === 'success') return { success: 1, failed: 0 }
+  if (outcome === 'failed_final') return { success: 0, failed: 1 }
+  return { success: 0, failed: 0 }
 }

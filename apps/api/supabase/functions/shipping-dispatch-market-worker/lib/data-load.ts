@@ -24,7 +24,8 @@ export interface ShippingResultRow {
   order_id: string
   market_id: string
   market_account_id: string
-  result_status: string
+  // PRD §4 컬럼명: shipping_job_results.status
+  status: string
   attempt_count: number
   waybill_number: string | null
   carrier_code: string | null
@@ -75,8 +76,9 @@ export async function loadShippingResultsForMarket(
 ): Promise<ShippingResultRow[]> {
   const { data: resultRows, error: resultErr } = await service
     .from('shipping_job_results')
+    // PRD §4: 컬럼명 `status` (result_status 아님)
     .select(
-      'id, order_id, market_id, market_account_id, result_status, attempt_count, waybill_number, carrier_code',
+      'id, order_id, market_id, market_account_id, status, attempt_count, waybill_number, carrier_code',
     )
     .eq('job_id', jobId)
     .eq('market_id', marketId)
@@ -125,7 +127,7 @@ export async function loadShippingResultsForMarket(
     order_id: String(r.order_id),
     market_id: String(r.market_id),
     market_account_id: String(r.market_account_id),
-    result_status: String(r.result_status),
+    status: String(r.status),
     attempt_count: typeof r.attempt_count === 'number' ? r.attempt_count : 0,
     waybill_number: r.waybill_number ? String(r.waybill_number) : null,
     carrier_code: r.carrier_code ? String(r.carrier_code) : null,

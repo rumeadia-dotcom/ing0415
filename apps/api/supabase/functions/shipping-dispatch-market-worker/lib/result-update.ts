@@ -1,9 +1,16 @@
 /**
  * shipping_job_results UPDATE / orders.status UPDATE / 잡 상태 재계산 helper.
  *
+ * 마스터: docs/spec/PRD-v2-shipping.md §4 (데이터 모델).
+ *
  * - 한 주문 단위 격리: 한 row UPDATE 가 다른 row 에 영향 없게 PK 기반.
- * - orders.status 는 result 성공/실패 단위로만 변경.
+ * - orders.status 는 result 성공/실패 단위로만 변경 (waybill_printed → tracking_submitted | dispatch_failed).
  * - 잡 상태 recompute: 마켓 워커가 한 row 라도 갱신할 때마다 호출 → Realtime 푸시.
+ *
+ * PRD §4 매핑:
+ *   - shipping_job_results.status (PR1: 5값 확장 — pending|in_flight|success|failed|failed_final)
+ *   - shipping_jobs.success_count / failed_count 누적 update — bumpJobCounters
+ *     (final 결정 시점에만 증분 — failed (재시도 대기) 는 카운트 안 함.)
  */
 
 import {
@@ -22,7 +29,8 @@ export async function markResultInFlight(
   const { error } = await service
     .from('shipping_job_results')
     .update({
-      result_status: 'in_flight',
+      // PRD §4 컬럼명: `status`
+      status: 'in_flight',
       attempt_count: newAttemptCount,
       last_attempted_at: new Date().toISOString(),
     })
@@ -50,7 +58,7 @@ export async function updateResultSuccess(
   const { error: rErr } = await service
     .from('shipping_job_results')
     .update({
-      result_status: 'success',
+      status: 'success',
       attempt_count: args.attemptCount,
       last_attempted_at: now,
       tracking_receipt_id: args.trackingReceiptId,
@@ -97,7 +105,7 @@ export async function updateResultFailure(
   const { error: rErr } = await service
     .from('shipping_job_results')
     .update({
-      result_status: args.final ? 'failed_final' : 'failed',
+      status: args.final ? 'failed_final' : 'failed',
       error_code: args.errorCode,
       // raw 응답이 섞이지 않도록 message 만 사용. 길이 200 제한.
       error_message: args.errorMessage.slice(0, 200),
@@ -130,7 +138,41 @@ export async function updateResultFailure(
 }
 
 /**
- * shipping_jobs 상태 재계산.
+ * shipping_jobs 의 success_count / failed_count 증분 (PRD §4 정합).
+ *
+ * 최종(terminal) 결과 시점에만 호출:
+ *   - 'success'      → success_count += 1
+ *   - 'failed_final' → failed_count += 1
+ *   - 'failed' (재시도 대기) → 카운트 안 함 (다음 시도에서 최종 결정).
+ *
+ * 동시성: 마켓 워커들이 병렬로 같은 jobId 의 카운터를 갱신하므로
+ * RPC `fn_increment_shipping_job_counters(p_job_id, p_success_delta, p_failed_delta)` 로
+ * atomic increment. PR2 가 동일 RPC 를 제공한다고 가정.
+ */
+export async function bumpJobCounters(
+  service: Service,
+  jobId: string,
+  delta: { success?: number; failed?: number },
+): Promise<void> {
+  const successDelta = delta.success ?? 0
+  const failedDelta = delta.failed ?? 0
+  if (successDelta === 0 && failedDelta === 0) return
+
+  const { error } = await service.rpc('fn_increment_shipping_job_counters', {
+    p_job_id: jobId,
+    p_success_delta: successDelta,
+    p_failed_delta: failedDelta,
+  })
+  if (error) {
+    throw HttpErrors.internal(
+      'shipping_job_counter_update_failed',
+      'failed to bump shipping job counters',
+    )
+  }
+}
+
+/**
+ * shipping_jobs.status 재계산.
  * - 진행 중 (pending/in_flight/failed-but-retryable) row 있으면 'running' 유지.
  * - 모두 종료 (success / failed_final) 시 → succeeded / partial / failed 결정.
  *
@@ -142,7 +184,7 @@ export async function recomputeShippingJobStatus(
 ): Promise<void> {
   const { data, error } = await service
     .from('shipping_job_results')
-    .select('result_status')
+    .select('status')
     .eq('job_id', jobId)
   if (error || !data) return
 
@@ -150,9 +192,7 @@ export async function recomputeShippingJobStatus(
 
   const hasNonFinal = data.some(
     (r) =>
-      r.result_status === 'pending' ||
-      r.result_status === 'in_flight' ||
-      r.result_status === 'failed',
+      r.status === 'pending' || r.status === 'in_flight' || r.status === 'failed',
   )
   if (hasNonFinal) {
     await service
@@ -164,8 +204,8 @@ export async function recomputeShippingJobStatus(
   }
 
   const total = data.length
-  const successCount = data.filter((r) => r.result_status === 'success').length
-  const failedFinalCount = data.filter((r) => r.result_status === 'failed_final').length
+  const successCount = data.filter((r) => r.status === 'success').length
+  const failedFinalCount = data.filter((r) => r.status === 'failed_final').length
 
   let next: 'succeeded' | 'partial' | 'failed'
   if (successCount === total) next = 'succeeded'
