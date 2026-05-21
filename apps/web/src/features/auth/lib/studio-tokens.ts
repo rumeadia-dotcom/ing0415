@@ -29,12 +29,12 @@ export const studioClass = {
   /** Primary CTA — ink bg, white text, full-width, radius 10, padding 12/18, weight 700 */
   ctaPrimary:
     'w-full h-auto rounded-[10px] bg-ink hover:bg-text !text-white px-[18px] py-[12px] text-[14px] font-bold shadow-[0_1px_0_rgba(0,0,0,0.06),0_4px_12px_-3px_rgba(0,0,0,0.2)] disabled:opacity-60',
-  /** 탭 비활성 — 투명 + faint */
-  tabInactive:
-    'px-[14px] py-[8px] rounded-[7px] text-[13.5px] font-medium text-faint bg-transparent transition-colors hover:text-dim',
-  /** 탭 활성 — white + soft shadow */
-  tabActive:
-    'px-[14px] py-[8px] rounded-[7px] text-[13.5px] font-semibold text-ink bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+  /** 탭 리스트 (언더라인 가이드) — 하단 1px border + flex 가로 배치 */
+  tabList:
+    'flex w-full gap-6 border-b border-border bg-transparent p-0 h-auto rounded-none justify-start',
+  /** 탭 트리거 — 텍스트 only + 활성 시 2px ink 언더라인 (가이드선 위에 -2px 로 겹침) */
+  tabTrigger:
+    'relative -mb-[2px] rounded-none bg-transparent px-1 pb-2.5 pt-1 text-[13.5px] font-medium text-faint border-b-2 border-transparent transition-colors hover:text-dim data-[state=active]:text-ink data-[state=active]:font-semibold data-[state=active]:border-ink focus-visible:outline-none focus-visible:text-ink',
   /** 강조 액션 링크 — ink 700 underline-offset 3 */
   linkStrong:
     'text-ink font-bold underline underline-offset-[3px] hover:text-accent transition-colors',
