@@ -31,6 +31,7 @@ export { Badge, badgeVariants, type BadgeProps } from './badge'
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs'
 export { Skeleton } from './skeleton'
 export { Progress } from './progress'
+export { Switch, type SwitchProps } from './switch'
 export { Toaster } from './toaster'
 export {
   Sheet,
