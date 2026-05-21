@@ -2,8 +2,6 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Button,
-  Card,
-  CardContent,
   ErrorMessage,
   Skeleton,
   Tooltip,
@@ -19,11 +17,11 @@ import type { MarketSelection, CategoryMapping } from '@/lib/schemas/registratio
 import type { MarketId } from '@/features/markets/types'
 
 /**
- * StepMarketsCategoriesPage — n17 + n19 통합 (3/5).
+ * StepMarketsCategoriesPage — n17 + n19 통합 (3/5). Studio 룩.
  * 마스터: docs/architecture/v1/features/registration.md §10.5
  *
- * - 4마켓 (v1 활성) 중 active 계정 보유 마켓만 체크박스 활성.
- * - 선택된 마켓 각각에 카테고리 매핑 카드 표시.
+ * - v1 활성 4 + 11번가(v2 예정) 중 active 계정 보유 마켓만 체크박스 활성.
+ * - 선택된 마켓 각각에 카테고리 매핑 row 표시.
  * - Step3Schema 통과 시 다음 활성.
  */
 export function StepMarketsCategoriesPage(): JSX.Element {
@@ -71,52 +69,75 @@ export function StepMarketsCategoriesPage(): JSX.Element {
   return (
     <>
       {isLoading && (
-        <Card>
-          <CardContent className="py-6">
-            <Skeleton className="h-32 w-full" />
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <Skeleton className="h-32 w-full" />
+        </div>
       )}
       {isError && (
-        <Card>
-          <CardContent className="py-6">
-            <ErrorMessage message="연결된 마켓 정보를 불러오지 못했습니다." />
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <ErrorMessage message="연결된 마켓 정보를 불러오지 못했습니다." />
+        </div>
       )}
       {!isLoading && !isError && (
-        <>
+        <div className="flex flex-col gap-4">
           <MarketSelectGrid
             accounts={accounts ?? []}
             selections={selections}
             onChange={handleSelectionChange}
           />
 
-          {selections.length > 0 && (
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {selections.map((s) => (
-                <CategoryMappingCard
-                  key={s.marketId}
-                  marketId={s.marketId}
-                  mapping={mappingByMarket.get(s.marketId) ?? null}
-                  onChange={upsertMapping}
-                />
-              ))}
-            </div>
+          {selections.length > 0 ? (
+            <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+              <header className="mb-3.5">
+                <h2 className="text-[15px] font-bold text-text">마켓별 카테고리 매핑</h2>
+                <p className="mt-1 text-[12.5px] text-text-tertiary">
+                  선택한 마켓마다 등록할 카테고리를 지정하세요. 미선택 마켓은 등록이 차단됩니다.
+                </p>
+              </header>
+              <div className="flex flex-col gap-2.5">
+                {selections.map((s) => (
+                  <CategoryMappingCard
+                    key={s.marketId}
+                    marketId={s.marketId}
+                    mapping={mappingByMarket.get(s.marketId) ?? null}
+                    onChange={upsertMapping}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : (
+            <section className="rounded-xl border border-dashed border-border-strong bg-surface-subtle p-8 text-center">
+              <p className="text-[13.5px] font-semibold text-text-secondary">
+                먼저 등록할 마켓을 1개 이상 선택하세요
+              </p>
+              <p className="mt-1 text-[12px] text-text-tertiary">
+                선택하면 마켓별 카테고리 매핑 카드가 여기에 표시됩니다.
+              </p>
+            </section>
           )}
-        </>
+        </div>
       )}
 
-      <div className="mt-6 flex justify-between gap-2">
-        <Button variant="ghost" onClick={() => navigate('/register/images')}>
-          ← 이전
+      <div className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-surface px-5 py-3 shadow-sm">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => navigate('/register/images')}
+          className="border border-border"
+        >
+          ← 이미지
         </Button>
+        <div className="flex-1 text-[12.5px] text-text-tertiary">
+          {blockingReasons.length > 0
+            ? blockingReasons[0]
+            : `${selections.length}개 마켓 매핑 완료`}
+        </div>
         {blockingReasons.length > 0 ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
                 <Button variant="primary" disabled aria-disabled>
-                  다음: 미리보기
+                  다음: 미리보기 →
                 </Button>
               </span>
             </TooltipTrigger>
@@ -130,7 +151,7 @@ export function StepMarketsCategoriesPage(): JSX.Element {
           </Tooltip>
         ) : (
           <Button variant="primary" onClick={handleNext}>
-            다음: 미리보기
+            다음: 미리보기 →
           </Button>
         )}
       </div>
