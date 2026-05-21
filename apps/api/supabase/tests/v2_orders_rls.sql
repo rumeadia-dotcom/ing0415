@@ -1,6 +1,6 @@
 -- apps/api/supabase/tests/v2_orders_rls.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §4 (orders DDL)
+--   docs/spec/PRD.md §8 (orders DDL)
 --   docs/architecture/v1/cross-cutting/security.md §3 (RLS cross-tenant 격리 기준)
 --   apps/api/supabase/tests/rls-cross-tenant.sql (선행 패턴 — 6 시나리오 회귀)
 -- 목적:

@@ -5,10 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Button,
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ErrorMessage,
   Input,
   Label,
@@ -19,9 +15,11 @@ import {
 } from '@/lib/schemas/auth'
 import { ko } from '@/locales/ko'
 import { logger } from '@/lib/logger'
+import { cn } from '@/lib/utils'
 import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
 import { trackAuthEvent } from '../api/auth-event-log'
+import { studioClass } from '../lib/studio-tokens'
 
 /**
  * ForgotPasswordPage — auth.md §3.4 / §6.4 / user_flow s1 (n6)
@@ -29,6 +27,8 @@ import { trackAuthEvent } from '../api/auth-event-log'
  * - resetPasswordForEmail 호출 후 **결과와 무관하게 동일 안내 화면** 노출
  *   (enumeration 방지 — auth.md §4.4)
  * - 네트워크/5xx 같은 시스템성 에러만 별도 ErrorMessage 로 노출
+ *
+ * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function ForgotPasswordPage(): JSX.Element {
   const { sendPasswordResetEmail } = useAuth()
@@ -71,38 +71,60 @@ export function ForgotPasswordPage(): JSX.Element {
 
   if (done) {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle>{ko.auth.forgot.successTitle}</CardTitle>
-          <CardDescription>{ko.auth.forgot.successBody}</CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <Link
-            to="/login"
-            className="text-sm font-semibold text-accent underline-offset-2 hover:underline"
-          >
-            {ko.auth.forgot.backToLogin}
-          </Link>
-        </CardContent>
-      </Card>
+      <div className="w-full">
+        <div className="mb-6 text-center">
+          <h1 className={studioClass.h1}>{ko.auth.forgot.successTitle}</h1>
+        </div>
+        <Card className={cn(studioClass.card, 'text-center')}>
+          <div className="relative mx-auto mb-5 h-[88px] w-[88px]">
+            <div className="absolute inset-0 rounded-full bg-success-soft" />
+            <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-success text-white">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-8 w-8"
+                aria-hidden="true"
+              >
+                <path d="M4 6h16v12H4z" />
+                <path d="m4 6 8 7 8-7" />
+              </svg>
+            </div>
+          </div>
+          <p className={cn(studioClass.sub, 'leading-relaxed')}>
+            {ko.auth.forgot.successBody}
+          </p>
+          <div className="mt-6">
+            <Link to="/login" className={studioClass.linkAccent}>
+              {ko.auth.forgot.backToLogin}
+            </Link>
+          </div>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle>{ko.auth.forgot.title}</CardTitle>
-        <CardDescription>{ko.auth.forgot.subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+      <div className="mb-6 text-center">
+        <h1 className={studioClass.h1}>{ko.auth.forgot.title}</h1>
+        <p className={cn(studioClass.sub, 'mt-2')}>{ko.auth.forgot.subtitle}</p>
+      </div>
+
+      <Card className={studioClass.card}>
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
           className="space-y-4"
           aria-label={ko.auth.forgot.title}
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="forgot-email">{ko.auth.login.email}</Label>
+          <div>
+            <Label htmlFor="forgot-email" className={studioClass.label}>
+              {ko.auth.login.email}
+            </Label>
             <Input
               id="forgot-email"
               type="email"
@@ -110,13 +132,14 @@ export function ForgotPasswordPage(): JSX.Element {
               placeholder={ko.auth.login.emailPlaceholder}
               aria-invalid={errors.email ? 'true' : 'false'}
               aria-describedby={errors.email ? 'forgot-email-error' : undefined}
+              className={studioClass.input}
               {...register('email')}
             />
             {errors.email ? (
               <p
                 id="forgot-email-error"
                 role="alert"
-                className="text-xs text-danger"
+                className={studioClass.helperError}
               >
                 {errors.email.message}
               </p>
@@ -133,7 +156,8 @@ export function ForgotPasswordPage(): JSX.Element {
           <Button
             type="submit"
             variant="primary"
-            className="w-full"
+            size="lg"
+            className={studioClass.ctaPrimary}
             disabled={isSubmitting}
             aria-busy={isSubmitting}
           >
@@ -141,16 +165,13 @@ export function ForgotPasswordPage(): JSX.Element {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-text-secondary">
-          <Link
-            to="/login"
-            className="font-semibold text-accent underline-offset-2 hover:underline"
-          >
+        <p className={cn('mt-6 text-center', studioClass.bodyFaint)}>
+          <Link to="/login" className={studioClass.linkStrong}>
             {ko.auth.forgot.backToLogin}
           </Link>
         </p>
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   )
 }
 

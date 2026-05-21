@@ -6,8 +6,8 @@ import type { ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import type {
   DashboardSummary,
-  RecentJob,
   MarketHealth,
+  MarketOrdersSummary,
 } from '@/lib/schemas/dashboard-summary'
 
 vi.mock('@/features/auth', () => ({
@@ -15,14 +15,14 @@ vi.mock('@/features/auth', () => ({
 }))
 
 const mockSummary = vi.fn<[], Partial<UseQueryResult<DashboardSummary | null, unknown>>>()
-const mockRecent = vi.fn<[], Partial<UseQueryResult<RecentJob[], unknown>>>()
+const mockMarketOrders = vi.fn<[], Partial<UseQueryResult<MarketOrdersSummary, unknown>>>()
 const mockHealth = vi.fn<[], Partial<UseQueryResult<MarketHealth, unknown>>>()
 
 vi.mock('../hooks/useDashboardSummary', () => ({
   useDashboardSummary: () => mockSummary(),
 }))
-vi.mock('../hooks/useRecentJobs', () => ({
-  useRecentJobs: () => mockRecent(),
+vi.mock('../hooks/useMarketOrdersSummary', () => ({
+  useMarketOrdersSummary: () => mockMarketOrders(),
 }))
 vi.mock('../hooks/useMarketHealth', () => ({
   useMarketHealth: () => mockHealth(),
@@ -58,11 +58,60 @@ const SUMMARY_OK: DashboardSummary = {
 }
 
 const HEALTH_OK: MarketHealth = { active: 3, expired: 1, revoked: 0, error: 0, total: 4 }
+const HEALTH_EMPTY: MarketHealth = { active: 0, expired: 0, revoked: 0, error: 0, total: 0 }
+
+const MARKET_ORDERS_OK: MarketOrdersSummary = {
+  markets: [
+    {
+      marketId: 'naver',
+      newOrdersCount: 5,
+      todayTotalCount: 12,
+      lastSyncedAt: '2026-05-21T09:00:00+09:00',
+      syncStatus: 'idle',
+      syncError: null,
+    },
+    {
+      marketId: 'coupang',
+      newOrdersCount: 0,
+      todayTotalCount: 3,
+      lastSyncedAt: '2026-05-21T08:30:00+09:00',
+      syncStatus: 'idle',
+      syncError: null,
+    },
+    {
+      marketId: 'gmarket',
+      newOrdersCount: 2,
+      todayTotalCount: 4,
+      lastSyncedAt: '2026-05-21T07:00:00+09:00',
+      syncStatus: 'idle',
+      syncError: null,
+    },
+    {
+      marketId: 'auction',
+      newOrdersCount: 0,
+      todayTotalCount: 0,
+      lastSyncedAt: null,
+      syncStatus: 'error',
+      syncError: 'TOKEN_EXPIRED',
+    },
+  ],
+  comingSoon: ['11st'],
+}
+
+const MARKET_ORDERS_EMPTY: MarketOrdersSummary = {
+  markets: [
+    { marketId: 'naver', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'coupang', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'gmarket', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'auction', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+  ],
+  comingSoon: ['11st'],
+}
 
 describe('DashboardPage', () => {
   it('loading: 4개 SummaryCard 가 모두 로딩 상태로 렌더', () => {
     mockSummary.mockReturnValue({ isLoading: true, isError: false, data: undefined })
-    mockRecent.mockReturnValue({ isLoading: true, isError: false, data: undefined })
+    mockMarketOrders.mockReturnValue({ isLoading: true, isError: false, data: undefined })
     mockHealth.mockReturnValue({ isLoading: true, isError: false, data: undefined })
 
     renderPage()
@@ -73,36 +122,60 @@ describe('DashboardPage', () => {
     expect(screen.getByText('평균 소요 (7일)')).toBeInTheDocument()
   })
 
-  it('data: 7일 성공률을 18/20 → 90% 로 계산 표시', () => {
+  it('data: 7일 성공률을 18/20 → 90% 로 계산 표시 + 마켓별 주문 위젯 렌더', () => {
     mockSummary.mockReturnValue({ isLoading: false, isError: false, data: SUMMARY_OK })
-    mockRecent.mockReturnValue({ isLoading: false, isError: false, data: [] })
+    mockMarketOrders.mockReturnValue({ isLoading: false, isError: false, data: MARKET_ORDERS_OK })
     mockHealth.mockReturnValue({ isLoading: false, isError: false, data: HEALTH_OK })
 
     renderPage()
 
     expect(screen.getByText('90%')).toBeInTheDocument()
     expect(screen.getByText('18/20건')).toBeInTheDocument()
-    expect(screen.getByText('3건')).toBeInTheDocument() // jobs_today_count
+    expect(screen.getByText('3건')).toBeInTheDocument()
+    expect(screen.getByText('마켓별 주문 현황')).toBeInTheDocument()
+    // 네이버 신규 5
+    expect(screen.getByText('네이버 스마트스토어')).toBeInTheDocument()
+    // 옥션은 syncStatus error → /markets 로 이동하는 카드 링크
+    expect(
+      screen.getByRole('link', { name: /옥션 연결 오류, 재인증 페이지로 이동/ }),
+    ).toBeInTheDocument()
   })
 
-  it('empty (last_job_at=null): EmptyState 가 렌더되고 최근잡 영역은 미표시', () => {
+  it('empty no-markets: 연결 마켓 0건 → onboarding hero (2-step checklist)', () => {
+    mockSummary.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { ...SUMMARY_OK, last_job_at: null },
+    })
+    mockMarketOrders.mockReturnValue({ isLoading: false, isError: false, data: MARKET_ORDERS_EMPTY })
+    mockHealth.mockReturnValue({ isLoading: false, isError: false, data: HEALTH_EMPTY })
+
+    renderPage()
+
+    // Studio onboarding hero — gradient + 2-step checklist
+    expect(screen.getByText(/첫 상품을 등록하면/)).toBeInTheDocument()
+    expect(screen.getByText('마켓 연결')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /마켓 연결하기/ })).toBeInTheDocument()
+    expect(screen.queryByText('마켓별 주문 현황')).not.toBeInTheDocument()
+  })
+
+  it('empty no-activity: 마켓 ≥1 + 잡 0 + 주문 0 → "첫 상품을 등록해 보세요" hero', () => {
     mockSummary.mockReturnValue({
       isLoading: false,
       isError: false,
       data: { ...SUMMARY_OK, last_job_at: null, jobs_today_count: 0, jobs_7d_count: 0 },
     })
-    mockRecent.mockReturnValue({ isLoading: false, isError: false, data: [] })
+    mockMarketOrders.mockReturnValue({ isLoading: false, isError: false, data: MARKET_ORDERS_EMPTY })
     mockHealth.mockReturnValue({ isLoading: false, isError: false, data: HEALTH_OK })
 
     renderPage()
 
     expect(screen.getByText('첫 상품을 등록해 보세요')).toBeInTheDocument()
-    expect(screen.queryByText('최근 등록')).not.toBeInTheDocument()
   })
 
   it('marketHealth 경고: expired 가 1 이상이면 재연결 안내 노출', () => {
     mockSummary.mockReturnValue({ isLoading: false, isError: false, data: SUMMARY_OK })
-    mockRecent.mockReturnValue({ isLoading: false, isError: false, data: [] })
+    mockMarketOrders.mockReturnValue({ isLoading: false, isError: false, data: MARKET_ORDERS_OK })
     mockHealth.mockReturnValue({ isLoading: false, isError: false, data: HEALTH_OK })
 
     renderPage()
@@ -113,7 +186,7 @@ describe('DashboardPage', () => {
 
   it('error: summary 실패 시 SummaryCard 4개 모두 "불러오기 실패" 표시', () => {
     mockSummary.mockReturnValue({ isLoading: false, isError: true, data: undefined })
-    mockRecent.mockReturnValue({ isLoading: false, isError: false, data: [] })
+    mockMarketOrders.mockReturnValue({ isLoading: false, isError: false, data: MARKET_ORDERS_OK })
     mockHealth.mockReturnValue({ isLoading: false, isError: false, data: HEALTH_OK })
 
     renderPage()

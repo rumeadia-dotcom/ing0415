@@ -11,7 +11,7 @@ import {
  * v2 주문 도메인 zod 스키마 단위 테스트.
  *
  * 마스터:
- *  - docs/spec/PRD-v2-shipping.md §2.1 / §4 (orders DDL / 상태 ENUM)
+ *  - docs/spec/PRD.md §6.1 / §8 (orders DDL / 상태 ENUM)
  *  - docs/architecture/v1/testing.md §6.1 (pass 1 + fail ≥1)
  */
 

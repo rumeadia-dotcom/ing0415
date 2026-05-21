@@ -1,6 +1,6 @@
 -- apps/api/supabase/tests/v2_shipping_jobs_rls.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §4 (shipping_jobs / shipping_job_results DDL)
+--   docs/spec/PRD.md §8 (shipping_jobs / shipping_job_results DDL)
 --   docs/architecture/v1/cross-cutting/security.md §3 (RLS cross-tenant 격리)
 -- 목적:
 --   shipping_jobs / shipping_job_results 에 대해 셀러 A 가 B 데이터를 어떤 채널로도

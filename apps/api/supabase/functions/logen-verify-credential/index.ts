@@ -2,7 +2,7 @@
  * Edge Function: logen-verify-credential
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.2, §3
+ *   - docs/spec/PRD.md §6.2, §7
  *   - apps/web/src/lib/logen/ (FE SDK 와 동일 API 시그니처 / 응답 검증)
  *
  * 처리 시퀀스:

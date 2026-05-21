@@ -2,7 +2,7 @@
  * 로젠택배 OpenAPI 클라이언트 (Deno fetch + zod).
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.2 / §3
+ *   - docs/spec/PRD.md §6.2 / §7
  *
  * 강제:
  *   - timeout 명시 (8s) — fetch AbortController.

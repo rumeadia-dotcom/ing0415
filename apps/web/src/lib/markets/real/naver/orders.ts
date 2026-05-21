@@ -3,7 +3,7 @@
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (v2 Extension)
- *   - PRD-v2-shipping.md §2.1, §2.4
+ *   - PRD.md §6.1, §6.4
  *
  * 엔드포인트:
  *   - GET   /external/v1/pay-order/seller/orders/new-pay-waiting

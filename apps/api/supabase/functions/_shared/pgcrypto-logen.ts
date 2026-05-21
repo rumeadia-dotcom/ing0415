@@ -2,7 +2,7 @@
  * 로젠택배 자격증명 (logen_credentials) 암호화 저장 / 조회 RPC wrapper.
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §4 (logen_credentials 테이블 정의)
+ *   - docs/spec/PRD.md §8 (logen_credentials 테이블 정의)
  *   - docs/architecture/v1/cross-cutting/credential-vault.md §4 (RPC 시퀀스)
  *   - docs/architecture/v1/security.md §4
  *

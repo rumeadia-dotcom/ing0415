@@ -1,7 +1,7 @@
 /**
  * shipping_job_results UPDATE / orders.status UPDATE / 잡 상태 재계산 helper.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §4 (데이터 모델).
+ * 마스터: docs/spec/PRD.md §8 (데이터 모델).
  *
  * - 한 주문 단위 격리: 한 row UPDATE 가 다른 row 에 영향 없게 PK 기반.
  * - orders.status 는 result 성공/실패 단위로만 변경 (waybill_printed → tracking_submitted | dispatch_failed).

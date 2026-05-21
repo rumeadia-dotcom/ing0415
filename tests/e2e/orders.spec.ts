@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test'
  *   - PR2 (orders 스키마 + RLS + RPC) 머지로 데이터 픽스처 생성 가능.
  *   - 골든 셀러 계정 + logen_failed 시드 주문 1건 준비 → 본 spec 의 `test.fixme` → `test` 전환.
  *
- * 활성화 시 시나리오 (마스터: docs/architecture/v1/qa/golden-path-v2-shipping.md, PR2 신설):
+ * 활성화 시 시나리오 (마스터: docs/spec/user_flow.md s7 n47~n50, docs/architecture/v1/features/orders.md):
  *   O1  로그인 → /orders 진입
  *   O2  대시보드 카드 4종 노출 확인
  *   O3  /orders/list 진입 → 행 1개 확인

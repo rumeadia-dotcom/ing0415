@@ -8,8 +8,8 @@ import { MarketIdSchema, IsoDateTimeSchema } from '@/lib/schemas/common'
  * `apps/web/src/lib/schemas/shipping.ts` 로 이관되고 본 파일은 re-export shim 으로 축약된다.
  *
  * 근거:
- *  - user_flow-v2-shipping.md s8 (n52~n57)
- *  - PRD-v2-shipping.md §2.3 (운송장 출력 → 송장 일괄 제출), §2.4 (이력)
+ *  - user_flow.md s8 (n52~n57)
+ *  - PRD.md §6.3 (운송장 출력 → 송장 일괄 제출), §6.4 (이력)
  */
 
 // ─────────────────────────────────────────────

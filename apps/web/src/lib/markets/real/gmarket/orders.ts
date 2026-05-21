@@ -6,7 +6,7 @@
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (v2 Extension)
- *   - PRD-v2-shipping.md §2.1
+ *   - PRD.md §6.1
  */
 
 import {

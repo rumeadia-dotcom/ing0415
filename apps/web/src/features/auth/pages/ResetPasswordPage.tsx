@@ -6,10 +6,6 @@ import { toast } from 'sonner'
 import {
   Button,
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ErrorMessage,
   Input,
   Label,
@@ -25,6 +21,7 @@ import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
 import { trackAuthEvent } from '../api/auth-event-log'
 import { evaluatePasswordStrength } from '../lib/password-strength'
+import { studioClass } from '../lib/studio-tokens'
 
 /**
  * ResetPasswordPage — auth.md §3.4 / §6.5 / user_flow s1
@@ -33,6 +30,8 @@ import { evaluatePasswordStrength } from '../lib/password-strength'
  *   `detectSessionInUrl: true` 가 supabase.ts 에 켜져 있어 자동 처리.
  * - 세션이 없으면 만료/유효하지 않은 링크로 간주 — invalidSession 메시지.
  * - 성공 시 signOut(global) 으로 모든 기존 세션 무효화 후 /login + 토스트.
+ *
+ * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function ResetPasswordPage(): JSX.Element {
   const navigate = useNavigate()
@@ -84,95 +83,103 @@ export function ResetPasswordPage(): JSX.Element {
     navigate('/login', { replace: true })
   }
 
-  // 로딩 중에는 단순 안내 (Skeleton 은 RequireAuth 외 진입이라 가벼운 텍스트로)
+  // 로딩 중에는 단순 안내
   if (status === 'loading') {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle>{ko.auth.reset.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="w-full">
+        <div className="mb-6 text-center">
+          <h1 className={studioClass.h1}>{ko.auth.reset.title}</h1>
+        </div>
+        <Card className={cn(studioClass.card, 'text-center')}>
           <p
             role="status"
             aria-live="polite"
-            className="text-center text-sm text-text-secondary"
+            className={studioClass.sub}
           >
-            세션을 확인하는 중…
+            {ko.auth.reset.checkingSession}
           </p>
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     )
   }
 
   // recovery 세션이 수립되지 않은 진입 — 만료/유효하지 않은 링크
   if (!session) {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle>{ko.auth.reset.title}</CardTitle>
-          <CardDescription>{ko.auth.reset.invalidSession}</CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <Link
-            to="/forgot-password"
-            className="text-sm font-semibold text-accent underline-offset-2 hover:underline"
-          >
+      <div className="w-full">
+        <div className="mb-6 text-center">
+          <h1 className={studioClass.h1}>{ko.auth.reset.title}</h1>
+          <p className={cn(studioClass.sub, 'mt-2')}>
+            {ko.auth.reset.invalidSession}
+          </p>
+        </div>
+        <Card className={cn(studioClass.card, 'text-center')}>
+          <Link to="/forgot-password" className={studioClass.linkAccent}>
             {ko.auth.reset.requestAgain}
           </Link>
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle>{ko.auth.reset.title}</CardTitle>
-        <CardDescription>{ko.auth.reset.subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+      <div className="mb-6 text-center">
+        <h1 className={studioClass.h1}>{ko.auth.reset.title}</h1>
+        <p className={cn(studioClass.sub, 'mt-2')}>{ko.auth.reset.subtitle}</p>
+      </div>
+
+      <Card className={studioClass.card}>
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
           className="space-y-4"
           aria-label={ko.auth.reset.title}
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="reset-password">{ko.auth.reset.newPassword}</Label>
+          <div>
+            <Label htmlFor="reset-password" className={studioClass.label}>
+              {ko.auth.reset.newPassword}
+            </Label>
             <Input
               id="reset-password"
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.password ? 'true' : 'false'}
+              className={studioClass.input}
               {...register('password')}
             />
             {passwordValue.length > 0 ? (
-              <div className="space-y-1" aria-live="polite">
+              <div className="mt-2 space-y-1" aria-live="polite">
                 <div className="flex items-center gap-1">
                   {[0, 1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
                       className={cn(
                         'h-1 flex-1 rounded',
-                        i <= strength.score ? strength.toneClass : 'bg-surface-muted',
+                        i <= strength.score
+                          ? strength.toneClass
+                          : 'bg-border',
                       )}
                     />
                   ))}
-                  <span className="ml-2 text-xs text-text-secondary">
+                  <span className="ml-2 text-[11.5px] text-dim">
                     {strength.label}
                   </span>
                 </div>
               </div>
             ) : null}
             {errors.password ? (
-              <p role="alert" className="text-xs text-danger">
+              <p role="alert" className={studioClass.helperError}>
                 {errors.password.message}
               </p>
             ) : null}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="reset-password-confirm">
+          <div>
+            <Label
+              htmlFor="reset-password-confirm"
+              className={studioClass.label}
+            >
               {ko.auth.reset.passwordConfirm}
             </Label>
             <Input
@@ -180,10 +187,11 @@ export function ResetPasswordPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.passwordConfirm ? 'true' : 'false'}
+              className={studioClass.input}
               {...register('passwordConfirm')}
             />
             {errors.passwordConfirm ? (
-              <p role="alert" className="text-xs text-danger">
+              <p role="alert" className={studioClass.helperError}>
                 {errors.passwordConfirm.message}
               </p>
             ) : null}
@@ -199,15 +207,16 @@ export function ResetPasswordPage(): JSX.Element {
           <Button
             type="submit"
             variant="primary"
-            className="w-full"
+            size="lg"
+            className={studioClass.ctaPrimary}
             disabled={isSubmitting}
             aria-busy={isSubmitting}
           >
             {isSubmitting ? ko.auth.reset.submitting : ko.auth.reset.submit}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   )
 }
 

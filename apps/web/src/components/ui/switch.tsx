@@ -2,12 +2,16 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * Switch — shadcn 스타일 ON/OFF 토글.
+ * Switch — Studio 룩 (디자인 리뉴얼 PR2).
+ *
+ * Studio spec:
+ *  - track off: oklch(0.92 0.008 75) (border 토큰을 트랙으로 차용)
+ *  - track on : oklch(0.55 0.10 160) (ok)
+ *  - thumb    : #fff with soft shadow
+ *  - radius   : 999 (full pill)
  *
  * Radix Switch 미설치 환경 대응: `<button role="switch">` 패턴으로 직접 구현.
  * 키보드 (Space/Enter) + aria-checked + focus ring 모두 표준 동작.
- *
- * 마스터: docs/architecture/v1/ui-system.md (token-only color/radius)
  */
 
 export interface SwitchProps
@@ -35,9 +39,11 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       }}
       className={cn(
         'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-accent' : 'bg-border',
+        checked
+          ? 'bg-success'
+          : 'bg-border border border-border-strong',
         className,
       )}
       {...rest}
@@ -45,7 +51,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none inline-block h-5 w-5 rounded-full bg-surface shadow-sm transition-transform',
+          'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-[0_1px_3px_oklch(0_0_0_/_0.15)] transition-transform',
           checked ? 'translate-x-5' : 'translate-x-0.5',
         )}
       />

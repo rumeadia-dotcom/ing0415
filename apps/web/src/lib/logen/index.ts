@@ -4,7 +4,7 @@
  * 사용:
  *   import { createLogenClient, LogenError } from '@/lib/logen'
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §3
+ * 마스터: docs/spec/PRD.md §7
  */
 
 export {

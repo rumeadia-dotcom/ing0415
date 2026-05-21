@@ -1,6 +1,6 @@
 -- 20260521000003_logen_credentials.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §3 (로젠 API 인증: userId + custCd), §4 (logen_credentials DDL 마스터)
+--   docs/spec/PRD.md §7 (로젠 API 인증: userId + custCd), §8 (logen_credentials DDL 마스터)
 --   docs/architecture/v1/cross-cutting/credential-vault.md §3 / §4 (pgcrypto + bytea 패턴)
 -- 목적:
 --   셀러별 로젠택배 B2B 자격증명 (userId / custCd) 저장. pgcrypto pgp_sym_encrypt 로 bytea 암호화.

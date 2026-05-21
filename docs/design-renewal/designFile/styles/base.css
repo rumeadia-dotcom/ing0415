@@ -1,0 +1,53 @@
+/* Shared resets and helpers used inside artboards. Concept-specific tokens
+   live inside each concept's wrapper. */
+
+.mc-art {
+  font-family: inherit;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.mc-art *, .mc-art *::before, .mc-art *::after { box-sizing: border-box; }
+.mc-art button { font: inherit; cursor: pointer; }
+
+/* Korean-aware word breaking — keep words intact, only break at spaces.
+   Applied broadly inside artboards because every concept renders Korean. */
+[data-dc-slot] { word-break: keep-all; overflow-wrap: normal; }
+[data-dc-slot] *, [data-dc-slot] *::before, [data-dc-slot] *::after {
+  word-break: keep-all; overflow-wrap: normal;
+  box-sizing: border-box;
+}
+
+/* Short label spans should never wrap. Long-form text uses <div> so this is
+   a safe default; the 3 issue/warning message spans opt back into wrap via
+   inline whiteSpace:'normal'. */
+[data-dc-slot] span { white-space: nowrap; }
+
+/* Form controls: kill the intrinsic min-width (default `size=20`) that
+   pushes grid/flex tracks wider than `1fr`. Combined with width:100%
+   inline, this keeps inputs inside their containers regardless of value
+   length. textarea/select get the same treatment for safety. */
+[data-dc-slot] input,
+[data-dc-slot] textarea,
+[data-dc-slot] select { min-width: 0; max-width: 100%; }
+
+/* Grid/flex items that contain inputs also need min-width:0 to allow the
+   1fr track to shrink below the input's content size. We target Field
+   wrappers and aside columns specifically to avoid breaking layout
+   elsewhere. */
+[data-dc-slot] section > div,
+[data-dc-slot] section > section,
+[data-dc-slot] aside > div { min-width: 0; }
+
+/* Generic placeholder image (subtle stripes) — used for product thumbnails */
+.mc-img-ph {
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(0,0,0,0.04) 0 6px,
+      rgba(0,0,0,0.08) 6px 12px);
+  display: flex; align-items: center; justify-content: center;
+  font-family: ui-monospace, "JetBrains Mono", "IBM Plex Mono", monospace;
+  font-size: 9px; color: rgba(0,0,0,0.45); letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

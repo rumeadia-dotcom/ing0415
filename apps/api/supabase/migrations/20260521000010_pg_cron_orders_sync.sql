@@ -1,5 +1,5 @@
 -- 20260521000010_pg_cron_orders_sync.sql
--- 출처: PRD-v2-shipping.md §2.1, user_flow-v2-shipping.md s8 n51
+-- 출처: PRD.md §6.1, user_flow.md s8 n51
 -- 목적: orders-sync Edge Function 을 10분 간격으로 트리거 (pg_cron + net.http_post).
 --
 -- 의존:

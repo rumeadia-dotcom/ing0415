@@ -3,7 +3,7 @@
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (v2 Extension)
- *   - PRD-v2-shipping.md §2.4
+ *   - PRD.md §6.4
  */
 
 import { naverDebugAdapter } from './NaverDebugAdapter'

@@ -3,7 +3,7 @@
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (v2 Extension)
- *   - PRD-v2-shipping.md §2.1, §2.4
+ *   - PRD.md §6.1, §6.4
  *
  * fetchOrders 카테고리:
  *   - happy: NEW_PAY_WAITING 목록 → MarketOrder[] 정규화 (status='new_pay').

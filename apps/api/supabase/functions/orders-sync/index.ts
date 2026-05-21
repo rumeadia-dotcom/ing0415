@@ -2,8 +2,8 @@
  * Edge Function: orders-sync
  *
  * 마스터 (예정):
- *   - PRD-v2-shipping.md §2.1 (자동 처리 트리거)
- *   - user_flow-v2-shipping.md s8 n51
+ *   - PRD.md §6.1 (자동 처리 트리거)
+ *   - user_flow.md s8 n51
  *
  * 책임:
  *   - body: `{ sellerId?: string }` (없으면 모든 활성 셀러 순회)

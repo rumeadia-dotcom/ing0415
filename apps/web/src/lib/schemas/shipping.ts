@@ -5,8 +5,8 @@ import { MarketIdSchema, UuidSchema, IsoDateTimeSchema } from './common'
  * v2 송장 일괄 제출 (shipping) 도메인 zod 스키마.
  *
  * 마스터:
- *  - docs/spec/PRD-v2-shipping.md §2.4 (마켓 송장 일괄 제출)
- *  - docs/spec/PRD-v2-shipping.md §4 (shipping_jobs / shipping_job_results DDL)
+ *  - docs/spec/PRD.md §6.4 (마켓 송장 일괄 제출)
+ *  - docs/spec/PRD.md §8 (shipping_jobs / shipping_job_results DDL)
  *
  * 마이그레이션 동기화 대상: 20260521000002_shipping_jobs.sql
  */

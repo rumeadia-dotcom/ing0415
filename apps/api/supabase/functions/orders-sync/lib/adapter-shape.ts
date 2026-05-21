@@ -3,8 +3,8 @@
  *
  * 마스터:
  *   - apps/web/src/lib/schemas/market-orders.ts (PR4, 단일 출처)
- *   - docs/spec/PRD-v2-shipping.md §2.1 (주문 자동 수집)
- *   - docs/spec/PRD-v2-shipping.md §4 (orders 테이블 스키마)
+ *   - docs/spec/PRD.md §6.1 (주문 자동 수집)
+ *   - docs/spec/PRD.md §8 (orders 테이블 스키마)
  *
  * 본 파일은 Vite/Node ESM ↔ Deno 호환성 문제로 PR4 의 zod 스키마를 직접 import 하지
  * 않고 미러로 재선언한다. 변경 시 PR4 의 `market-orders.ts` 와 동시 갱신.

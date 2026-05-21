@@ -1,7 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import { Check } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import type { MarketAccount } from '@/lib/schemas/markets-feature'
 import type { MarketSelection } from '@/lib/schemas/registration'
+import { cn } from '@/lib/utils'
 
 interface MarketSelectGridProps {
   accounts: MarketAccount[]
@@ -18,13 +20,17 @@ const BRAND_COLOR: Record<MarketId, string> = {
 }
 
 /**
- * Step 3 — 4마켓 (네이버·쿠팡·G마켓·옥션) 체크박스 그리드. 11번가 disabled.
+ * Step 3 — 5 마켓 카드 그리드 (v1 활성 4 + 11번가 v2 예정). Studio 룩.
  * 마스터: docs/architecture/v1/features/registration.md §10.5
  *
- * 연결되지 않은 (account 없음) 마켓은 disabled + tooltip 안내.
+ * - 연결되지 않은 (account 없음) 마켓 = disabled + tooltip 안내.
+ * - 11번가 = '준비 중 · v2' pill + 항상 disabled.
+ * - 선택된 카드는 ink ring + accent-soft 배경.
  */
 export function MarketSelectGrid({ accounts, selections, onChange }: MarketSelectGridProps): JSX.Element {
-  const accountByMarket = new Map<string, MarketAccount>(accounts.filter((a) => a.status === 'active').map((a) => [a.marketId, a]))
+  const accountByMarket = new Map<string, MarketAccount>(
+    accounts.filter((a) => a.status === 'active').map((a) => [a.marketId, a]),
+  )
 
   const isSelected = (marketId: MarketId) => selections.some((s) => s.marketId === marketId)
 
@@ -39,58 +45,94 @@ export function MarketSelectGrid({ accounts, selections, onChange }: MarketSelec
     }
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>마켓 선택</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(Object.keys(MARKET_CATALOG) as MarketId[]).map((id) => {
-            const entry = MARKET_CATALOG[id]
-            const account = accountByMarket.get(id)
-            const isDisabled = entry.status === 'coming_soon' || !account
-            const checked = isSelected(id)
-            const disabledReason = entry.status === 'coming_soon' ? '오픈 준비중 (v2)' : '계정 연결 필요 — 마켓 화면에서 먼저 연결하세요'
+  const selectedCount = selections.length
 
-            const item = (
-              <label
-                className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 ${
-                  checked ? 'border-accent bg-accent-soft' : 'border-border bg-surface'
-                } ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              >
+  return (
+    <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <header className="mb-4 flex items-baseline justify-between">
+        <div>
+          <h2 className="text-[15px] font-bold text-text">등록할 마켓 선택</h2>
+          <p className="mt-1 text-[12.5px] text-text-tertiary">
+            {selectedCount}개 마켓 선택됨 · 비활성 마켓은 사유 표시
+          </p>
+        </div>
+      </header>
+      <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        {(Object.keys(MARKET_CATALOG) as MarketId[]).map((id) => {
+          const entry = MARKET_CATALOG[id]
+          const account = accountByMarket.get(id)
+          const isComingSoon = entry.status === 'coming_soon'
+          const isDisabled = isComingSoon || !account
+          const checked = isSelected(id)
+          const disabledReason = isComingSoon
+            ? '오픈 준비중 (v2)'
+            : '계정 연결 필요 — 마켓 화면에서 먼저 연결하세요'
+
+          const card = (
+            <label
+              className={cn(
+                'flex h-full cursor-pointer flex-col rounded-xl border p-3.5 transition-colors',
+                checked
+                  ? 'border-[1.5px] border-ink bg-accent-soft/40'
+                  : 'border-border bg-surface hover:bg-surface-subtle',
+                isDisabled && 'cursor-not-allowed opacity-60',
+              )}
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: BRAND_COLOR[id] }}
+                />
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-text-tertiary">
+                  {id === '11st' ? '11ST' : id.toUpperCase()}
+                </span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    'ml-auto flex h-[18px] w-[18px] items-center justify-center rounded-sm border-[1.5px]',
+                    checked ? 'border-ink bg-ink text-white' : 'border-border-strong bg-surface',
+                  )}
+                >
+                  {checked && <Check className="h-3 w-3" strokeWidth={3} aria-hidden />}
+                </span>
                 <input
                   type="checkbox"
+                  className="sr-only"
                   checked={checked}
                   disabled={isDisabled}
                   onChange={() => toggle(id)}
                   aria-label={`${entry.label} 선택`}
                 />
-                <span
-                  aria-hidden
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: BRAND_COLOR[id] }}
-                />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-text">{entry.label}</span>
-                  {isDisabled && <span className="text-xs text-text-tertiary">{disabledReason}</span>}
-                </div>
-              </label>
-            )
+              </div>
+              <span className="text-[13px] font-bold text-text">{entry.label}</span>
+              <span
+                className={cn(
+                  'mt-0.5 text-[10.5px]',
+                  isComingSoon
+                    ? 'font-semibold text-warning-on-soft'
+                    : !account
+                      ? 'text-text-tertiary'
+                      : 'text-text-tertiary',
+                )}
+              >
+                {isComingSoon ? '준비 중 · v2' : !account ? '연결 필요' : '연결됨'}
+              </span>
+            </label>
+          )
 
-            return isDisabled ? (
-              <Tooltip key={id}>
-                <TooltipTrigger asChild>
-                  <span>{item}</span>
-                </TooltipTrigger>
-                <TooltipContent>{disabledReason}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <div key={id}>{item}</div>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
+          return isDisabled ? (
+            <Tooltip key={id}>
+              <TooltipTrigger asChild>
+                <span>{card}</span>
+              </TooltipTrigger>
+              <TooltipContent>{disabledReason}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <div key={id}>{card}</div>
+          )
+        })}
+      </div>
+    </section>
   )
 }

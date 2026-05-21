@@ -1,7 +1,7 @@
 /**
  * shipping-dispatch fan-out 의 순수 함수 모음.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §4.
+ * 마스터: docs/spec/PRD.md §4.
  *
  * - Deno specifier (`npm:zod`) / Supabase 클라이언트 / 환경변수 등 일체의 부수효과 의존 없음.
  * - 본 모듈만 Vitest (Node ESM) 에서 직접 import 하여 단위·통합 테스트로 검증.

@@ -1,15 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Inbox, Truck, Printer, Send } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ErrorMessage,
-} from '@/components/ui'
+import { Button, ErrorMessage } from '@/components/ui'
 import { ko } from '@/locales/ko'
 import { useOrdersSummary } from '../hooks/useOrdersSummary'
 import { OrdersSummaryCard } from '../components/OrdersSummaryCard'
@@ -18,13 +10,15 @@ import { MarketBadge } from '../components/MarketBadge'
 /**
  * OrdersDashboardPage — n47 (/orders).
  *
+ * Studio 룩 — stat 카드 4종 + 빠른 액션 + 마켓별 신규 주문.
+ *
  * 마스터:
- *  - user_flow-v2-shipping.md s7
- *  - PRD-v2-shipping.md §2.5 (대시보드 섹션)
+ *  - user_flow.md s7
+ *  - PRD.md §6.5 (대시보드 섹션)
  *
  * 구성:
  *  - 오늘 요약 카드 4종 (신규 주문 / 로젠 등록 / 출력 대기 / 제출 완료)
- *  - 빠른 액션 (운송장 출력 / 송장 일괄 제출) — features/shipping/ (PR9) 가 라우트 구현
+ *  - 빠른 액션 (운송장 출력 / 송장 일괄 제출)
  *  - 마켓별 신규 주문 뱃지 (실시간 갱신은 useOrdersSummary 가 담당)
  *  - 4상태: data / loading / error / empty
  */
@@ -51,7 +45,7 @@ export function OrdersDashboardPage(): JSX.Element {
         title={ko.orders.dashboard.title}
         subtitle={ko.orders.dashboard.subtitle}
         actions={
-          <Button asChild variant="ghost">
+          <Button asChild variant="ghost" size="md">
             <Link to="/orders/list">{ko.orders.dashboard.goToList}</Link>
           </Button>
         }
@@ -91,71 +85,73 @@ export function OrdersDashboardPage(): JSX.Element {
       </div>
 
       {/* 빠른 액션 */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>빠른 액션</CardTitle>
-          <CardDescription>운송장 출력 · 송장 일괄 제출 화면으로 바로 이동</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+      <section className="mt-5 rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <header className="mb-3">
+          <h2 className="text-base font-bold text-text">빠른 액션</h2>
+          <p className="mt-1 text-xs text-text-tertiary">
+            운송장 출력 · 송장 일괄 제출 화면으로 바로 이동
+          </p>
+        </header>
+        <div className="flex flex-wrap gap-2">
           <Button asChild variant="primary">
             <Link to="/shipping/print">
-              <Printer className="mr-2 h-4 w-4" aria-hidden />
+              <Printer className="h-4 w-4" aria-hidden />
               {ko.orders.dashboard.actionPrint}
             </Link>
           </Button>
           <Button asChild variant="primary">
             <Link to="/shipping/dispatch">
-              <Send className="mr-2 h-4 w-4" aria-hidden />
+              <Send className="h-4 w-4" aria-hidden />
               {ko.orders.dashboard.actionDispatch}
             </Link>
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* 마켓별 신규 주문 */}
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>{ko.orders.dashboard.byMarketHeading}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {state === 'loading' ? (
-            <div role="status" aria-live="polite" className="text-sm text-text-tertiary">
-              {ko.orders.list.loading}
+      <section className="mt-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <header className="mb-3">
+          <h2 className="text-base font-bold text-text">{ko.orders.dashboard.byMarketHeading}</h2>
+        </header>
+        {state === 'loading' ? (
+          <div role="status" aria-live="polite" className="text-sm text-text-tertiary">
+            {ko.orders.list.loading}
+          </div>
+        ) : state === 'error' ? (
+          <ErrorMessage
+            message={ko.orders.dashboard.errorLoad}
+            {...(summary.error?.message ? { details: summary.error.message } : {})}
+          />
+        ) : isEmpty || !data || data.byMarket.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-surface-muted/40 px-4 py-6 text-center">
+            <div className="text-sm font-semibold text-text">
+              {ko.orders.dashboard.empty}
             </div>
-          ) : state === 'error' ? (
-            <ErrorMessage
-              message={ko.orders.dashboard.errorLoad}
-              {...(summary.error?.message ? { details: summary.error.message } : {})}
-            />
-          ) : isEmpty || !data || data.byMarket.length === 0 ? (
-            <div className="rounded-md border border-border bg-surface-muted px-3 py-4 text-center text-sm text-text-secondary">
-              <div>{ko.orders.dashboard.empty}</div>
-              <div className="mt-1 text-xs text-text-tertiary">
-                {ko.orders.dashboard.emptyHint}
-              </div>
+            <div className="mt-1 text-xs text-text-tertiary">
+              {ko.orders.dashboard.emptyHint}
             </div>
-          ) : (
-            <ul className="flex flex-wrap gap-2">
-              {data.byMarket.map((m) => (
-                <li
-                  key={m.marketId}
-                  className="flex items-center gap-2 rounded-md border border-border bg-surface px-2 py-1 text-xs"
-                >
-                  <MarketBadge marketId={m.marketId} />
-                  <span className="tabular-nums text-text">
-                    {m.newOrdersCount.toLocaleString()}건
+          </div>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {data.byMarket.map((m) => (
+              <li
+                key={m.marketId}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs"
+              >
+                <MarketBadge marketId={m.marketId} variant="plain" />
+                <span className="font-mono tabular-nums font-semibold text-text">
+                  {m.newOrdersCount.toLocaleString()}건
+                </span>
+                {m.pendingCount > 0 ? (
+                  <span className="text-text-tertiary">
+                    (대기 {m.pendingCount.toLocaleString()})
                   </span>
-                  {m.pendingCount > 0 ? (
-                    <span className="text-text-tertiary">
-                      (대기 {m.pendingCount.toLocaleString()})
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

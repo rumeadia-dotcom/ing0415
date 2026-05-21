@@ -5,8 +5,8 @@
  *
  * 마스터:
  *   - apps/api/supabase/functions/logen-register-shipment/
- *   - docs/spec/PRD-v2-shipping.md §2.2
- *   - docs/spec/user_flow-v2-shipping.md s8 n51 / n50
+ *   - docs/spec/PRD.md §6.2
+ *   - docs/spec/user_flow.md s8 n51 / n50
  *
  * Edge Function 코드는 Deno 전용 import (`npm:zod`, `.ts` 확장) 로 Vitest 가 직접 import 불가.
  * 본 테스트는 동일 알고리즘을 인라인으로 재현하여 검증한다 (coupang-edge.test.ts 패턴):

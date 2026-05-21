@@ -1,6 +1,6 @@
 -- 20260521000005_logen_credentials_rpc.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §2.2 (registerOrderData 의 userId / custCd / sender* / fareTy / dlvFare 입력)
+--   docs/spec/PRD.md §6.2 (registerOrderData 의 userId / custCd / sender* / fareTy / dlvFare 입력)
 --   docs/architecture/v1/cross-cutting/credential-vault.md §4 (RPC + pgcrypto + master_key 인자 패턴)
 -- 목적:
 --   셀러가 본인 로젠 자격증명 + 발송인 기본값을 UPSERT 하는 RPC.

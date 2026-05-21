@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * s8 배송 처리 골든패스 (user_flow-v2-shipping.md n52~n57).
+ * s8 배송 처리 골든패스 (user_flow.md n52~n57).
  *
  * 시나리오:
  *   S1  /shipping/print — 로젠 등록된 주문 목록 노출 + [출력 팝업 열기] / [출력 완료] 버튼

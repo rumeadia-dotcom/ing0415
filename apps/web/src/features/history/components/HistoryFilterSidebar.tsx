@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@/components/ui'
+import { Button, Input } from '@/components/ui'
 import { MARKET_IDS, type MarketId } from '@/lib/schemas/common'
 import { JOB_STATUSES, type JobStatus } from '@/lib/schemas/registration'
 import {
@@ -16,13 +16,13 @@ const MARKET_LABEL: Record<MarketId, string> = {
   auction: '옥션',
 }
 
-// markets.md §7.2 브랜드 컬러 (라이트/다크 공통)
-const MARKET_BRAND_COLOR: Record<MarketId, string> = {
-  naver: '#03C75A',
-  coupang: '#F11F44',
-  '11st': '#FF0038',
-  gmarket: '#00B147',
-  auction: '#E73936',
+// 마켓 brand color → Tailwind 토큰 클래스 (globals.css --market-*)
+const MARKET_DOT_CLASS: Record<MarketId, string> = {
+  naver: 'bg-market-naver',
+  coupang: 'bg-market-coupang',
+  '11st': 'bg-market-eleventh',
+  gmarket: 'bg-market-gmarket',
+  auction: 'bg-market-auction',
 }
 
 const STATUS_LABEL: Record<JobStatus, string> = {
@@ -37,8 +37,8 @@ const STATUS_LABEL: Record<JobStatus, string> = {
 
 const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
   { value: 'today', label: '오늘' },
-  { value: '7d', label: '7일' },
-  { value: '30d', label: '30일' },
+  { value: '7d', label: '지난 7일' },
+  { value: '30d', label: '지난 30일' },
   { value: 'custom', label: '직접 선택' },
 ]
 
@@ -49,9 +49,11 @@ interface HistoryFilterSidebarProps {
 }
 
 /**
- * 좌측 필터 사이드바.
- * URL ↔ filter 동기화는 useHistoryFilterState 가 담당.
- * 본 컴포넌트는 로컬 draft state 만 유지 — "필터 적용" 클릭 시 onChange 호출 (즉시 반영하지 않음 → URL 갱신/네트워크 폭주 방지).
+ * 좌측 필터 사이드바 — Studio 스타일.
+ * - 카드 셸 (rounded-lg border bg-surface)
+ * - 섹션 헤더: 11px uppercase letter-spaced tracking
+ * - 라벨: 라디오/체크박스 + 우측 텍스트
+ * - 마켓 옵션은 brand color dot 으로 식별 보강
  */
 export function HistoryFilterSidebar({
   filter,
@@ -81,7 +83,6 @@ export function HistoryFilterSidebar({
   }
 
   function apply(): void {
-    // cursor 류는 필터 변경 시 항상 리셋 (페이지네이션 처음부터)
     const parsed = HistoryFilterSchema.safeParse({
       ...draft,
       cursor: undefined,
@@ -95,118 +96,132 @@ export function HistoryFilterSidebar({
   const isCustom = draft.period === 'custom'
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">필터</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <Fieldset legend="기간">
-          <div className="grid grid-cols-2 gap-2">
-            {PERIOD_OPTIONS.map((opt) => (
+    <div className="rounded-lg border border-border bg-surface p-5">
+      <Fieldset legend="기간">
+        <div className="flex flex-col gap-1.5">
+          {PERIOD_OPTIONS.map((opt) => {
+            const checked = draft.period === opt.value
+            return (
               <label
                 key={opt.value}
-                className={`flex cursor-pointer items-center justify-center rounded-md border p-2 text-sm ${
-                  draft.period === opt.value
-                    ? 'border-accent bg-accent-soft text-accent'
-                    : 'border-border bg-surface text-text-secondary hover:bg-surface-muted'
-                }`}
+                className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1 text-sm text-text hover:bg-surface-muted"
               >
                 <input
                   type="radio"
                   name="period"
                   value={opt.value}
-                  checked={draft.period === opt.value}
+                  checked={checked}
                   onChange={() =>
                     setDraft((d) => ({ ...d, period: opt.value }))
                   }
-                  className="sr-only"
+                  className="h-4 w-4 cursor-pointer border-border text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                {opt.label}
+                <span className={checked ? 'font-semibold text-text' : ''}>
+                  {opt.label}
+                </span>
               </label>
-            ))}
-          </div>
-          {isCustom ? (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                aria-label="시작일"
-                value={draft.from ?? ''}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, from: e.target.value || undefined }))
-                }
-              />
-              <Input
-                type="date"
-                aria-label="종료일"
-                value={draft.to ?? ''}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, to: e.target.value || undefined }))
-                }
-              />
-            </div>
-          ) : null}
-        </Fieldset>
-
-        <Fieldset legend="마켓">
-          <div className="space-y-1.5">
-            {MARKET_IDS.map((id) => (
-              <label key={id} className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={(draft.markets ?? []).includes(id)}
-                  onChange={() => toggleMarket(id)}
-                  aria-label={`${MARKET_LABEL[id]} 필터`}
-                />
-                <span
-                  aria-hidden
-                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: MARKET_BRAND_COLOR[id] }}
-                />
-                <span className="text-text">{MARKET_LABEL[id]}</span>
-              </label>
-            ))}
-          </div>
-        </Fieldset>
-
-        <Fieldset legend="상태">
-          <div className="space-y-1.5">
-            {JOB_STATUSES.map((s) => (
-              <label key={s} className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={(draft.statuses ?? []).includes(s)}
-                  onChange={() => toggleStatus(s)}
-                  aria-label={`${STATUS_LABEL[s]} 필터`}
-                />
-                <span className="text-text">{STATUS_LABEL[s]}</span>
-              </label>
-            ))}
-          </div>
-        </Fieldset>
-
-        <Fieldset legend="검색">
-          <Input
-            type="search"
-            aria-label="상품명 검색"
-            placeholder="상품명"
-            value={draft.q ?? ''}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, q: e.target.value || undefined }))
-            }
-            maxLength={100}
-          />
-        </Fieldset>
-
-        <div className="flex gap-2 pt-2">
-          <Button onClick={apply} className="flex-1">
-            적용
-          </Button>
-          <Button variant="ghost" onClick={onReset}>
-            초기화
-          </Button>
+            )
+          })}
         </div>
-      </CardContent>
-    </Card>
+        {isCustom ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              aria-label="시작일"
+              value={draft.from ?? ''}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, from: e.target.value || undefined }))
+              }
+            />
+            <Input
+              type="date"
+              aria-label="종료일"
+              value={draft.to ?? ''}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, to: e.target.value || undefined }))
+              }
+            />
+          </div>
+        ) : null}
+      </Fieldset>
+
+      <FieldsetDivider />
+
+      <Fieldset legend="마켓">
+        <div className="flex flex-col gap-1.5">
+          {MARKET_IDS.map((id) => (
+            <label
+              key={id}
+              className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1 text-sm text-text hover:bg-surface-muted"
+            >
+              <input
+                type="checkbox"
+                checked={(draft.markets ?? []).includes(id)}
+                onChange={() => toggleMarket(id)}
+                aria-label={`${MARKET_LABEL[id]} 필터`}
+                className="h-4 w-4 cursor-pointer rounded border-border text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span
+                aria-hidden
+                className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${MARKET_DOT_CLASS[id]}`}
+              />
+              <span>{MARKET_LABEL[id]}</span>
+            </label>
+          ))}
+        </div>
+      </Fieldset>
+
+      <FieldsetDivider />
+
+      <Fieldset legend="상태">
+        <div className="flex flex-col gap-1.5">
+          {JOB_STATUSES.map((s) => (
+            <label
+              key={s}
+              className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1 text-sm text-text hover:bg-surface-muted"
+            >
+              <input
+                type="checkbox"
+                checked={(draft.statuses ?? []).includes(s)}
+                onChange={() => toggleStatus(s)}
+                aria-label={`${STATUS_LABEL[s]} 필터`}
+                className="h-4 w-4 cursor-pointer rounded border-border text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>{STATUS_LABEL[s]}</span>
+              {s === 'partial' ? (
+                <span className="ml-auto text-[10.5px] text-text-tertiary">
+                  재시도 대상
+                </span>
+              ) : null}
+            </label>
+          ))}
+        </div>
+      </Fieldset>
+
+      <FieldsetDivider />
+
+      <Fieldset legend="검색">
+        <Input
+          type="search"
+          aria-label="상품명 검색"
+          placeholder="상품명"
+          value={draft.q ?? ''}
+          onChange={(e) =>
+            setDraft((d) => ({ ...d, q: e.target.value || undefined }))
+          }
+          maxLength={100}
+        />
+      </Fieldset>
+
+      <div className="mt-5 flex gap-2">
+        <Button onClick={apply} className="flex-1" size="sm">
+          적용
+        </Button>
+        <Button variant="ghost" onClick={onReset} size="sm">
+          초기화
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -219,10 +234,14 @@ function Fieldset({
 }): JSX.Element {
   return (
     <fieldset>
-      <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+      <legend className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-tertiary">
         {legend}
       </legend>
       {children}
     </fieldset>
   )
+}
+
+function FieldsetDivider(): JSX.Element {
+  return <div aria-hidden className="my-5 h-px bg-border" />
 }

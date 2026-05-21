@@ -15,6 +15,8 @@ import {
   Switch,
 } from '@/components/ui'
 import { ko } from '@/locales/ko'
+import { cn } from '@/lib/utils'
+import { SettingsNav } from '../../components/SettingsNav'
 import { useLogenCredentialsStatus } from '../hooks/useLogenCredentialsStatus'
 import {
   useAutoDispatchSetting,
@@ -25,8 +27,8 @@ import type { LogenCredentialsStatus } from '@/lib/schemas/logen'
 /**
  * SettingsShippingPage — n58 (/settings/shipping).
  *
- * 마스터: docs/spec/user_flow-v2-shipping.md s9 n58
- *         docs/spec/PRD-v2-shipping.md §2.4 / §4
+ * 마스터: docs/spec/user_flow.md s9 n58
+ *         docs/spec/PRD.md §6.4 / §8
  *
  * 책임:
  *  - 로젠 API 연동 상태 카드 (연결됨 / 미연결 + 발송인 정보 완성도)
@@ -46,50 +48,63 @@ export function SettingsShippingPage(): JSX.Element {
   const toggleMut = useAutoDispatchToggle()
 
   return (
-    <div className="mx-auto w-full max-w-[800px] space-y-6">
+    <div className="mx-auto w-full max-w-[1080px]">
       <PageHeader
         title={ko.settings.shipping.title}
         subtitle={ko.settings.shipping.subtitle}
       />
 
-      {status.isPending && <ShippingPageSkeleton />}
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-6',
+          'md:grid-cols-[220px_minmax(0,1fr)] md:gap-8',
+        )}
+      >
+        <aside>
+          <SettingsNav active="shipping" />
+        </aside>
 
-      {status.isError && (
-        <ErrorMessage
-          message={ko.settings.shipping.errors.internal}
-          {...(status.error instanceof Error
-            ? { details: status.error.message }
-            : {})}
-        />
-      )}
+        <div className="flex min-w-0 flex-col gap-4">
+          {status.isPending && <ShippingPageSkeleton />}
 
-      {status.isSuccess && (
-        <>
-          <LogenConnectionCard status={status.data} />
-          <SenderInfoCard hasSenderInfo={status.data.hasSenderInfo} />
-          <AutoDispatchCard
-            value={autoDispatch.data?.autoDispatchAfterPrint ?? false}
-            loading={autoDispatch.isPending || toggleMut.isPending}
-            disabled={!status.data.hasCredentials || !status.data.hasSenderInfo}
-            blockingReasons={[
-              ...(status.data.hasCredentials
-                ? []
-                : [ko.settings.shipping.errors.invalid_credentials]),
-              ...(status.data.hasSenderInfo
-                ? []
-                : [ko.settings.shipping.senderCard.notConfiguredDescription]),
-            ]}
-            onChange={(next) =>
-              toggleMut.mutate(next, {
-                onError: () => {
-                  toast.error(ko.settings.shipping.autoDispatchCard.updateError)
-                },
-              })
-            }
-          />
-          <CarrierCard />
-        </>
-      )}
+          {status.isError && (
+            <ErrorMessage
+              message={ko.settings.shipping.errors.internal}
+              {...(status.error instanceof Error
+                ? { details: status.error.message }
+                : {})}
+            />
+          )}
+
+          {status.isSuccess && (
+            <>
+              <LogenConnectionCard status={status.data} />
+              <SenderInfoCard hasSenderInfo={status.data.hasSenderInfo} />
+              <AutoDispatchCard
+                value={autoDispatch.data?.autoDispatchAfterPrint ?? false}
+                loading={autoDispatch.isPending || toggleMut.isPending}
+                disabled={!status.data.hasCredentials || !status.data.hasSenderInfo}
+                blockingReasons={[
+                  ...(status.data.hasCredentials
+                    ? []
+                    : [ko.settings.shipping.errors.invalid_credentials]),
+                  ...(status.data.hasSenderInfo
+                    ? []
+                    : [ko.settings.shipping.senderCard.notConfiguredDescription]),
+                ]}
+                onChange={(next) =>
+                  toggleMut.mutate(next, {
+                    onError: () => {
+                      toast.error(ko.settings.shipping.autoDispatchCard.updateError)
+                    },
+                  })
+                }
+              />
+              <CarrierCard />
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

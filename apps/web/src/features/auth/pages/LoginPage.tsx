@@ -5,10 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Button,
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ErrorMessage,
   Input,
   Label,
@@ -20,9 +16,11 @@ import {
 import { SignInFormSchema, type SignInForm } from '@/lib/schemas/auth'
 import { ko } from '@/locales/ko'
 import { logger } from '@/lib/logger'
+import { cn } from '@/lib/utils'
 import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
 import { trackAuthEvent } from '../api/auth-event-log'
+import { studioClass } from '../lib/studio-tokens'
 
 /**
  * LoginPage — auth.md §6.2 / user_flow s1 (n2~n4)
@@ -31,6 +29,8 @@ import { trackAuthEvent } from '../api/auth-event-log'
  * - 에러는 mapAuthError 로 한국어 매핑 + ErrorMessage 노출
  * - 성공 시 location.state.from 또는 /dashboard 로 이동
  * - 소셜 로그인 탭은 v1 placeholder (Supabase provider 설정 후 활성)
+ *
+ * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function LoginPage(): JSX.Element {
   const navigate = useNavigate()
@@ -84,27 +84,53 @@ export function LoginPage(): JSX.Element {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle>{ko.auth.login.title}</CardTitle>
-        <CardDescription>{ko.auth.login.subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+      <div className="mb-6 text-center">
+        <h1 className={studioClass.h1}>{ko.auth.login.title}</h1>
+        <p className={cn(studioClass.sub, 'mt-2')}>
+          {ko.auth.login.subtitle}
+        </p>
+      </div>
+
+      <Card className={studioClass.card}>
         <Tabs defaultValue="email" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="email">{ko.auth.login.tabEmail}</TabsTrigger>
-            <TabsTrigger value="social">{ko.auth.login.tabSocial}</TabsTrigger>
+          <TabsList
+            className={cn(
+              studioClass.card2,
+              'grid h-auto w-full grid-cols-2 gap-0 p-1',
+            )}
+          >
+            <TabsTrigger
+              value="email"
+              className={cn(
+                studioClass.tabInactive,
+                'data-[state=active]:!bg-white data-[state=active]:!text-ink data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+              )}
+            >
+              {ko.auth.login.tabEmail}
+            </TabsTrigger>
+            <TabsTrigger
+              value="social"
+              className={cn(
+                studioClass.tabInactive,
+                'data-[state=active]:!bg-white data-[state=active]:!text-ink data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+              )}
+            >
+              {ko.auth.login.tabSocial}
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="email" className="mt-4">
+          <TabsContent value="email" className="mt-5">
             <form
               onSubmit={handleSubmit(onSubmit)}
               noValidate
               className="space-y-4"
               aria-label={ko.auth.login.title}
             >
-              <div className="space-y-1.5">
-                <Label htmlFor="login-email">{ko.auth.login.email}</Label>
+              <div>
+                <Label htmlFor="login-email" className={studioClass.label}>
+                  {ko.auth.login.email}
+                </Label>
                 <Input
                   id="login-email"
                   type="email"
@@ -112,22 +138,36 @@ export function LoginPage(): JSX.Element {
                   placeholder={ko.auth.login.emailPlaceholder}
                   aria-invalid={errors.email ? 'true' : 'false'}
                   aria-describedby={errors.email ? 'login-email-error' : undefined}
+                  className={studioClass.input}
                   {...register('email')}
                 />
                 {errors.email ? (
                   <p
                     id="login-email-error"
                     role="alert"
-                    className="text-xs text-danger"
+                    className={studioClass.helperError}
                   >
                     {errors.email.message}
                   </p>
                 ) : null}
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="login-password">{ko.auth.login.password}</Label>
-                <div className="relative">
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="login-password"
+                    className={cn(studioClass.label, 'mb-0')}
+                  >
+                    {ko.auth.login.password}
+                  </Label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-[11.5px] font-semibold text-ink underline decoration-accent decoration-2 underline-offset-2 hover:decoration-[3px]"
+                  >
+                    {ko.auth.login.forgot}
+                  </Link>
+                </div>
+                <div className="relative mt-1.5">
                   <Input
                     id="login-password"
                     type={showPassword ? 'text' : 'password'}
@@ -137,7 +177,7 @@ export function LoginPage(): JSX.Element {
                     aria-describedby={
                       errors.password ? 'login-password-error' : undefined
                     }
-                    className="pr-10"
+                    className={cn(studioClass.input, 'pr-14')}
                     {...register('password')}
                   />
                   <button
@@ -149,7 +189,7 @@ export function LoginPage(): JSX.Element {
                         ? ko.auth.login.passwordHide
                         : ko.auth.login.passwordShow
                     }
-                    className="absolute inset-y-0 right-0 flex items-center px-3 text-xs text-text-secondary hover:text-text focus-visible:outline-none focus-visible:underline"
+                    className={studioClass.passwordToggle}
                   >
                     {showPassword ? '숨김' : '표시'}
                   </button>
@@ -158,7 +198,7 @@ export function LoginPage(): JSX.Element {
                   <p
                     id="login-password-error"
                     role="alert"
-                    className="text-xs text-danger"
+                    className={studioClass.helperError}
                   >
                     {errors.password.message}
                   </p>
@@ -175,7 +215,8 @@ export function LoginPage(): JSX.Element {
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full"
+                size="lg"
+                className={studioClass.ctaPrimary}
                 disabled={isSubmitting}
                 aria-busy={isSubmitting}
               >
@@ -184,9 +225,12 @@ export function LoginPage(): JSX.Element {
             </form>
           </TabsContent>
 
-          <TabsContent value="social" className="mt-4">
+          <TabsContent value="social" className="mt-5">
             <div
-              className="rounded-md border border-border bg-surface-muted px-3 py-6 text-center text-sm text-text-secondary"
+              className={cn(
+                studioClass.card2,
+                'px-4 py-7 text-center text-[13px] text-dim',
+              )}
               role="note"
             >
               {ko.auth.login.socialNotice}
@@ -194,25 +238,14 @@ export function LoginPage(): JSX.Element {
           </TabsContent>
         </Tabs>
 
-        <div className="mt-6 flex items-center justify-between text-sm">
-          <Link
-            to="/forgot-password"
-            className="font-medium text-accent underline-offset-2 hover:underline"
-          >
-            {ko.auth.login.forgot}
+        <div className={cn('mt-6 text-center', studioClass.bodyFaint)}>
+          {ko.auth.common.noAccount}{' '}
+          <Link to="/signup" className={studioClass.linkStrong}>
+            {ko.auth.login.signup}
           </Link>
-          <span className="text-text-secondary">
-            {ko.auth.common.noAccount}{' '}
-            <Link
-              to="/signup"
-              className="font-semibold text-accent underline-offset-2 hover:underline"
-            >
-              {ko.auth.login.signup}
-            </Link>
-          </span>
         </div>
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   )
 }
 

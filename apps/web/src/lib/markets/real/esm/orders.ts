@@ -3,7 +3,7 @@
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (v2 Extension)
- *   - PRD-v2-shipping.md §2.1, §2.4
+ *   - PRD.md §6.1, §6.4
  *
  * ESM 2.0 API (site='G' / site='A'):
  *   - getOrderList  (조회) — GET  /order

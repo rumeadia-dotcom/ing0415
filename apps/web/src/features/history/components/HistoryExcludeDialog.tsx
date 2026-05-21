@@ -136,11 +136,12 @@ export function HistoryExcludeDialog({
             <legend className="sr-only">재등록할 마켓 선택</legend>
             {candidates.map((r) => {
               const id = `exclude-${r.marketId}`
+              const isFinal = r.marketStatus === 'failed_final'
               return (
                 <label
                   key={r.id}
                   htmlFor={id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+                  className="flex cursor-pointer items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 text-sm hover:bg-surface-muted"
                 >
                   <input
                     id={id}
@@ -149,13 +150,17 @@ export function HistoryExcludeDialog({
                     onChange={() => toggle(r.marketId)}
                     className="h-4 w-4 rounded border-border text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
-                  <span className="flex-1 text-text">
+                  <span className="flex-1 font-medium text-text">
                     {MARKET_CATALOG[r.marketId].label}
                   </span>
-                  <span className="text-xs text-text-tertiary">
-                    {r.marketStatus === 'failed_final'
-                      ? '최종 실패'
-                      : '실패'}
+                  <span
+                    className={`rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider ${
+                      isFinal
+                        ? 'bg-danger-soft text-danger-on-soft'
+                        : 'bg-warning-soft text-warning-on-soft'
+                    }`}
+                  >
+                    {isFinal ? '최종 실패' : '실패'}
                   </span>
                 </label>
               )

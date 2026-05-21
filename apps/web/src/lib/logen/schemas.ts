@@ -2,7 +2,7 @@
  * 로젠택배 Open API zod 스키마 (런타임 검증 단일 소스).
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.2, §2.3, §3
+ *   - docs/spec/PRD.md §6.2, §6.3, §7
  *   - Logen Open API 명세 (B2B): /lrm02b-edi/edi/{getSlipNo, registerOrderData,
  *     outSlipPrintPop, inquirySlipNoMulti}
  *

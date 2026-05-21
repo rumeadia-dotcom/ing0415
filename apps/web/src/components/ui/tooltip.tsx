@@ -3,7 +3,15 @@ import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from 'reac
 import { cn } from '@/lib/utils'
 
 /**
- * Tooltip — ui-system.md §7
+ * Tooltip — Studio 룩 (디자인 리뉴얼 PR2).
+ *
+ * Studio spec:
+ *  - bg ink oklch(0.15 0.015 60)
+ *  - text #fff
+ *  - radius 8
+ *  - padding 6/10
+ *  - fontSize 12
+ *
  * 데스크탑 hover 전용. 모바일에서는 long-press 동작 (Radix 기본).
  * blockingReasons 표시에 필수 — disabled 버튼 사유 노출용 (페르소나 룰 6).
  */
@@ -20,9 +28,10 @@ export const TooltipContent = forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 overflow-hidden rounded-md',
-        'bg-text text-surface', // 반전: 본문에서 두드러지게
-        'px-2.5 py-1.5 text-xs shadow-lg',
+        'z-50 overflow-hidden rounded-[8px]',
+        'bg-ink text-white',
+        'px-[10px] py-[6px] text-[12px] font-medium',
+        'shadow-[0_8px_16px_-4px_oklch(0_0_0_/_0.25)]',
         'data-[state=delayed-open]:animate-fade-in data-[state=closed]:animate-fade-out',
         'max-w-xs',
         className,

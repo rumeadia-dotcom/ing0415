@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 다중 마켓 상품 자동 등록 SaaS. 대시보드">
+  <meta name="robots" content="noindex,nofollow">
+  <title>대시보드 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+
+  <!--
+    s2 대시보드 (n9~n14, v1)
+    -----------------------------------------------------------
+    데이터 소스 (정식 앱에서는 RPC):
+      - rpc_get_dashboard_summary  → 요약 카드 4개
+      - fetchMarketOrdersSummary() → 마켓별 주문 현황 (orders + market_accounts 합성)
+      - market_accounts SELECT     → 마켓 연결 상태 카드
+
+    상태 4종 + partial:
+      - data:    기본 (이 HTML)
+      - loading: .skeleton 으로 카드/리스트 회색 펄스 (주석으로 토글 예시)
+      - error:   .alert-error 배너 (주석)
+      - empty:   .empty-state 풀폭 카드 (주석)
+      - partial: 잡 row 단위로 .badge-warning + "1/2 성공" 표기 (data 안에 포함)
+
+    이 페이지 전용 layout 클래스만 정의 (토큰만 사용, raw color 금지).
+    공용 컴포넌트는 _shared/styles.css 에서 가져옴.
+  -->
+
+  <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
+  <!-- 예외: feature/design-renewal — "마켓별 주문 현황" 신규 위젯 클래스. _shared/styles.css 이관은 후속 PR. -->
+  <style>
+    /* ============================================================
+       마켓별 주문 현황 (s2 위젯 — MarketOrdersSummaryCard 대응)
+       마스터: docs/design-renewal/s2-dashboard.md §3.4 / §6.1 / §6.8
+       ============================================================ */
+    .market-orders-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--sp-3);
+      margin-top: var(--sp-4);
+    }
+    @media (min-width: 768px) and (max-width: 1199px) {
+      .market-orders-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+
+    .market-order-card {
+      position: relative;
+      display: block;
+      min-height: 88px;
+      padding: 0;
+      border: 1px solid var(--border-1);
+      border-radius: var(--r);
+      background: var(--surface-1);
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow 120ms ease, border-color 120ms ease;
+    }
+    .market-order-card:hover { box-shadow: var(--shadow-sm); }
+    .market-order-card:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--accent-soft);
+      border-color: var(--accent-1);
+    }
+    .market-order-card.is-dim { opacity: 0.75; }
+    .market-order-card.is-error { border-color: var(--danger); }
+
+    .market-order-bar {
+      position: absolute;
+      left: 0; top: 0;
+      width: 4px; height: 100%;
+    }
+    .market-order-card.is-error .market-order-bar { display: none; }
+
+    .market-order-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-2);
+      padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+    }
+
+    .market-order-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-2);
+    }
+    .market-order-id {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      min-width: 0;
+    }
+    .market-order-dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .market-order-name {
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .market-order-sync { white-space: nowrap; }
+
+    .market-order-counts {
+      display: flex;
+      align-items: baseline;
+      gap: var(--sp-2);
+      margin: 0;
+    }
+    .market-order-new {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 700;
+      color: var(--text-1);
+      font-variant-numeric: tabular-nums;
+    }
+    .market-order-new.is-zero { color: var(--text-2); }
+    .market-order-new-label {
+      margin: 0;
+      font-size: var(--fs-xs);
+      color: var(--text-2);
+    }
+    .market-order-today {
+      margin: 0 0 0 auto;
+      font-size: var(--fs-xs);
+      color: var(--text-2);
+    }
+
+    .market-order-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-2);
+      font-size: var(--fs-xs);
+      color: var(--text-2);
+    }
+    .market-order-chev { color: var(--text-2); }
+
+    /* 11번가 placeholder — 단일 행 (4 카드 아래) */
+    .market-order-placeholder {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+      margin-top: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      border: 1px dashed var(--border-1);
+      border-radius: var(--r);
+      background: var(--surface-2);
+      opacity: 0.6;
+    }
+    .market-order-placeholder-name {
+      margin: 0;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-2);
+    }
+    .market-order-placeholder-note { margin-left: auto; }
+
+    /* 스크린리더 전용 */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+</head>
+<body>
+
+  <!-- ============================================================
+       APP SHELL — chrome.html 복사 (사이드바 + 토픽바)
+       대시보드 nav item 에 active 클래스
+       ============================================================ -->
+  <div class="app-shell" data-sidebar="expanded">
+
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">MarketCast<small>v1</small></div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+
+        <a href="../dashboard/index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+        <a href="../register/step-1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+        <a href="../markets/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+        <a href="../history/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+
+        <div class="sidebar-group-label">보조</div>
+        <a href="../settings/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">KM</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">김셀러</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+
+        <div class="topbar-title">대시보드</div>
+
+        <div class="spacer"></div>
+
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <main class="main-content" aria-labelledby="page-title">
+
+        <!-- ============================================================
+             빈 상태 (empty) 시뮬레이션 — 주석 처리
+             판정: summary.last_job_at === null
+             ============================================================ -->
+        <!--
+        <section class="card text-center" style="padding: var(--sp-9) var(--sp-5);">
+          <h2 class="t-h2" style="margin: 0 0 var(--sp-2);">첫 상품을 등록해 보세요</h2>
+          <p class="t-body t-muted" style="margin: 0 0 var(--sp-5);">
+            여러 마켓에 한 번에 올릴 수 있어요.
+          </p>
+          <a href="../register/step-1-info.html" class="btn btn-primary btn-lg">
+            + 첫 상품 등록 시작
+          </a>
+          <div class="mt-4">
+            <a href="../markets/index.html" class="btn-link">먼저 마켓 연결하기 →</a>
+          </div>
+        </section>
+        -->
+
+        <!-- ============================================================
+             에러 상태 (error) 시뮬레이션 — 주석 처리
+             ============================================================ -->
+        <!--
+        <div class="alert alert-error" role="alert" style="margin-bottom: var(--sp-5);">
+          <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+          <div class="alert-body">
+            <p class="alert-title">요약을 불러오지 못했어요</p>
+            <p class="alert-message">잠시 후 다시 시도해주세요. <button class="btn-link">재시도</button></p>
+          </div>
+        </div>
+        -->
+
+        <!-- ============================================================
+             1차 영역: 페이지 헤더 + CTA
+             ============================================================ -->
+        <div class="page-header">
+          <div>
+            <h1 id="page-title">안녕하세요, 김셀러님</h1>
+            <p>오늘의 주문과 등록 현황을 한눈에 확인하세요 · 마지막 활동: 12분 전</p>
+          </div>
+          <div class="page-header-actions desktop-cta">
+            <button type="button" class="btn btn-outline" aria-label="대시보드 새로고침">
+              <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+              새로고침
+            </button>
+            <a href="../register/step-1-info.html" class="btn btn-primary">
+              <svg class="btn-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+              상품 등록 시작
+            </a>
+          </div>
+        </div>
+
+        <!-- 모바일 sticky CTA -->
+        <div class="mobile-cta-sticky">
+          <a href="../register/step-1-info.html" class="btn btn-primary btn-lg btn-block">
+            + 상품 등록 시작
+          </a>
+        </div>
+
+        <!-- ============================================================
+             1차 영역: 요약 카드 4개
+             ============================================================ -->
+        <section class="summary-grid" aria-label="등록 요약">
+
+          <article class="summary-card" aria-label="오늘 등록 12건">
+            <div class="summary-card-label">
+              <svg aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+              오늘 등록
+            </div>
+            <div class="summary-card-value">12<span class="unit">건</span></div>
+            <div class="summary-card-meta">
+              <span class="delta-up">▲ 4건</span> 어제 대비
+            </div>
+          </article>
+
+          <article class="summary-card" aria-label="진행 중 3건">
+            <div class="summary-card-label">
+              <svg aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+              진행 중
+            </div>
+            <div class="summary-card-value">3<span class="unit">건</span></div>
+            <div class="summary-card-meta">
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>진행 중</span>
+            </div>
+          </article>
+
+          <article class="summary-card" aria-label="7일 성공률 92.5 퍼센트">
+            <div class="summary-card-label">
+              <svg aria-hidden="true"><use href="../_shared/icons.svg#i-check"/></svg>
+              7일 성공률
+            </div>
+            <div class="summary-card-value">92.5<span class="unit">%</span></div>
+            <div class="summary-card-meta">
+              56 / 61건 성공 · <span class="delta-up">▲ 1.2%p</span>
+            </div>
+          </article>
+
+          <article class="summary-card tone-warning" aria-label="평균 등록 소요 1분 47초">
+            <div class="summary-card-label">
+              <svg aria-hidden="true"><use href="../_shared/icons.svg#i-alert"/></svg>
+              평균 등록 소요
+            </div>
+            <div class="summary-card-value">1<span class="unit">분</span> 47<span class="unit">초</span></div>
+            <div class="summary-card-meta">7일 평균 (성공 잡 기준)</div>
+          </article>
+
+        </section>
+
+        <!-- ============================================================
+             2차 영역: 좌측 = 마켓별 주문 현황 / 우측 = 마켓 연결 + v2 placeholder
+             ============================================================ -->
+        <div class="dashboard-cols">
+
+          <!-- =========== 좌측: 마켓별 주문 현황 (1차 영역) =========== -->
+          <section class="card" aria-labelledby="market-orders-title">
+            <div class="card-head">
+              <div>
+                <h2 id="market-orders-title" class="card-title">마켓별 주문 현황</h2>
+                <p class="card-sub">신규 처리 대기 + 오늘 주문 · 실시간 갱신</p>
+              </div>
+              <a href="../orders/index.html" class="btn-link">전체 보기 →</a>
+            </div>
+
+            <!-- 4 마켓 카드 grid (2×2) -->
+            <div class="market-orders-grid">
+
+              <!-- 네이버: 신규 5 · 오늘 12 · 정상 -->
+              <a
+                class="market-order-card"
+                href="../orders/index.html?market=naver"
+                data-market="naver"
+                data-sync-status="idle"
+                aria-label="네이버 스마트스토어 — 신규 주문 5건, 오늘 12건, 정상 동기화"
+              >
+                <span class="market-order-bar" aria-hidden="true" style="background: var(--market-naver);"></span>
+                <div class="market-order-body">
+                  <div class="market-order-head">
+                    <div class="market-order-id">
+                      <span class="market-order-dot" aria-hidden="true" style="background: var(--market-naver);"></span>
+                      <h3 class="market-order-name">네이버</h3>
+                    </div>
+                    <span class="badge badge-success market-order-sync" aria-label="동기화 상태: 정상">
+                      <span class="dot" aria-hidden="true"></span>정상
+                    </span>
+                  </div>
+                  <dl class="market-order-counts">
+                    <dt class="sr-only">신규 주문</dt>
+                    <dd class="market-order-new">5</dd>
+                    <dt class="market-order-new-label">신규</dt>
+                    <dd class="market-order-today">오늘 12건</dd>
+                  </dl>
+                  <div class="market-order-foot">
+                    <span class="market-order-synced">최근 동기화 2분 전</span>
+                    <span class="market-order-chev" aria-hidden="true">→</span>
+                  </div>
+                </div>
+              </a>
+
+              <!-- 쿠팡: 신규 0 · 오늘 3 · 정상 (dim) -->
+              <a
+                class="market-order-card is-dim"
+                href="../orders/index.html?market=coupang"
+                data-market="coupang"
+                data-sync-status="idle"
+                aria-label="쿠팡 — 신규 주문 0건, 오늘 3건, 정상 동기화"
+              >
+                <span class="market-order-bar" aria-hidden="true" style="background: var(--market-coupang);"></span>
+                <div class="market-order-body">
+                  <div class="market-order-head">
+                    <div class="market-order-id">
+                      <span class="market-order-dot" aria-hidden="true" style="background: var(--market-coupang);"></span>
+                      <h3 class="market-order-name">쿠팡</h3>
+                    </div>
+                    <span class="badge badge-success market-order-sync" aria-label="동기화 상태: 정상">
+                      <span class="dot" aria-hidden="true"></span>정상
+                    </span>
+                  </div>
+                  <dl class="market-order-counts">
+                    <dt class="sr-only">신규 주문</dt>
+                    <dd class="market-order-new is-zero">0</dd>
+                    <dt class="market-order-new-label">신규</dt>
+                    <dd class="market-order-today">오늘 3건</dd>
+                  </dl>
+                  <div class="market-order-foot">
+                    <span class="market-order-synced">최근 동기화 5분 전</span>
+                    <span class="market-order-chev" aria-hidden="true">→</span>
+                  </div>
+                </div>
+              </a>
+
+              <!-- G마켓: 신규 2 · 오늘 4 · 동기화 중 -->
+              <a
+                class="market-order-card"
+                href="../orders/index.html?market=gmarket"
+                data-market="gmarket"
+                data-sync-status="syncing"
+                aria-label="G마켓 — 신규 주문 2건, 오늘 4건, 동기화 중"
+              >
+                <span class="market-order-bar" aria-hidden="true" style="background: var(--market-gmarket);"></span>
+                <div class="market-order-body">
+                  <div class="market-order-head">
+                    <div class="market-order-id">
+                      <span class="market-order-dot" aria-hidden="true" style="background: var(--market-gmarket);"></span>
+                      <h3 class="market-order-name">G마켓</h3>
+                    </div>
+                    <span class="badge badge-info market-order-sync" aria-label="동기화 상태: 동기화 중">
+                      <span class="dot" aria-hidden="true"></span>동기화 중
+                    </span>
+                  </div>
+                  <dl class="market-order-counts">
+                    <dt class="sr-only">신규 주문</dt>
+                    <dd class="market-order-new">2</dd>
+                    <dt class="market-order-new-label">신규</dt>
+                    <dd class="market-order-today">오늘 4건</dd>
+                  </dl>
+                  <div class="market-order-foot">
+                    <span class="market-order-synced">동기화 진행 중…</span>
+                    <span class="market-order-chev" aria-hidden="true">→</span>
+                  </div>
+                </div>
+              </a>
+
+              <!-- 옥션: 오류 상태 (좌측 컬러바 hidden, danger 보더) -->
+              <a
+                class="market-order-card is-error"
+                href="../markets/index.html"
+                data-market="auction"
+                data-sync-status="error"
+                aria-label="옥션 — 연결 오류, 재인증 페이지로 이동"
+              >
+                <span class="market-order-body">
+                  <div class="market-order-head">
+                    <div class="market-order-id">
+                      <span class="market-order-dot" aria-hidden="true" style="background: var(--market-auction);"></span>
+                      <h3 class="market-order-name">옥션</h3>
+                    </div>
+                    <span class="badge badge-danger market-order-sync" aria-label="동기화 상태: 오류">
+                      <span class="dot" aria-hidden="true"></span>오류
+                    </span>
+                  </div>
+                  <dl class="market-order-counts">
+                    <dt class="sr-only">신규 주문</dt>
+                    <dd class="market-order-new is-zero">—</dd>
+                    <dt class="market-order-new-label">신규</dt>
+                    <dd class="market-order-today">집계 불가</dd>
+                  </dl>
+                  <div class="market-order-foot">
+                    <span class="market-order-synced t-danger">연결 오류 — 재인증 필요</span>
+                    <span class="market-order-chev t-danger" aria-hidden="true">→</span>
+                  </div>
+                </span>
+              </a>
+
+            </div>
+
+            <!-- 11번가 placeholder (오픈 준비중) -->
+            <div
+              class="market-order-placeholder"
+              data-market="11st"
+              aria-label="11번가 — 오픈 준비중"
+              role="group"
+            >
+              <span class="market-order-dot" aria-hidden="true" style="background: var(--text-2);"></span>
+              <h3 class="market-order-placeholder-name">11번가</h3>
+              <span class="badge" aria-hidden="true">오픈 준비중</span>
+              <span class="t-xs t-subtle market-order-placeholder-note">IP 화이트리스트 정책 해결 후 v2 진입</span>
+            </div>
+          </section>
+
+          <!-- =========== 우측: 마켓 연결 + v2 placeholder =========== -->
+          <div class="stack-loose">
+
+            <section class="card" aria-labelledby="conn-title">
+              <div class="card-head">
+                <div>
+                  <h2 id="conn-title" class="card-title">마켓 연결 상태</h2>
+                  <p class="card-sub">1 / 5 마켓 활성 (네이버 스마트스토어, 4개 오픈 준비중)</p>
+                </div>
+              </div>
+
+              <div>
+                <div class="conn-stat-row">
+                  <span class="conn-stat-label">
+                    <span class="badge badge-success" aria-hidden="true"><span class="dot"></span></span>
+                    활성
+                  </span>
+                  <span class="conn-stat-value">1</span>
+                </div>
+                <div class="conn-stat-row">
+                  <span class="conn-stat-label">
+                    <span class="badge badge-warning" aria-hidden="true"><span class="dot"></span></span>
+                    재인증 필요
+                  </span>
+                  <span class="conn-stat-value">0</span>
+                </div>
+                <div class="conn-stat-row">
+                  <span class="conn-stat-label">
+                    <span class="badge badge-danger" aria-hidden="true"><span class="dot"></span></span>
+                    오류
+                  </span>
+                  <span class="conn-stat-value">0</span>
+                </div>
+                <div class="conn-stat-row">
+                  <span class="conn-stat-label t-muted">
+                    <span class="badge" aria-hidden="true"><span class="dot"></span></span>
+                    오픈 준비중 (쿠팡 · 11번가 · G마켓 · 옥션)
+                  </span>
+                  <span class="conn-stat-value t-muted">4</span>
+                </div>
+              </div>
+
+              <a href="../markets/index.html" class="btn btn-secondary btn-block mt-4">
+                마켓 관리 →
+              </a>
+            </section>
+
+            <section class="card v2-placeholder" aria-disabled="true" aria-label="마켓별 통계 — v2 예정">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title t-muted">마켓별 통계</h2>
+                  <p class="card-sub">마켓당 등록 건수 · 성공률 · 평균 소요</p>
+                </div>
+                <span class="badge">v2 예정</span>
+              </div>
+              <div class="stack-tight">
+                <div class="row-between">
+                  <span class="t-sm t-muted">
+                    <span class="market-tile sm naver" aria-hidden="true">N</span> 네이버
+                  </span>
+                  <span class="skeleton" style="width: 80px; height: 12px;" aria-hidden="true"></span>
+                </div>
+                <div class="row-between">
+                  <span class="t-sm t-muted">
+                    <span class="market-tile sm coupang" aria-hidden="true">C</span> 쿠팡
+                  </span>
+                  <span class="skeleton" style="width: 80px; height: 12px;" aria-hidden="true"></span>
+                </div>
+              </div>
+              <p class="t-xs t-subtle mt-4 text-center">v2 에서 제공 예정</p>
+            </section>
+
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+</body>
+</html>

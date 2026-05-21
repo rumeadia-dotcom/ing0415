@@ -4,8 +4,8 @@
  * 정식 위치: `apps/web/src/lib/logen/client.ts` (PR3 머지 시 본 파일 제거 + 해당 모듈 import 로 교체).
  *
  * 근거:
- *  - user_flow-v2-shipping.md n52 (운송장 출력 팝업 trigger)
- *  - PRD-v2-shipping.md §2.3.1 (outSlipPrintPop)
+ *  - user_flow.md n52 (운송장 출력 팝업 trigger)
+ *  - PRD.md §6.3 (outSlipPrintPop)
  */
 
 interface BuildOutSlipPrintPopUrlInput {

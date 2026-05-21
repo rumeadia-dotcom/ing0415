@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 설정">
+  <meta name="robots" content="noindex,nofollow">
+  <title>설정 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+
+  <!--
+    설정 페이지 (v1)
+    -----------------------------------------------------------
+    v1 범위: 계정 카드 단일 (이메일 표시 + 로그아웃).
+    - 이메일은 useAuth().user.email 표시.
+    - 로그아웃 버튼 클릭 → Dialog 확인 → supabase.auth.signOut({scope:'global'}) → toast + /login redirect.
+
+    v2 예정 (자리만):
+      - 알림 설정 (이메일·푸시)
+      - 테마 영구 저장 (현재는 sessionStorage)
+      - 마케팅 정보 수신 동의 토글
+      - 회원 탈퇴
+
+    공용 컴포넌트는 _shared/styles.css.
+  -->
+
+</head>
+<body>
+
+  <div class="app-shell" data-sidebar="expanded">
+
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">MarketCast<small>v1</small></div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+
+        <a href="../dashboard/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+        <a href="../register/step1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+        <a href="../markets/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+        <a href="../history/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+
+        <div class="sidebar-group-label">보조</div>
+        <a href="../settings/index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">KM</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">김셀러</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+
+        <div class="topbar-title">설정</div>
+
+        <div class="spacer"></div>
+
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <main class="main-content" aria-labelledby="page-title">
+
+        <header class="page-header">
+          <div>
+            <h1 id="page-title" class="t-h1">설정</h1>
+            <p class="t-body t-muted">계정 정보와 환경 설정을 관리합니다</p>
+          </div>
+        </header>
+
+        <!-- ============================================================
+             계정 카드 (v1 유일 섹션)
+             ============================================================ -->
+        <section class="card" style="max-width: 800px;">
+          <header style="margin-bottom: var(--sp-4);">
+            <h2 class="t-h2" style="margin:0 0 var(--sp-1);">계정</h2>
+            <p class="t-sm t-muted" style="margin:0;">현재 로그인된 계정 정보</p>
+          </header>
+
+          <dl style="display:grid; grid-template-columns: 120px 1fr; gap: var(--sp-2) var(--sp-4); margin: 0 0 var(--sp-5);">
+            <dt class="t-sm t-muted">이메일</dt>
+            <dd class="t-sm" style="margin:0; word-break:break-all;">jhan@konai.com</dd>
+          </dl>
+
+          <div style="border-top:1px solid var(--border-1); padding-top: var(--sp-4); display:flex; flex-direction:column; gap: var(--sp-3);">
+            <div style="display:flex; flex-direction:column; gap: var(--sp-2);">
+              <p class="t-sm t-muted" style="margin:0;">
+                현재 기기에서 로그아웃합니다. 다른 기기의 세션은 유지됩니다.
+              </p>
+              <button type="button" class="btn btn-outline" style="align-self:flex-start;">
+                <span>로그아웃</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             v2 placeholder (자리만)
+             ============================================================ -->
+        <section class="card" data-feature="settings-v2" style="max-width:800px; margin-top: var(--sp-4); opacity:.55;" aria-disabled="true">
+          <h2 class="t-h2" style="margin:0 0 var(--sp-1);">알림 · 테마 · 마케팅 동의 — v2</h2>
+          <p class="t-sm t-muted" style="margin:0;">
+            v2 에서 알림 설정, 테마 영구 저장, 마케팅 정보 수신 동의 토글, 회원 탈퇴가 추가됩니다.
+          </p>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       로그아웃 확인 Dialog (주석 — 기본 닫힘)
+       ============================================================ -->
+  <!--
+  <div class="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="logout-title">
+    <div class="dialog">
+      <header style="margin-bottom: var(--sp-3);">
+        <h2 id="logout-title" class="t-h2" style="margin:0 0 var(--sp-1);">로그아웃하시겠어요?</h2>
+        <p class="t-sm t-muted" style="margin:0;">로그아웃하면 로그인 화면으로 이동합니다.</p>
+      </header>
+      <footer style="display:flex; gap: var(--sp-2); justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost">취소</button>
+        <button type="button" class="btn btn-primary">로그아웃</button>
+      </footer>
+    </div>
+  </div>
+  -->
+
+</body>
+</html>

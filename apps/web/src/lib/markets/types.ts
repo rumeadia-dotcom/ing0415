@@ -34,8 +34,8 @@ import type {
  *  - 반환 타입이 `TokenSet` → `StoredCredential` (kind + payload) 로 일반화.
  *
  * v2 변경 (2026-05-21, market-adapter.md §9 v2 Extension):
- *  - `fetchOrders(input, credential)` — 마켓 주문 목록 조회 (PRD-v2-shipping §2.1).
- *  - `submitTracking(input, credential)` — 송장 번호 제출 (PRD-v2-shipping §2.4).
+ *  - `fetchOrders(input, credential)` — 마켓 주문 목록 조회 (PRD §6.1).
+ *  - `submitTracking(input, credential)` — 송장 번호 제출 (PRD §6.4).
  *  - 두 메서드 모두 `credential` 을 명시 인자로 받는다. authenticate() 후
  *    인스턴스 메모리에 저장된 cred 를 사용하는 v1 패턴과 호환되도록, credential
  *    인자가 들어오면 인자 우선, 없으면 인스턴스 cred fallback 가능 (어댑터별 정책).
@@ -83,7 +83,7 @@ export interface MarketAdapter {
 
   /**
    * 마켓 주문 목록 조회.
-   * - PRD-v2-shipping.md §2.1 매트릭스.
+   * - PRD.md §6.1 매트릭스.
    * - 마켓별 raw status / 페이지네이션은 어댑터 내부에서 흡수, 정규화된 MarketOrder[] 반환.
    * - credential 인자가 명시되면 그 자격증명을 사용. 없으면 authenticate() 후 인스턴스
    *   cred fallback (어댑터별).
@@ -96,7 +96,7 @@ export interface MarketAdapter {
 
   /**
    * 송장 번호 제출 (발송 처리).
-   * - PRD-v2-shipping.md §2.4 매트릭스.
+   * - PRD.md §6.4 매트릭스.
    * - 정상 마켓 거부(검증 실패 / 이미 발송됨 등)는 `{ ok: false, errorCode, errorMessage }`
    *   반환 — throw 하지 않음 (다중 주문 배치 처리에서 한 건 실패가 흐름을 멈추지 않도록).
    * - 네트워크 / 인증 / 5xx 같은 횡단 실패만 MarketError throw.

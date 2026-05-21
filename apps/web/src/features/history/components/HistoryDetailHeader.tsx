@@ -40,8 +40,12 @@ interface HistoryDetailHeaderProps {
 }
 
 /**
- * 이력 상세 상단 헤더 — 잡 메타 + 부모/자식 잡 링크 + 액션 슬롯.
+ * 이력 상세 상단 헤더 — Studio 'hero' 패턴.
+ * - 좌측: 썸네일 placeholder + jobId mono + 상태 pill (대형) + 상품명 (h1) + 메타 라인
+ * - 우측: 액션 슬롯 (재시도 / 제외 후 재등록)
+ *
  * 마스터: docs/architecture/v1/features/history.md §3.3 / n43.
+ * 디자인 ref: docs/design-renewal/designFile/concepts/studio-empty.jsx (s6 detail).
  */
 export function HistoryDetailHeader({
   detail,
@@ -59,45 +63,74 @@ export function HistoryDetailHeader({
           ),
         )
       : null
+  const shortId = `#${job.id.slice(0, 8).toUpperCase()}`
 
   return (
-    <header className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5">
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+    <header className="rounded-lg border border-border bg-surface p-5 md:p-6">
+      {/* breadcrumb */}
+      <div className="mb-3 flex items-center gap-1.5 text-xs text-text-tertiary">
+        <Link
+          to="/history"
+          className="hover:text-text focus-visible:underline focus-visible:outline-none"
+        >
+          등록 이력
+        </Link>
+        <span aria-hidden>›</span>
+        <span className="font-mono font-semibold text-text">{shortId}</span>
+      </div>
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-5">
+        {/* product thumbnail placeholder — design intent: 마켓별 썸네일 보일 자리 */}
+        <div
+          aria-hidden
+          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-[10px] font-semibold uppercase tracking-wider text-text-tertiary md:h-[72px] md:w-[72px]"
+        >
+          PRODUCT
+        </div>
+
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-2">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <Badge variant={JOB_STATUS_VARIANT[job.status]} size="md">
               {JOB_STATUS_LABEL[job.status]}
             </Badge>
             {job.retryCount > 0 ? (
               <span className="text-xs text-text-tertiary">
-                {job.retryCount}회 재시도
+                재시도 {job.retryCount}회
               </span>
             ) : null}
           </div>
-          <h1 className="truncate text-h1 text-text">{product.name}</h1>
-          <div className="mt-1 text-xs text-text-tertiary">
-            생성: {formatRelativeTime(job.createdAt)}
+          <h1
+            className="truncate text-h2 md:text-h1 text-text"
+            title={product.name}
+          >
+            {product.name}
+          </h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-tertiary">
+            <span>생성 {formatRelativeTime(job.createdAt)}</span>
             {job.completedAt ? (
               <>
-                {' · '}완료: {formatRelativeTime(job.completedAt)}
+                <span aria-hidden>·</span>
+                <span>완료 {formatRelativeTime(job.completedAt)}</span>
               </>
             ) : null}
             {duration !== null ? (
               <>
-                {' · '}소요: {formatDurationSec(duration)}
+                <span aria-hidden>·</span>
+                <span>{formatDurationSec(duration)} 소요</span>
               </>
             ) : null}
           </div>
         </div>
+
         {actions ? (
-          <div className="flex flex-wrap items-center gap-2 md:shrink-0">
+          <div className="flex flex-row flex-wrap items-center gap-2 md:flex-col md:items-stretch md:gap-2 md:shrink-0">
             {actions}
           </div>
         ) : null}
       </div>
 
       {(parent || children.length > 0) && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3 text-xs">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
           {parent ? (
             <Link
               to={`/history/${parent.id}`}
@@ -107,7 +140,7 @@ export function HistoryDetailHeader({
             </Link>
           ) : null}
           {children.length > 0 ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-text-secondary">재등록 잡:</span>
               {children.map((c, i) => (
                 <Link
@@ -124,13 +157,13 @@ export function HistoryDetailHeader({
       )}
 
       {job.errorSummary ? (
-        <div className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger-on-soft">
+        <div className="mt-4 rounded-md border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger-on-soft">
           {job.errorSummary}
         </div>
       ) : null}
 
       {job.cancelledAt && detail.cancelledByMaskedId ? (
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs text-text-secondary">
+        <div className="mt-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-xs text-text-secondary">
           취소: {formatRelativeTime(job.cancelledAt)} · 작업자{' '}
           {detail.cancelledByMaskedId}
         </div>
