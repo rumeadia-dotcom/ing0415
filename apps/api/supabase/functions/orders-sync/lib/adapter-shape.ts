@@ -78,7 +78,7 @@ export type MarketOrder = z.infer<typeof MarketOrderSchema>
  *
  * (배송대기 별도 enum 필요 시 PR4 의 MarketOrderStatusSchema 에 추가 후 본 배열 갱신.)
  */
-export const ORDER_SYNC_TARGET_STATUSES: ReadonlyArray<MarketOrderStatus> = [
+export const ORDER_SYNC_TARGET_STATUSES: readonly MarketOrderStatus[] = [
   'new_pay',
 ]
 

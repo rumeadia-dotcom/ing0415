@@ -96,7 +96,7 @@ function makeMockSupabase(state: MockState) {
     let returningRows: OrderRow[] = []
     const chain = {
       upsert: (
-        rows: Array<Omit<OrderRow, 'id'>>,
+        rows: Omit<OrderRow, 'id'>[],
         opts: { onConflict: string; ignoreDuplicates: boolean },
       ) => {
         if (opts.onConflict !== 'market_id,external_order_id,seller_id') {

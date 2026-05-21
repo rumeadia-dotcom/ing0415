@@ -48,8 +48,9 @@ export const LogenSenderInfoSchema = z.object({
 export type LogenSenderInfo = z.infer<typeof LogenSenderInfoSchema>
 
 // ─────────────────────────────────────────────
-// 자격증명 + 발송인 UPSERT 입력 (set_logen_credentials RPC 호출 직전 RHF/parse)
+// 자격증명 입력 (set_logen_credentials RPC 호출 직전 RHF/parse)
 //   userId / custCd 는 평문으로 한 번만 흐른다 (입력 → Edge Function → pgp_sym_encrypt).
+//   발송인 정보는 별도 화면(n60) 에서 LogenSenderInfoSchema 로 단독 저장.
 // ─────────────────────────────────────────────
 export const LogenCredentialsInputSchema = z
   .object({
@@ -61,7 +62,6 @@ export const LogenCredentialsInputSchema = z
       .string()
       .min(1, 'custCd(거래처코드)를 입력해주세요')
       .max(100, 'custCd 가 너무 깁니다'),
-    sender: LogenSenderInfoSchema,
   })
   .strict()
 export type LogenCredentialsInput = z.infer<typeof LogenCredentialsInputSchema>
@@ -92,3 +92,87 @@ export const LogenVerifyResponseSchema = z.discriminatedUnion('ok', [
   }),
 ])
 export type LogenVerifyResponse = z.infer<typeof LogenVerifyResponseSchema>
+
+// ═════════════════════════════════════════════
+// PR8/PR10 정합용 추가 스키마
+//   - 페이지/hook/api 가 요구하는 모양 (ko.settings.shipping.errors 키와 1:1).
+//   - PR2 의 ground truth (위 4개 스키마) 를 view 표현하는 별칭/확장.
+// ═════════════════════════════════════════════
+
+// ─────────────────────────────────────────────
+// LogenApiError — 클라이언트 ↔ Edge Function 간 표준 에러 표현
+//   code 가 ko.settings.shipping.errors 의 key 와 1:1 (i18n hit)
+// ─────────────────────────────────────────────
+export const LOGEN_API_ERROR_CODES = [
+  'invalid_credentials',
+  'contract_not_active',
+  'rate_limited',
+  'unauthenticated',
+  'validation_failed',
+  'network_error',
+  'internal',
+] as const
+export const LogenApiErrorSchema = z.object({
+  code: z.enum(LOGEN_API_ERROR_CODES),
+  message: z.string().max(500),
+  /** 디버깅 보조 — 절대 PII 미포함. */
+  correlationId: z.string().optional().nullable(),
+})
+export type LogenApiError = z.infer<typeof LogenApiErrorSchema>
+
+// ─────────────────────────────────────────────
+// LogenCredentialsStatus — get_logen_credentials_status RPC 응답
+//   평문 자격증명은 절대 포함 안 됨 — 보유 여부와 메타 시각만.
+// ─────────────────────────────────────────────
+export const LogenCredentialsStatusSchema = z.object({
+  hasCredentials: z.boolean(),
+  hasSenderInfo: z.boolean(),
+  lastVerifiedAt: z.string().nullable(),
+  lastErrorAt: z.string().nullable(),
+  lastErrorCode: z.string().nullable(),
+  /** 발송인 정보는 평문이 가능 (셀러 본인 정보). 미설정 시 null. */
+  senderInfo: LogenSenderInfoSchema.nullable(),
+})
+export type LogenCredentialsStatus = z.infer<typeof LogenCredentialsStatusSchema>
+
+// ─────────────────────────────────────────────
+// LogenVerifyRequest — logen-verify-credential Edge Function 본문
+//   - source='inline': 화면에서 방금 입력한 credentials 로 검증 (저장 직후 동일 값 재검증)
+//   - source='stored': DB 저장 credentials 로 검증 (재확인)
+// ─────────────────────────────────────────────
+export const LogenVerifyRequestSchema = z.discriminatedUnion('source', [
+  z.object({
+    source: z.literal('inline'),
+    credentials: LogenCredentialsInputSchema,
+  }),
+  z.object({
+    source: z.literal('stored'),
+  }),
+])
+export type LogenVerifyRequest = z.infer<typeof LogenVerifyRequestSchema>
+
+// ─────────────────────────────────────────────
+// SetLogenCredentialsArgs — set_logen_credentials RPC 인자
+//   credentials 또는 senderInfo 중 하나 이상 (부분 갱신).
+// ─────────────────────────────────────────────
+export const SetLogenCredentialsArgsSchema = z
+  .object({
+    credentials: LogenCredentialsInputSchema.optional(),
+    senderInfo: LogenSenderInfoSchema.optional(),
+  })
+  .refine((d) => d.credentials !== undefined || d.senderInfo !== undefined, {
+    message: 'credentials 또는 senderInfo 중 하나 이상 필요',
+  })
+export type SetLogenCredentialsArgs = z.infer<
+  typeof SetLogenCredentialsArgsSchema
+>
+
+// ─────────────────────────────────────────────
+// ShippingAutoDispatchSetting — sellers.auto_dispatch_after_print
+// ─────────────────────────────────────────────
+export const ShippingAutoDispatchSettingSchema = z.object({
+  autoDispatchAfterPrint: z.boolean(),
+})
+export type ShippingAutoDispatchSetting = z.infer<
+  typeof ShippingAutoDispatchSettingSchema
+>

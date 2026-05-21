@@ -233,14 +233,12 @@ async function processSingleOrder(args: {
     '→ market submitTracking request',
   )
 
+  // 167/174 가드로 nullable 이 모두 string 으로 좁혀진 상태 — 명시적 변수로 추출 (no-non-null-assertion).
+  const externalOrderId: string = row.external_order_id
+  const waybillNumber: string = row.waybill_number
+  const carrierCode: string = row.carrier_code
   const result = await withRetry(
-    () =>
-      submitFn.call(
-        adapter,
-        row.external_order_id!,
-        row.waybill_number!,
-        row.carrier_code!,
-      ),
+    () => submitFn.call(adapter, externalOrderId, waybillNumber, carrierCode),
     {
       market: input.marketId,
       correlationId: input.correlationId,

@@ -47,7 +47,7 @@ export const ORDER_SYNC_WINDOW_HOURS = 24
  * `ORDER_SYNC_TARGET_STATUSES` 배열에 추가만 하면 됨.
  */
 export { ORDER_SYNC_TARGET_STATUSES } from './adapter-shape.ts'
-const ORDER_SYNC_MARKETS: ReadonlyArray<MarketId> = [
+const ORDER_SYNC_MARKETS: readonly MarketId[] = [
   'naver',
   'coupang',
   'gmarket',

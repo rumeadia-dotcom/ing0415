@@ -61,20 +61,14 @@ describe('LogenSenderInfoSchema', () => {
 })
 
 describe('LogenCredentialsInputSchema', () => {
-  const sender = {
-    name: '셀러',
-    address: '서울시 강남구',
-    phone: '010-1234-5678',
-    fareTy: 'C' as const,
-    dlvFare: 0,
-  }
+  // PR8 정합: sender 는 LogenSenderInfoSchema 로 별도 화면(n60)에서 단독 저장.
+  // 자격증명 입력은 userId / custCd 만 책임 (단일 화면 책임 분리).
   const valid = {
     userId: 'LOGEN-USR-001',
     custCd: 'CUST-001',
-    sender,
   }
 
-  it('유효 입력 parse 통과', () => {
+  it('유효 입력 parse 통과 (userId / custCd 만)', () => {
     expect(LogenCredentialsInputSchema.safeParse(valid).success).toBe(true)
   })
 
@@ -99,11 +93,11 @@ describe('LogenCredentialsInputSchema', () => {
     ).toBe(false)
   })
 
-  it('sender 누락이면 parse 실패', () => {
+  it('sender 가 함께 들어오면 strict 로 거부 (sender 는 별 스키마)', () => {
     expect(
       LogenCredentialsInputSchema.safeParse({
-        userId: 'a',
-        custCd: 'b',
+        ...valid,
+        sender: { name: 'x', address: 'y', phone: 'z' },
       }).success,
     ).toBe(false)
   })

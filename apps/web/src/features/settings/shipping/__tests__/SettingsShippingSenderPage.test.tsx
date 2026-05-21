@@ -89,9 +89,9 @@ describe('SettingsShippingSenderPage (n60)', () => {
       lastErrorAt: null,
       lastErrorCode: null,
       senderInfo: {
-        senderName: '기존 스토어',
-        senderAddress: '서울특별시 종로구 1',
-        senderPhone: '010-0000-1111',
+        name: '기존 스토어',
+        address: '서울특별시 종로구 1',
+        phone: '010-0000-1111',
         fareTy: 'C',
         dlvFare: 3000,
       },

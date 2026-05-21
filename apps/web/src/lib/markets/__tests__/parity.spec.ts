@@ -26,11 +26,11 @@ import { auctionRealAdapter } from '../real/auction'
 import type { MarketAdapter } from '../types'
 import type { MarketCredentialKind, MarketId } from '@/lib/schemas'
 
-const ACTIVE_MARKETS: ReadonlyArray<{
+const ACTIVE_MARKETS: readonly {
   market: MarketId
   kind: MarketCredentialKind
   real: MarketAdapter
-}> = [
+}[] = [
   { market: 'naver', kind: 'oauth', real: naverRealAdapter },
   { market: 'coupang', kind: 'hmac', real: coupangRealAdapter },
   { market: 'gmarket', kind: 'esm_jwt', real: gmarketRealAdapter },

@@ -341,10 +341,12 @@ describe('shipping-dispatch / scenario / 전체 성공', () => {
 
     const allOutcomes: PerOrderOutcome[] = []
     for (const [marketId, orderIds] of grouped) {
+      const adapter = adapters[marketId]
+      if (!adapter) throw new Error(`adapter missing: ${marketId}`)
       const out = await runMarketWorker({
         marketId,
         orderIds,
-        adapter: adapters[marketId]!,
+        adapter,
       })
       allOutcomes.push(...out)
     }
@@ -377,10 +379,12 @@ describe('shipping-dispatch / scenario / 부분 실패', () => {
 
     const allOutcomes: PerOrderOutcome[] = []
     for (const [marketId, orderIds] of grouped) {
+      const adapter = adapters[marketId]
+      if (!adapter) throw new Error(`adapter missing: ${marketId}`)
       const out = await runMarketWorker({
         marketId,
         orderIds,
-        adapter: adapters[marketId]!,
+        adapter,
       })
       allOutcomes.push(...out)
     }
@@ -449,10 +453,12 @@ describe('shipping-dispatch / scenario / 전체 실패', () => {
 
     const allOutcomes: PerOrderOutcome[] = []
     for (const [marketId, orderIds] of grouped) {
+      const adapter = adapters[marketId]
+      if (!adapter) throw new Error(`adapter missing: ${marketId}`)
       const out = await runMarketWorker({
         marketId,
         orderIds,
-        adapter: adapters[marketId]!,
+        adapter,
       })
       allOutcomes.push(...out)
     }
@@ -515,9 +521,11 @@ describe('shipping-dispatch / scenario / 마켓 어댑터 격리', () => {
 
     // 병렬 실행 (fan-out 시뮬레이션).
     const settled = await Promise.allSettled(
-      Array.from(grouped.entries()).map(([marketId, orderIds]) =>
-        runMarketWorker({ marketId, orderIds, adapter: adapters[marketId]! }),
-      ),
+      Array.from(grouped.entries()).map(([marketId, orderIds]) => {
+        const adapter = adapters[marketId]
+        if (!adapter) throw new Error(`adapter missing: ${marketId}`)
+        return runMarketWorker({ marketId, orderIds, adapter })
+      }),
     )
 
     // 모든 워커가 끝까지 실행 (한 마켓 실패가 다른 마켓 throw 없음).

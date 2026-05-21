@@ -55,9 +55,9 @@ export function SettingsShippingSenderPage(): JSX.Element {
   const form = useForm<LogenSenderInfo>({
     resolver: zodResolver(LogenSenderInfoSchema) as Resolver<LogenSenderInfo>,
     defaultValues: {
-      senderName: '',
-      senderAddress: '',
-      senderPhone: '',
+      name: '',
+      address: '',
+      phone: '',
       fareTy: 'C',
       dlvFare: 0,
     },
@@ -138,22 +138,22 @@ export function SettingsShippingSenderPage(): JSX.Element {
                 id="sender-name"
                 label={t.senderNameLabel}
                 placeholder={t.senderNamePlaceholder}
-                register={form.register('senderName')}
-                error={form.formState.errors.senderName?.message}
+                register={form.register('name')}
+                error={form.formState.errors.name?.message}
               />
               <Field
                 id="sender-address"
                 label={t.senderAddressLabel}
                 placeholder={t.senderAddressPlaceholder}
-                register={form.register('senderAddress')}
-                error={form.formState.errors.senderAddress?.message}
+                register={form.register('address')}
+                error={form.formState.errors.address?.message}
               />
               <Field
                 id="sender-phone"
                 label={t.senderPhoneLabel}
                 placeholder={t.senderPhonePlaceholder}
-                register={form.register('senderPhone')}
-                error={form.formState.errors.senderPhone?.message}
+                register={form.register('phone')}
+                error={form.formState.errors.phone?.message}
                 inputMode="tel"
               />
 

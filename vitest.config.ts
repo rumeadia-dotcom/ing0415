@@ -39,6 +39,8 @@ export default defineConfig({
       'dist/**',
       'tests/e2e/**',
       'tests/fixtures/**',
+      // Deno-only 테스트 (URL ESM specifier 사용 → Vitest Node 환경 incompatible)
+      'apps/api/supabase/functions/orders-sync/__tests__/sync.test.ts',
     ],
     coverage: {
       provider: 'v8',
