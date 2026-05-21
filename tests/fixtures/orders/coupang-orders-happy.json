@@ -1,0 +1,25 @@
+{
+  "description": "쿠팡 Wing OpenAPI ordersheets?status=ACCEPT happy 응답 (mock).",
+  "code": "200",
+  "message": "OK",
+  "data": [
+    {
+      "shipmentBoxId": 333000111,
+      "orderId": 50000000001,
+      "ordererName": "박영희",
+      "receiverAddr1": "인천광역시 연수구 송도과학로 1",
+      "receiverAddr2": "101동 1505호",
+      "receiverName": "박영희",
+      "receiverPhoneNumber": "010-2222-3333",
+      "orderItems": [
+        {
+          "vendorItemName": "테스트 쿠팡 상품",
+          "shippingCount": 3,
+          "orderPrice": 30000
+        }
+      ],
+      "status": "ACCEPT",
+      "orderedAt": "2026-05-21T02:30:00+00:00"
+    }
+  ]
+}

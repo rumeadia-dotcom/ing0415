@@ -43,10 +43,14 @@ import {
   type AuthInput,
   type CategoryNode,
   type CreateProductResult,
+  type FetchOrdersInput,
   type MarketMapping,
+  type MarketOrder,
   type MarketPayload,
+  type MarketSubmitTrackingResult,
   type Product,
   type StoredCredential,
+  type SubmitTrackingInput,
   type TokenSet,
 } from '@/lib/schemas'
 
@@ -588,9 +592,58 @@ function createNaverRealAdapter(): MarketAdapter {
         warnings: [],
       })
     },
+
+    // ───────────────────────────────────────────
+    // v2 Extension — fetchOrders / submitTracking
+    //
+    // 본 두 메서드는 `./orders.ts` 의 순수 함수에 위임한다. credential 인자가
+    // 명시되면 인자 우선, 아니면 인스턴스 cred 를 StoredCredential 로 합성.
+    // ───────────────────────────────────────────
+    async fetchOrders(
+      input: FetchOrdersInput,
+      credential?: StoredCredential,
+    ): Promise<MarketOrder[]> {
+      const cred = credential ?? buildStoredCredentialFromInstance(cred_or_null())
+      const { naverFetchOrders } = await import('./orders')
+      return naverFetchOrders(input, cred)
+    },
+
+    async submitTracking(
+      input: SubmitTrackingInput,
+      credential?: StoredCredential,
+    ): Promise<MarketSubmitTrackingResult> {
+      const cred_ = credential ?? buildStoredCredentialFromInstance(cred_or_null())
+      const { naverSubmitTracking } = await import('./orders')
+      return naverSubmitTracking(input, cred_)
+    },
+  }
+
+  // 인스턴스 cred 를 StoredCredential 로 합성 — 외부에서 credential 인자 미지정 시 fallback.
+  function cred_or_null(): OauthCred | null {
+    return cred
   }
 
   return adapter
+}
+
+/**
+ * OauthCred (인스턴스 메모리) → StoredCredential.
+ * cred 가 없으면 undefined 반환 — fetchOrders / submitTracking 내부 검증이 throw.
+ */
+function buildStoredCredentialFromInstance(
+  cred: OauthCred | null,
+): StoredCredential | undefined {
+  if (!cred) return undefined
+  return {
+    kind: 'oauth',
+    payload: {
+      accessToken: cred.accessToken,
+      refreshToken: cred.refreshToken,
+      expiresAt: cred.expiresAt,
+      tokenType: 'Bearer',
+    },
+    expiresAt: cred.expiresAt,
+  }
 }
 
 export const naverRealAdapter: MarketAdapter = createNaverRealAdapter()

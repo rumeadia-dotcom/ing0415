@@ -36,10 +36,14 @@ import {
   type AuthInput,
   type CategoryNode,
   type CreateProductResult,
+  type FetchOrdersInput,
   type MarketMapping,
+  type MarketOrder,
   type MarketPayload,
+  type MarketSubmitTrackingResult,
   type Product,
   type StoredCredential,
+  type SubmitTrackingInput,
 } from '@/lib/schemas'
 import { buildCoupangSignature } from './hmac'
 
@@ -458,9 +462,45 @@ function createCoupangRealAdapter(): MarketAdapter {
         warnings: [],
       })
     },
+
+    // ───────────────────────────────────────────
+    // v2 Extension — fetchOrders / submitTracking
+    // ───────────────────────────────────────────
+    async fetchOrders(
+      input: FetchOrdersInput,
+      credential?: StoredCredential,
+    ): Promise<MarketOrder[]> {
+      const c = credential ?? buildStoredCredentialFromInstance(cred)
+      const { coupangFetchOrders } = await import('./orders')
+      return coupangFetchOrders(input, c)
+    },
+
+    async submitTracking(
+      input: SubmitTrackingInput,
+      credential?: StoredCredential,
+    ): Promise<MarketSubmitTrackingResult> {
+      const c = credential ?? buildStoredCredentialFromInstance(cred)
+      const { coupangSubmitTracking } = await import('./orders')
+      return coupangSubmitTracking(input, c)
+    },
   }
 
   return adapter
+}
+
+/** 인스턴스 HmacCred → StoredCredential (cred 없으면 undefined). */
+function buildStoredCredentialFromInstance(
+  cred: HmacCred | null,
+): StoredCredential | undefined {
+  if (!cred) return undefined
+  return {
+    kind: 'hmac',
+    payload: {
+      accessKey: cred.accessKey,
+      secretKey: cred.secretKey,
+      vendorId: cred.vendorId,
+    },
+  }
 }
 
 export const coupangRealAdapter: MarketAdapter = createCoupangRealAdapter()
