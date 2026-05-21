@@ -153,7 +153,7 @@ export function SettingsShippingLogenPage(): JSX.Element {
           ))}
         </ol>
         <a
-          href="https://www.ilogen.com/"
+          href="https://openapihome.ilogen.com/lsy06f-api-service/pages/guide/apply-process.html"
           target="_blank"
           rel="noopener noreferrer"
           className="mt-3.5 flex items-center gap-1.5 text-[12.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
