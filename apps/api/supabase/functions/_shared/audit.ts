@@ -22,6 +22,7 @@ export type AuditCategory =
   | 'registration'
   | 'security'
   | 'account'
+  | 'shipping'
 
 export interface AppendAuditInput {
   category: AuditCategory
