@@ -15,6 +15,8 @@ import { NavLink } from 'react-router-dom'
 import { BrandLogo } from '@/components/brand'
 import { ko } from '@/locales/ko'
 import { cn } from '@/lib/utils'
+import { useMarketAccounts } from '@/features/markets/hooks/useMarketAccounts'
+import { useLogenCredentialsStatus } from '@/features/settings/shipping/hooks/useLogenCredentialsStatus'
 
 /**
  * Sidebar — Studio shell 230px 사이드바.
@@ -38,6 +40,8 @@ interface NavItem {
   disabled?: boolean
   matchPrefix?: string
   tag?: string
+  requiresMarket?: boolean
+  requiresLogen?: boolean
 }
 
 interface NavGroup {
@@ -57,14 +61,34 @@ const NAV_GROUPS: readonly NavGroup[] = [
     title: ko.nav.sales,
     items: [
       { to: '/markets', label: ko.nav.markets, Icon: Store, matchPrefix: '/markets' },
-      { to: '/orders', label: ko.nav.shipping.orders, Icon: ShoppingCart, matchPrefix: '/orders' },
-      { to: '/shipping/print', label: ko.nav.shipping.print, Icon: Printer },
-      { to: '/shipping/dispatch', label: ko.nav.shipping.dispatch, Icon: Truck },
+      {
+        to: '/orders',
+        label: ko.nav.shipping.orders,
+        Icon: ShoppingCart,
+        matchPrefix: '/orders',
+        requiresMarket: true,
+      },
+      {
+        to: '/shipping/print',
+        label: ko.nav.shipping.print,
+        Icon: Printer,
+        requiresMarket: true,
+        requiresLogen: true,
+      },
+      {
+        to: '/shipping/dispatch',
+        label: ko.nav.shipping.dispatch,
+        Icon: Truck,
+        requiresMarket: true,
+        requiresLogen: true,
+      },
       {
         to: '/shipping/history',
         label: ko.nav.shipping.history,
         Icon: ClipboardList,
         matchPrefix: '/shipping/history',
+        requiresMarket: true,
+        requiresLogen: true,
       },
     ],
   },
@@ -88,6 +112,21 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
+  const { data: accounts } = useMarketAccounts()
+  const { data: logenStatus } = useLogenCredentialsStatus()
+
+  const hasMarket = (accounts ?? []).some((a) => a.status === 'active')
+  const hasLogen = logenStatus?.hasCredentials ?? false
+
+  function resolveDisabled(item: NavItem): { disabled: boolean; reason: string } {
+    if (item.disabled) return { disabled: true, reason: 'v2 예정' }
+    if (item.requiresMarket && !hasMarket)
+      return { disabled: true, reason: ko.nav.guard.requiresMarket }
+    if (item.requiresLogen && !hasLogen)
+      return { disabled: true, reason: ko.nav.guard.requiresLogen }
+    return { disabled: false, reason: '' }
+  }
+
   return (
     <nav
       role="navigation"
@@ -110,6 +149,7 @@ export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
             group={group}
             isFirst={gi === 0}
             onNavigate={onNavigate}
+            resolveDisabled={resolveDisabled}
           />
         ))}
       </div>
@@ -131,9 +171,10 @@ interface NavSectionProps {
   group: NavGroup
   isFirst: boolean
   onNavigate?: (() => void) | undefined
+  resolveDisabled: (item: NavItem) => { disabled: boolean; reason: string }
 }
 
-function NavSection({ group, isFirst, onNavigate }: NavSectionProps): JSX.Element {
+function NavSection({ group, isFirst, onNavigate, resolveDisabled }: NavSectionProps): JSX.Element {
   return (
     <div className={cn(!isFirst && 'mt-[14px]')}>
       {group.title && (
@@ -147,11 +188,19 @@ function NavSection({ group, isFirst, onNavigate }: NavSectionProps): JSX.Elemen
         </div>
       )}
       <ul className="flex flex-col gap-[1px]">
-        {group.items.map((item) => (
-          <li key={item.label}>
-            <SidebarItem item={item} onNavigate={onNavigate} />
-          </li>
-        ))}
+        {group.items.map((item) => {
+          const { disabled, reason } = resolveDisabled(item)
+          return (
+            <li key={item.label}>
+              <SidebarItem
+                item={item}
+                onNavigate={onNavigate}
+                disabled={disabled}
+                disabledReason={reason}
+              />
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
@@ -160,10 +209,12 @@ function NavSection({ group, isFirst, onNavigate }: NavSectionProps): JSX.Elemen
 interface SidebarItemProps {
   item: NavItem
   onNavigate?: (() => void) | undefined
+  disabled: boolean
+  disabledReason: string
 }
 
-function SidebarItem({ item, onNavigate }: SidebarItemProps): JSX.Element {
-  const { Icon, label, to, disabled, matchPrefix, tag } = item
+function SidebarItem({ item, onNavigate, disabled, disabledReason }: SidebarItemProps): JSX.Element {
+  const { Icon, label, to, matchPrefix, tag } = item
 
   const baseRow = cn(
     'flex items-center gap-2.5 rounded-[10px]',
@@ -177,12 +228,12 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps): JSX.Element {
       <span
         aria-disabled="true"
         tabIndex={-1}
-        title="v2 예정"
+        title={disabledReason}
         className={cn(
           baseRow,
           'font-medium',
           'text-faint',
-          'cursor-not-allowed opacity-70',
+          'cursor-not-allowed opacity-50',
         )}
       >
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

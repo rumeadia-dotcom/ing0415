@@ -31,6 +31,10 @@ export const ko = {
       history: '배송 이력',
       settings: '배송 설정',
     },
+    guard: {
+      requiresMarket: '마켓 계정을 먼저 연결해야 합니다',
+      requiresLogen: '로젠택배 API를 먼저 연동해야 합니다',
+    },
   },
   shell: {
     brandTagline: '한 번의 등록, 모든 마켓',
