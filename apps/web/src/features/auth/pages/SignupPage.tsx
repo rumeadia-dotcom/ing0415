@@ -5,10 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Button,
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ErrorMessage,
   Input,
   Label,
@@ -21,6 +17,7 @@ import { useAuth } from '../context/AuthContext'
 import { mapAuthError, type MappedAuthError } from '../lib/auth-error-map'
 import { evaluatePasswordStrength } from '../lib/password-strength'
 import { trackAuthEvent } from '../api/auth-event-log'
+import { studioClass } from '../lib/studio-tokens'
 
 /**
  * SignupPage — auth.md §6.3 / user_flow s1 (n5)
@@ -30,6 +27,8 @@ import { trackAuthEvent } from '../api/auth-event-log'
  * - 약관 필수 / 마케팅 선택 체크박스
  * - 가입 성공 시 "이메일 인증 안내" 상태로 전환
  * - user_already_exists 도 동일 화면으로 응답 (enumeration 방지 — auth.md §4.4)
+ *
+ * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function SignupPage(): JSX.Element {
   const { signUp } = useAuth()
@@ -98,12 +97,13 @@ export function SignupPage(): JSX.Element {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle>{ko.auth.signup.title}</CardTitle>
-        <CardDescription>{ko.auth.signup.subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+      <div className="mb-6 text-center">
+        <h1 className={studioClass.h1}>{ko.auth.signup.title}</h1>
+        <p className={cn(studioClass.sub, 'mt-2')}>{ko.auth.signup.subtitle}</p>
+      </div>
+
+      <Card className={studioClass.card}>
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
@@ -120,6 +120,7 @@ export function SignupPage(): JSX.Element {
               autoComplete="name"
               placeholder={ko.auth.signup.displayNamePlaceholder}
               aria-invalid={errors.displayName ? 'true' : 'false'}
+              className={studioClass.input}
               {...register('displayName')}
             />
           </FieldRow>
@@ -135,6 +136,7 @@ export function SignupPage(): JSX.Element {
               autoComplete="email"
               placeholder={ko.auth.login.emailPlaceholder}
               aria-invalid={errors.email ? 'true' : 'false'}
+              className={studioClass.input}
               {...register('email')}
             />
           </FieldRow>
@@ -150,6 +152,7 @@ export function SignupPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.password ? 'true' : 'false'}
+              className={studioClass.input}
               {...register('password')}
             />
             {passwordValue.length > 0 ? <StrengthMeter info={strength} /> : null}
@@ -165,30 +168,31 @@ export function SignupPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.passwordConfirm ? 'true' : 'false'}
+              className={studioClass.input}
               {...register('passwordConfirm')}
             />
           </FieldRow>
 
-          <div className="space-y-2">
-            <label className="flex items-start gap-2 text-sm">
+          <div className="space-y-2 pt-1">
+            <label className="flex items-start gap-2 text-[13px] text-[oklch(0.48_0.012_60)]">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-border-strong"
+                className="mt-0.5 h-4 w-4 rounded border-[oklch(0.85_0.01_60)] accent-[oklch(0.15_0.015_60)]"
                 aria-invalid={errors.termsAgreed ? 'true' : 'false'}
                 {...register('termsAgreed')}
               />
               <span>{ko.auth.signup.termsRequired}</span>
             </label>
             {errors.termsAgreed ? (
-              <p role="alert" className="text-xs text-danger">
+              <p role="alert" className={studioClass.helperError}>
                 {errors.termsAgreed.message}
               </p>
             ) : null}
 
-            <label className="flex items-start gap-2 text-sm">
+            <label className="flex items-start gap-2 text-[13px] text-[oklch(0.48_0.012_60)]">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-border-strong"
+                className="mt-0.5 h-4 w-4 rounded border-[oklch(0.85_0.01_60)] accent-[oklch(0.15_0.015_60)]"
                 {...register('marketingConsent')}
               />
               <span>{ko.auth.signup.marketingOptional}</span>
@@ -205,7 +209,8 @@ export function SignupPage(): JSX.Element {
           <Button
             type="submit"
             variant="primary"
-            className="w-full"
+            size="lg"
+            className={studioClass.ctaPrimary}
             disabled={isSubmitting}
             aria-busy={isSubmitting}
           >
@@ -213,17 +218,14 @@ export function SignupPage(): JSX.Element {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-text-secondary">
+        <p className={cn('mt-6 text-center', studioClass.bodyFaint)}>
           {ko.auth.common.hasAccount}{' '}
-          <Link
-            to="/login"
-            className="font-semibold text-accent underline-offset-2 hover:underline"
-          >
+          <Link to="/login" className={studioClass.linkStrong}>
             {ko.auth.login.submit}
           </Link>
         </p>
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   )
 }
 
@@ -241,12 +243,14 @@ function FieldRow({
   children: ReactNode
 }): JSX.Element {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <div>
+      <Label htmlFor={id} className={studioClass.label}>
+        {label}
+      </Label>
       {children}
-      {hint ? <p className="text-xs text-text-tertiary">{hint}</p> : null}
+      {hint ? <p className={studioClass.helperHint}>{hint}</p> : null}
       {error ? (
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className={studioClass.helperError}>
           {error}
         </p>
       ) : null}
@@ -260,21 +264,25 @@ function StrengthMeter({
   info: ReturnType<typeof evaluatePasswordStrength>
 }): JSX.Element {
   return (
-    <div className="space-y-1" aria-live="polite">
+    <div className="mt-2 space-y-1" aria-live="polite">
       <div className="flex items-center gap-1">
         {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
             className={cn(
               'h-1 flex-1 rounded',
-              i <= info.score ? info.toneClass : 'bg-surface-muted',
+              i <= info.score
+                ? info.toneClass
+                : 'bg-[oklch(0.92_0.008_75)]',
             )}
           />
         ))}
-        <span className="ml-2 text-xs text-text-secondary">{info.label}</span>
+        <span className="ml-2 text-[11.5px] text-[oklch(0.48_0.012_60)]">
+          {info.label}
+        </span>
       </div>
       {info.warnings.length > 0 ? (
-        <ul className="list-disc pl-5 text-xs text-text-tertiary">
+        <ul className="list-disc pl-5 text-[11.5px] text-[oklch(0.68_0.01_60)]">
           {info.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}
@@ -286,22 +294,42 @@ function StrengthMeter({
 
 function SignupSuccess({ email }: { email: string }): JSX.Element {
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle>{ko.auth.signup.successTitle}</CardTitle>
-        <CardDescription>
+    <div className="w-full">
+      <div className="mb-6 text-center">
+        <h1 className={studioClass.h1}>{ko.auth.signup.successTitle}</h1>
+      </div>
+      <Card className={cn(studioClass.card, 'text-center')}>
+        {/* 이메일 발송 아이콘 — 봉투 형태의 둥근 ok-circle */}
+        <div className="relative mx-auto mb-5 h-[88px] w-[88px]">
+          <div className="absolute inset-0 rounded-full bg-[oklch(0.94_0.05_160)]" />
+          <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-[oklch(0.55_0.10_160)] text-white">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-8 w-8"
+              aria-hidden="true"
+            >
+              <path d="M4 6h16v12H4z" />
+              <path d="m4 6 8 7 8-7" />
+            </svg>
+          </div>
+        </div>
+
+        <p className={cn(studioClass.sub, 'leading-relaxed')}>
           {ko.auth.signup.successBody.replace('{email}', email)}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="text-center">
-        <Link
-          to="/login"
-          className="text-sm font-semibold text-accent underline-offset-2 hover:underline"
-        >
-          {ko.auth.signup.backToLogin}
-        </Link>
-      </CardContent>
-    </Card>
+        </p>
+
+        <div className="mt-6">
+          <Link to="/login" className={studioClass.linkAccent}>
+            {ko.auth.signup.backToLogin}
+          </Link>
+        </div>
+      </Card>
+    </div>
   )
 }
 
