@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { RotateCcw } from 'lucide-react'
 import {
   Button,
   ErrorMessage,
@@ -7,6 +8,7 @@ import {
   Skeleton,
 } from '@/components/ui'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { cn } from '@/lib/utils'
 import { MARKET_IDS } from '@/lib/schemas/common'
 import {
   ORDER_SHIPPING_STATUSES,
@@ -23,13 +25,15 @@ import { formatRelativeTime } from '@/lib/format-time'
 /**
  * OrdersListPage — n48 (/orders/list).
  *
+ * Studio 룩 (s7 OrdersList) — 검색·날짜·초기화 행 + 마켓 / 상태 chip 행을 한 카드로 묶고,
+ * 본문 테이블에 마켓 컬러 바 + mono 주문번호 + dot pill 상태 + mono 운송장번호를 노출.
+ *
  * - URL search params 로 필터 상태 보존 (market / status / q)
- * - shadcn Table 대체: HistoryListTable 패턴 따라 native <table> + Tailwind
- *   (shadcn 에 Table 미보유. 페르소나 룰 4 의 "특수 케이스" 명시 — 본 PR 사유: shadcn 미제공)
- * - 4상태: loading / data / error / empty
+ * - shadcn 에 Table 미보유 → native <table> + Tailwind 유지 (페르소나 룰 4 의 "특수 케이스").
+ * - 4상태: loading / data / error / empty (필터 적용 시 vs 절대 0건 메시지 분기)
  * - 무한 스크롤 (IntersectionObserver)
  *
- * 마스터: docs/architecture/v1/features/orders.md §3.2 + history.md §3.2 (테이블 패턴 재사용).
+ * 마스터: docs/design-renewal/s7-orders.md + design-renewal/designFile/concepts/studio-orders.jsx.
  */
 export function OrdersListPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -117,10 +121,10 @@ export function OrdersListPage(): JSX.Element {
         }
       />
 
-      {/* 필터 영역 */}
-      <div className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
-        <form onSubmit={onSubmitSearch} className="flex items-end gap-2">
-          <div className="flex-1">
+      {/* 필터 카드 — 검색 + 날짜 자리 + 초기화 / 마켓 chip / 상태 chip */}
+      <section className="mb-4 rounded-2xl border border-border bg-surface p-4 shadow-sm">
+        <form onSubmit={onSubmitSearch} className="mb-3 flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1">
             <label htmlFor="orders-search" className="sr-only">
               {ko.orders.list.searchPlaceholder}
             </label>
@@ -134,41 +138,45 @@ export function OrdersListPage(): JSX.Element {
           <Button type="submit" variant="outline" size="md">
             검색
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={onResetFilter}
+            disabled={isFilterDefault && searchInput === ''}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+            {ko.orders.list.filterReset}
+          </Button>
         </form>
 
-        <FilterChips
-          label={ko.orders.list.filterMarket}
-          options={[
-            { value: '', label: ko.orders.list.filterAll },
-            ...MARKET_IDS.map((id) => ({ value: id, label: ko.market[id] })),
-          ]}
-          value={filter.marketId ?? ''}
-          onChange={(v) => setParam('market', v || null)}
-        />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <FilterChips
+            label={ko.orders.list.filterMarket}
+            options={[
+              { value: '', label: ko.orders.list.filterAll },
+              ...MARKET_IDS.map((id) => ({ value: id, label: ko.market[id] })),
+            ]}
+            value={filter.marketId ?? ''}
+            onChange={(v) => setParam('market', v || null)}
+          />
 
-        <FilterChips
-          label={ko.orders.list.filterStatus}
-          options={[
-            { value: '', label: ko.orders.list.filterAll },
-            ...ORDER_SHIPPING_STATUSES.map((s) => ({
-              value: s,
-              label: ko.orders.timeline[s],
-            })),
-          ]}
-          value={filter.status ?? ''}
-          onChange={(v) => setParam('status', v || null)}
-        />
+          <span className="h-4 w-px bg-border" aria-hidden />
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="md"
-          onClick={onResetFilter}
-          disabled={isFilterDefault && searchInput === ''}
-        >
-          {ko.orders.list.filterReset}
-        </Button>
-      </div>
+          <FilterChips
+            label={ko.orders.list.filterStatus}
+            options={[
+              { value: '', label: ko.orders.list.filterAll },
+              ...ORDER_SHIPPING_STATUSES.map((s) => ({
+                value: s,
+                label: ko.orders.timeline[s],
+              })),
+            ]}
+            value={filter.status ?? ''}
+            onChange={(v) => setParam('status', v || null)}
+          />
+        </div>
+      </section>
 
       {/* 목록 */}
       {state === 'loading' ? (
@@ -188,103 +196,116 @@ export function OrdersListPage(): JSX.Element {
           {...(query.error?.message ? { details: query.error.message } : {})}
         />
       ) : state === 'empty' ? (
-        <div className="rounded-md border border-border bg-surface p-6 text-center text-sm text-text-secondary">
-          {isFilterDefault ? ko.orders.list.emptyAbsolute : ko.orders.list.empty}
-        </div>
+        <EmptyState filtered={!isFilterDefault} onReset={onResetFilter} />
       ) : (
         <>
           {/* 데스크탑 테이블 */}
-          <div className="hidden md:block">
-            <table
-              className="w-full table-fixed border-collapse"
-              aria-label={ko.orders.list.title}
+          <section className="hidden overflow-hidden rounded-2xl border border-border bg-surface shadow-sm md:block">
+            <div
+              className="grid items-center gap-3 border-b border-border bg-surface-muted px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary"
+              style={{ gridTemplateColumns: '6px 110px 1fr 110px 110px 150px 80px' }}
+              role="row"
             >
-              <thead className="border-b border-border bg-surface-muted text-left text-xs uppercase tracking-wide text-text-secondary">
-                <tr>
-                  <th scope="col" className="p-3 font-semibold w-[34%]">
-                    {ko.orders.list.tableProduct}
-                  </th>
-                  <th scope="col" className="p-3 font-semibold w-[12%]">
-                    {ko.orders.list.tableMarket}
-                  </th>
-                  <th scope="col" className="p-3 font-semibold w-[14%]">
-                    {ko.orders.list.tableBuyer}
-                  </th>
-                  <th scope="col" className="p-3 font-semibold w-[14%]">
-                    {ko.orders.list.tableStatus}
-                  </th>
-                  <th scope="col" className="p-3 font-semibold w-[14%]">
-                    {ko.orders.list.tableWaybill}
-                  </th>
-                  <th scope="col" className="p-3 font-semibold w-[12%]">
-                    {ko.orders.list.tableOrderedAt}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="border-b border-border transition-colors hover:bg-surface-muted focus-within:bg-surface-muted"
+              <span aria-hidden />
+              <span>{ko.orders.list.tableOrderId}</span>
+              <span>{ko.orders.list.tableProductBuyer}</span>
+              <span>{ko.orders.list.tableMarket}</span>
+              <span>{ko.orders.list.tableStatus}</span>
+              <span>{ko.orders.list.tableWaybill}</span>
+              <span className="text-right">{ko.orders.list.tableOrderedAt}</span>
+            </div>
+
+            <ul aria-label={ko.orders.list.title}>
+              {items.map((o, idx) => (
+                <li
+                  key={o.id}
+                  className={cn(
+                    'group relative transition-colors hover:bg-surface-muted/60 focus-within:bg-surface-muted/60',
+                    idx < items.length - 1 && 'border-b border-border',
+                  )}
+                >
+                  <Link
+                    to={`/orders/${o.id}`}
+                    className="grid items-center gap-3 px-5 py-3.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+                    style={{ gridTemplateColumns: '6px 110px 1fr 110px 110px 150px 80px' }}
+                    aria-label={o.productName}
                   >
-                    <td className="p-3">
-                      <Link
-                        to={`/orders/${o.id}`}
-                        className="block truncate text-sm text-text hover:underline focus-visible:underline focus-visible:outline-none"
-                      >
-                        {o.productName}
-                      </Link>
-                      <div className="text-xs text-text-tertiary">
-                        #{o.externalOrderId}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'h-7 w-[3px] rounded-sm',
+                        o.marketId === 'naver' && 'bg-market-naver',
+                        o.marketId === 'coupang' && 'bg-market-coupang',
+                        o.marketId === 'gmarket' && 'bg-market-gmarket',
+                        o.marketId === 'auction' && 'bg-market-auction',
+                      )}
+                    />
+                    <span className="font-mono text-[11.5px] text-text-secondary">
+                      #{o.externalOrderId}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-text">{o.productName}</div>
+                      <div className="mt-0.5 text-[11.5px] text-text-tertiary">
+                        {o.buyerMaskedName}
                       </div>
-                    </td>
-                    <td className="p-3">
-                      <MarketBadge marketId={o.marketId} />
-                    </td>
-                    <td className="p-3 text-sm text-text">{o.buyerMaskedName}</td>
-                    <td className="p-3">
-                      <OrderStatusBadge status={o.shippingStatus} size="sm" />
-                    </td>
-                    <td className="p-3 text-xs text-text">
+                    </div>
+                    <MarketBadge marketId={o.marketId} variant="plain" />
+                    <OrderStatusBadge status={o.shippingStatus} size="sm" />
+                    <span
+                      className={cn(
+                        'font-mono text-[11.5px]',
+                        o.waybillNumber ? 'text-text' : 'text-text-tertiary',
+                      )}
+                    >
                       {o.waybillNumber ?? '—'}
-                    </td>
-                    <td className="p-3 text-xs text-text-tertiary">
+                    </span>
+                    <span className="text-right font-mono text-[11.5px] text-text-tertiary">
                       {formatRelativeTime(o.orderedAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {/* 모바일 카드 */}
-          <div className="space-y-2 md:hidden">
+          <ul className="space-y-2 md:hidden">
             {items.map((o) => (
-              <Link
-                key={o.id}
-                to={`/orders/${o.id}`}
-                className="block rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-text">
-                      {o.productName}
+              <li key={o.id}>
+                <Link
+                  to={`/orders/${o.id}`}
+                  className="block rounded-2xl border border-border bg-surface p-4 transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={o.productName}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[11.5px] text-text-tertiary">
+                        #{o.externalOrderId}
+                      </div>
+                      <div className="mt-0.5 truncate text-sm font-semibold text-text">
+                        {o.productName}
+                      </div>
+                      <div className="mt-0.5 text-xs text-text-tertiary">
+                        {o.buyerMaskedName}
+                      </div>
                     </div>
-                    <div className="text-xs text-text-tertiary">
-                      #{o.externalOrderId} · {o.buyerMaskedName}
-                    </div>
+                    <OrderStatusBadge status={o.shippingStatus} size="sm" />
                   </div>
-                  <OrderStatusBadge status={o.shippingStatus} size="sm" />
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <MarketBadge marketId={o.marketId} />
-                  <span className="text-xs text-text-tertiary">
-                    {formatRelativeTime(o.orderedAt)}
-                  </span>
-                </div>
-              </Link>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <MarketBadge marketId={o.marketId} />
+                    <span className="font-mono text-[11.5px] text-text-tertiary">
+                      {formatRelativeTime(o.orderedAt)}
+                    </span>
+                  </div>
+                  {o.waybillNumber ? (
+                    <div className="mt-2 font-mono text-[11.5px] text-text">
+                      {o.waybillNumber}
+                    </div>
+                  ) : null}
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
 
           {/* sentinel */}
           {(query.hasNextPage ?? false) ? (
@@ -321,27 +342,67 @@ function FilterChips({
   onChange: (v: string) => void
 }): JSX.Element {
   return (
-    <fieldset className="grid gap-1">
-      <legend className="text-xs font-medium text-text-secondary">{label}</legend>
-      <div className="flex flex-wrap gap-1">
-        {options.map((o) => {
-          const active = o.value === value
-          return (
-            <Button
-              key={o.value || 'all'}
-              type="button"
-              variant={active ? 'outline' : 'ghost'}
-              size="sm"
-              aria-pressed={active}
-              onClick={() => onChange(o.value)}
-              className={active ? 'border-accent text-accent' : undefined}
-            >
-              {o.label}
-            </Button>
-          )
-        })}
-      </div>
+    <fieldset className="flex flex-wrap items-center gap-1.5">
+      <legend className="float-left mr-2 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">
+        {label}
+      </legend>
+      {options.map((o) => {
+        const active = o.value === value
+        return (
+          <button
+            key={o.value || 'all'}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+              active
+                ? 'border-text bg-text text-surface'
+                : 'border-border bg-surface text-text-secondary hover:bg-surface-muted',
+            )}
+          >
+            {o.label}
+          </button>
+        )
+      })}
     </fieldset>
+  )
+}
+
+function EmptyState({
+  filtered,
+  onReset,
+}: {
+  filtered: boolean
+  onReset: () => void
+}): JSX.Element {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-surface px-6 py-12 text-center shadow-sm"
+      role="status"
+    >
+      <div
+        aria-hidden
+        className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-surface-muted text-2xl text-text-tertiary"
+      >
+        {filtered ? '🔍' : '📦'}
+      </div>
+      <div className="text-base font-bold text-text">
+        {filtered ? ko.orders.list.empty : ko.orders.list.emptyAbsolute}
+      </div>
+      <p className="mx-auto mt-2 max-w-md text-sm text-text-secondary">
+        {filtered ? ko.orders.list.emptyFilteredHint : ko.orders.list.emptyAbsoluteHint}
+      </p>
+      {filtered ? (
+        <div className="mt-4 flex justify-center gap-2">
+          <Button type="button" variant="outline" onClick={onReset}>
+            {ko.orders.list.filterReset}
+          </Button>
+        </div>
+      ) : null}
+      <p className="mt-4 text-xs text-text-tertiary">{ko.orders.list.emptySyncHint}</p>
+    </section>
   )
 }
 

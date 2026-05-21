@@ -28,9 +28,12 @@ interface OrderManualResolveDialogProps {
 
 /**
  * n50 — 운송장 수동 입력 다이얼로그.
+ *
+ * Studio 룩: trigger 는 우측 패널 카드 내부에서 사용. 실패 상태에서 danger primary.
+ *
  * 정책:
  *  - `logen_failed` 상태에서만 활성.
- *  - 그 외 상태에서는 trigger 가 disabled + 사유 tooltip 노출 (CLAUDE.md "실행류 버튼 비활성 사유 표시").
+ *  - 그 외 상태에서는 trigger 가 disabled + 사유 tooltip 노출.
  *  - 폼: ManualResolveWaybillSchema (zod). RHF resolver 로 클라이언트 검증.
  *  - 성공: toast + 다이얼로그 닫힘. 실패: ErrorMessage.
  */
@@ -73,7 +76,8 @@ export function OrderManualResolveDialog({
       toast.success(ko.orders.manualResolve.success)
       setOpen(false)
     } catch (e) {
-      const message = e instanceof Error ? e.message : ko.orders.manualResolve.errorGeneric
+      const message =
+        e instanceof Error ? e.message : ko.orders.manualResolve.errorGeneric
       setSubmitError(message)
     }
   }
@@ -82,13 +86,14 @@ export function OrderManualResolveDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
         type="button"
-        variant="primary"
-        size="sm"
+        variant={canTrigger ? 'danger' : 'outline'}
+        size="md"
         onClick={() => setOpen(true)}
         disabled={!canTrigger}
         aria-disabled={!canTrigger}
         title={blockingReason ?? undefined}
         data-testid="order-manual-resolve-trigger"
+        className="w-full"
       >
         {ko.orders.detail.manualResolveCta}
       </Button>
@@ -96,10 +101,16 @@ export function OrderManualResolveDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{ko.orders.manualResolve.title}</DialogTitle>
-          <DialogDescription>{ko.orders.manualResolve.description}</DialogDescription>
+          <DialogDescription>
+            {ko.orders.manualResolve.description}
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-3" noValidate>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="grid gap-4"
+          noValidate
+        >
           <input type="hidden" {...register('orderId')} />
           <div className="grid gap-1.5">
             <Label htmlFor="manual-waybill">
@@ -110,17 +121,20 @@ export function OrderManualResolveDialog({
               autoComplete="off"
               placeholder={ko.orders.manualResolve.waybillPlaceholder}
               aria-invalid={errors.waybillNumber ? true : undefined}
+              className="font-mono tracking-wide"
               {...register('waybillNumber')}
             />
             {errors.waybillNumber ? (
-              <p className="text-xs text-danger" role="alert">
+              <p className="text-xs font-semibold text-danger" role="alert">
                 {errors.waybillNumber.message}
               </p>
             ) : null}
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="manual-note">{ko.orders.manualResolve.noteLabel}</Label>
+            <Label htmlFor="manual-note">
+              {ko.orders.manualResolve.noteLabel}
+            </Label>
             <Input
               id="manual-note"
               placeholder={ko.orders.manualResolve.notePlaceholder}
@@ -129,7 +143,10 @@ export function OrderManualResolveDialog({
           </div>
 
           {submitError ? (
-            <ErrorMessage message={ko.orders.manualResolve.errorGeneric} details={submitError} />
+            <ErrorMessage
+              message={ko.orders.manualResolve.errorGeneric}
+              details={submitError}
+            />
           ) : null}
 
           <DialogFooter>
@@ -141,7 +158,7 @@ export function OrderManualResolveDialog({
             >
               {ko.orders.manualResolve.cancel}
             </Button>
-            <Button type="submit" variant="primary" disabled={isSubmitting}>
+            <Button type="submit" variant="danger" disabled={isSubmitting}>
               {isSubmitting
                 ? ko.orders.manualResolve.submitting
                 : ko.orders.manualResolve.submit}
