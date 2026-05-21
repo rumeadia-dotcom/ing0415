@@ -1,4 +1,16 @@
-import { History, LayoutDashboard, LifeBuoy, PackagePlus, Settings, Store } from 'lucide-react'
+import {
+  ClipboardList,
+  Cog,
+  History,
+  LayoutDashboard,
+  LifeBuoy,
+  PackagePlus,
+  Printer,
+  Settings,
+  ShoppingCart,
+  Store,
+  Truck,
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { BrandMark, Wordmark } from '@/components/brand'
 import { ko } from '@/locales/ko'
@@ -27,6 +39,26 @@ const MAIN_NAV: readonly NavItem[] = [
   { to: '/history', label: ko.nav.history, Icon: History, matchPrefix: '/history' },
 ] as const
 
+// v2 — 주문/배송 자동화 진입. PR1 (foundation): placeholder 페이지 노출.
+// 실제 비즈니스 로직은 PR8/9/10 에서 교체.
+const SHIPPING_NAV: readonly NavItem[] = [
+  { to: '/orders', label: ko.nav.shipping.orders, Icon: ShoppingCart, matchPrefix: '/orders' },
+  { to: '/shipping/print', label: ko.nav.shipping.print, Icon: Printer },
+  { to: '/shipping/dispatch', label: ko.nav.shipping.dispatch, Icon: Truck },
+  {
+    to: '/shipping/history',
+    label: ko.nav.shipping.history,
+    Icon: ClipboardList,
+    matchPrefix: '/shipping/history',
+  },
+  {
+    to: '/settings/shipping',
+    label: ko.nav.shipping.settings,
+    Icon: Cog,
+    matchPrefix: '/settings/shipping',
+  },
+] as const
+
 const AUX_NAV: readonly NavItem[] = [
   { to: '/settings', label: ko.nav.settings, Icon: Settings },
   { to: '#', label: ko.nav.help, Icon: LifeBuoy, disabled: true },
@@ -52,6 +84,7 @@ export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
       </div>
 
       <NavSection title={ko.nav.main} items={MAIN_NAV} onNavigate={onNavigate} />
+      <NavSection title={ko.nav.shipping.group} items={SHIPPING_NAV} onNavigate={onNavigate} />
       <NavSection title={ko.nav.aux} items={AUX_NAV} onNavigate={onNavigate} />
     </nav>
   )
