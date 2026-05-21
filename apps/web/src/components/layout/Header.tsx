@@ -1,14 +1,15 @@
-import { Monitor, Moon, Sun } from 'lucide-react'
-import {
-  Button,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui'
-import { useTheme, type ThemeMode } from '@/lib/use-theme'
+import { TooltipProvider } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { MobileNav } from './MobileNav'
+
+/* TEMP: 다크/시스템 모드 임시 비활성 (라이트 고정).
+ * 다시 켤 때 아래 ThemeToggle 블록 + JSX `<ThemeToggle />` 주석을 모두 해제하고
+ * import 라인의 Monitor/Moon/Sun, Button/Tooltip*, useTheme, ThemeMode 도 복구.
+ *
+ * import { Monitor, Moon, Sun } from 'lucide-react'
+ * import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+ * import { useTheme, type ThemeMode } from '@/lib/use-theme'
+ */
 
 /**
  * Header — Studio shell 의 셸 크롬 (모바일 햄버거 + 테마 토글).
@@ -20,6 +21,7 @@ import { MobileNav } from './MobileNav'
  * border-bottom 없음 — 아래의 PageHeader 가 자체 border-bottom 으로 시각 구획을 만든다.
  */
 
+/* TEMP: 다크/시스템 모드 임시 비활성 — 아래 ThemeToggle 보존.
 const THEME_ICON: Record<ThemeMode, typeof Sun> = {
   light: Sun,
   dark: Moon,
@@ -53,6 +55,7 @@ function ThemeToggle(): JSX.Element {
     </Tooltip>
   )
 }
+*/
 
 export function Header(): JSX.Element {
   return (
@@ -69,7 +72,7 @@ export function Header(): JSX.Element {
           <MobileNav />
         </div>
         <div className="flex-1" />
-        <ThemeToggle />
+        {/* TEMP: 다크/시스템 모드 임시 비활성 — <ThemeToggle /> */}
       </header>
     </TooltipProvider>
   )
