@@ -1,7 +1,7 @@
 -- 20260521000001_orders.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §2.1 (주문 자동 수집) — 상태 ENUM, 수집 데이터, 중복 방지 UNIQUE
---   docs/spec/PRD-v2-shipping.md §4 (데이터 모델 — orders DDL 마스터)
+--   docs/spec/PRD.md §6.1 (주문 자동 수집) — 상태 ENUM, 수집 데이터, 중복 방지 UNIQUE
+--   docs/spec/PRD.md §8 (데이터 모델 — orders DDL 마스터)
 --   docs/architecture/v1/cross-cutting/security.md §3 RLS 정책 패턴 (seller_id = auth.uid())
 -- 목적:
 --   v2 주문·배송 자동화 도메인 1단계. 4마켓(네이버/쿠팡/G마켓/옥션) 신규 주문을

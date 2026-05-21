@@ -19,8 +19,8 @@ import { MarketBadge } from '../components/MarketBadge'
  * OrdersDashboardPage — n47 (/orders).
  *
  * 마스터:
- *  - user_flow-v2-shipping.md s7
- *  - PRD-v2-shipping.md §2.5 (대시보드 섹션)
+ *  - user_flow.md s7
+ *  - PRD.md §6.5 (대시보드 섹션)
  *
  * 구성:
  *  - 오늘 요약 카드 4종 (신규 주문 / 로젠 등록 / 출력 대기 / 제출 완료)

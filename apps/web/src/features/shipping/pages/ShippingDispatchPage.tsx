@@ -25,8 +25,8 @@ import { ShippingApiError } from '../api/shipping-api'
  * ShippingDispatchPage — n53 (송장 일괄 제출 미리보기) — `/shipping/dispatch`.
  *
  * 마스터:
- *  - user_flow-v2-shipping.md n53
- *  - PRD-v2-shipping.md §2.3.2
+ *  - user_flow.md n53
+ *  - PRD.md §6.3
  *
  * 동작:
  *  1. status=waybill_printed 주문을 마켓별로 group 한 미리보기.

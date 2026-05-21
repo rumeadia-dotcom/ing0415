@@ -25,8 +25,8 @@ import type { LogenCredentialsStatus } from '@/lib/schemas/logen'
 /**
  * SettingsShippingPage — n58 (/settings/shipping).
  *
- * 마스터: docs/spec/user_flow-v2-shipping.md s9 n58
- *         docs/spec/PRD-v2-shipping.md §2.4 / §4
+ * 마스터: docs/spec/user_flow.md s9 n58
+ *         docs/spec/PRD.md §6.4 / §8
  *
  * 책임:
  *  - 로젠 API 연동 상태 카드 (연결됨 / 미연결 + 발송인 정보 완성도)

@@ -2,8 +2,8 @@
  * Edge Function: logen-register-shipment
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.2 (전체 처리 순서)
- *   - docs/spec/user_flow-v2-shipping.md s8 n51 (자동 등록 흐름) / n50 (실패 시 수동 처리 유도)
+ *   - docs/spec/PRD.md §6.2 (전체 처리 순서)
+ *   - docs/spec/user_flow.md s8 n51 (자동 등록 흐름) / n50 (실패 시 수동 처리 유도)
  *
  * 책임:
  *   - 수집된 주문(status='collected')에 대해 로젠 집하 예약 등록 + 운송장번호 채번.

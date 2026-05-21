@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger'
 /**
  * v2 KPI 이벤트 트래커.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §1.5 (핵심 지표)
+ * 마스터: docs/spec/PRD.md §1.5 (핵심 지표)
  *
  * - v1 `events` 테이블에 본 v2 이벤트 코드를 추가한다 (스키마 변경 없이 enum 키 확장).
  * - **자동 발화 (Edge Function 책임)** vs **수동 발화 (FE 액션 책임)** 분리:

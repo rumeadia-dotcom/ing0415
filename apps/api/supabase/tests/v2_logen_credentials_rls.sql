@@ -1,6 +1,6 @@
 -- apps/api/supabase/tests/v2_logen_credentials_rls.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §3 / §4 (logen_credentials DDL — encrypted bytea + view 패턴)
+--   docs/spec/PRD.md §7 / §8 (logen_credentials DDL — encrypted bytea + view 패턴)
 --   docs/architecture/v1/cross-cutting/credential-vault.md §3.2 (정책 0개 = service_role only)
 -- 목적:
 --   logen_credentials 의 raw 테이블에는 authenticated / anon 의 SELECT 가 0건이어야 하고,

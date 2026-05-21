@@ -3,8 +3,8 @@
 로젠택배 집하 예약 자동 등록 + 운송장번호 채번.
 
 ## 마스터 문서
-- `docs/spec/PRD-v2-shipping.md` §2.2 (전체 처리 순서)
-- `docs/spec/user_flow-v2-shipping.md` s8 n51 (자동 등록 흐름) / n50 (실패 시 수동 처리)
+- `docs/spec/PRD.md` §6.2 (전체 처리 순서)
+- `docs/spec/user_flow.md` s8 n51 (자동 등록 흐름) / n50 (실패 시 수동 처리)
 - `apps/api/supabase/migrations/20260521000001_orders.sql` (orders 테이블)
 - `apps/api/supabase/migrations/20260521000003_logen_credentials.sql` (자격증명 테이블)
 

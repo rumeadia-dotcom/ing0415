@@ -15,7 +15,7 @@ import {
  * v2 송장 일괄 제출 zod 스키마 단위 테스트.
  *
  * 마스터:
- *  - docs/spec/PRD-v2-shipping.md §2.4 / §4
+ *  - docs/spec/PRD.md §6.4 / §8
  *  - testing.md §6.1 (pass 1 + fail ≥1)
  */
 

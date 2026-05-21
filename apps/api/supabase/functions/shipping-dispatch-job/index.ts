@@ -2,8 +2,8 @@
  * Edge Function: shipping-dispatch-job
  *
  * 마스터 (의존, 본 PR 범위 외 정의):
- *   - docs/spec/PRD-v2-shipping.md §2.4 (스펙 작성 예정)
- *   - docs/spec/user_flow-v2-shipping.md s8 n53/n54/n55/n56
+ *   - docs/spec/PRD.md §6.4 (스펙 작성 예정)
+ *   - docs/spec/user_flow.md s8 n53/n54/n55/n56
  *   - PR2: shipping_jobs / shipping_job_results / orders 마이그레이션
  *   - PR4: MarketAdapter.submitTracking 구현
  *

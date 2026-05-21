@@ -6,7 +6,7 @@ import { MarketIdSchema } from './common'
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (v2 Extension)
- *   - PRD-v2-shipping.md §2.1 (주문 조회), §2.4 (송장 제출)
+ *   - PRD.md §6.1 (주문 조회), §6.4 (송장 제출)
  *
  * 본 파일은 v2 어댑터의 입출력 타입을 정의한다.
  *  - fetchOrders → `MarketOrder[]`
@@ -55,7 +55,7 @@ export type FetchOrdersInput = z.infer<typeof FetchOrdersInputSchema>
 // ─────────────────────────────────────────────
 // MarketOrder — fetchOrders 반환 항목
 //
-// PRD-v2-shipping.md §2.1 매트릭스 기준 최소 공통 필드:
+// PRD.md §6.1 매트릭스 기준 최소 공통 필드:
 //   - externalOrderId : 마켓 고유 주문 ID (송장 제출 시 path/body 키로 재사용)
 //   - buyerName       : 구매자 명
 //   - receiverName    : 수령인 명

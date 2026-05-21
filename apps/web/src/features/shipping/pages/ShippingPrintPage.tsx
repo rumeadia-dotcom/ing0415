@@ -25,8 +25,8 @@ import { buildOutSlipPrintPopUrl } from '../api/logen-print-stub'
  * ShippingPrintPage — n52 (운송장 출력) — `/shipping/print`.
  *
  * 마스터:
- *  - user_flow-v2-shipping.md n52
- *  - PRD-v2-shipping.md §2.3.1
+ *  - user_flow.md n52
+ *  - PRD.md §6.3
  *
  * 동작:
  *  1. 로젠 status=logen_registered 주문 목록 (운송장번호 표시).

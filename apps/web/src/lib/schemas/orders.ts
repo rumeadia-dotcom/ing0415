@@ -5,8 +5,8 @@ import { MarketIdSchema, UuidSchema, IsoDateTimeSchema } from './common'
  * v2 주문 도메인 zod 스키마.
  *
  * 마스터:
- *  - docs/spec/PRD-v2-shipping.md §2.1 (주문 자동 수집 + 상태 ENUM)
- *  - docs/spec/PRD-v2-shipping.md §4 (orders DDL)
+ *  - docs/spec/PRD.md §6.1 (주문 자동 수집 + 상태 ENUM)
+ *  - docs/spec/PRD.md §8 (orders DDL)
  *
  * 마이그레이션 동기화 대상: 20260521000001_orders.sql
  */

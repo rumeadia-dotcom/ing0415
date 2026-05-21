@@ -321,7 +321,7 @@ export const ko = {
     },
   },
   shipping: {
-    placeholder: 'v2 작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
+    placeholder: '작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
     print: {
       title: '운송장 출력',
       subtitle: '로젠 등록이 완료된 주문의 운송장을 1클릭으로 출력하세요',
@@ -400,7 +400,7 @@ export const ko = {
     },
   },
   settingsShipping: {
-    placeholder: 'v2 작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
+    placeholder: '작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
     hub: {
       title: '배송 설정',
       subtitle: '로젠택배 API 연동과 발송인 정보를 관리합니다',

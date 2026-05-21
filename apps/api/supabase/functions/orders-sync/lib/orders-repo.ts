@@ -2,7 +2,7 @@
  * orders 테이블 upsert 어댑터.
  *
  * 마스터:
- *   - PRD-v2-shipping.md §4 (orders 테이블 스키마 — ground truth)
+ *   - PRD.md §8 (orders 테이블 스키마 — ground truth)
  *   - PR2 마이그레이션 (orders 테이블 + UNIQUE 제약)
  *
  * PRD §4 컬럼 매핑 (어댑터 MarketOrder → orders row):

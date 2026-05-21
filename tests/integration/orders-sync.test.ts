@@ -2,8 +2,8 @@
  * orders-sync Edge Function 계약 / 시그니처 검증 (Vitest 측).
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.1 (자동 처리 트리거)
- *   - docs/spec/PRD-v2-shipping.md §4 (orders 테이블 컬럼 ground truth)
+ *   - docs/spec/PRD.md §6.1 (자동 처리 트리거)
+ *   - docs/spec/PRD.md §8 (orders 테이블 컬럼 ground truth)
  *   - apps/web/src/lib/schemas/market-orders.ts (PR4 어댑터 시그니처 — 머지 후)
  *
  * 본 파일의 위치 근거:

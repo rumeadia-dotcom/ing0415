@@ -1,6 +1,6 @@
 -- 20260521000002_shipping_jobs.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §2.4 (마켓 송장 일괄 제출), §4 (shipping_jobs / shipping_job_results DDL)
+--   docs/spec/PRD.md §6.4 (마켓 송장 일괄 제출), §8 (shipping_jobs / shipping_job_results DDL)
 --   docs/architecture/v1/cross-cutting/registration-job-state.md (잡 + 마켓별 결과 1:N 패턴 재사용)
 -- 목적:
 --   "송장 일괄 제출" 딸깍 1회의 fan-out 잡 단위 + 마켓별 결과 적재.

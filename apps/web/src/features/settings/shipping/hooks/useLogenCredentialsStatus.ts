@@ -9,7 +9,7 @@ import type { LogenCredentialsStatus } from '@/lib/schemas/logen'
 /**
  * 로젠 자격증명/발송인 정보 상태 조회.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §4
+ * 마스터: docs/spec/PRD.md §8
  *
  * - 평문 자격증명은 절대 응답에 포함되지 않는다 (RPC 가 hasCredentials boolean 만 반환).
  * - 4상태 — loading / error / data (hasCredentials=true) / empty (hasCredentials=false).

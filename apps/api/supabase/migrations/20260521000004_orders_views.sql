@@ -1,6 +1,6 @@
 -- 20260521000004_orders_views.sql
 -- 출처:
---   docs/spec/PRD-v2-shipping.md §1.5 (KPI 마켓 접속 횟수 / 등록·송장 소요 시간 / 오류율),
+--   docs/spec/PRD.md §1.5 (KPI 마켓 접속 횟수 / 등록·송장 소요 시간 / 오류율),
 --                                  §2.5 (주문·배송 현황 대시보드)
 --   docs/architecture/v1/cross-cutting/security.md §3 (view security_invoker 패턴)
 -- 목적:

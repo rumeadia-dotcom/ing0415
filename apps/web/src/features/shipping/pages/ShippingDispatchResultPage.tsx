@@ -20,8 +20,8 @@ import { ShippingApiError } from '../api/shipping-api'
  * ShippingDispatchResultPage — n54 + n55 (+ n56 부분 재시도) — `/shipping/dispatch/:jobId/result`.
  *
  * 마스터:
- *  - user_flow-v2-shipping.md n54 / n55 / n56
- *  - PRD-v2-shipping.md §2.3.3
+ *  - user_flow.md n54 / n55 / n56
+ *  - PRD.md §6.3
  *
  * 동작:
  *  1. Realtime 으로 진행률 갱신 (5sec polling fallback).

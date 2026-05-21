@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 /**
  * s9 배송 설정 happy path E2E.
  *
- * 마스터: docs/spec/user_flow-v2-shipping.md s9 (n58 → n59 → n58)
+ * 마스터: docs/spec/user_flow.md s9 (n58 → n59 → n58)
  *
  * 본 spec 의 fixme 들은 PR1 (라우트 + 사이드바) + PR2 (logen RPC) + PR3
  * (logen-verify-credential Edge Function) 머지 후 활성화한다. 활성화 절차는 각

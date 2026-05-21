@@ -2,7 +2,7 @@
  * 셀러별 로젠 자격증명 로드 (Edge Function service_role 전용).
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §3 (로젠 API 인증)
+ *   - docs/spec/PRD.md §7 (로젠 API 인증)
  *   - apps/api/supabase/migrations/20260521000003_logen_credentials.sql (테이블 + view)
  *
  * 의존 (PR3):

@@ -1,7 +1,7 @@
 /**
  * shipping-dispatch-market-worker 본체.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §4.
+ * 마스터: docs/spec/PRD.md §4.
  *
  * - 한 마켓 안의 N개 orderIds 를 순회 — 각 주문은 격리 (한 주문 실패가 다른 주문 진행을 막지 않음).
  * - 주문당 흐름:

@@ -2,7 +2,7 @@
  * 로젠택배 Open API SDK — 4 메서드 클라이언트.
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.2, §2.3, §3
+ *   - docs/spec/PRD.md §6.2, §6.3, §7
  *   - CLAUDE.md "외부 API 로깅 패턴"
  *
  * 사용처:

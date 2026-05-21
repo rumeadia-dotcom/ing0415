@@ -1,7 +1,7 @@
 /**
  * 로젠 SDK 전용 에러 클래스 + resultCd → code 매핑.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §3
+ * 마스터: docs/spec/PRD.md §7
  *
  * 분류:
  *   - unauthorized — 401/403, 또는 resultCd 가 인증 거부 코드 (잘못된 userId/custCd).

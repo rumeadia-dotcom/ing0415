@@ -1,7 +1,7 @@
 /**
  * 로젠 전용 지수 백오프 재시도 (1s / 4s / 9s).
  *
- * - 본 함수는 _shared/retry.ts 의 withRetry 와 별개. PRD-v2-shipping.md §2.2 의
+ * - 본 함수는 _shared/retry.ts 의 withRetry 와 별개. PRD.md §6.2 의
  *   "재시도 3회 지수 백오프 (1s, 4s, 9s)" 를 정확히 따르기 위해 별도 정책.
  * - MarketError.retryable 만 재시도 (rate_limit / server / network).
  * - unauthorized / validation 은 즉시 종료 — 셀러 자격증명 / 데이터 오류는 재시도 의미 없음.

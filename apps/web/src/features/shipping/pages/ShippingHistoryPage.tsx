@@ -20,8 +20,8 @@ import { ShippingApiError } from '../api/shipping-api'
  * ShippingHistoryPage — n57 (배송 이력) — `/shipping/history`.
  *
  * 마스터:
- *  - user_flow-v2-shipping.md n57
- *  - PRD-v2-shipping.md §2.4
+ *  - user_flow.md n57
+ *  - PRD.md §6.4
  *
  * 동작:
  *  - 날짜별 ShippingJob 목록 (최근 100건).

@@ -29,8 +29,8 @@ import { useLogenCredentialsStatus } from '../hooks/useLogenCredentialsStatus'
 /**
  * SettingsShippingLogenPage — n59 (/settings/shipping/logen).
  *
- * 마스터: docs/spec/user_flow-v2-shipping.md s9 n59
- *         docs/spec/PRD-v2-shipping.md §4
+ * 마스터: docs/spec/user_flow.md s9 n59
+ *         docs/spec/PRD.md §8
  *
  * 책임:
  *  - userId / custCd 입력 (RHF + LogenCredentialsInputSchema)

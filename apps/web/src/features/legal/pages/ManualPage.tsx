@@ -17,7 +17,7 @@ export function ManualPage(): JSX.Element {
     { id: 'result', title: s.result.title, body: s.result.body },
     { id: 'history', title: s.history.title, body: s.history.body },
     { id: 'faq', title: s.faq.title, body: s.faq.body },
-    // v2 — 주문·배송 자동화 (PRD-v2-shipping.md §2)
+    // v2 — 주문·배송 자동화 (PRD.md §2)
     {
       id: 'shipping-intro',
       title: s.shippingIntro.title,

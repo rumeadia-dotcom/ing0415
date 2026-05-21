@@ -2,8 +2,8 @@
  * shipping-dispatch-job / shipping-dispatch-market-worker 공유 zod 스키마.
  *
  * 마스터 (ground truth):
- *   - docs/spec/PRD-v2-shipping.md §2.4 (마켓 송장 일괄 제출 플로우)
- *   - docs/spec/PRD-v2-shipping.md §4 (데이터 모델)
+ *   - docs/spec/PRD.md §6.4 (마켓 송장 일괄 제출 플로우)
+ *   - docs/spec/PRD.md §8 (데이터 모델)
  *
  * PRD §4 정합 — shipping_jobs:
  *   - id, seller_id, status, order_count, success_count, failed_count,

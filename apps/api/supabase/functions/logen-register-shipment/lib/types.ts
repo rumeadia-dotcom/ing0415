@@ -2,7 +2,7 @@
  * 로젠택배 OpenAPI 타입 정의 (logen-register-shipment 전용).
  *
  * 마스터:
- *   - docs/spec/PRD-v2-shipping.md §2.2 / §3 (API 명세)
+ *   - docs/spec/PRD.md §6.2 / §7 (API 명세)
  *
  * 비고:
  *   - PR3 가 본 모듈을 `_shared/logen/` 으로 끌어올려 logen-verify-credential / outSlipPrintPop /

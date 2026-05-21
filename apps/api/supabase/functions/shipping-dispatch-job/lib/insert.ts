@@ -1,7 +1,7 @@
 /**
  * shipping_jobs / shipping_job_results INSERT.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §4 (데이터 모델).
+ * 마스터: docs/spec/PRD.md §8 (데이터 모델).
  *
  * - service_role 경로. shipping_job_results 는 클라이언트 INSERT 차단.
  * - 한 주문당 row 1개 (마켓 어댑터 submitTracking 호출 단위).

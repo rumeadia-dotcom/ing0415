@@ -18,7 +18,7 @@ import {
 /**
  * s9 배송 설정 도메인 API.
  *
- * 마스터: docs/spec/PRD-v2-shipping.md §4 / docs/spec/user_flow-v2-shipping.md s9
+ * 마스터: docs/spec/PRD.md §8 / docs/spec/user_flow.md s9
  *
  * 호출 매트릭스:
  *  - fetchLogenCredentialsStatus()   → RPC `get_logen_credentials_status` (평문 자격증명 절대 비반환)

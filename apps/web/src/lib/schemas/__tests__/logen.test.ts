@@ -9,7 +9,7 @@ import {
  * 로젠 자격증명 / 발송인 / verify 응답 단위 테스트.
  *
  * 마스터:
- *  - docs/spec/PRD-v2-shipping.md §2.2 / §3 / §4
+ *  - docs/spec/PRD.md §6.2 / §7 / §8
  *  - testing.md §6.1
  */
 

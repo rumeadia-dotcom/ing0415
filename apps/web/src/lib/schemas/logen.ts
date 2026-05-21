@@ -4,9 +4,9 @@ import { z } from 'zod'
  * 로젠택배 자격증명 + 발송인 정보 zod 스키마.
  *
  * 마스터:
- *  - docs/spec/PRD-v2-shipping.md §2.2 (registerOrderData 입력 — sndCustNm / sndCustAddr / sndTelNo / fareTy / dlvFare)
- *  - docs/spec/PRD-v2-shipping.md §3 (인증 — userId / custCd)
- *  - docs/spec/PRD-v2-shipping.md §4 (logen_credentials DDL)
+ *  - docs/spec/PRD.md §6.2 (registerOrderData 입력 — sndCustNm / sndCustAddr / sndTelNo / fareTy / dlvFare)
+ *  - docs/spec/PRD.md §7 (인증 — userId / custCd)
+ *  - docs/spec/PRD.md §8 (logen_credentials DDL)
  *
  * 마이그레이션 동기화 대상:
  *  - 20260521000003_logen_credentials.sql

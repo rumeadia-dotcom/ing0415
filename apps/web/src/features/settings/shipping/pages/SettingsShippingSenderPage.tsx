@@ -28,8 +28,8 @@ import { LogenApiInvocationError } from '../api/shipping-settings-api'
 /**
  * SettingsShippingSenderPage — n60 (/settings/shipping/sender).
  *
- * 마스터: docs/spec/user_flow-v2-shipping.md s9 n60
- *         docs/spec/PRD-v2-shipping.md §4 (logen_credentials)
+ * 마스터: docs/spec/user_flow.md s9 n60
+ *         docs/spec/PRD.md §8 (logen_credentials)
  *
  * 책임:
  *  - 발송인명 / 발송지 주소 / 연락처 / fareTy / dlvFare 입력
