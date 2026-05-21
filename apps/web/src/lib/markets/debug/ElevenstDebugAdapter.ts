@@ -4,10 +4,14 @@ import type {
   AuthInput,
   CategoryNode,
   CreateProductResult,
+  FetchOrdersInput,
   MarketMapping,
+  MarketOrder,
   MarketPayload,
+  MarketSubmitTrackingResult,
   Product,
   StoredCredential,
+  SubmitTrackingInput,
 } from '@/lib/schemas'
 
 /**
@@ -38,6 +42,18 @@ export const elevenstDebugAdapter: MarketAdapter = {
     throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
   },
   createProduct(_payload: MarketPayload): Promise<CreateProductResult> {
+    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+  },
+  fetchOrders(
+    _input: FetchOrdersInput,
+    _credential?: StoredCredential,
+  ): Promise<MarketOrder[]> {
+    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+  },
+  submitTracking(
+    _input: SubmitTrackingInput,
+    _credential?: StoredCredential,
+  ): Promise<MarketSubmitTrackingResult> {
     throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
   },
 }

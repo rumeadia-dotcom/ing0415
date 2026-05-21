@@ -27,8 +27,11 @@ export default defineConfig({
     include: [
       'apps/web/src/**/*.test.ts',
       'apps/web/src/**/*.test.tsx',
+      'apps/web/src/**/*.spec.ts',
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',
+      // Edge Function 의 pure 헬퍼 (Deno specifier 없음) 단위·통합 테스트.
+      'apps/api/supabase/functions/**/__tests__/*.test.ts',
     ],
     // Playwright 와 디렉토리 충돌 회피.
     exclude: [
@@ -36,6 +39,8 @@ export default defineConfig({
       'dist/**',
       'tests/e2e/**',
       'tests/fixtures/**',
+      // Deno-only 테스트 (URL ESM specifier 사용 → Vitest Node 환경 incompatible)
+      'apps/api/supabase/functions/orders-sync/__tests__/sync.test.ts',
     ],
     coverage: {
       provider: 'v8',

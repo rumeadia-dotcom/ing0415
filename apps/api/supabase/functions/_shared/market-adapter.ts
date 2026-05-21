@@ -29,6 +29,21 @@ import type {
   TokenSet,
 } from './schemas.ts'
 
+/**
+ * 송장 제출 결과 (v2 shipping).
+ *
+ * 마스터: PR4 (MarketAdapter.submitTracking 구현) 시점에 본 타입 zod 미러 추가 예정.
+ * 본 PR 에서는 인터페이스 시그니처만 고정.
+ */
+export interface SubmitTrackingResult {
+  market: MarketId
+  externalOrderId: string
+  waybillNumber: string
+  carrierCode: string
+  /** 마켓 API 가 송장 등록 후 반환하는 식별자 (있는 경우). */
+  trackingReceiptId?: string
+}
+
 export interface MarketAdapter {
   readonly market: MarketId
   readonly credentialKind: MarketCredentialKind
@@ -38,4 +53,15 @@ export interface MarketAdapter {
   fetchCategoryTree(): Promise<CategoryNode[]>
   transformProduct(product: Product, mapping: MarketMapping): MarketPayload
   createProduct(payload: MarketPayload): Promise<CreateProductResult>
+
+  /**
+   * 송장 제출 (v2 shipping, optional — PR4 에서 구현).
+   * 마켓별 외부 주문 ID + 운송장번호 + 택배사 코드 → 마켓 API 호출.
+   * MarketError throw 만. (재시도 / 로깅은 호출측 withRetry.)
+   */
+  submitTracking?(
+    externalOrderId: string,
+    waybillNumber: string,
+    carrierCode: string,
+  ): Promise<SubmitTrackingResult>
 }
