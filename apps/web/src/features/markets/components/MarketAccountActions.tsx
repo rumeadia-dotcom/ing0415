@@ -13,6 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
+import { ko } from '@/locales/ko'
 import { useDisconnectMarket } from '../hooks/useDisconnectMarket'
 import { useVerifyMarket } from '../hooks/useVerifyMarket'
 import { MarketApiInvocationError } from '../api/markets-api'
@@ -29,29 +30,35 @@ interface MarketAccountActionsProps {
  * - expired → [재인증] + [해제]
  * - revoked → [재연결] (해제 비활성)
  * - error → [상태 확인] + [해제]
+ *
+ * Studio 비주얼: 재인증 (warning fill) / 상태확인 (secondary outline) / 해제 (danger ghost).
  */
 export function MarketAccountActions({ account }: MarketAccountActionsProps): JSX.Element {
   const navigate = useNavigate()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const verify = useVerifyMarket()
   const disconnect = useDisconnectMarket()
+  const tt = ko.markets.actions
 
   const isRevoked = account.status === 'revoked'
-  const needsReauth = account.status === 'expired' || account.status === 'revoked'
+  const isExpired = account.status === 'expired'
+  const needsReauth = isExpired || isRevoked
 
   const handleVerify = (): void => {
     verify.mutate(
       { accountId: account.id },
       {
         onSuccess: (data) => {
-          toast.success(`상태 확인 완료 — ${data.status}`)
+          toast.success(`${tt.reverify} — ${data.status}`)
         },
         onError: (err) => {
           if (err instanceof MarketApiInvocationError) {
             const f = formatMarketError(err.toApiError())
-            toast.error(f.message, { description: f.correlationId ? `요청 ID: ${f.correlationId}` : undefined })
+            toast.error(f.message, {
+              description: f.correlationId ? `요청 ID: ${f.correlationId}` : undefined,
+            })
           } else {
-            toast.error('상태 확인에 실패했습니다.')
+            toast.error(formatMarketError(null).message)
           }
         },
       },
@@ -63,15 +70,17 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
       { accountId: account.id },
       {
         onSuccess: () => {
-          toast.success('마켓 연결이 해제되었습니다.')
+          toast.success(`${tt.disconnect} 완료`)
           setConfirmOpen(false)
         },
         onError: (err) => {
           if (err instanceof MarketApiInvocationError) {
             const f = formatMarketError(err.toApiError())
-            toast.error(f.message, { description: f.correlationId ? `요청 ID: ${f.correlationId}` : undefined })
+            toast.error(f.message, {
+              description: f.correlationId ? `요청 ID: ${f.correlationId}` : undefined,
+            })
           } else {
-            toast.error('연결 해제에 실패했습니다.')
+            toast.error(formatMarketError(null).message)
           }
         },
       },
@@ -79,14 +88,14 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-end gap-2">
       {needsReauth ? (
         <Button
-          variant="secondary"
+          variant={isExpired ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => navigate(`/markets/connect/${account.marketId}`)}
         >
-          {isRevoked ? '재연결' : '재인증'}
+          {isRevoked ? tt.reconnect : tt.reauth}
         </Button>
       ) : (
         <Button
@@ -95,7 +104,7 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
           onClick={handleVerify}
           disabled={verify.isPending}
         >
-          {verify.isPending ? '확인 중…' : '상태 확인'}
+          {verify.isPending ? tt.reverifying : tt.reverify}
         </Button>
       )}
 
@@ -104,15 +113,20 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
           <TooltipTrigger asChild>
             <span>
               <Button variant="ghost" size="sm" disabled aria-disabled>
-                해제
+                {tt.disconnect}
               </Button>
             </span>
           </TooltipTrigger>
-          <TooltipContent>이미 해제된 계정입니다</TooltipContent>
+          <TooltipContent>{tt.alreadyRevoked}</TooltipContent>
         </Tooltip>
       ) : (
-        <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(true)}>
-          해제
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setConfirmOpen(true)}
+          className="text-danger hover:bg-danger-soft hover:text-danger"
+        >
+          {tt.disconnect}
         </Button>
       )}
 
@@ -127,10 +141,10 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
-              취소
+              {tt.cancel}
             </Button>
             <Button variant="danger" onClick={handleDisconnect} disabled={disconnect.isPending}>
-              {disconnect.isPending ? '해제 중…' : '해제'}
+              {disconnect.isPending ? tt.disconnecting : tt.disconnect}
             </Button>
           </DialogFooter>
         </DialogContent>
