@@ -104,6 +104,7 @@ export const ko = {
       successToast: '비밀번호가 변경되었습니다. 다시 로그인해주세요.',
       invalidSession: '재설정 링크가 만료되었거나 유효하지 않습니다.',
       requestAgain: '다시 요청하기',
+      checkingSession: '세션을 확인하는 중…',
     },
     strength: {
       label: '비밀번호 강도',
