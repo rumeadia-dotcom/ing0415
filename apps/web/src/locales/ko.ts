@@ -322,15 +322,23 @@ export const ko = {
       filterFrom: '시작일',
       filterTo: '종료일',
       filterReset: '필터 초기화',
-      searchPlaceholder: '주문번호·상품명으로 검색',
+      searchPlaceholder: '상품명 · 주문번호 · 수취인 검색',
       tableProduct: '상품',
       tableMarket: '마켓',
       tableBuyer: '주문자',
       tableStatus: '배송 상태',
       tableWaybill: '운송장',
       tableOrderedAt: '주문일시',
+      tableOrderId: '주문번호',
+      tableProductBuyer: '상품 · 주문자',
       empty: '조건에 맞는 주문이 없습니다',
       emptyAbsolute: '아직 주문이 없습니다',
+      emptyFilteredHint:
+        '필터를 넓혀보세요. 마켓 / 상태 / 검색어를 조정하면 더 많은 주문이 표시됩니다.',
+      emptyAbsoluteHint:
+        '주문 동기화는 10분 주기로 자동 실행돼요. 들어오면 이 화면에서 바로 확인할 수 있습니다.',
+      emptySyncHint:
+        '팁: 주문 동기화는 10분 주기로 자동 실행됩니다. 최근 동기화 시각은 화면 상단에서 확인할 수 있어요.',
       errorLoad: '주문 목록을 불러오지 못했습니다',
       loading: '주문 목록 불러오는 중',
       totalCount: (n: number) => `총 ${n.toLocaleString()}건`,
@@ -357,6 +365,11 @@ export const ko = {
       noWaybill: '아직 발급되지 않음',
       manualResolveCta: '운송장 수동 입력',
       manualResolveHint: '로젠 자동 등록이 실패한 주문은 직접 입력할 수 있습니다',
+      failureBannerTitle: '로젠 자동 등록 3회 실패 — 수동 처리가 필요해요',
+      failureBannerBody:
+        '로젠 콜센터에서 운송장을 수기 발급받은 뒤, 운송장 번호를 입력하면 자동 흐름으로 복귀합니다.',
+      timelinePending: '대기 중',
+      dispatchHint: '운송장 발급 후 자동으로 마켓 송장 API에 제출됩니다.',
       errorLoad: '주문 상세를 불러오지 못했습니다',
       notFound: '주문을 찾을 수 없습니다',
     },
@@ -513,6 +526,12 @@ export const ko = {
   },
   shipping: {
     placeholder: '작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
+    tabs: {
+      ariaLabel: '배송 페이지 탭',
+      print: '운송장 출력',
+      dispatch: '송장 일괄 제출',
+      history: '배송 이력',
+    },
     print: {
       title: '운송장 출력',
       subtitle: '로젠 등록이 완료된 주문의 운송장을 1클릭으로 출력하세요',
