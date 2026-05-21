@@ -224,6 +224,101 @@ export const ko = {
       signOutSuccess: '로그아웃되었습니다.',
       signOutError: '로그아웃 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.',
     },
+    shipping: {
+      title: '배송 설정',
+      subtitle: '로젠택배 API 자격증명과 발송인 정보를 관리합니다.',
+      logenCard: {
+        title: '로젠택배 API 연동',
+        connected: '연결됨',
+        connectedDescription: 'userId / custCd 가 암호화 저장되어 있습니다.',
+        disconnected: '미연결',
+        disconnectedDescription:
+          '로젠 B2B 계약 후 발급받은 userId(연동업체코드) / custCd(거래처코드) 를 입력하세요.',
+        notVerified: '연결 테스트 미수행',
+        lastVerifiedAt: '최근 연결 확인',
+        lastErrorAt: '최근 오류',
+        manageButton: '로젠 API 설정',
+      },
+      senderCard: {
+        title: '발송인 정보',
+        configured: '입력 완료',
+        configuredDescription: '발송지·연락처·운임 설정이 완료되었습니다.',
+        notConfigured: '입력 필요',
+        notConfiguredDescription:
+          '운송장 발급에는 발송인명·발송지 주소·연락처·운임 설정이 필요합니다.',
+        manageButton: '발송인 정보 편집',
+      },
+      autoDispatchCard: {
+        title: '출력 후 자동 제출',
+        description:
+          '운송장 출력을 완료하면 4개 마켓에 송장번호를 자동으로 제출합니다. OFF 면 [송장 일괄 제출] 을 직접 눌러야 합니다.',
+        on: 'ON',
+        off: 'OFF',
+        toggleAriaLabel: '출력 후 자동 제출 토글',
+        updateError: '설정을 변경하는 중 오류가 발생했습니다.',
+      },
+      carrierCard: {
+        title: '기본 택배사',
+        description: 'v2 는 로젠택배만 지원합니다. 다른 택배사는 차후 버전에 추가됩니다.',
+        carrier: '로젠택배',
+      },
+      logenPage: {
+        title: '로젠 API 연동',
+        subtitle:
+          'userId(연동업체코드) / custCd(거래처코드) 를 입력하여 로젠 B2B 자동 등록을 활성화합니다.',
+        userIdLabel: 'userId (연동업체코드)',
+        userIdPlaceholder: '예: LGN_12345',
+        custCdLabel: 'custCd (거래처코드)',
+        custCdPlaceholder: '예: CUST_67890',
+        save: '저장',
+        saving: '저장 중…',
+        saveAndVerify: '저장 후 연결 테스트',
+        verify: '연결 테스트',
+        verifying: '연결 확인 중…',
+        verifySuccess: '연결 확인이 완료되었습니다.',
+        verifyDescription:
+          '저장된 자격증명으로 로젠 API 에 토큰 발급 요청을 보내 동작 여부를 확인합니다.',
+        backLink: '배송 설정으로',
+        helperContract:
+          '로젠택배 영업소를 통해 B2B 계약을 완료한 셀러만 사용 가능합니다.',
+      },
+      senderPage: {
+        title: '발송인 정보',
+        subtitle:
+          '운송장에 인쇄될 발송인 정보와 로젠 운임 항목을 입력합니다. 계약 시 확정된 값을 사용하세요.',
+        senderNameLabel: '발송인명',
+        senderNamePlaceholder: '예: 홍길동 스토어',
+        senderAddressLabel: '발송지 주소',
+        senderAddressPlaceholder: '시·군·구를 포함한 전체 주소',
+        senderPhoneLabel: '연락처',
+        senderPhonePlaceholder: '예: 010-1234-5678',
+        fareTyLabel: '운임 타입 (fareTy)',
+        fareTyHelp:
+          'C = 선불(계약) / S = 착불 / R = 신용. 일반적으로 B2B 계약은 C 를 사용합니다.',
+        dlvFareLabel: '택배 운임 (dlvFare, 원)',
+        dlvFarePlaceholder: '예: 2500',
+        dlvFareHelp: '계약 시 확정된 단가를 입력하세요. 단위: 원.',
+        save: '저장',
+        saving: '저장 중…',
+        savedToast: '발송인 정보가 저장되었습니다.',
+        backLink: '배송 설정으로',
+      },
+      errors: {
+        invalid_credentials: '입력한 자격증명이 유효하지 않습니다. 코드를 다시 확인해주세요.',
+        contract_not_active:
+          '로젠 B2B 계약이 활성 상태가 아닙니다. 영업소를 통해 계약 상태를 확인하세요.',
+        rate_limited: '잠시 후 다시 시도해주세요. (로젠 API 요청 한도)',
+        unauthenticated: '로그인이 만료되었습니다. 다시 로그인 후 시도해주세요.',
+        validation_failed: '입력 형식이 올바르지 않습니다.',
+        network_error: '네트워크 오류가 발생했습니다. 연결 상태를 확인해주세요.',
+        internal: '예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+      },
+      empty: {
+        title: '아직 로젠 API 가 연결되지 않았습니다',
+        body:
+          '운송장 자동 발급을 사용하려면 로젠 자격증명을 등록해야 합니다. [로젠 API 설정] 을 눌러 시작하세요.',
+      },
+    },
   },
   orders: {
     placeholder: 'v2 작업 진행 중입니다. 본 화면은 곧 활성화됩니다.',
@@ -624,6 +719,31 @@ export const ko = {
           title: '5. FAQ 및 트러블슈팅',
           body:
             'Q1. 마켓 토큰이 만료되었다는 알림이 떴어요.\n  A. 마켓 페이지에서 해당 마켓의 [재인증] 버튼을 클릭하면 OAuth 흐름이 다시 시작됩니다. 재인증 후에는 만료된 토큰이 자동으로 새 토큰으로 교체됩니다.\n\nQ2. 401 Unauthorized 오류가 표시됩니다.\n  A. 마켓 자격증명이 만료되었거나 권한이 회수된 경우입니다. 마켓 페이지에서 해당 마켓의 연결을 해제하고 새로 연결하세요. 쿠팡·G마켓·옥션은 키를 외부 콘솔에서 재발급한 후 다시 입력해야 합니다.\n\nQ3. 이미지 규격 오류가 발생합니다.\n  A. 각 마켓은 이미지 크기·포맷·용량 제한이 다릅니다. 일반적으로 JPEG/PNG 형식, 가로 1000px 이상, 파일당 10MB 이하를 권장합니다. 4단계 미리보기에서 경고로 표시되며, 자동 변환되는 항목은 그대로 진행 가능합니다.\n\nQ4. 등록 중 일부 마켓만 실패합니다.\n  A. 마켓별로 카테고리·필수필드·금지어 정책이 다릅니다. 실패 상세에서 오류 메시지를 확인하고, [마켓 제외 후 등록] 으로 우선 성공시킨 뒤 실패 마켓은 정책에 맞게 정보를 수정해 재등록하세요.\n\nQ5. 비밀번호를 잊었어요.\n  A. 로그인 화면에서 [비밀번호를 잊으셨나요?] 링크를 클릭하면 가입 이메일로 재설정 링크가 발송됩니다.',
+        },
+        shippingIntro: {
+          title: '6. 주문·배송 자동화 (v2)',
+          body:
+            'v2 부터 4개 마켓의 주문이 자동으로 수집되고, 로젠택배로 일괄 등록·운송장 출력·송장 제출까지 한 번에 처리됩니다.\n\n전체 일과 흐름:\n  ① (자동) 10분마다 4개 마켓에서 신규 주문을 수집합니다.\n  ② (자동) 수집된 주문이 로젠택배에 자동 등록되어 운송장번호가 발급됩니다.\n  ③ (수동 1클릭) [주문·배송 → 운송장 출력] 에서 출력 버튼을 눌러 운송장을 프린터로 출력합니다.\n  ④ (자동 또는 1클릭) "출력 후 자동 제출" 이 ON 이면 출력 직후 4개 마켓에 송장번호가 자동 제출됩니다. OFF 면 [송장 일괄 제출] 을 직접 눌러야 합니다.',
+        },
+        shippingLogen: {
+          title: '7. 로젠 API 설정 (최초 1회)',
+          body:
+            '좌측 메뉴 [설정 → 배송 설정] 으로 진입합니다.\n\n  ① [로젠 API 설정] 클릭\n  ② 로젠택배 영업소에서 발급받은 userId(연동업체코드)·custCd(거래처코드) 를 입력합니다.\n  ③ [연결 테스트] 를 눌러 자격증명이 유효한지 확인합니다.\n     - 성공: "연결됨" 상태가 표시되고 운송장 자동 발급이 활성화됩니다.\n     - 실패 — 잘못된 코드: 영업소를 통해 정확한 코드를 다시 확인합니다.\n     - 실패 — 계약 미완료: 로젠택배 B2B 계약 상태를 영업소에 문의합니다.\n  ④ [발송인 정보] 에서 발송인명·발송지 주소·연락처·운임 타입(fareTy)·운임(dlvFare) 을 입력합니다.\n     - fareTy 와 dlvFare 는 계약 시 확정된 값을 사용해야 합니다 (일반적으로 fareTy = "C").\n  ⑤ 모든 정보 입력이 끝나면 다음 주문 수집부터 자동 등록 흐름이 동작합니다.',
+        },
+        shippingPrint: {
+          title: '8. 운송장 출력 (1일 1회)',
+          body:
+            '좌측 메뉴 [주문·배송 → 운송장 출력] 으로 진입합니다.\n\n  • 미출력 운송장 목록이 표시됩니다 (`logen_registered` 상태).\n  • [운송장 출력] 버튼을 누르면 로젠 양식 팝업이 열리며, 브라우저 인쇄 다이얼로그가 실행됩니다.\n  • 라벨 프린터로 출력 후 상자에 부착합니다.\n  • [출력 완료] 버튼을 누르면 주문 상태가 `waybill_printed` 로 전환됩니다.\n  • "출력 후 자동 제출" 이 ON 이면 이 시점부터 자동으로 마켓 송장 제출이 시작됩니다.',
+        },
+        shippingSubmit: {
+          title: '9. 마켓 송장 제출',
+          body:
+            '"출력 후 자동 제출" 이 OFF 인 경우 [주문·배송 → 송장 일괄 제출] 에서 직접 트리거합니다.\n\n  • 송장 제출은 4개 마켓에 병렬로 진행되며 일반적으로 30초 이내에 완료됩니다.\n  • 마켓 중 일부만 실패한 경우, 해당 마켓만 선택하여 재시도할 수 있습니다.\n  • 제출이 완료된 주문은 상태가 `tracking_submitted` 로 전환되며, [배송 이력] 에서 확인할 수 있습니다.',
+        },
+        shippingTrouble: {
+          title: '10. 배송 자동화 트러블슈팅',
+          body:
+            'Q1. 로젠 자동 등록이 실패한 주문이 있어요.\n  A. [주문·배송 → 주문 목록] 에서 `logen_failed` 상태 주문을 확인합니다. 사유가 일시 오류(rate limit 등) 이면 자동 재시도되며, 수취인 주소 누락 등 검증 실패는 주문 상세에서 수정 후 [재시도] 합니다.\n\nQ2. 운송장이 너무 많아 한 번에 출력하기 어려워요.\n  A. 출력 화면에서 마켓별 또는 날짜별로 필터링하여 분할 출력할 수 있습니다. 출력 완료 표시는 묶음 단위로 가능합니다.\n\nQ3. 마켓 송장 제출이 일부만 성공했어요.\n  A. 실패한 마켓의 오류 메시지를 확인하고, 자격증명 만료가 원인이면 [마켓 계정] 에서 재인증한 뒤 [재시도] 합니다.\n\nQ4. "출력 후 자동 제출" 을 OFF 로 두고 싶어요.\n  A. [설정 → 배송 설정] 에서 토글로 즉시 변경됩니다. 변경 즉시 다음 출력부터 적용됩니다.',
         },
       },
     },
