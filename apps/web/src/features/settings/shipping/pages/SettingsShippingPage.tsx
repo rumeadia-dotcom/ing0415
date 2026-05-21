@@ -230,40 +230,29 @@ function AutoDispatchCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t.title}</CardTitle>
-        <CardDescription>{t.description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span
-            className="text-sm font-medium text-text"
-            aria-live="polite"
-          >
-            {value ? t.on : t.off}
-          </span>
-          <div className="flex flex-col items-end gap-1">
-            <Switch
-              checked={value}
-              onCheckedChange={onChange}
-              disabled={disabled || loading}
-              aria-label={t.toggleAriaLabel}
-              {...(disabled && blockingReasons.length > 0
-                ? { title: blockingReasons.join(' · ') }
-                : {})}
-            />
-            {disabled && blockingReasons.length > 0 && (
-              <ul
-                role="alert"
-                className="text-xs text-text-tertiary"
-              >
-                {blockingReasons.map((r) => (
-                  <li key={r}>· {r}</li>
-                ))}
-              </ul>
-            )}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-1">
+            <CardTitle>{t.title}</CardTitle>
+            <CardDescription>{t.description}</CardDescription>
           </div>
+          <Switch
+            checked={value}
+            onCheckedChange={onChange}
+            disabled={disabled || loading}
+            aria-label={t.toggleAriaLabel}
+            {...(disabled && blockingReasons.length > 0
+              ? { title: blockingReasons.join(' · ') }
+              : {})}
+          />
         </div>
-      </CardContent>
+        {disabled && blockingReasons.length > 0 && (
+          <ul role="alert" className="mt-2 space-y-0.5 text-xs text-text-tertiary">
+            {blockingReasons.map((r) => (
+              <li key={r}>· {r}</li>
+            ))}
+          </ul>
+        )}
+      </CardHeader>
     </Card>
   )
 }
