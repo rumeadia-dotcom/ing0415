@@ -29,13 +29,24 @@ import {
 } from '../../_shared/index.ts'
 import {
   hasFetchOrders,
+  ORDER_SYNC_TARGET_STATUSES,
   type MarketOrder,
   type OrderSyncAdapter,
 } from './adapter-shape.ts'
 import { upsertOrders } from './orders-repo.ts'
 
-const ORDER_SYNC_WINDOW_HOURS = 24
-const ORDER_SYNC_TARGET_STATUS = '결제완료'
+export const ORDER_SYNC_WINDOW_HOURS = 24
+/**
+ * 폴링 대상 정규화 status.
+ *
+ * PRD §2.1 "결제완료/배송대기 주문만 수집" — 두 raw 상태가 어댑터 정규화에서
+ * `'new_pay'` 한 enum 으로 흡수된다 (PR4 MarketOrderStatusSchema 의 주석 매핑 참고).
+ *
+ * 어댑터가 raw 한글 상태를 직접 받지 않고 정규화 enum 으로 통신하므로, 본 PR 은
+ * 한글 문자열을 다루지 않는다. 향후 "배송대기" 가 별도 enum 으로 분리되면
+ * `ORDER_SYNC_TARGET_STATUSES` 배열에 추가만 하면 됨.
+ */
+export { ORDER_SYNC_TARGET_STATUSES } from './adapter-shape.ts'
 const ORDER_SYNC_MARKETS: ReadonlyArray<MarketId> = [
   'naver',
   'coupang',
@@ -152,19 +163,18 @@ async function fetchForAccount(
   }
 
   // credential 복호화 — real 모드에서만 의미. test 는 mock adapter 가 자체 처리.
-  let credentialPayload: Record<string, unknown> = {}
-  try {
-    const decrypted = await loadCredential({
-      credentialId: account.credentialId,
-      correlationId: deps.correlationId,
-      logger: log,
-    })
-    credentialPayload = decrypted.payload
-  } catch (e) {
-    // test 환경 (resolveAdapter 주입) 에서는 credential 부재 허용.
-    if (!deps.resolveAdapter) {
-      const code =
-        e instanceof MarketError ? e.code : 'credential_load_failed'
+  // PR4 의 fetchOrders 는 credential 을 직접 받지 않음 (sellerId 만). 어댑터는 자체 컨텍스트에서
+  // 토큰을 읽도록 설계 (어댑터 인스턴스 생성 시 주입 또는 sellerId → credential 조회).
+  // 본 PR 은 real 모드에서 credential 존재 검증만 수행 (load 실패 시 skip).
+  if (!deps.resolveAdapter) {
+    try {
+      await loadCredential({
+        credentialId: account.credentialId,
+        correlationId: deps.correlationId,
+        logger: log,
+      })
+    } catch (e) {
+      const code = e instanceof MarketError ? e.code : 'credential_load_failed'
       log.error({ errorCode: code }, '← credential load failed')
       return {
         orders: [],
@@ -182,16 +192,16 @@ async function fetchForAccount(
     {
       method: 'POST',
       since,
-      status: ORDER_SYNC_TARGET_STATUS,
+      statuses: ORDER_SYNC_TARGET_STATUSES,
     },
     '→ market request',
   )
 
   try {
     const orders = await adapter.fetchOrders({
-      credentialPayload,
+      sellerId: account.sellerId,
       since,
-      status: ORDER_SYNC_TARGET_STATUS,
+      statuses: [...ORDER_SYNC_TARGET_STATUSES],
     })
     log.info({ count: orders.length }, '← market response')
     return { orders }

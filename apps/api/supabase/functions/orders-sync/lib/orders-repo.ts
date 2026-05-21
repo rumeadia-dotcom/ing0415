@@ -2,15 +2,35 @@
  * orders 테이블 upsert 어댑터.
  *
  * 마스터:
- *   - PR2 가 정의할 orders 테이블 (가정 스키마):
- *     id (uuid pk), seller_id (uuid fk), market_id (text), external_order_id (text),
- *     status (text), ordered_at (timestamptz), payload (jsonb),
- *     created_at, updated_at, shipment_status (text default 'pending')
- *   - UNIQUE(seller_id, market_id, external_order_id) — on conflict do nothing 로 중복 방지.
+ *   - PRD-v2-shipping.md §4 (orders 테이블 스키마 — ground truth)
+ *   - PR2 마이그레이션 (orders 테이블 + UNIQUE 제약)
+ *
+ * PRD §4 컬럼 매핑 (어댑터 MarketOrder → orders row):
+ *   externalOrderId    → external_order_id
+ *   buyerName          → buyer_name
+ *   receiverName       → receiver_name
+ *   receiverAddress    → receiver_address
+ *   receiverPhone      → receiver_phone
+ *   productName        → product_name
+ *   quantity           → quantity
+ *   orderAmount        → order_amount
+ *   status (정규화)    → status (DB enum: 'collected' 고정 — 수집 시점)
+ *   paidAt             → collected_at  (PRD §4 의 timestamp 컬럼)
+ *   market             → market_id
+ *   (seller_id 는 별도 인자)
+ *
+ * 상태 매핑 근거:
+ *   - 어댑터의 정규화 status `new_pay` 는 "결제 완료, 발송 대기" — 본 PR 의 폴링 대상.
+ *   - DB orders.status 는 PRD §4 의 영문 ENUM (collected | logen_registered | ...).
+ *     수집 시점에는 무조건 `'collected'` (이후 PR6 가 `logen_registered` 로 전이).
+ *   - 어댑터가 `new_pay` 가 아닌 다른 status 를 반환하면 (이론상 발생 안 하지만 방어적)
+ *     upsert 에서 제외 — 부적격 상태 적재 차단.
+ *
+ * UNIQUE 제약: (market_id, external_order_id, seller_id) — PRD §4.
  *
  * 강제:
- *   - service_role 클라이언트만 사용 (RLS bypass — orders 테이블은 셀러 SELECT only).
- *   - 평문 토큰 / PII 절대 적재 금지. payload jsonb 는 마켓 raw 응답만.
+ *   - service_role 클라이언트만 사용 (RLS bypass — orders 는 셀러 SELECT only).
+ *   - 평문 PII (buyer / receiver) 는 DB 컬럼에는 적재되지만 로그·에러에는 노출 금지.
  *   - 새로 insert 된 row 의 id 만 반환 — logen-register-shipment 위임 대상.
  */
 
@@ -32,7 +52,7 @@ export interface UpsertOrderResult {
 }
 
 /**
- * 4 마켓 통합 upsert.
+ * orders 테이블 upsert (PRD §4 컬럼 정합).
  *
  * supabase-js 의 .upsert({...}, { onConflict: '...', ignoreDuplicates: true })
  * 는 중복 row 일 때 returning row 가 비어 있음 — 그것으로 신규/중복 판별.
@@ -44,20 +64,48 @@ export async function upsertOrders(
 ): Promise<UpsertOrderResult[]> {
   if (inputs.length === 0) return []
 
-  const rows = inputs.map((i) => ({
+  // 정규화 status 가 'new_pay' 인 주문만 적재 (PRD §2.1 결제완료/배송대기).
+  // 그 외 status 가 흘러들어오면 적재 제외 — 부적격 row 차단.
+  const eligible = inputs.filter((i) => i.order.status === 'new_pay')
+
+  if (eligible.length < inputs.length) {
+    logger.warn(
+      {
+        total: inputs.length,
+        eligible: eligible.length,
+        dropped: inputs.length - eligible.length,
+      },
+      '← orders upsert: non-new_pay status filtered',
+    )
+  }
+
+  if (eligible.length === 0) {
+    return inputs.map((i) => ({
+      insertedId: null,
+      externalOrderId: i.order.externalOrderId,
+    }))
+  }
+
+  const rows = eligible.map((i) => ({
     seller_id: i.sellerId,
     market_id: i.marketId,
     external_order_id: i.order.externalOrderId,
-    status: i.order.status,
-    ordered_at: i.order.orderedAt,
-    payload: i.order.payload,
+    buyer_name: i.order.buyerName,
+    receiver_name: i.order.receiverName,
+    receiver_address: i.order.receiverAddress,
+    receiver_phone: i.order.receiverPhone,
+    product_name: i.order.productName,
+    quantity: i.order.quantity,
+    order_amount: i.order.orderAmount,
+    status: 'collected' as const,
+    collected_at: i.order.paidAt,
   }))
 
   // ignoreDuplicates: true → conflict row 는 결과에서 제외됨. 신규 insert 만 returning.
   const { data, error } = await supabase
     .from('orders')
     .upsert(rows, {
-      onConflict: 'seller_id,market_id,external_order_id',
+      onConflict: 'market_id,external_order_id,seller_id',
       ignoreDuplicates: true,
     })
     .select('id, market_id, external_order_id')
