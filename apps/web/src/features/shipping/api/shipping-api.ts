@@ -104,12 +104,12 @@ async function invokeEdge<TReq, TRes>({
 interface OrderRow {
   id: string
   market_id: string
-  market_order_no: string
+  external_order_id: string
   product_name: string
   buyer_name: string
   waybill_number: string | null
-  shipping_status: string
-  registered_at: string
+  status: string
+  logen_registered_at: string
 }
 
 export async function fetchShippingPrintList(): Promise<ShippingPrintOrder[]> {
@@ -117,10 +117,10 @@ export async function fetchShippingPrintList(): Promise<ShippingPrintOrder[]> {
   const { data, error } = await supabase
     .from('orders')
     .select(
-      'id, market_id, market_order_no, product_name, buyer_name, waybill_number, shipping_status, registered_at',
+      'id, market_id, external_order_id, product_name, buyer_name, waybill_number, status, logen_registered_at',
     )
-    .eq('shipping_status', 'logen_registered')
-    .order('registered_at', { ascending: false })
+    .eq('status', 'logen_registered')
+    .order('logen_registered_at', { ascending: false })
     .limit(500)
 
   if (error) {
@@ -134,12 +134,12 @@ export async function fetchShippingPrintList(): Promise<ShippingPrintOrder[]> {
       ShippingPrintOrderSchema.parse({
         orderId: r.id,
         marketId: r.market_id,
-        marketOrderNo: r.market_order_no,
+        marketOrderNo: r.external_order_id,
         productName: r.product_name,
         buyerName: r.buyer_name,
         waybillNumber: r.waybill_number,
-        shippingStatus: r.shipping_status,
-        registeredAt: r.registered_at,
+        shippingStatus: r.status,
+        registeredAt: r.logen_registered_at,
       }),
     )
 }
@@ -154,8 +154,8 @@ export async function fetchShippingDispatchPreview(): Promise<ShippingDispatchPr
   // PR7 가 RPC `shipping_dispatch_preview` 를 제공하면 그쪽으로 교체.
   const { data, error } = await supabase
     .from('orders')
-    .select('market_id, shipping_status')
-    .in('shipping_status', ['logen_registered', 'waybill_printed'])
+    .select('market_id, status')
+    .in('status', ['logen_registered', 'waybill_printed'])
 
   if (error) {
     throw new ShippingApiError({ code: 'internal', message: error.message }, error)
@@ -163,11 +163,11 @@ export async function fetchShippingDispatchPreview(): Promise<ShippingDispatchPr
 
   interface Row {
     market_id: string
-    shipping_status: string
+    status: string
   }
   const rows = (data ?? []) as Row[]
-  const printedRows = rows.filter((r) => r.shipping_status === 'waybill_printed')
-  const unprintedRows = rows.filter((r) => r.shipping_status === 'logen_registered')
+  const printedRows = rows.filter((r) => r.status === 'waybill_printed')
+  const unprintedRows = rows.filter((r) => r.status === 'logen_registered')
 
   const groupMap = new Map<string, number>()
   for (const r of printedRows) {
@@ -194,13 +194,15 @@ interface ShippingJobRow {
   id: string
   seller_id: string
   status: string
-  total_orders: number
-  retry_count: number
+  order_count: number       // DB 컬럼명. shipping_jobs_with_summary view 에서는 total_orders 로 노출.
   error_summary: string | null
-  parent_job_id: string | null
   created_at: string
   started_at: string | null
   completed_at: string | null
+  // view 컬럼 (shipping_jobs_with_summary 에서만 존재)
+  total_orders?: number
+  retry_count?: number
+  parent_job_id?: string | null
 }
 
 interface ShippingMarketResultRow {
@@ -239,10 +241,10 @@ export async function fetchShippingJobWithResults(
     id: jobData.id,
     sellerId: jobData.seller_id,
     status: jobData.status,
-    totalOrders: jobData.total_orders,
-    retryCount: jobData.retry_count,
+    totalOrders: jobData.total_orders ?? jobData.order_count ?? 0,
+    retryCount: jobData.retry_count ?? 0,
     errorSummary: jobData.error_summary,
-    parentJobId: jobData.parent_job_id,
+    parentJobId: jobData.parent_job_id ?? null,
     createdAt: jobData.created_at,
     startedAt: jobData.started_at,
     completedAt: jobData.completed_at,
