@@ -57,6 +57,35 @@ const HistoryListPage = lazy(() => import('@/features/history/pages/HistoryListP
 const HistoryDetailPage = lazy(() => import('@/features/history/pages/HistoryDetailPage'))
 // settings
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'))
+// v2 — orders (s7)
+const OrdersDashboardPage = lazy(
+  () => import('@/features/orders/pages/OrdersDashboardPage'),
+)
+const OrdersListPage = lazy(() => import('@/features/orders/pages/OrdersListPage'))
+const OrderDetailPage = lazy(() => import('@/features/orders/pages/OrderDetailPage'))
+// v2 — shipping (s8)
+const ShippingPrintPage = lazy(
+  () => import('@/features/shipping/pages/ShippingPrintPage'),
+)
+const ShippingDispatchPage = lazy(
+  () => import('@/features/shipping/pages/ShippingDispatchPage'),
+)
+const ShippingDispatchResultPage = lazy(
+  () => import('@/features/shipping/pages/ShippingDispatchResultPage'),
+)
+const ShippingHistoryPage = lazy(
+  () => import('@/features/shipping/pages/ShippingHistoryPage'),
+)
+// v2 — settings/shipping (s9)
+const SettingsShippingPage = lazy(
+  () => import('@/features/settings/shipping/pages/SettingsShippingPage'),
+)
+const SettingsShippingLogenPage = lazy(
+  () => import('@/features/settings/shipping/pages/SettingsShippingLogenPage'),
+)
+const SettingsShippingSenderPage = lazy(
+  () => import('@/features/settings/shipping/pages/SettingsShippingSenderPage'),
+)
 // legal (비인증 접근 가능)
 const TermsPage = lazy(() => import('@/features/legal/pages/TermsPage'))
 const PrivacyPage = lazy(() => import('@/features/legal/pages/PrivacyPage'))
@@ -172,6 +201,37 @@ const routes: RouteObject[] = [
             ],
           },
           { path: 'settings', element: withSuspense(<SettingsPage />) },
+          // v2 — 주문 현황 (s7 n47~n50)
+          {
+            path: 'orders',
+            children: [
+              { index: true, element: withSuspense(<OrdersDashboardPage />) },
+              { path: 'list', element: withSuspense(<OrdersListPage />) },
+              { path: ':orderId', element: withSuspense(<OrderDetailPage />) },
+            ],
+          },
+          // v2 — 배송 처리 (s8 n52~n57)
+          {
+            path: 'shipping',
+            children: [
+              { path: 'print', element: withSuspense(<ShippingPrintPage />) },
+              { path: 'dispatch', element: withSuspense(<ShippingDispatchPage />) },
+              {
+                path: 'dispatch/:jobId/result',
+                element: withSuspense(<ShippingDispatchResultPage />),
+              },
+              { path: 'history', element: withSuspense(<ShippingHistoryPage />) },
+            ],
+          },
+          // v2 — 배송 설정 (s9 n58~n60). /settings/shipping 는 별도 트리.
+          {
+            path: 'settings/shipping',
+            children: [
+              { index: true, element: withSuspense(<SettingsShippingPage />) },
+              { path: 'logen', element: withSuspense(<SettingsShippingLogenPage />) },
+              { path: 'sender', element: withSuspense(<SettingsShippingSenderPage />) },
+            ],
+          },
         ],
       },
     ],
