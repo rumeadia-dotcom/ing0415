@@ -1,0 +1,129 @@
+<!--
+  MarketCast — App Chrome (사이드바 + 토픽바) 부분 마크업
+  ---------------------------------------------------------
+  본 파일은 "참조용 마크업 조각" 이다. 각 화면 HTML 의 <body> 내부에
+  복사해 사용한다 (정식 빌드는 React 컴포넌트로 대체될 예정).
+
+  사용 화면:
+    - dashboard / register / markets / history / settings (Wave 2 이후)
+  사용 안 함:
+    - auth/*.html (login/signup/forgot-password/reset-password) → 사이드바 없는 전체 화면
+
+  필요한 CSS: ../_shared/styles.css
+  필요한 아이콘 sprite: ../_shared/icons.svg
+
+  data-sidebar="collapsed" 를 .app-shell 에 부여하면 사이드바가 64px 로 축소됨.
+  모바일(≤767px) 에서는 사이드바가 자동 숨김 → 햄버거 버튼 클릭 시
+  .sidebar 에 .drawer-open 클래스 추가 (JS 미구현, 정식 앱에서 처리).
+
+  접근성:
+    - 사이드바 nav: role="navigation" aria-label="주요 메뉴"
+    - 현재 페이지 nav-item: aria-current="page" + .active
+    - 햄버거 버튼: aria-label="메뉴 열기" / aria-expanded
+    - 테마 토글: aria-label 동적 ("테마 변경: 현재 라이트 모드")
+-->
+
+<div class="app-shell" data-sidebar="expanded">
+
+  <!-- ============================================================
+       사이드바
+       ============================================================ -->
+  <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+
+    <!-- 브랜드 -->
+    <div class="sidebar-brand">
+      <div class="sidebar-logo" aria-hidden="true">M</div>
+      <div class="sidebar-name">
+        MarketCast
+        <small>v1</small>
+      </div>
+    </div>
+
+    <!-- 메인 메뉴 -->
+    <nav class="sidebar-nav">
+      <div class="sidebar-group-label">메인</div>
+
+      <a href="../dashboard/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+        <span>대시보드</span>
+      </a>
+
+      <a href="../register/step-1-info.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+        <span>상품 등록</span>
+      </a>
+
+      <a href="../markets/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+        <span>마켓 계정</span>
+      </a>
+
+      <a href="../history/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+        <span>등록 이력</span>
+      </a>
+
+      <!-- 보조 메뉴 — v0 흔적, v1 비활성 -->
+      <div class="sidebar-group-label">보조</div>
+
+      <a href="../settings/index.html" class="nav-item">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+        <span>설정</span>
+      </a>
+
+      <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+        <span>도움말</span>
+      </a>
+    </nav>
+
+    <!-- 사이드바 푸터 (사용자) -->
+    <div class="sidebar-footer">
+      <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+        <span class="avatar" aria-hidden="true">JH</span>
+        <div style="min-width:0; flex:1;">
+          <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">안준형</div>
+          <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+        </div>
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- ============================================================
+       메인 영역 (토픽바 + 콘텐츠)
+       ============================================================ -->
+  <div class="main-area">
+
+    <!-- 토픽바 -->
+    <header class="topbar">
+      <!-- 모바일 햄버거 -->
+      <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+      </button>
+
+      <div class="topbar-title">대시보드</div>
+
+      <div class="spacer"></div>
+
+      <!-- 알림 -->
+      <button type="button" class="icon-btn" aria-label="알림 열기">
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+      </button>
+
+      <!-- 테마 토글 (3-state: light/dark/system) -->
+      <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+        <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+      </button>
+    </header>
+
+    <!-- 콘텐츠 슬롯 — 각 페이지가 여기에 본문을 작성 -->
+    <main class="main-content">
+      <!-- PAGE CONTENT HERE -->
+      <h1 class="t-h1">페이지 콘텐츠 자리</h1>
+      <p class="t-body t-muted">각 화면 HTML 에서 이 영역을 자체 마크업으로 대체한다.</p>
+    </main>
+
+  </div>
+
+</div>

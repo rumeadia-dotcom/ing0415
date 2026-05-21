@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MarketCast — 다중 마켓 상품 자동 등록 SaaS. 신규 마켓 연결">
+  <meta name="robots" content="noindex,nofollow">
+  <title>신규 마켓 연결 — MarketCast</title>
+  <link rel="stylesheet" href="../_shared/styles.css">
+
+  <!--
+    s5 신규 마켓 선택 (n36, v1)
+    -----------------------------------------------------------
+    5개 마켓 카탈로그 (2026-05-19 5마켓 MVP 확장):
+      - 활성 (v1):    네이버 / 쿠팡 / G마켓 / 옥션 — 4개
+      - 비활성 (v2):  11번가 — "오픈 준비중"
+        (Edge Function outbound IP 정책 충돌로 v2 이관, OQ-09)
+
+    각 카드:
+      - 색상: market-tile.<id> (브랜드 컬러 토큰)
+      - 활성 카드: 클릭 → /markets/connect/:provider
+        · naver       = connect-provider.html (OAuth)
+        · coupang     = connect-coupang.html (HMAC 폼)
+        · gmarket     = connect-gmarket.html (ESM JWT 폼, site=G)
+        · auction     = connect-auction.html (ESM JWT 폼, site=A)
+      - 비활성 카드: aria-disabled, "오픈 준비중" 라벨, hover 시 변화 없음
+
+    상태 4종:
+      - data:    이 HTML
+      - loading: 카탈로그는 상수라 발생 안 함
+      - error:   alert-error 배너 (주석)
+      - empty:   상수라 발생 안 함
+  -->
+
+  <!-- Wave 5: 페이지 로컬 <style> 블록 제거 — 모든 클래스는 ../_shared/styles.css 로 이전. -->
+
+</head>
+<body>
+
+  <div class="app-shell" data-sidebar="expanded">
+
+    <aside class="sidebar" role="navigation" aria-label="주요 메뉴">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">M</div>
+        <div class="sidebar-name">MarketCast<small>v1</small></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="sidebar-group-label">메인</div>
+        <a href="../dashboard/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-home"/></svg>
+          <span>대시보드</span>
+        </a>
+        <a href="../register/step-1-info.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-package"/></svg>
+          <span>상품 등록</span>
+        </a>
+        <a href="../markets/index.html" class="nav-item active" aria-current="page">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-link"/></svg>
+          <span>마켓 계정</span>
+        </a>
+        <a href="../history/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-history"/></svg>
+          <span>등록 이력</span>
+        </a>
+        <div class="sidebar-group-label">보조</div>
+        <a href="../settings/index.html" class="nav-item">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-settings"/></svg>
+          <span>설정</span>
+        </a>
+        <a href="#" class="nav-item disabled" aria-disabled="true" tabindex="-1" title="v2 예정">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-help"/></svg>
+          <span>도움말</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="user-chip" aria-label="사용자 메뉴 열기">
+          <span class="avatar" aria-hidden="true">KM</span>
+          <div style="min-width:0; flex:1;">
+            <div class="t-sm" style="font-weight:600; color:var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">김셀러</div>
+            <div class="t-xs t-subtle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">jhan@konai.com</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-menu"/></svg>
+        </button>
+        <div class="topbar-title">신규 마켓 연결</div>
+        <div class="spacer"></div>
+        <button type="button" class="icon-btn" aria-label="알림 열기">
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-bell"/></svg>
+        </button>
+        <button type="button" class="icon-btn" aria-label="테마 변경: 현재 라이트 모드" data-theme-toggle>
+          <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-sun"/></svg>
+        </button>
+      </header>
+
+      <main class="main-content" aria-labelledby="page-title">
+
+        <!-- 페이지 헤더 -->
+        <div class="page-header">
+          <a href="./index.html" class="back-btn" aria-label="마켓 계정 목록으로 돌아가기">
+            <svg class="nav-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-arrow-left"/></svg>
+          </a>
+          <div>
+            <h1 id="page-title">신규 마켓 연결</h1>
+            <p>연결할 마켓을 선택해 주세요 · v1 은 네이버 / 쿠팡 / G마켓 / 옥션을 지원합니다 (11번가는 오픈 준비중)</p>
+          </div>
+        </div>
+
+        <!-- 안내 alert -->
+        <div class="alert alert-info" role="note" style="margin-bottom: var(--sp-5);">
+          <svg class="alert-icon" aria-hidden="true"><use href="../_shared/icons.svg#i-info"/></svg>
+          <div class="alert-body">
+            <p class="alert-title">마켓별 인증 방식이 다릅니다</p>
+            <p class="alert-message">
+              네이버는 OAuth 2.0 으로 마켓 로그인 페이지를 거치며, 쿠팡·G마켓·옥션은
+              마켓 어드민에서 발급한 API 키를 입력합니다. 어떤 방식이든 마켓 비밀번호는
+              MarketCast 에 전달되지 않고, 입력값은 암호화되어 보관됩니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             1차 영역: 마켓 카탈로그 그리드 (5개)
+             ============================================================ -->
+        <section class="catalog-grid" aria-label="지원 마켓 5종">
+
+          <!-- 네이버 스마트스토어 (활성) -->
+          <a href="./connect-provider.html?provider=naver" class="catalog-card" aria-label="네이버 스마트스토어 연결하기">
+            <span class="catalog-tile naver" aria-hidden="true">N</span>
+            <h2 class="catalog-name">네이버 스마트스토어</h2>
+            <p class="catalog-sub">상품 등록·수정<br>카테고리 동기화</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
+
+          <!-- 쿠팡 (활성 v1 — HMAC 인증, 2026-05-19 5마켓 MVP 확장) -->
+          <a href="./connect-coupang.html" class="catalog-card" aria-label="쿠팡 연결하기 (API 키 입력)">
+            <span class="catalog-tile coupang" aria-hidden="true">C</span>
+            <h2 class="catalog-name">쿠팡</h2>
+            <p class="catalog-sub">API 키 입력<br>HMAC 인증</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
+
+          <!-- G마켓 (활성 v1 — ESM JWT, site=G) -->
+          <a href="./connect-gmarket.html" class="catalog-card" aria-label="G마켓 연결하기 (ESM 키 입력)">
+            <span class="catalog-tile gmarket" aria-hidden="true">G</span>
+            <h2 class="catalog-name">G마켓</h2>
+            <p class="catalog-sub">ESM 키 입력<br>JWT 인증</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
+
+          <!-- 옥션 (활성 v1 — ESM JWT, site=A) -->
+          <a href="./connect-auction.html" class="catalog-card" aria-label="옥션 연결하기 (ESM 키 입력)">
+            <span class="catalog-tile auction" aria-hidden="true">A</span>
+            <h2 class="catalog-name">옥션</h2>
+            <p class="catalog-sub">ESM 키 입력<br>JWT 인증</p>
+            <span class="btn btn-primary catalog-action">연결하기</span>
+          </a>
+
+          <!-- 11번가 (v2 비활성 — Edge Function outbound IP 정책 충돌, OQ-09) -->
+          <div class="catalog-card disabled" aria-disabled="true" role="article" aria-label="11번가 — 오픈 준비중, 현재 사용 불가">
+            <span class="catalog-tile eleventh" aria-hidden="true">11</span>
+            <h2 class="catalog-name">11번가</h2>
+            <p class="catalog-sub"><span class="badge">오픈 준비중</span></p>
+            <span class="btn btn-secondary catalog-action" aria-disabled="true">오픈 준비중</span>
+          </div>
+
+        </section>
+
+        <p class="t-xs t-subtle text-center mt-6">
+          11번가 오픈 알림을 받고 싶다면? <a href="#">알림 신청 →</a>
+        </p>
+
+      </main>
+    </div>
+  </div>
+
+</body>
+</html>
