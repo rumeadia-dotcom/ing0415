@@ -15,7 +15,7 @@ export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(f
     <div
       ref={ref}
       className={cn(
-        'rounded-[12px] border border-[oklch(0.92_0.008_75)] bg-white text-[oklch(0.15_0.015_60)]',
+        'rounded-[12px] border border-border bg-white text-ink',
         className,
       )}
       {...props}
@@ -41,7 +41,7 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
       <h3
         ref={ref}
         className={cn(
-          'text-[16px] font-bold leading-tight tracking-tight text-[oklch(0.15_0.015_60)]',
+          'text-[16px] font-bold leading-tight tracking-tight text-ink',
           className,
         )}
         {...props}
@@ -57,7 +57,7 @@ export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<H
     return (
       <p
         ref={ref}
-        className={cn('text-[12px] text-[oklch(0.68_0.01_60)]', className)}
+        className={cn('text-[12px] text-faint', className)}
         {...props}
       />
     )

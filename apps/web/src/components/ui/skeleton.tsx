@@ -18,7 +18,7 @@ export const Skeleton = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
         ref={ref}
         aria-hidden="true"
         className={cn(
-          'animate-pulse rounded-[8px] bg-[oklch(0.985_0.006_75)] border border-[oklch(0.92_0.008_75)]',
+          'animate-pulse rounded-[8px] bg-card-2 border border-border',
           className,
         )}
         {...props}

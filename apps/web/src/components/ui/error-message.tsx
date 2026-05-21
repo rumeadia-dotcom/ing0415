@@ -39,8 +39,8 @@ export function ErrorMessage({
       className={cn(
         'flex flex-col gap-1 rounded-[10px] border px-3 py-2.5 text-[13px]',
         tone === 'error'
-          ? 'border-[oklch(0.55_0.16_25_/_0.30)] bg-[oklch(0.95_0.03_25)] text-[oklch(0.55_0.16_25)]'
-          : 'border-[oklch(0.62_0.12_70_/_0.30)] bg-[oklch(0.95_0.04_75)] text-[oklch(0.62_0.12_70)]',
+          ? 'border-danger/30 bg-danger-soft text-danger'
+          : 'border-warning/30 bg-warning-soft text-warning',
         className,
       )}
     >
@@ -53,7 +53,7 @@ export function ErrorMessage({
             aria-controls={detailsId}
             onClick={() => setOpen((v) => !v)}
             className={cn(
-              'self-start text-[12px] font-semibold text-[oklch(0.62_0.14_55)]',
+              'self-start text-[12px] font-semibold text-accent',
               'underline-offset-2 hover:underline',
               'focus-visible:outline-none focus-visible:underline',
             )}
@@ -65,7 +65,7 @@ export function ErrorMessage({
               id={detailsId}
               className={cn(
                 'mt-1 max-h-48 overflow-auto rounded-[8px] px-2.5 py-2',
-                'bg-[oklch(0.985_0.006_75)] text-[11.5px] text-[oklch(0.48_0.012_60)]',
+                'bg-card-2 text-[11.5px] text-dim',
                 'font-mono whitespace-pre-wrap break-words',
               )}
               style={{ fontFamily: 'ui-monospace, "JetBrains Mono", monospace' }}

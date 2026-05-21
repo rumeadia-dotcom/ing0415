@@ -32,42 +32,42 @@ const badgeVariants = cva(
     'inline-flex items-center gap-1.5 rounded-full',
     'px-[10px] py-[4px] text-[12px] font-semibold',
     'transition-colors whitespace-nowrap',
-    'focus:outline-none focus:ring-2 focus:ring-[oklch(0.62_0.14_55_/_0.4)] focus:ring-offset-2',
+    'focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2',
   ],
   {
     variants: {
       variant: {
         default:
-          'bg-[oklch(0.985_0.006_75)] text-[oklch(0.48_0.012_60)] border border-[oklch(0.92_0.008_75)]',
+          'bg-card-2 text-dim border border-border',
         secondary:
-          'bg-white text-[oklch(0.15_0.015_60)] border border-[oklch(0.92_0.008_75)]',
+          'bg-white text-ink border border-border',
         success:
-          'bg-[oklch(0.95_0.03_160)] text-[oklch(0.55_0.10_160)]',
+          'bg-success-soft text-success',
         warning:
-          'bg-[oklch(0.95_0.04_75)] text-[oklch(0.62_0.12_70)]',
+          'bg-warning-soft text-warning',
         danger:
-          'bg-[oklch(0.95_0.03_25)] text-[oklch(0.55_0.16_25)]',
+          'bg-danger-soft text-danger',
         info:
-          'bg-[oklch(0.95_0.025_235)] text-[oklch(0.55_0.10_235)]',
+          'bg-info-soft text-info',
         accent:
-          'bg-[oklch(0.94_0.04_65)] text-[oklch(0.62_0.14_55)]',
+          'bg-accent-soft text-accent',
         neutral:
-          'bg-[oklch(0.985_0.006_75)] text-[oklch(0.68_0.01_60)]',
+          'bg-card-2 text-faint',
         // RegistrationJob 상태 별칭 (의도 명확화)
         'status-pending':
-          'bg-[oklch(0.985_0.006_75)] text-[oklch(0.68_0.01_60)]',
+          'bg-card-2 text-faint',
         'status-running':
-          'bg-[oklch(0.95_0.025_235)] text-[oklch(0.55_0.10_235)]',
+          'bg-info-soft text-info',
         'status-partial':
-          'bg-[oklch(0.95_0.04_75)] text-[oklch(0.62_0.12_70)]',
+          'bg-warning-soft text-warning',
         'status-succeeded':
-          'bg-[oklch(0.95_0.03_160)] text-[oklch(0.55_0.10_160)]',
+          'bg-success-soft text-success',
         'status-failed':
-          'bg-[oklch(0.95_0.03_25)] text-[oklch(0.55_0.16_25)]',
+          'bg-danger-soft text-danger',
         'status-retrying':
-          'bg-[oklch(0.95_0.025_235)] text-[oklch(0.55_0.10_235)]',
+          'bg-info-soft text-info',
         'status-cancelled':
-          'bg-[oklch(0.985_0.006_75)] text-[oklch(0.68_0.01_60)]',
+          'bg-card-2 text-faint',
       },
       size: {
         sm: 'text-[11px] px-2 py-[2px]',
@@ -88,36 +88,39 @@ export interface BadgeProps
   withDot?: boolean
 }
 
-const DOT_COLOR_BY_VARIANT: Record<string, string> = {
-  success: 'oklch(0.55 0.10 160)',
-  warning: 'oklch(0.62 0.12 70)',
-  danger: 'oklch(0.55 0.16 25)',
-  info: 'oklch(0.55 0.10 235)',
-  accent: 'oklch(0.62 0.14 55)',
-  neutral: 'oklch(0.68 0.01 60)',
-  default: 'oklch(0.48 0.012 60)',
-  secondary: 'oklch(0.48 0.012 60)',
-  'status-pending': 'oklch(0.68 0.01 60)',
-  'status-running': 'oklch(0.55 0.10 235)',
-  'status-partial': 'oklch(0.62 0.12 70)',
-  'status-succeeded': 'oklch(0.55 0.10 160)',
-  'status-failed': 'oklch(0.55 0.16 25)',
-  'status-retrying': 'oklch(0.55 0.10 235)',
-  'status-cancelled': 'oklch(0.68 0.01 60)',
+/**
+ * Dot color는 globals.css 의 CSS 변수를 직접 참조해 light/dark 자동 전환.
+ * 인라인 style 대신 className 으로 처리하기 위해 Tailwind named token (bg-success / bg-warning ...) 사용.
+ */
+const DOT_BG_CLASS_BY_VARIANT: Record<string, string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  info: 'bg-info',
+  accent: 'bg-accent',
+  neutral: 'bg-faint',
+  default: 'bg-dim',
+  secondary: 'bg-dim',
+  'status-pending': 'bg-faint',
+  'status-running': 'bg-info',
+  'status-partial': 'bg-warning',
+  'status-succeeded': 'bg-success',
+  'status-failed': 'bg-danger',
+  'status-retrying': 'bg-info',
+  'status-cancelled': 'bg-faint',
 }
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
   { className, variant, size, withDot = false, children, ...props },
   ref,
 ) {
-  const dotColor = DOT_COLOR_BY_VARIANT[variant ?? 'default'] ?? 'oklch(0.48 0.012 60)'
+  const dotBg = DOT_BG_CLASS_BY_VARIANT[variant ?? 'default'] ?? 'bg-dim'
   return (
     <span ref={ref} className={cn(badgeVariants({ variant, size, className }))} {...props}>
       {withDot ? (
         <span
           aria-hidden="true"
-          className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-          style={{ backgroundColor: dotColor }}
+          className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', dotBg)}
         />
       ) : null}
       {children}

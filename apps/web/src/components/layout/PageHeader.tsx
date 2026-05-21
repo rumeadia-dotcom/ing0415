@@ -28,7 +28,7 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
         // 본문 max-width 컨테이너 안에서 사용되는 패턴 (v1) — 좌우 패딩은 부모(main / PageBody / max-width wrapper) 가 제공.
         // Studio 셸의 full-width border-bottom 패턴은 도메인 PR(04-10) 에서 PageHeader 를 max-width wrapper 외부로 이동시킬 때 자연스럽게 달성.
         'mb-5 flex items-start justify-between gap-4 pb-[18px]',
-        'border-b border-[oklch(0.92_0.008_75)] dark:border-[oklch(0.28_0.01_60)]',
+        'border-b border-border',
         className,
       )}
     >
@@ -37,7 +37,7 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
           className={cn(
             'truncate text-[22px] font-bold leading-tight tracking-[-0.02em]',
             'md:text-[26px]',
-            'text-[oklch(0.15_0.015_60)] dark:text-[oklch(0.95_0.008_75)]',
+            'text-ink',
           )}
         >
           {title}
@@ -46,7 +46,7 @@ export function PageHeader({ title, subtitle, actions, className }: PageHeaderPr
           <p
             className={cn(
               'mt-1 text-[13.5px] leading-snug',
-              'text-[oklch(0.48_0.012_60)] dark:text-[oklch(0.78_0.01_60)]',
+              'text-dim',
             )}
           >
             {subtitle}

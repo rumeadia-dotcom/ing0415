@@ -31,15 +31,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ref={ref}
       className={cn(
         'flex w-full rounded-[10px]',
-        'border border-[oklch(0.85_0.01_75)] bg-white',
+        'border border-border-strong bg-white',
         'px-3 py-[10px]',
-        'text-[16px] md:text-[13.5px] text-[oklch(0.15_0.015_60)] placeholder:text-[oklch(0.68_0.01_60)]',
+        'text-[16px] md:text-[13.5px] text-ink placeholder:text-faint',
         'transition-colors outline-none',
         'file:border-0 file:bg-transparent file:text-sm file:font-medium',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:border-[oklch(0.62_0.14_55)]',
-        'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[oklch(0.985_0.006_75)]',
-        'aria-[invalid=true]:border-[1.5px] aria-[invalid=true]:border-[oklch(0.55_0.16_25)]',
-        'aria-[invalid=true]:focus-visible:ring-[oklch(0.55_0.16_25_/_0.4)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:border-accent',
+        'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-card-2',
+        'aria-[invalid=true]:border-[1.5px] aria-[invalid=true]:border-danger',
+        'aria-[invalid=true]:focus-visible:ring-danger/40',
         className,
       )}
       style={{ fontFamily: 'inherit' }}

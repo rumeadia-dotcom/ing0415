@@ -39,11 +39,11 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       }}
       className={cn(
         'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(0.975_0.008_75)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
         'disabled:cursor-not-allowed disabled:opacity-50',
         checked
-          ? 'bg-[oklch(0.55_0.10_160)]'
-          : 'bg-[oklch(0.92_0.008_75)] border border-[oklch(0.85_0.01_75)]',
+          ? 'bg-success'
+          : 'bg-border border border-border-strong',
         className,
       )}
       {...rest}

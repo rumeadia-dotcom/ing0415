@@ -10,11 +10,11 @@ import type { MarketId } from '@/lib/schemas/common'
  */
 
 const MARKET_BG: Record<MarketId, string> = {
-  naver: 'bg-[oklch(0.62_0.16_152)]',
-  coupang: 'bg-[oklch(0.60_0.21_22)]',
-  gmarket: 'bg-[oklch(0.58_0.14_175)]',
-  auction: 'bg-[oklch(0.62_0.19_38)]',
-  '11st': 'bg-[oklch(0.60_0.22_0)]',
+  naver: 'bg-market-naver',
+  coupang: 'bg-market-coupang',
+  gmarket: 'bg-market-gmarket',
+  auction: 'bg-market-auction',
+  '11st': 'bg-market-eleventh',
 }
 
 const MARKET_INITIAL: Record<MarketId, string> = {

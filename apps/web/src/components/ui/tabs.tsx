@@ -23,7 +23,7 @@ export const TabsList = forwardRef<
       ref={ref}
       className={cn(
         'inline-flex h-10 items-center justify-start gap-1',
-        'border-b border-[oklch(0.92_0.008_75)]',
+        'border-b border-border',
         className,
       )}
       {...props}
@@ -42,13 +42,13 @@ export const TabsTrigger = forwardRef<
         'inline-flex items-center justify-center whitespace-nowrap',
         'px-4 py-2 text-[13.5px] font-semibold',
         '-mb-[1px] border-b-2 border-transparent',
-        'text-[oklch(0.48_0.012_60)]',
+        'text-dim',
         'transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-t-[6px]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-t-[6px]',
         'disabled:pointer-events-none disabled:opacity-50',
-        'hover:text-[oklch(0.15_0.015_60)]',
-        'data-[state=active]:text-[oklch(0.15_0.015_60)]',
-        'data-[state=active]:border-b-[oklch(0.62_0.14_55)]',
+        'hover:text-ink',
+        'data-[state=active]:text-ink',
+        'data-[state=active]:border-b-accent',
         className,
       )}
       {...props}
@@ -65,7 +65,7 @@ export const TabsContent = forwardRef<
       ref={ref}
       className={cn(
         'mt-4',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-[8px]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-[8px]',
         className,
       )}
       {...props}

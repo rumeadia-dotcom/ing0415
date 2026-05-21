@@ -62,7 +62,7 @@ export function Header(): JSX.Element {
           'sticky top-0 z-30 flex h-12 items-center gap-2',
           'px-3 md:px-[30px]',
           // Studio bg, no border (PageHeader carries border-bottom)
-          'bg-[oklch(0.975_0.008_75)] dark:bg-[oklch(0.18_0.01_60)]',
+          'bg-bg',
         )}
       >
         <div className="md:hidden">

@@ -159,18 +159,18 @@ function V2PlaceholderCard(): JSX.Element {
   return (
     <Card
       data-feature="market-stats-v2"
-      className="rounded-[14px] border-dashed border-[oklch(0.85_0.01_75)] bg-[oklch(0.985_0.006_75)] opacity-70"
+      className="rounded-[14px] border-dashed border-border-strong bg-card-2 opacity-70"
     >
       <CardHeader className="px-4 py-4 pb-2">
-        <CardTitle className="text-[13.5px] font-bold text-[oklch(0.48_0.012_60)]">
+        <CardTitle className="text-[13.5px] font-bold text-dim">
           마켓별 통계 — v2
         </CardTitle>
-        <CardDescription className="text-[11.5px] text-[oklch(0.68_0.01_60)]">
+        <CardDescription className="text-[11.5px] text-faint">
           마켓별 성공률·평균 소요·실패 유형 차트가 v2 에서 추가됩니다.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
-        <p className="text-[11px] text-[oklch(0.68_0.01_60)]">자리만 비워두었습니다.</p>
+        <p className="text-[11px] text-faint">자리만 비워두었습니다.</p>
       </CardContent>
     </Card>
   )

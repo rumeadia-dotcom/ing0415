@@ -104,7 +104,7 @@ export function LoginPage(): JSX.Element {
               value="email"
               className={cn(
                 studioClass.tabInactive,
-                'data-[state=active]:!bg-white data-[state=active]:!text-[oklch(0.15_0.015_60)] data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+                'data-[state=active]:!bg-white data-[state=active]:!text-ink data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
               )}
             >
               {ko.auth.login.tabEmail}
@@ -113,7 +113,7 @@ export function LoginPage(): JSX.Element {
               value="social"
               className={cn(
                 studioClass.tabInactive,
-                'data-[state=active]:!bg-white data-[state=active]:!text-[oklch(0.15_0.015_60)] data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+                'data-[state=active]:!bg-white data-[state=active]:!text-ink data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
               )}
             >
               {ko.auth.login.tabSocial}
@@ -162,7 +162,7 @@ export function LoginPage(): JSX.Element {
                   </Label>
                   <Link
                     to="/forgot-password"
-                    className="text-[11.5px] font-semibold text-[oklch(0.62_0.14_55)] hover:underline underline-offset-2"
+                    className="text-[11.5px] font-semibold text-accent hover:underline underline-offset-2"
                   >
                     {ko.auth.login.forgot}
                   </Link>
@@ -229,7 +229,7 @@ export function LoginPage(): JSX.Element {
             <div
               className={cn(
                 studioClass.card2,
-                'px-4 py-7 text-center text-[13px] text-[oklch(0.48_0.012_60)]',
+                'px-4 py-7 text-center text-[13px] text-dim',
               )}
               role="note"
             >

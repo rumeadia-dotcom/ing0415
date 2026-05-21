@@ -174,10 +174,10 @@ export function SignupPage(): JSX.Element {
           </FieldRow>
 
           <div className="space-y-2 pt-1">
-            <label className="flex items-start gap-2 text-[13px] text-[oklch(0.48_0.012_60)]">
+            <label className="flex items-start gap-2 text-[13px] text-dim">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-[oklch(0.85_0.01_60)] accent-[oklch(0.15_0.015_60)]"
+                className="mt-0.5 h-4 w-4 rounded border-border-strong accent-ink"
                 aria-invalid={errors.termsAgreed ? 'true' : 'false'}
                 {...register('termsAgreed')}
               />
@@ -189,10 +189,10 @@ export function SignupPage(): JSX.Element {
               </p>
             ) : null}
 
-            <label className="flex items-start gap-2 text-[13px] text-[oklch(0.48_0.012_60)]">
+            <label className="flex items-start gap-2 text-[13px] text-dim">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-[oklch(0.85_0.01_60)] accent-[oklch(0.15_0.015_60)]"
+                className="mt-0.5 h-4 w-4 rounded border-border-strong accent-ink"
                 {...register('marketingConsent')}
               />
               <span>{ko.auth.signup.marketingOptional}</span>
@@ -273,16 +273,16 @@ function StrengthMeter({
               'h-1 flex-1 rounded',
               i <= info.score
                 ? info.toneClass
-                : 'bg-[oklch(0.92_0.008_75)]',
+                : 'bg-border',
             )}
           />
         ))}
-        <span className="ml-2 text-[11.5px] text-[oklch(0.48_0.012_60)]">
+        <span className="ml-2 text-[11.5px] text-dim">
           {info.label}
         </span>
       </div>
       {info.warnings.length > 0 ? (
-        <ul className="list-disc pl-5 text-[11.5px] text-[oklch(0.68_0.01_60)]">
+        <ul className="list-disc pl-5 text-[11.5px] text-faint">
           {info.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}
@@ -301,8 +301,8 @@ function SignupSuccess({ email }: { email: string }): JSX.Element {
       <Card className={cn(studioClass.card, 'text-center')}>
         {/* 이메일 발송 아이콘 — 봉투 형태의 둥근 ok-circle */}
         <div className="relative mx-auto mb-5 h-[88px] w-[88px]">
-          <div className="absolute inset-0 rounded-full bg-[oklch(0.94_0.05_160)]" />
-          <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-[oklch(0.55_0.10_160)] text-white">
+          <div className="absolute inset-0 rounded-full bg-success-soft" />
+          <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-success text-white">
             <svg
               viewBox="0 0 24 24"
               fill="none"

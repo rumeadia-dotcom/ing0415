@@ -77,8 +77,8 @@ export function ForgotPasswordPage(): JSX.Element {
         </div>
         <Card className={cn(studioClass.card, 'text-center')}>
           <div className="relative mx-auto mb-5 h-[88px] w-[88px]">
-            <div className="absolute inset-0 rounded-full bg-[oklch(0.94_0.05_160)]" />
-            <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-[oklch(0.55_0.10_160)] text-white">
+            <div className="absolute inset-0 rounded-full bg-success-soft" />
+            <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-success text-white">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
