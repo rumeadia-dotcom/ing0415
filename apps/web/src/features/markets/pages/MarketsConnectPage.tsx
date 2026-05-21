@@ -1,68 +1,103 @@
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui'
+import { Card, CardContent } from '@/components/ui'
 import { ko } from '@/locales/ko'
-import { MARKET_IDS, MARKET_CATALOG } from '../types'
+import { MARKET_IDS, MARKET_CATALOG, type MarketId } from '../types'
+import { MarketIdentity } from '../components/MarketIdentity'
 
 /**
  * MarketsConnectPage — n36 진입 (마켓 선택 → 4-way 인증 분기).
  *
- * Wave 3 (2026-05-19 5마켓 MVP 확장):
- *  - v1 활성 4개 (naver / coupang / gmarket / auction) = `[연결 시작]` CTA
- *  - 11번가만 status='coming_soon' = disabled
+ * Studio s5 reference: 5마켓 카드 그리드 (m1-m5) + per-market 인증방식 힌트 + ready CTA / v2 disabled.
  *
- * Stage D 에서 connect 클릭이 실제 mutation 으로 연결. 현재는 라우팅만.
+ *  - v1 활성 4개 (naver / coupang / gmarket / auction) — clickable Link card
+ *  - 11번가 = status='coming_soon' = disabled (v2 예정)
  */
 export function MarketsConnectPage(): JSX.Element {
+  const t = ko.markets.connect
+
   return (
     <div className="mx-auto w-full max-w-[960px]">
-      <PageHeader
-        title="마켓 연결"
-        subtitle="연결할 마켓을 선택하세요. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4종. 11번가는 오픈 준비중."
-      />
-      <div className="grid gap-3 md:grid-cols-2">
-        {MARKET_IDS.map((id) => {
-          const entry = MARKET_CATALOG[id]
-          const isReady = entry.status === 'ready'
-          const authHint =
-            entry.authMode === 'oauth'
-              ? 'OAuth 2.0 인증 (마켓 로그인 페이지로 이동)'
-              : entry.authMode === 'hmac'
-                ? 'API 키 입력 (Access / Secret / Vendor ID)'
-                : entry.authMode === 'esm_jwt'
-                  ? 'ESM 키 입력 (Master ID / Secret / Seller ID)'
-                  : ko.marketStatus.coming_soon
-          return (
-            <Card key={id}>
-              <CardHeader>
-                <CardTitle>{entry.label}</CardTitle>
-                <CardDescription>
-                  {isReady ? authHint : `${ko.marketStatus.coming_soon} (v2 예정)`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isReady ? (
-                  <Button asChild variant="primary">
-                    <Link to={`/markets/connect/${id}`}>연결 시작</Link>
-                  </Button>
-                ) : (
-                  <Button disabled aria-disabled>
-                    오픈 준비중
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+      <Breadcrumb />
+      <PageHeader title={t.pageTitle} subtitle={t.pageSubtitle} />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {MARKET_IDS.map((id) => (
+          <MarketSelectCard key={id} marketId={id} />
+        ))}
       </div>
     </div>
+  )
+}
+
+function Breadcrumb(): JSX.Element {
+  return (
+    <nav aria-label="breadcrumb" className="mb-3 flex items-center gap-1.5 text-xs text-text-tertiary">
+      <Link to="/markets" className="hover:text-text">
+        {ko.markets.connect.breadcrumb.markets}
+      </Link>
+      <span aria-hidden>›</span>
+      <span className="font-semibold text-text">{ko.markets.connect.breadcrumb.new}</span>
+    </nav>
+  )
+}
+
+function MarketSelectCard({ marketId }: { marketId: MarketId }): JSX.Element {
+  const entry = MARKET_CATALOG[marketId]
+  const isReady = entry.status === 'ready'
+  const t = ko.markets.connect
+  const authHint = t.authHint[entry.authMode]
+
+  const inner = (
+    <Card
+      className={
+        isReady
+          ? 'group h-full transition-colors hover:border-accent hover:bg-accent-soft/40'
+          : 'h-full opacity-60'
+      }
+    >
+      <CardContent className="flex h-full flex-col gap-3 p-5">
+        <div className="flex items-start gap-3">
+          <MarketIdentity marketId={marketId} size="lg" />
+          <div className="flex-1">
+            <div className="text-base font-bold text-text">{entry.label}</div>
+            <p className="mt-0.5 text-[12px] text-text-tertiary">{authHint}</p>
+          </div>
+        </div>
+        <div className="mt-auto flex items-center justify-end pt-2">
+          {isReady ? (
+            <span className="text-sm font-semibold text-accent group-hover:underline">
+              {t.cardCta}
+            </span>
+          ) : (
+            <span className="rounded-md bg-surface-subtle px-2 py-1 text-[11px] font-semibold text-text-tertiary">
+              {t.cardCtaDisabled}
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  if (!isReady) {
+    return (
+      <div
+        aria-disabled
+        role="group"
+        aria-label={`${entry.label} ${t.cardCtaDisabled}`}
+        className="cursor-not-allowed"
+      >
+        {inner}
+      </div>
+    )
+  }
+  return (
+    <Link
+      to={`/markets/connect/${marketId}`}
+      className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      {inner}
+    </Link>
   )
 }
 

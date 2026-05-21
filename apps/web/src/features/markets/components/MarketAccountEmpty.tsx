@@ -1,29 +1,35 @@
 import { Link } from 'react-router-dom'
 import { Button, Card, CardContent } from '@/components/ui'
+import { ko } from '@/locales/ko'
+import { MARKET_IDS, MARKET_CATALOG } from '../types'
+import { MarketIdentity } from './MarketIdentity'
 
 /**
- * 연결된 마켓 0개 일 때 보여주는 empty state CTA.
- * markets.md §8.
+ * 연결된 마켓 0개 일 때의 empty state.
+ * Studio s5 톤: 큰 카드 + identity 행 미리보기 + 큰 CTA + 보조 힌트.
  */
 export function MarketAccountEmpty(): JSX.Element {
   return (
     <Card>
-      <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-        <div
-          aria-hidden
-          className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-muted text-3xl"
-        >
-          🔌
+      <CardContent className="flex flex-col items-center gap-5 px-6 py-12 text-center">
+        <div className="flex items-center gap-2 rounded-xl bg-surface-subtle px-4 py-3">
+          {MARKET_IDS.map((id) => (
+            <MarketIdentity
+              key={id}
+              marketId={id}
+              size="md"
+              className={MARKET_CATALOG[id].status === 'coming_soon' ? 'opacity-40' : ''}
+            />
+          ))}
         </div>
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-text">아직 연결된 마켓이 없습니다.</h3>
-          <p className="text-sm text-text-secondary">
-            상품을 등록하려면 먼저 1개 이상의 마켓 계정을 연결하세요.
-          </p>
+        <div className="space-y-1.5">
+          <h3 className="text-lg font-bold text-text">{ko.markets.empty.title}</h3>
+          <p className="text-sm text-text-secondary">{ko.markets.empty.body}</p>
         </div>
-        <Button asChild variant="primary">
-          <Link to="/markets/connect">+ 첫 마켓 연결하기</Link>
+        <Button asChild variant="primary" size="lg">
+          <Link to="/markets/connect">{ko.markets.empty.cta}</Link>
         </Button>
+        <p className="text-[12px] text-text-tertiary">{ko.markets.empty.hint}</p>
       </CardContent>
     </Card>
   )

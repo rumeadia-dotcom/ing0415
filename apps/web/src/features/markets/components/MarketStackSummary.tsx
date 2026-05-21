@@ -1,48 +1,102 @@
-import { MARKET_IDS, type MarketId } from '../types'
+import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui'
+import { ko } from '@/locales/ko'
+import { MARKET_IDS, MARKET_CATALOG, type MarketId } from '../types'
+import { MarketIdentity } from './MarketIdentity'
 import type { MarketAccount } from '@/lib/schemas/markets-feature'
-
-// prototype data.js 출처 brand color (markets.md §7.2). 라이트/다크 공통.
-const BRAND_COLOR: Record<MarketId, string> = {
-  naver: '#03C75A',
-  coupang: '#F11F44',
-  gmarket: '#00B147',
-  auction: '#E73936',
-  '11st': '#FF0038',
-}
 
 interface MarketStackSummaryProps {
   accounts: MarketAccount[]
 }
 
 /**
- * 5마켓 brand color 점 + "N/5 연결됨" 헤더.
- * markets.md §7.1 의 MarketStackSummary.
+ * 마켓 계정 페이지 상단 요약 스트립.
+ * Studio s5 reference: studio-domains.jsx StudioMarkets — 좌 "N/4" + 가운데 마켓 identity 행 + 우 신규 연결 CTA.
  *
- * - 연결된 마켓은 active 색상, 그렇지 않으면 grayscale (opacity).
+ * 활성/만료/오류/v2예정 카운터를 함께 노출하여 한 눈에 상태 파악 가능.
+ * - "활성"의 base 는 v1 정식 마켓 4 (네이버/쿠팡/G마켓/옥션). 11번가는 v2 카운트로 분리.
  */
 export function MarketStackSummary({ accounts }: MarketStackSummaryProps): JSX.Element {
-  const activeMarkets = new Set(
-    accounts.filter((a) => a.status === 'active' || a.status === 'expired' || a.status === 'error').map((a) => a.marketId),
+  const t = ko.markets.summary
+  const READY_MARKETS = MARKET_IDS.filter((id) => MARKET_CATALOG[id].status === 'ready')
+  const COMING_SOON_MARKETS = MARKET_IDS.filter(
+    (id) => MARKET_CATALOG[id].status === 'coming_soon',
   )
-  const connectedCount = activeMarkets.size
+
+  const activeMarketIds = new Set<MarketId>(
+    accounts.filter((a) => a.status === 'active').map((a) => a.marketId),
+  )
+  const expiringIds = new Set<MarketId>(
+    accounts.filter((a) => a.status === 'expired').map((a) => a.marketId),
+  )
+  const errorIds = new Set<MarketId>(
+    accounts.filter((a) => a.status === 'error').map((a) => a.marketId),
+  )
 
   return (
-    <div className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-surface-muted px-4 py-3">
-      <div className="flex items-center gap-1.5" aria-hidden>
-        {MARKET_IDS.map((id) => (
-          <span
-            key={id}
-            className="inline-block h-3 w-3 rounded-full"
-            style={{
-              backgroundColor: BRAND_COLOR[id],
-              opacity: activeMarkets.has(id) ? 1 : 0.25,
-            }}
-          />
-        ))}
+    <section
+      aria-label={t.countersAria}
+      className="mb-4 grid grid-cols-1 gap-4 rounded-2xl border border-border bg-surface px-5 py-4 lg:grid-cols-[auto,1fr,auto] lg:items-center lg:gap-6"
+    >
+      {/* 좌: N/4 */}
+      <div>
+        <div className="text-xs font-semibold text-text-tertiary">{t.connectedHeading}</div>
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <span className="text-3xl font-bold leading-none tracking-tight text-text">
+            {activeMarketIds.size}
+          </span>
+          <span className="text-sm font-semibold text-text-tertiary">
+            / {READY_MARKETS.length}
+          </span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium">
+          {activeMarketIds.size > 0 && (
+            <span className="text-success-on-soft">{t.activeCount(activeMarketIds.size)}</span>
+          )}
+          {expiringIds.size > 0 && (
+            <span className="text-warning-on-soft">{t.expiringCount(expiringIds.size)}</span>
+          )}
+          {errorIds.size > 0 && (
+            <span className="text-danger-on-soft">{t.errorCount(errorIds.size)}</span>
+          )}
+          {COMING_SOON_MARKETS.length > 0 && (
+            <span className="text-text-tertiary">
+              {t.comingSoonCount(COMING_SOON_MARKETS.length)}
+            </span>
+          )}
+        </div>
       </div>
-      <p className="text-sm text-text">
-        <strong className="font-semibold">{connectedCount}</strong> / {MARKET_IDS.length} 마켓 연결됨
-      </p>
-    </div>
+
+      {/* 중앙: 마켓 identity 행 */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {MARKET_IDS.map((id) => {
+          const entry = MARKET_CATALOG[id]
+          const isActive = activeMarketIds.has(id)
+          const isComingSoon = entry.status === 'coming_soon'
+          return (
+            <div
+              key={id}
+              className={
+                isComingSoon
+                  ? 'flex items-center gap-2 opacity-50'
+                  : isActive
+                    ? 'flex items-center gap-2'
+                    : 'flex items-center gap-2 opacity-60'
+              }
+            >
+              <MarketIdentity marketId={id} size="md" />
+              <span className="text-xs font-semibold text-text">{entry.label}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 우: 새 연결 CTA */}
+      <div className="lg:justify-self-end">
+        <Button asChild variant="primary">
+          <Link to="/markets/connect">{ko.markets.page.newConnect}</Link>
+        </Button>
+      </div>
+    </section>
   )
 }
