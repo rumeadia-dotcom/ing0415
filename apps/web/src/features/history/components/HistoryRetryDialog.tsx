@@ -95,12 +95,17 @@ export function HistoryRetryDialog({
             재시도 가능한 마켓이 없습니다 (최종 실패 / 제외된 마켓만 존재).
           </p>
         ) : (
-          <ul className="grid gap-1 text-sm text-text">
+          <ul className="grid gap-1.5 rounded-md border border-border bg-surface-muted/40 p-2 text-sm text-text">
             {retriable.map((r) => (
-              <li key={r.id} className="flex items-center justify-between">
-                <span>{MARKET_CATALOG[r.marketId].label}</span>
-                <span className="text-xs text-text-tertiary">
-                  시도 {r.attemptCount}회 / 3회
+              <li
+                key={r.id}
+                className="flex items-center justify-between rounded px-2 py-1.5"
+              >
+                <span className="font-medium">
+                  {MARKET_CATALOG[r.marketId].label}
+                </span>
+                <span className="font-mono text-xs text-text-tertiary tabular-nums">
+                  시도 {r.attemptCount} / 3회
                 </span>
               </li>
             ))}
