@@ -12,6 +12,7 @@ import {
   Truck,
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { BrandLogo } from '@/components/brand'
 import { ko } from '@/locales/ko'
 import { cn } from '@/lib/utils'
 
@@ -120,38 +121,8 @@ export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
 
 function BrandSection(): JSX.Element {
   return (
-    <div className="flex items-center gap-2.5 px-1.5 pb-[18px] pt-1">
-      <div
-        aria-hidden="true"
-        className={cn(
-          'grid place-items-center rounded-lg',
-          'h-7 w-7',
-          // ink background + accent ochre letter
-          'bg-ink',
-          'text-[15px] font-bold',
-          'text-accent',
-        )}
-      >
-        M
-      </div>
-      <div className="min-w-0">
-        <div
-          className={cn(
-            'truncate text-[15px] font-bold leading-tight tracking-[-0.015em]',
-            'text-ink',
-          )}
-        >
-          {ko.app.name}
-        </div>
-        <div
-          className={cn(
-            'mt-[1px] truncate text-[10.5px] leading-tight',
-            'text-faint',
-          )}
-        >
-          {ko.shell.brandTagline}
-        </div>
-      </div>
+    <div className="px-1.5 pb-[18px] pt-1">
+      <BrandLogo size="sm" withTagline />
     </div>
   )
 }
