@@ -75,6 +75,17 @@ export function MarketsConnectProviderPage(): JSX.Element {
         marketId={provider}
         authMode="oauth"
         form={<OAuthForm marketId={provider} />}
+        aside={
+          <>
+            <ProviderGuideCard
+              title={ko.markets.form.oauth.guideTitle}
+              steps={ko.markets.form.oauth.guideSteps}
+              docUrl="https://apicenter.commerce.naver.com/"
+              docLabel={ko.markets.form.docLink.naver}
+            />
+            <ProviderSecurityNote />
+          </>
+        }
       />
     )
   }
@@ -90,6 +101,8 @@ export function MarketsConnectProviderPage(): JSX.Element {
             <ProviderGuideCard
               title={ko.markets.form.hmac.guideTitle}
               steps={ko.markets.form.hmac.guideSteps}
+              docUrl="https://wing.coupang.com/"
+              docLabel={ko.markets.form.docLink.coupang}
             />
             <ProviderSecurityNote />
           </>
@@ -109,6 +122,8 @@ export function MarketsConnectProviderPage(): JSX.Element {
           <ProviderGuideCard
             title={ko.markets.form.esm.guideTitle}
             steps={ko.markets.form.esm.guideSteps}
+            docUrl="https://www.esmplus.com/"
+            docLabel={ko.markets.form.docLink.esmplus}
           />
           <ProviderSecurityNote />
         </>
