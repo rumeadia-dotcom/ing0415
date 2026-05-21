@@ -2,24 +2,26 @@
  * MarketCast — 글로벌 토큰 & Tailwind 진입.
  *
  * 마스터 문서: docs/architecture/v1/ui-system.md §3 / §11 / §12
- * - 색상 변수는 RGB triplet (Tailwind `rgb(var(--*) / <alpha-value>)` alpha 지원).
+ * - 색상 변수는 OKLCH `L C H` triplet (alpha 미포함) → Tailwind 가 `oklch(var(--*) / <alpha-value>)` 로 alpha 변형 합성.
  * - 라이트 = `:root`, 다크 = `[data-theme="dark"]` 또는 `.dark` (양쪽 지원).
  * - raw HEX 사용 금지 — 모든 색은 이 파일에서만 선언.
  *
- * v1.1 브랜드 리스킨 (2026-05-20):
- *  - text 기본색 navy(#0A2540) 로 전환.
- *  - surface-subtle/muted 를 cream 톤(#F7F6F1 계열) 로 이동.
- *  - accent = blue-deep #1747C2 (브랜드 그래디언트 시작색).
- *  - success 를 emerald → teal(#0F9488) 로 교체.
- *  - 브랜드 alias 토큰(navy/ink/teal/teal-bright/cream) + brand-grad 신설.
+ * v1.2 Studio 디자인 리뉴얼 (2026-05-21):
+ *  - v1.1 navy/cream/blue 팔레트를 OKLCH 기반 Studio 팔레트(warm off-white + ochre)로 교체.
+ *  - 색공간 전환: RGB triplet (255 255 255) → OKLCH triplet (0.985 0.006 75).
+ *  - Manrope (헤딩/본문 라틴 + 영문 hero) + JetBrains Mono (수치/code) 추가 — Pretendard 한글 fallback 유지.
+ *  - 신규 토큰: --ink / --dim / --faint / --card / --card2 / --border-strong / --market-{naver,coupang,gmarket,auction,11st}.
+ *  - 기존 v1.1 변수명(--surface / --text / --border / --accent / --success / --warning / --danger / --info-* / --ring)
+ *    은 변수명을 유지한 채 Studio OKLCH 값으로 in-place 갱신 → 기존 `bg-surface` / `text-text` 등 자동 전환.
  *
- * Pretendard:
- *  - v1 운영은 self-host 권장 (ui-system.md D2). 현 단계는 CDN 으로 시작.
- *  - Plus Jakarta Sans 는 워드마크 전용 (Hangul fallback 자동으로 Pretendard).
- *  - TODO(Stage C+): /public 에 woff2 배치 + @font-face self-host 전환.
+ * Fonts:
+ *  - Manrope (Google) — 400 / 500 / 600 / 700 / 800. 본문·헤딩·UI 기본.
+ *  - JetBrains Mono — 400 / 500 / 600. 수치·코드·테이블 monospace.
+ *  - Pretendard — 한글 fallback (자동 system fallback chain).
+ *  - 운영 self-host 전환은 ui-system.md D2 TODO 유지.
  */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -27,79 +29,89 @@
 
 @layer base {
   :root {
-    /* ── 라이트 모드 ─────────────────────────────────────────────── */
-    /* surface */
-    --surface: 255 255 255; /* paper #FFFFFF */
-    --surface-subtle: 247 246 241; /* cream #F7F6F1 */
-    --surface-muted: 239 237 226; /* cream-100 #EFEDE2 */
+    /* ── 라이트 모드 (Studio) ─────────────────────────────────────── */
+    /* 변수는 OKLCH `L C H` triplet — alpha 는 Tailwind 가 `oklch(var(--*) / <alpha-value>)` 로 합성 */
 
-    /* text */
-    --text: 10 37 64; /* navy #0A2540 */
-    --text-secondary: 62 82 102; /* navy-soft #3E5266 */
-    --text-tertiary: 91 111 132; /* #5B6F84 — 4.5:1 on cream (AA, ≥16px 권장) */
+    /* surface — warm off-white shell + pure white card */
+    --surface: 0.975 0.008 75; /* bg (page) */
+    --surface-subtle: 0.985 0.006 75; /* card2 (subtle elevated) */
+    --surface-muted: 0.96 0.008 75; /* slightly dimmer surface */
+    --card: 1 0 0; /* pure white card */
+    --card2: 0.985 0.006 75; /* alias of subtle */
 
-    /* border */
-    --border: 227 225 214; /* cream-tinted #E3E1D6 */
-    --border-strong: 200 197 181; /* #C8C5B5 */
+    /* text — warm dark grey, neutral hue (60) */
+    --ink: 0.15 0.015 60; /* heading / strong text */
+    --text: 0.22 0.015 60; /* body */
+    --text-secondary: 0.48 0.012 60; /* dim */
+    --text-tertiary: 0.68 0.01 60; /* faint */
+    --dim: 0.48 0.012 60;
+    --faint: 0.68 0.01 60;
 
-    /* accent (브랜드 그래디언트 시작색 = blue-deep) */
-    --accent: 23 71 194; /* #1747C2 */
-    --accent-hover: 15 54 160; /* #0F36A0 */
-    --accent-soft: 231 237 251; /* #E7EDFB */
-    --accent-soft-border: 200 213 244; /* #C8D5F4 */
+    /* border — warm-tinted neutral */
+    --border: 0.92 0.008 75;
+    --border-strong: 0.85 0.01 75;
 
-    /* status */
-    --success: 15 148 136; /* teal-700 #0F9488 */
-    --success-soft: 230 250 246; /* #E6FAF6 */
-    --success-on-soft: 11 110 102; /* #0B6E66 */
-    --warning: 245 158 11; /* #F59E0B */
-    --warning-soft: 255 251 235; /* #FFFBEB */
-    --warning-on-soft: 180 83 9; /* #B45309 */
-    --danger: 220 38 38; /* #DC2626 */
-    --danger-soft: 254 242 242; /* #FEF2F2 */
-    --danger-on-soft: 185 28 28; /* #B91C1C */
-    --info-soft: 234 241 251; /* #EAF1FB */
-    --info-on-soft: 10 37 64; /* navy on soft */
+    /* accent — ochre amber (Studio brand) */
+    --accent: 0.62 0.14 55;
+    --accent-hover: 0.55 0.14 55;
+    --accent-soft: 0.94 0.04 65;
+    --accent-soft-border: 0.88 0.06 65;
 
-    /* focus ring */
-    --ring: 23 71 194; /* = accent */
+    /* status — Studio soft tones */
+    --success: 0.55 0.1 160;
+    --success-soft: 0.95 0.03 160;
+    --success-on-soft: 0.42 0.09 160;
+    --warning: 0.62 0.12 70;
+    --warning-soft: 0.95 0.04 75;
+    --warning-on-soft: 0.48 0.11 70;
+    --danger: 0.55 0.16 25;
+    --danger-soft: 0.95 0.03 25;
+    --danger-on-soft: 0.42 0.14 25;
+    --info: 0.55 0.1 235;
+    --info-soft: 0.95 0.025 235;
+    --info-on-soft: 0.42 0.09 235;
 
-    /* 브랜드 alias (theme-invariant — 마크/워드마크는 모드 무관 동일색) */
-    --navy: 10 37 64; /* #0A2540 */
-    --ink: 15 27 45; /* #0F1B2D */
-    --blue-deep: 23 71 194; /* #1747C2 */
-    --blue: 37 99 235; /* #2563EB — 그래디언트 midpoint */
-    --teal: 20 184 166; /* #14B8A6 */
-    --teal-bright: 45 212 191; /* #2DD4BF */
-    --cream: 247 246 241; /* #F7F6F1 */
+    /* focus ring = accent */
+    --ring: 0.62 0.14 55;
 
-    /* 브랜드 그래디언트 */
-    --brand-grad: linear-gradient(135deg, #1747c2 0%, #2563eb 55%, #14b8a6 100%);
-    --brand-grad-soft: linear-gradient(135deg, #e7edfb 0%, #eaf1fb 55%, #e6faf6 100%);
+    /* 마켓 브랜드 — Studio OKLCH 변환 (m1~m5) */
+    --market-naver: 0.62 0.16 152; /* m1 emerald green */
+    --market-coupang: 0.6 0.21 22; /* m2 red-pink */
+    --market-gmarket: 0.58 0.14 175; /* m3 teal-leaning green */
+    --market-auction: 0.62 0.19 38; /* m4 orange-red */
+    --market-eleventh: 0.6 0.22 0; /* m5 magenta-red (v2) */
 
-    /* 마켓 브랜드 */
-    --market-naver: 3 199 90; /* #03C75A */
-    --market-eleventh: 255 0 56; /* #FF0038 */
-    --market-gmarket: 0 177 71; /* #00B147 */
-    --market-auction: 231 57 54; /* #E73936 */
-    --market-coupang: 241 31 68; /* #F11F44 */
-
-    /* radius */
-    --radius-sm: 6px;
+    /* radius — Studio scale 4/8/10/12/14/16/999 */
+    --radius-sm: 4px;
     --radius: 8px;
     --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 20px;
+    --radius-lg: 12px;
+    --radius-xl: 14px;
+    --radius-2xl: 16px;
+    --radius-full: 999px;
 
-    /* shadow — 라이트 (낮은 노출) */
-    --shadow-sm: 0 1px 2px 0 rgb(10 37 64 / 0.04);
-    --shadow: 0 1px 3px 0 rgb(10 37 64 / 0.06), 0 1px 2px -1px rgb(10 37 64 / 0.04);
-    --shadow-lg: 0 10px 15px -3px rgb(10 37 64 / 0.08), 0 4px 6px -4px rgb(10 37 64 / 0.06);
-    --shadow-pop: 0 20px 25px -5px rgb(10 37 64 / 0.10), 0 8px 10px -6px rgb(10 37 64 / 0.06);
+    /* legacy alias — Wordmark / 브랜드 마크 호환 (Studio 톤으로 매핑)
+       *주의*: 신규 코드는 ink/text/accent 토큰 사용. 아래는 deprecate 예정. */
+    --navy: 0.15 0.015 60; /* = ink (워드마크 'Market' 좌측) */
+    --brand-grad: linear-gradient(
+      135deg,
+      oklch(0.62 0.14 55) 0%,
+      oklch(0.7 0.13 50) 55%,
+      oklch(0.62 0.16 152) 100%
+    );
+
+    /* shadow — Studio (낮은 노출, warm tint) */
+    --shadow-sm: 0 1px 2px 0 oklch(0.15 0.015 60 / 0.04);
+    --shadow:
+      0 1px 3px 0 oklch(0.15 0.015 60 / 0.06), 0 1px 2px -1px oklch(0.15 0.015 60 / 0.04);
+    --shadow-lg:
+      0 10px 15px -3px oklch(0.15 0.015 60 / 0.08), 0 4px 6px -4px oklch(0.15 0.015 60 / 0.06);
+    --shadow-pop:
+      0 20px 25px -5px oklch(0.15 0.015 60 / 0.1), 0 8px 10px -6px oklch(0.15 0.015 60 / 0.06);
 
     /* layout */
     --topbar-h: 56px;
-    --sidebar-w: 240px;
+    --sidebar-w: 230px;
     --sidebar-w-collapsed: 64px;
     --row-h: 44px;
 
@@ -108,69 +120,75 @@
 
   [data-theme='dark'],
   .dark {
-    /* ── 다크 모드 ───────────────────────────────────────────────── */
-    --surface: 11 22 34; /* paper-dark #0B1622 */
-    --surface-subtle: 15 27 45; /* ink #0F1B2D */
-    --surface-muted: 22 38 62; /* #16263E */
+    /* ── 다크 모드 (Studio dark) ─────────────────────────────────────
+     * L 을 0.45~0.6 만큼 낮춰 surface 어둡게, ink/text 는 끌어올려 4.5:1 대비 유지.
+     * accent/semantic hue 는 유지하고 L+C 만 살짝 nudge.
+     */
+    --surface: 0.18 0.012 60; /* warm dark page */
+    --surface-subtle: 0.22 0.012 60;
+    --surface-muted: 0.25 0.012 60;
+    --card: 0.22 0.012 60;
+    --card2: 0.25 0.012 60;
 
-    --text: 241 245 249; /* #F1F5F9 */
-    --text-secondary: 203 213 225; /* #CBD5E1 */
-    --text-tertiary: 148 163 184; /* #94A3B8 */
+    --ink: 0.95 0.008 60;
+    --text: 0.9 0.008 60;
+    --text-secondary: 0.7 0.01 60;
+    --text-tertiary: 0.55 0.012 60;
+    --dim: 0.7 0.01 60;
+    --faint: 0.55 0.012 60;
 
-    --border: 27 42 64; /* #1B2A40 */
-    --border-strong: 42 59 85; /* #2A3B55 */
+    --border: 0.32 0.012 60;
+    --border-strong: 0.42 0.012 60;
 
-    --accent: 77 123 232; /* #4D7BE8 */
-    --accent-hover: 107 146 238; /* #6B92EE */
-    --accent-soft: 19 38 90; /* #13265A */
-    --accent-soft-border: 30 58 138; /* #1E3A8A */
+    --accent: 0.72 0.15 55;
+    --accent-hover: 0.78 0.15 55;
+    --accent-soft: 0.32 0.08 60;
+    --accent-soft-border: 0.42 0.1 60;
 
-    --success: 45 212 191; /* teal-bright #2DD4BF */
-    --success-soft: 11 44 42; /* #0B2C2A */
-    --success-on-soft: 94 234 212; /* #5EEAD4 */
-    --warning: 251 191 36; /* #FBBF24 */
-    --warning-soft: 59 42 10; /* #3B2A0A */
-    --warning-on-soft: 252 211 77; /* #FCD34D */
-    --danger: 248 113 113; /* #F87171 */
-    --danger-soft: 59 20 20; /* #3B1414 */
-    --danger-on-soft: 252 165 165; /* #FCA5A5 */
-    --info-soft: 11 37 72; /* #0B2548 */
-    --info-on-soft: 186 230 253; /* #BAE6FD */
+    --success: 0.7 0.12 160;
+    --success-soft: 0.3 0.06 160;
+    --success-on-soft: 0.85 0.12 160;
+    --warning: 0.78 0.14 70;
+    --warning-soft: 0.32 0.08 70;
+    --warning-on-soft: 0.88 0.14 75;
+    --danger: 0.7 0.18 25;
+    --danger-soft: 0.3 0.08 25;
+    --danger-on-soft: 0.85 0.16 25;
+    --info: 0.72 0.13 235;
+    --info-soft: 0.3 0.06 235;
+    --info-on-soft: 0.85 0.12 235;
 
-    --ring: 77 123 232; /* = accent dark */
+    --ring: 0.72 0.15 55;
 
-    /* 마켓 브랜드 — 다크 톤업 (ui-system.md §3.2) */
-    --market-naver: 3 199 90;
-    --market-eleventh: 255 61 92; /* #FF3D5C */
-    --market-gmarket: 0 177 71;
-    --market-auction: 242 89 85; /* #F25955 */
-    --market-coupang: 249 77 106; /* #F94D6A */
+    /* 마켓 브랜드 — 다크에서 L 살짝 올려 가독성 확보 */
+    --market-naver: 0.7 0.16 152;
+    --market-coupang: 0.68 0.21 22;
+    --market-gmarket: 0.66 0.14 175;
+    --market-auction: 0.7 0.19 38;
+    --market-eleventh: 0.68 0.22 0;
 
-    /* 브랜드 alias — 모드 무관 동일 값 (마크는 자신만의 색 보유) */
-    --navy: 10 37 64;
-    --ink: 15 27 45;
-    --blue-deep: 23 71 194;
-    --blue: 37 99 235;
-    --teal: 20 184 166;
-    --teal-bright: 45 212 191;
-    --cream: 247 246 241;
+    /* legacy alias — dark (워드마크는 다크에서도 동일 톤 유지) */
+    --navy: 0.95 0.008 60;
+    --brand-grad: linear-gradient(
+      135deg,
+      oklch(0.72 0.15 55) 0%,
+      oklch(0.78 0.14 50) 55%,
+      oklch(0.7 0.16 152) 100%
+    );
 
-    /* 다크 그래디언트 — 어두운 surface 위에서도 식별되도록 톤업 */
-    --brand-grad: linear-gradient(135deg, #3b5bff 0%, #4d7be8 55%, #2dd4bf 100%);
-    --brand-grad-soft: linear-gradient(135deg, #13265a 0%, #0b2548 55%, #0b2c2a 100%);
-
-    /* shadow — 다크는 더 깊게 */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.45);
-    --shadow-pop: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+    /* shadow — 다크는 더 깊게 (pure black 기반) */
+    --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+    --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.5), 0 1px 2px -1px oklch(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px oklch(0 0 0 / 0.55), 0 4px 6px -4px oklch(0 0 0 / 0.45);
+    --shadow-pop: 0 20px 25px -5px oklch(0 0 0 / 0.6), 0 8px 10px -6px oklch(0 0 0 / 0.5);
 
     color-scheme: dark;
   }
 
-  /* 기본 html / body */
+  /* 기본 html / body — Manrope 우선, 한글 Pretendard fallback */
   html {
     font-family:
+      'Manrope',
       'Pretendard',
       -apple-system,
       BlinkMacSystemFont,
@@ -191,7 +209,7 @@
 
   /* focus-visible — 키보드 only 포커스 (ui-system.md §12.4) */
   :focus-visible {
-    outline: 2px solid rgb(var(--ring));
+    outline: 2px solid oklch(var(--ring));
     outline-offset: 2px;
     border-radius: 2px;
   }
@@ -222,12 +240,20 @@
 
   /* 접근성: 텍스트 선택 색 */
   ::selection {
-    background-color: rgb(var(--accent) / 0.2);
-    color: rgb(var(--text));
+    background-color: oklch(var(--accent) / 0.2);
+    color: oklch(var(--text));
   }
 }
 
 @layer utilities {
+  /* 브랜드 그래디언트 텍스트 (워드마크 강조용 — Studio 톤) */
+  .text-brand-grad {
+    background: var(--brand-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /* 화면 리더 전용 — shadcn 표준 */
   .sr-only {
     position: absolute;
@@ -239,13 +265,5 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border-width: 0;
-  }
-
-  /* 브랜드 그래디언트 텍스트 (워드마크 'Cast' / hero 강조) */
-  .text-brand-grad {
-    background: var(--brand-grad);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
   }
 }
