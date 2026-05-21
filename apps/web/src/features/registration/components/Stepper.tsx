@@ -37,15 +37,22 @@ export function Stepper({ current }: StepperProps): JSX.Element {
 
   return (
     <ol
-      className="flex items-center gap-0"
+      className="flex items-center gap-2 md:gap-0"
       aria-label="등록 단계"
     >
       {REGISTER_STEPS.map((step, idx) => {
         const isCompleted = step.index < currentIndex
         const isCurrent = step.index === currentIndex
         return (
-          <li key={step.id} className="flex min-w-0 flex-1 items-center gap-2.5 last:flex-none">
-            <div className="flex items-center gap-2.5">
+          <li
+            key={step.id}
+            className={cn(
+              'flex items-center gap-2.5 last:flex-none',
+              isCurrent ? 'min-w-0 flex-1' : 'flex-none',
+              'md:min-w-0 md:flex-1',
+            )}
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <span
                 aria-current={isCurrent ? 'step' : undefined}
                 className={cn(
@@ -63,11 +70,11 @@ export function Stepper({ current }: StepperProps): JSX.Element {
               </span>
               <span
                 className={cn(
-                  'whitespace-nowrap text-sm tracking-tight',
+                  'min-w-0 flex-1 truncate text-sm tracking-tight',
                   isCurrent && 'font-semibold text-text',
                   isCompleted && 'font-medium text-text',
                   !isCurrent && !isCompleted && 'font-medium text-text-tertiary',
-                  !isCurrent && 'hidden md:inline',
+                  !isCurrent && 'hidden md:block',
                 )}
               >
                 {step.label}
