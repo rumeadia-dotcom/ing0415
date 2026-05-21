@@ -1,12 +1,17 @@
 import { Toaster as SonnerToaster, type ToasterProps } from 'sonner'
 
 /**
- * Toaster — sonner 래퍼.
- * ui-system.md §7 — `default` / `success` / `error` / `loading`.
- * 자동 dismiss 5s, error 는 수동 dismiss.
+ * Toaster — Studio 룩 (디자인 리뉴얼 PR2).
  *
- * 색상은 토큰 클래스로 매핑 (raw HEX 금지 룰).
- * 다크 모드는 상위 [data-theme="dark"] 에 따라 자동 전환되도록 theme='system' 대신 토큰 클래스 기반 unstyled 적용.
+ * Studio spec:
+ *  - card surface (white) + border oklch(0.92 0.008 75)
+ *  - border-left 4px 시맨틱 색 (level 별):
+ *    - success: oklch(0.55 0.10 160) (ok)
+ *    - warning: oklch(0.62 0.12 70)  (warn)
+ *    - error  : oklch(0.55 0.16 25)  (danger)
+ *    - info / default: oklch(0.62 0.14 55) (accent)
+ *
+ * 자동 dismiss 5s, error 는 수동 dismiss 권장 (사용처에서 duration: Infinity 지정).
  */
 export function Toaster(props: ToasterProps) {
   return (
@@ -14,25 +19,40 @@ export function Toaster(props: ToasterProps) {
       position="top-right"
       duration={5000}
       closeButton
-      // theme='system' 으로 두면 sonner 가 자체 prefers 감지 — 우리는 data-theme 토글이라 강제로 'light' 두고 클래스 매핑
-      // 다크 모드에서도 toastOptions classNames 가 토큰 클래스를 통해 자연 전환됨
       toastOptions={{
         unstyled: false,
         classNames: {
-          toast:
-            'group toast group-[.toaster]:bg-surface group-[.toaster]:text-text group-[.toaster]:border group-[.toaster]:border-border group-[.toaster]:shadow-lg',
-          description: 'group-[.toast]:text-text-secondary',
-          actionButton:
-            'group-[.toast]:bg-accent group-[.toast]:text-white group-[.toast]:rounded-md group-[.toast]:px-2.5 group-[.toast]:py-1 group-[.toast]:text-button',
-          cancelButton:
-            'group-[.toast]:bg-surface-muted group-[.toast]:text-text-secondary group-[.toast]:rounded-md group-[.toast]:px-2.5 group-[.toast]:py-1 group-[.toast]:text-button',
-          success:
-            'group-[.toaster]:!bg-success-soft group-[.toaster]:!text-success-on-soft group-[.toaster]:!border-success/30',
-          error:
-            'group-[.toaster]:!bg-danger-soft group-[.toaster]:!text-danger-on-soft group-[.toaster]:!border-danger/30',
-          warning:
-            'group-[.toaster]:!bg-warning-soft group-[.toaster]:!text-warning-on-soft group-[.toaster]:!border-warning/30',
-          info: 'group-[.toaster]:!bg-info-soft group-[.toaster]:!text-info-on-soft group-[.toaster]:!border-accent/30',
+          toast: [
+            'group toast',
+            'group-[.toaster]:bg-white',
+            'group-[.toaster]:text-[oklch(0.15_0.015_60)]',
+            'group-[.toaster]:border',
+            'group-[.toaster]:border-[oklch(0.92_0.008_75)]',
+            'group-[.toaster]:border-l-4',
+            'group-[.toaster]:border-l-[oklch(0.62_0.14_55)]',
+            'group-[.toaster]:rounded-[12px]',
+            'group-[.toaster]:shadow-[0_12px_24px_-8px_oklch(0_0_0_/_0.15),0_4px_8px_-2px_oklch(0_0_0_/_0.06)]',
+          ].join(' '),
+          description: 'group-[.toast]:text-[oklch(0.48_0.012_60)]',
+          actionButton: [
+            'group-[.toast]:bg-[oklch(0.15_0.015_60)]',
+            'group-[.toast]:!text-white',
+            'group-[.toast]:rounded-[8px]',
+            'group-[.toast]:px-3 group-[.toast]:py-[6px]',
+            'group-[.toast]:text-[12.5px] group-[.toast]:font-bold',
+          ].join(' '),
+          cancelButton: [
+            'group-[.toast]:bg-white',
+            'group-[.toast]:text-[oklch(0.48_0.012_60)]',
+            'group-[.toast]:border group-[.toast]:border-[oklch(0.85_0.01_75)]',
+            'group-[.toast]:rounded-[8px]',
+            'group-[.toast]:px-3 group-[.toast]:py-[6px]',
+            'group-[.toast]:text-[12.5px] group-[.toast]:font-semibold',
+          ].join(' '),
+          success: 'group-[.toaster]:!border-l-[oklch(0.55_0.10_160)]',
+          error: 'group-[.toaster]:!border-l-[oklch(0.55_0.16_25)]',
+          warning: 'group-[.toaster]:!border-l-[oklch(0.62_0.12_70)]',
+          info: 'group-[.toaster]:!border-l-[oklch(0.55_0.10_235)]',
         },
       }}
       {...props}
