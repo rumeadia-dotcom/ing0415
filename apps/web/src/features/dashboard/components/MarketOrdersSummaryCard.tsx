@@ -3,7 +3,6 @@ import { ShoppingBag } from 'lucide-react'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   Skeleton,
@@ -13,6 +12,7 @@ import { ko } from '@/locales/ko'
 import type { MarketId } from '@/lib/schemas/common'
 import type { MarketOrdersSummary } from '@/lib/schemas/dashboard-summary'
 import { MarketOrderItemCard } from './MarketOrderItemCard'
+import { MarketLogo } from './MarketLogo'
 
 interface MarketOrdersSummaryCardProps {
   state: 'loading' | 'data' | 'error' | 'empty'
@@ -24,11 +24,14 @@ interface MarketOrdersSummaryCardProps {
 
 /**
  * 마켓별 주문 현황 컨테이너 — s2 대시보드 위젯.
- * 마스터: docs/design-renewal/s2-dashboard.md §3.4 / §3.6 / §4.5 / §5.
+ * 마스터: docs/design-renewal/s2-dashboard.md §3.4 / §3.6 / §4.5 / §5
+ * 디자인: docs/design-renewal/designFile/concepts/studio.jsx — "마켓 연결" 패턴
  *
- * - 4 마켓 카드 (네이버 / 쿠팡 / G마켓 / 옥션) — 2×2 grid (모바일/데스크탑 동일)
- * - 하단: 11번가 placeholder (오픈 준비중)
- * - 우상단: "전체 보기" → /orders
+ * Studio 룩:
+ *   - 헤더: H2 14 ink + sub 11.5 faint
+ *   - body: 마켓 row 세로 stack (logo + 마켓명 + 신규/오늘 mini stats + sync badge)
+ *   - 하단: 11번가 placeholder (오픈 준비중)
+ *   - 우상단: "전체 보기" → /orders
  */
 export function MarketOrdersSummaryCard({
   state,
@@ -37,27 +40,38 @@ export function MarketOrdersSummaryCard({
   hasNoConnectedMarkets = false,
 }: MarketOrdersSummaryCardProps): JSX.Element {
   return (
-    <Card aria-labelledby="dashboard-market-orders-title">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 gap-2">
-        <div>
-          <CardTitle id="dashboard-market-orders-title" className="text-base">
-            <ShoppingBag className="mr-2 inline h-4 w-4 align-text-bottom" aria-hidden />
-            마켓별 주문 현황
-          </CardTitle>
-          <CardDescription>
-            마켓별 신규 주문과 동기화 상태를 한눈에 확인하세요.
-          </CardDescription>
+    <Card
+      aria-labelledby="dashboard-market-orders-title"
+      className="rounded-[14px] border-[oklch(0.92_0.008_75)]"
+    >
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-[18px] py-4">
+        <div className="flex items-center gap-2">
+          <ShoppingBag
+            className="h-4 w-4 text-[oklch(0.62_0.14_55)]"
+            aria-hidden
+          />
+          <div>
+            <CardTitle
+              id="dashboard-market-orders-title"
+              className="text-[14px] font-bold leading-none text-[oklch(0.15_0.015_60)]"
+            >
+              마켓별 주문 현황
+            </CardTitle>
+            <p className="mt-1.5 text-[11.5px] text-[oklch(0.68_0.01_60)]">
+              마켓별 신규 주문과 동기화 상태를 한눈에 확인하세요
+            </p>
+          </div>
         </div>
         <Link
           to="/orders"
-          className="text-xs font-medium text-accent hover:underline"
+          className="text-[11.5px] font-semibold text-[oklch(0.48_0.012_60)] hover:text-[oklch(0.15_0.015_60)]"
           aria-label="주문 전체 보기"
         >
           전체 보기 →
         </Link>
       </CardHeader>
-      <CardContent>
-        {state === 'loading' && <LoadingGrid />}
+      <CardContent className="px-[18px] pb-[18px] pt-0">
+        {state === 'loading' && <LoadingList />}
         {state === 'error' && (
           <div role="alert">
             <ErrorMessage
@@ -67,29 +81,30 @@ export function MarketOrdersSummaryCard({
           </div>
         )}
         {(state === 'data' || state === 'empty') && (
-          <Grid data={data} hasNoConnectedMarkets={hasNoConnectedMarkets} />
+          <List data={data} hasNoConnectedMarkets={hasNoConnectedMarkets} />
         )}
       </CardContent>
     </Card>
   )
 }
 
-function LoadingGrid(): JSX.Element {
+function LoadingList(): JSX.Element {
   return (
-    <div role="status" aria-live="polite" aria-label="마켓별 주문 현황 불러오는 중">
-      <div className="grid grid-cols-2 gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-[112px] w-full" />
-        ))}
-      </div>
-      <div className="mt-3">
-        <Skeleton className="h-10 w-full" />
-      </div>
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="마켓별 주문 현황 불러오는 중"
+      className="space-y-2"
+    >
+      {[0, 1, 2, 3].map((i) => (
+        <Skeleton key={i} className="h-14 w-full rounded-[10px]" />
+      ))}
+      <Skeleton className="h-10 w-full rounded-[10px]" />
     </div>
   )
 }
 
-function Grid({
+function List({
   data,
   hasNoConnectedMarkets,
 }: {
@@ -99,27 +114,27 @@ function Grid({
   const markets = data?.markets ?? []
   const comingSoon = data?.comingSoon ?? []
 
-  // empty 가이드 (마켓 0건 우선)
-  const showConnectGuide = hasNoConnectedMarkets
-
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         {markets.map((item) => (
           <MarketOrderItemCard key={item.marketId} item={item} />
         ))}
       </div>
       {comingSoon.length > 0 && (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="flex flex-col gap-2 pt-1">
           {comingSoon.map((marketId) => (
             <ComingSoonRow key={marketId} marketId={marketId} />
           ))}
         </div>
       )}
-      {showConnectGuide && (
-        <div className="rounded-md border border-dashed border-border bg-surface-muted px-4 py-3 text-sm text-text-secondary">
+      {hasNoConnectedMarkets && (
+        <div className="rounded-[10px] border border-dashed border-[oklch(0.85_0.01_75)] bg-[oklch(0.985_0.006_75)] px-4 py-3 text-[12.5px] text-[oklch(0.48_0.012_60)]">
           아직 마켓 계정이 연결되지 않아 주문이 들어오지 않습니다.{' '}
-          <Link to="/markets" className="font-medium text-accent hover:underline">
+          <Link
+            to="/markets"
+            className="font-semibold text-[oklch(0.62_0.14_55)] hover:underline"
+          >
             마켓 연결하기 →
           </Link>
         </div>
@@ -133,17 +148,14 @@ function ComingSoonRow({ marketId }: { marketId: MarketId }): JSX.Element {
   return (
     <div
       data-market={marketId}
-      className="flex items-center justify-between rounded-md border border-border bg-surface-muted px-4 py-3 opacity-60"
-      aria-label={`${marketLabel} 오픈 준비중`}
+      className="flex items-center gap-3 rounded-[10px] border border-dashed border-[oklch(0.85_0.01_75)] bg-[oklch(0.985_0.006_75)] px-3 py-2.5 opacity-70"
+      aria-label={`${marketLabel} ${ko.marketStatus.coming_soon}`}
     >
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden
-          className="inline-block h-2.5 w-2.5 rounded-full bg-text-tertiary"
-        />
-        <span className="text-sm font-medium text-text-secondary">{marketLabel}</span>
-      </div>
-      <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-text-tertiary">
+      <MarketLogo id={marketId} size="sm" label={marketLabel} />
+      <span className="flex-1 text-[12.5px] font-medium text-[oklch(0.48_0.012_60)]">
+        {marketLabel}
+      </span>
+      <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[oklch(0.68_0.01_60)]">
         {ko.marketStatus.coming_soon}
       </span>
     </div>
