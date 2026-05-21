@@ -5,10 +5,13 @@ import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type HTMLAt
 import { cn } from '@/lib/utils'
 
 /**
- * Sheet — 사이드 슬라이드 패널.
- * Radix Dialog 를 응용한 변형 (overlay + portal 동일). 모바일 햄버거 메뉴, 우측 상세 패널 등에 사용.
+ * Sheet — Studio 룩 (디자인 리뉴얼 PR2).
  *
- * ui-system.md §10.4 (필수 공용 컴포넌트) — sheet.tsx.
+ * - card surface (white) + border oklch(0.92 0.008 75) + radius 16 (모서리는 화면 가장자리만 둥글게)
+ * - backdrop oklch(0 0 0 / 0.4)
+ * - soft shadow on open side
+ *
+ * Radix Dialog 를 응용한 변형 (overlay + portal 동일). 모바일 햄버거 메뉴, 우측 상세 패널 등에 사용.
  * Dialog 가 중앙 모달이라면, Sheet 는 화면 가장자리에서 슬라이드.
  */
 export const Sheet = DialogPrimitive.Root
@@ -24,7 +27,7 @@ const SheetOverlay = forwardRef<
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        'fixed inset-0 z-50 bg-text/50 backdrop-blur-sm',
+        'fixed inset-0 z-50 bg-[oklch(0_0_0_/_0.4)] backdrop-blur-sm',
         'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
         className,
       )}
@@ -35,16 +38,18 @@ const SheetOverlay = forwardRef<
 
 const sheetVariants = cva(
   [
-    'fixed z-50 gap-3 bg-surface shadow-pop border-border',
+    'fixed z-50 gap-3 bg-white',
+    'border-[oklch(0.92_0.008_75)]',
+    'shadow-[0_24px_48px_-12px_oklch(0_0_0_/_0.18)]',
     'data-[state=open]:animate-slide-in-from-top data-[state=closed]:animate-fade-out',
   ],
   {
     variants: {
       side: {
-        top: 'inset-x-0 top-0 border-b',
-        bottom: 'inset-x-0 bottom-0 border-t',
-        left: 'inset-y-0 left-0 h-full w-3/4 max-w-sm border-r',
-        right: 'inset-y-0 right-0 h-full w-3/4 max-w-sm border-l',
+        top: 'inset-x-0 top-0 border-b rounded-b-[16px]',
+        bottom: 'inset-x-0 bottom-0 border-t rounded-t-[16px]',
+        left: 'inset-y-0 left-0 h-full w-3/4 max-w-sm border-r rounded-r-[16px]',
+        right: 'inset-y-0 right-0 h-full w-3/4 max-w-sm border-l rounded-l-[16px]',
       },
     },
     defaultVariants: {
@@ -66,15 +71,15 @@ export const SheetContent = forwardRef<
       <SheetOverlay />
       <DialogPrimitive.Content
         ref={ref}
-        className={cn(sheetVariants({ side }), 'p-5', className)}
+        className={cn(sheetVariants({ side }), 'p-[22px]', className)}
         {...props}
       >
         {children}
         <DialogPrimitive.Close
           className={cn(
-            'absolute right-3 top-3 rounded-sm',
-            'opacity-70 ring-offset-surface transition-opacity hover:opacity-100',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'absolute right-3 top-3 rounded-sm text-[oklch(0.48_0.012_60)]',
+            'opacity-70 transition-opacity hover:opacity-100',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white',
             'disabled:pointer-events-none',
           )}
           aria-label="닫기"
@@ -106,7 +111,10 @@ export const SheetTitle = forwardRef<
   return (
     <DialogPrimitive.Title
       ref={ref}
-      className={cn('text-h2 leading-none tracking-tight text-text', className)}
+      className={cn(
+        'text-[20px] font-bold leading-tight tracking-tight text-[oklch(0.15_0.015_60)]',
+        className,
+      )}
       {...props}
     />
   )
@@ -119,7 +127,7 @@ export const SheetDescription = forwardRef<
   return (
     <DialogPrimitive.Description
       ref={ref}
-      className={cn('text-sm text-text-secondary', className)}
+      className={cn('text-[13px] text-[oklch(0.48_0.012_60)]', className)}
       {...props}
     />
   )

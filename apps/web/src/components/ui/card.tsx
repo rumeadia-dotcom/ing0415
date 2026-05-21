@@ -2,8 +2,10 @@ import { forwardRef, type HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * Card — ui-system.md §7
- * 데스크탑 padding 20 / 모바일 16 (ui-system.md §5 컴포넌트 패딩)
+ * Card — Studio 룩 (디자인 리뉴얼 PR2).
+ *
+ * 표준 카드: bg white, border 1px oklch(0.92 0.008 75), radius 12~14, padding 18~22.
+ * 데스크탑 padding 20 / 모바일 16 (기본). hero/feature 카드는 radius 16 + padding 22 (사용처에서 override).
  */
 export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function Card(
   { className, ...props },
@@ -13,7 +15,7 @@ export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(f
     <div
       ref={ref}
       className={cn(
-        'rounded-lg border border-border bg-surface text-text shadow-sm',
+        'rounded-[12px] border border-[oklch(0.92_0.008_75)] bg-white text-[oklch(0.15_0.015_60)]',
         className,
       )}
       {...props}
@@ -26,7 +28,7 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
     return (
       <div
         ref={ref}
-        className={cn('flex flex-col space-y-1.5 p-4 pb-3 md:p-5 md:pb-3', className)}
+        className={cn('flex flex-col space-y-1.5 p-[18px] pb-3 md:p-[22px] md:pb-3', className)}
         {...props}
       />
     )
@@ -38,7 +40,10 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
     return (
       <h3
         ref={ref}
-        className={cn('text-h2 leading-none tracking-tight text-text', className)}
+        className={cn(
+          'text-[16px] font-bold leading-tight tracking-tight text-[oklch(0.15_0.015_60)]',
+          className,
+        )}
         {...props}
       >
         {children}
@@ -49,7 +54,13 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
 
 export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   function CardDescription({ className, ...props }, ref) {
-    return <p ref={ref} className={cn('text-sm text-text-secondary', className)} {...props} />
+    return (
+      <p
+        ref={ref}
+        className={cn('text-[12px] text-[oklch(0.68_0.01_60)]', className)}
+        {...props}
+      />
+    )
   },
 )
 
@@ -61,7 +72,7 @@ export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<H
  */
 export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   function CardContent({ className, ...props }, ref) {
-    return <div ref={ref} className={cn('p-4 md:p-5', className)} {...props} />
+    return <div ref={ref} className={cn('p-[18px] md:p-[22px]', className)} {...props} />
   },
 )
 
@@ -70,7 +81,7 @@ export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
     return (
       <div
         ref={ref}
-        className={cn('flex items-center p-4 md:p-5', className)}
+        className={cn('flex items-center p-[18px] md:p-[22px]', className)}
         {...props}
       />
     )
