@@ -94,28 +94,11 @@ export function LoginPage(): JSX.Element {
 
       <Card className={studioClass.card}>
         <Tabs defaultValue="email" className="w-full">
-          <TabsList
-            className={cn(
-              studioClass.card2,
-              'grid h-auto w-full grid-cols-2 gap-0 p-1',
-            )}
-          >
-            <TabsTrigger
-              value="email"
-              className={cn(
-                studioClass.tabInactive,
-                'data-[state=active]:!bg-white data-[state=active]:!text-ink data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
-              )}
-            >
+          <TabsList className={studioClass.tabList}>
+            <TabsTrigger value="email" className={studioClass.tabTrigger}>
               {ko.auth.login.tabEmail}
             </TabsTrigger>
-            <TabsTrigger
-              value="social"
-              className={cn(
-                studioClass.tabInactive,
-                'data-[state=active]:!bg-white data-[state=active]:!text-ink data-[state=active]:!font-semibold data-[state=active]:!shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
-              )}
-            >
+            <TabsTrigger value="social" className={studioClass.tabTrigger}>
               {ko.auth.login.tabSocial}
             </TabsTrigger>
           </TabsList>
