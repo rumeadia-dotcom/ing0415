@@ -21,8 +21,12 @@
 -- 1. orders_with_dispatch_summary — 집계 view (PRD §2.5 오늘 요약)
 --    fetchOrdersSummary() 가 .maybeSingle() 로 읽는 단일 row 집계.
 --    security_invoker=on → 호출자 RLS 적용 → 본인 주문만 집계.
+--    기존 view 는 per-row 구조(컬럼 수 많음) → drop 후 재생성.
+--    (create or replace view 는 컬럼 감소 불가 — SQLSTATE 42P16)
 ------------------------------------------------------------------------
-create or replace view public.orders_with_dispatch_summary
+drop view if exists public.orders_with_dispatch_summary;
+
+create view public.orders_with_dispatch_summary
 with (security_invoker = on)
 as
 select
