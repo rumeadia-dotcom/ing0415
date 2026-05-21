@@ -40,15 +40,15 @@ describe('ManualPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('TOC nav 가 5개 항목을 노출', () => {
+  it('TOC nav 가 10개 항목을 노출 (v1 5섹션 + v2 주문·배송 5섹션)', () => {
     renderPage()
     const tocNav = screen.getAllByRole('navigation', { name: ko.legal.common.tocHeading })
     expect(tocNav.length).toBeGreaterThan(0)
     const firstNav = tocNav[0]
     if (!firstNav) throw new Error('TOC nav not found')
-    // TOC 안의 anchor 링크 5개
+    // TOC 안의 anchor 링크 10개 (manual.sections 의 v1 5 + v2 5)
     const anchors = firstNav.querySelectorAll('a[href^="#"]')
-    expect(anchors).toHaveLength(5)
+    expect(anchors).toHaveLength(10)
   })
 
   it('skip-link (본문으로 건너뛰기) 가 첫 a 태그로 존재', () => {

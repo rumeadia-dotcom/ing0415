@@ -1,6 +1,6 @@
 # MarketCast — WIP 핸드오프 (2026-05-20)
 
-**HEAD**: `88e8087` (develop) — 475 passed / 26 todo / 0 failed
+**HEAD**: `fe6294a` (develop) — 475 passed / 26 todo / 0 failed
 
 ## 스택 한눈에
 
@@ -9,7 +9,7 @@
 백엔드:  Supabase (Postgres + RLS + Auth + Storage + Realtime + Edge Functions Deno)
 호스팅:  GitHub Pages (정적 SPA + 404.html fallback) + Supabase Cloud
 모니터링: Sentry (PII 마스킹 강제)
-CI/CD:   GitHub Actions (PR + main 분리)
+CI/CD:   GitHub Actions (PR + main 분리, auto-merge 활성)
 브랜치:  Git Flow (main / develop / release/* / feature/* / hotfix/*)
 빌드모드: debug (mock 어댑터) / real (운영 API), Supabase 프로젝트 분리
 ```
@@ -30,19 +30,20 @@ Seller (auth.users) ─┬─ MarketAccount ─── credential_payload jsonb +
 | 단계 | 내용 | 커밋/PR |
 |---|---|---|
 | Stage A~H | 부트스트랩 (빌드·디자인·라우팅·데이터계층·DB마이그·EdgeFn·테스트·CI) | — |
-| B-1 | 환경 셋업 (Supabase 2 프로젝트·Secrets·Pages·Branch protection·CI 6/6) | — |
-| B-2 | s1 인증 4페이지 본구현 + 통합 테스트 (226 passed) | `d4d04c5` |
-| B-3 | s5 마켓계정 4페이지 본구현 (4분기 인증 폼 + Realtime) | — |
-| B-4 | s3 상품등록 5단계 위저드 본구현 | `0014ae9` |
-| B-5 | s2 대시보드 + s6 등록이력 본구현 + 브랜드 리스킨 v1.1 | `1b95d03` `d393589` `eb9ca18` |
-| C-2 | 쿠팡 HMAC real 어댑터 (코드 완성, +41 단위) | PR #2 `e651eb8` |
-| C-4 | 4마켓 fan-out 통합 시나리오 12종 (+12 단위, mock 기반) | PR #12 `ad42b5c` |
-| D-B | pgTAP cross-tenant RLS 격리 102 케이스 | PR #11 `56b6097` |
-| C-1 | 네이버 OAuth real 어댑터 스켈레톤 (+49 단위, 실 자격증명 대기) | PR #14 `65eb335` |
-| D-C | 약관·개인정보처리방침·매뉴얼 정적 페이지 + 푸터 | PR #15 `dc809d9` |
-| D-D | Sentry PII 마스킹 + KPI view 정확도 회귀 (+50 단위) | PR #16 `061534a` |
-| D-A | 14 라우트 axe 0 violation E2E (4 active + 14 fixme) | PR #13 `06e9d0a` |
-| C-3 | G마켓·옥션 ESM JWT real 어댑터 (+56 단위, 실 자격증명 대기) | PR #17 `88e8087` |
+| B-1~B-5 | 인증·대시보드·상품등록·마켓계정·이력 본구현 + 브랜드 리스킨 | — |
+| C-1~C-3 | 네이버 OAuth / 쿠팡 HMAC / G마켓·옥션 ESM real 어댑터 | PR #2 #14 #17 |
+| C-4 | 4마켓 fan-out 통합 시나리오 12종 (mock 기반) | PR #12 |
+| D-A~D-D | axe E2E / pgTAP RLS / 법적 페이지 / Sentry PII 마스킹 | PR #11 #13 #15 #16 |
+| 운영 배포 | GitHub Pages 배포 (`https://rumeadia-dotcom.github.io/ing0415/`) | `5ad98e7` |
+| Hotfix #21 | GitHub Pages SPA basename 불일치 수정 (`VITE_BASE_PATH=/ing0415/`) | PR #21 `74f6c66` |
+| Hotfix #22 | CI notify-sentry 잡 `pnpm dlx` → `npx` 수정 | PR #22 `991957d` |
+| Hotfix #23 | `authenticated` 롤 테이블 GRANT 누락 마이그레이션 추가 | PR #23 `b06bfc7` |
+
+## 운영 현황
+
+- **배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/`
+- **real Supabase DB**: PR #23 마이그레이션 적용 필요 → Actions → "Deploy (real)" → `apply_db_migrations: true`
+- **auto-merge**: repo 설정 활성화 완료 — PR 생성 후 `enable_pr_auto_merge` 로 CI 통과 시 자동 머지
 
 ---
 
@@ -86,7 +87,7 @@ Seller (auth.users) ─┬─ MarketAccount ─── credential_payload jsonb +
 | pgTAP RLS cross-tenant | SQL 완성 (102 케이스), CI `supabase test db` 연동 필요 |
 | Sentry 마스킹 운영환경 실검증 | debug 검증 완료, real Sentry 프로젝트 연동 후 재확인 |
 | KPI view 정확도 | SQL 완성 (16 케이스), pg_cron 트리거 완료 후 재검증 |
-| release/v0.1 컷 → 수동 QA → main 머지 | 위 항목 통과 후 |
+| release/v0.2 컷 → 수동 QA → main 머지 | 위 항목 통과 후 |
 
 ### 🔵 Phase 5 — v1 출시 후
 
@@ -122,3 +123,5 @@ git pull origin develop && pnpm install && pnpm test && pnpm dev
 즉시 시작 가능한 첫 작업: **시드 셀러 생성** (debug Supabase 콘솔) → Golden Path fixme 14개 해제 → E2E CI 100%.
 
 그 다음: **pg_cron 마이그레이션** + **URL PII 마스킹** → 운영 게이트 항목 순차 처리.
+
+**⚠ real DB**: Actions → "Deploy (real)" → `apply_db_migrations: true` 로 PR #23 마이그레이션 적용 필요.

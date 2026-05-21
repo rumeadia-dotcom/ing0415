@@ -1,0 +1,7 @@
+{
+  "lock": false,
+  "imports": {},
+  "tasks": {
+    "test": "deno test --allow-env --allow-net"
+  }
+}

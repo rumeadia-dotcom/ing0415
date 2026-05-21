@@ -1,0 +1,22 @@
+{
+  "description": "ESM 2.0 getOrderList happy 응답 (G/A 공용 — site 만 다름).",
+  "resultCode": "0000",
+  "resultMessage": "OK",
+  "data": {
+    "orders": [
+      {
+        "orderNo": "ESM-2026052100000001",
+        "buyerName": "이서연",
+        "receiverName": "이서연",
+        "receiverZipCode": "06236",
+        "receiverAddress": "서울특별시 강남구 강남대로 100, 5층",
+        "receiverPhone": "010-7777-1111",
+        "itemName": "테스트 ESM 상품",
+        "orderQty": 1,
+        "orderPrice": 18000,
+        "orderStatus": "PAID",
+        "paidDate": "2026-05-21T01:00:00+00:00"
+      }
+    ]
+  }
+}

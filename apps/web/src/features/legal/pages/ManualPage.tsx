@@ -17,6 +17,32 @@ export function ManualPage(): JSX.Element {
     { id: 'result', title: s.result.title, body: s.result.body },
     { id: 'history', title: s.history.title, body: s.history.body },
     { id: 'faq', title: s.faq.title, body: s.faq.body },
+    // v2 — 주문·배송 자동화 (PRD-v2-shipping.md §2)
+    {
+      id: 'shipping-intro',
+      title: s.shippingIntro.title,
+      body: s.shippingIntro.body,
+    },
+    {
+      id: 'shipping-logen',
+      title: s.shippingLogen.title,
+      body: s.shippingLogen.body,
+    },
+    {
+      id: 'shipping-print',
+      title: s.shippingPrint.title,
+      body: s.shippingPrint.body,
+    },
+    {
+      id: 'shipping-submit',
+      title: s.shippingSubmit.title,
+      body: s.shippingSubmit.body,
+    },
+    {
+      id: 'shipping-trouble',
+      title: s.shippingTrouble.title,
+      body: s.shippingTrouble.body,
+    },
   ]
 
   return (
