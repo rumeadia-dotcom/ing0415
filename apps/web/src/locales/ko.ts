@@ -485,7 +485,7 @@ export const ko = {
       },
       carrierCard: {
         title: '기본 택배사',
-        description: 'v2 는 로젠택배만 지원합니다. 다른 택배사는 차후 버전에 추가됩니다.',
+        description: 'v1 은 로젠택배만 지원합니다. 다른 택배사는 차후 버전에 추가됩니다.',
         carrier: '로젠택배',
       },
       logenPage: {
