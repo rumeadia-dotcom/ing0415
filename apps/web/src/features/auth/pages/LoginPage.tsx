@@ -162,7 +162,7 @@ export function LoginPage(): JSX.Element {
                   </Label>
                   <Link
                     to="/forgot-password"
-                    className="text-[11.5px] font-semibold text-accent hover:underline underline-offset-2"
+                    className="text-[11.5px] font-semibold text-ink underline decoration-accent decoration-2 underline-offset-2 hover:decoration-[3px]"
                   >
                     {ko.auth.login.forgot}
                   </Link>

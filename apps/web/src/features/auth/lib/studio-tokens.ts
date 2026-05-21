@@ -38,9 +38,9 @@ export const studioClass = {
   /** 강조 액션 링크 — ink 700 underline-offset 3 */
   linkStrong:
     'text-ink font-bold underline underline-offset-[3px] hover:text-accent transition-colors',
-  /** 보조 링크 — accent */
+  /** 보조 링크 — ink + accent underline (WCAG: text-accent 단독은 작은 글자 4.5:1 미달) */
   linkAccent:
-    'text-accent font-semibold hover:underline underline-offset-2',
+    'text-ink font-semibold underline decoration-accent decoration-2 underline-offset-2 hover:decoration-[3px]',
   /** Body faint 텍스트 (footer 라인) */
   bodyFaint: 'text-[13px] text-faint',
   /** 비밀번호 토글 버튼 (input 안쪽 우측) */
