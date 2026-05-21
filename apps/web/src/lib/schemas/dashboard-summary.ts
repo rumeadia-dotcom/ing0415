@@ -73,3 +73,30 @@ export const MarketHealthSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 export type MarketHealth = z.infer<typeof MarketHealthSchema>
+
+// ─────────────────────────────────────────────
+// MarketOrdersSummary — s2 대시보드 "마켓별 주문 현황" 위젯 (v1 에서 "최근 등록" 대체)
+// 마스터: docs/design-renewal/s2-dashboard.md §3.5
+// 데이터 소스 합성:
+//   - orders_with_dispatch_summary.by_market  → newOrdersCount / pendingCount
+//   - orders 테이블 (collected_at >= 오늘 0시) → todayTotalCount
+//   - market_accounts (marketId 단위 status / last_verified_at) → syncStatus / lastSyncedAt
+// ─────────────────────────────────────────────
+export const MarketOrderSyncStatusSchema = z.enum(['idle', 'syncing', 'error'])
+export type MarketOrderSyncStatus = z.infer<typeof MarketOrderSyncStatusSchema>
+
+export const MarketOrderItemSchema = z.object({
+  marketId: MarketIdSchema,
+  newOrdersCount: z.number().int().nonnegative(),
+  todayTotalCount: z.number().int().nonnegative(),
+  lastSyncedAt: z.string().datetime({ offset: true }).nullable(),
+  syncStatus: MarketOrderSyncStatusSchema,
+  syncError: z.string().nullable(),
+})
+export type MarketOrderItem = z.infer<typeof MarketOrderItemSchema>
+
+export const MarketOrdersSummarySchema = z.object({
+  markets: z.array(MarketOrderItemSchema),
+  comingSoon: z.array(MarketIdSchema),
+})
+export type MarketOrdersSummary = z.infer<typeof MarketOrdersSummarySchema>

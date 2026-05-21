@@ -3,37 +3,52 @@ import { PackagePlus, Clock, CheckCircle2, Timer } from 'lucide-react'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { useDashboardSummary } from '../hooks/useDashboardSummary'
-import { useRecentJobs } from '../hooks/useRecentJobs'
+import { useMarketOrdersSummary } from '../hooks/useMarketOrdersSummary'
 import { useMarketHealth } from '../hooks/useMarketHealth'
 import { SummaryCard } from '../components/SummaryCard'
-import { RecentJobsTable } from '../components/RecentJobsTable'
+import { MarketOrdersSummaryCard } from '../components/MarketOrdersSummaryCard'
 import { MarketHealthCard } from '../components/MarketHealthCard'
 import { DashboardEmptyState } from '../components/DashboardEmptyState'
 import { formatDurationSec } from '@/lib/format-time'
 
 /**
  * DashboardPage — s2 (n9~n14, v1).
- * 마스터: docs/architecture/v1/features/dashboard.md.
+ * 마스터: docs/design-renewal/s2-dashboard.md + docs/architecture/v1/features/dashboard.md.
  *
  * 레이아웃 (desktop):
  *   PageHeader
  *   ─ Summary cards row (4)
- *   ─ Empty state OR 2-column (RecentJobs 좌, MarketHealth + v2 placeholder 우)
+ *   ─ Empty state OR 2-column (MarketOrdersSummary 좌, MarketHealth + v2 placeholder 우)
  *
  * 4상태 + partial 시각화는 각 자식 컴포넌트가 책임.
  */
 export function DashboardPage(): JSX.Element {
   const summary = useDashboardSummary()
-  const recent = useRecentJobs(20)
+  const marketOrders = useMarketOrdersSummary()
   const health = useMarketHealth()
 
-  const isEmpty = summary.data?.last_job_at === null
+  const hasNoConnectedMarkets =
+    !health.isLoading && !health.isError && (health.data?.total ?? 0) === 0
+  const hasNoJobs = summary.data?.last_job_at === null
+  const totalOrders =
+    marketOrders.data?.markets.reduce(
+      (acc, m) => acc + m.newOrdersCount + m.todayTotalCount,
+      0,
+    ) ?? 0
+  // s2-dashboard.md §6.2 빈 상태 분기:
+  //  (a) 마켓 0건 → 최우선 hero ("먼저 마켓 연결")
+  //  (b) 마켓 ≥1 + 주문 0건 + 잡 0건 → "첫 상품 등록"
+  const emptyVariant: 'no-markets' | 'no-activity' | null = hasNoConnectedMarkets
+    ? 'no-markets'
+    : hasNoJobs && totalOrders === 0
+      ? 'no-activity'
+      : null
 
   return (
     <div className="mx-auto w-full max-w-[1200px]">
       <PageHeader
         title="대시보드"
-        subtitle="등록 현황과 최근 작업을 한눈에 확인하세요"
+        subtitle="오늘의 주문과 등록 현황을 한눈에 확인하세요"
         actions={
           <Button asChild>
             <Link to="/register">
@@ -46,25 +61,26 @@ export function DashboardPage(): JSX.Element {
 
       <SummaryGrid summary={summary} />
 
-      {isEmpty ? (
+      {emptyVariant !== null ? (
         <div className="mt-6">
-          <DashboardEmptyState />
+          <DashboardEmptyState variant={emptyVariant} />
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <RecentJobsTable
+            <MarketOrdersSummaryCard
               state={
-                recent.isLoading
+                marketOrders.isLoading
                   ? 'loading'
-                  : recent.isError
+                  : marketOrders.isError
                     ? 'error'
-                    : !recent.data || recent.data.length === 0
+                    : !marketOrders.data || marketOrders.data.markets.length === 0
                       ? 'empty'
                       : 'data'
               }
-              jobs={recent.data ?? []}
-              errorMessage={recent.error?.message}
+              data={marketOrders.data}
+              errorMessage={marketOrders.error?.message}
+              hasNoConnectedMarkets={hasNoConnectedMarkets}
             />
           </div>
           <div className="space-y-4">

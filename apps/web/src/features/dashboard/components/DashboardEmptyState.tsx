@@ -1,12 +1,50 @@
 import { Link } from 'react-router-dom'
-import { PackagePlus } from 'lucide-react'
+import { PackagePlus, Plug } from 'lucide-react'
 import { Button, Card, CardContent } from '@/components/ui'
 
+type Variant = 'no-markets' | 'no-activity'
+
+interface DashboardEmptyStateProps {
+  /**
+   * - `no-markets`: 연결 마켓 0건 — 최우선 hero
+   * - `no-activity`: 마켓 ≥1 + 주문·잡 0건
+   *
+   * 마스터: docs/design-renewal/s2-dashboard.md §6.2
+   */
+  variant: Variant
+}
+
 /**
- * 잡 0건 시 hero CTA.
- * 판정: summary.last_job_at === null.
+ * 대시보드 빈 상태 hero. variant 별로 메시지 / CTA 분기.
  */
-export function DashboardEmptyState(): JSX.Element {
+export function DashboardEmptyState({ variant }: DashboardEmptyStateProps): JSX.Element {
+  if (variant === 'no-markets') {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+          <div
+            aria-hidden
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent"
+          >
+            <Plug className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-h2 text-text">먼저 마켓을 연결하세요</h2>
+            <p className="text-sm text-text-secondary">
+              마켓을 연결하면 주문이 자동으로 들어옵니다.
+            </p>
+          </div>
+          <Button asChild size="lg">
+            <Link to="/markets">마켓 연결하기</Link>
+          </Button>
+          <Link to="/register" className="text-sm text-accent hover:underline">
+            상품 등록 둘러보기 →
+          </Link>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
@@ -23,10 +61,10 @@ export function DashboardEmptyState(): JSX.Element {
           </p>
         </div>
         <Button asChild size="lg">
-          <Link to="/register">첫 상품 등록 시작</Link>
+          <Link to="/register">상품 등록 시작</Link>
         </Button>
         <Link to="/markets" className="text-sm text-accent hover:underline">
-          먼저 마켓 연결하기 →
+          마켓 추가하기 →
         </Link>
       </CardContent>
     </Card>
