@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
 interface ImageDropzoneProps {
@@ -11,7 +12,7 @@ interface ImageDropzoneProps {
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp']
 
 /**
- * 이미지 드롭존 — 드래그 / 클릭 / paste.
+ * 이미지 드롭존 — 드래그 / 클릭 / paste. Studio 룩 (accent 링 + dashed border).
  * - jpg / png / webp 만, 10MB 이하 클라이언트 사전 필터.
  * - remainingSlots 초과분은 잘라냄.
  */
@@ -55,16 +56,35 @@ export function ImageDropzone({ onFilesSelected, disabled, remainingSlots }: Ima
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
       className={cn(
-        'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-sm transition-colors',
-        dragOver ? 'border-accent bg-accent-soft' : 'border-border bg-surface-muted',
+        'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-sm transition-colors',
+        dragOver
+          ? 'border-accent bg-accent-soft'
+          : 'border-border-strong bg-surface-subtle',
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
-      <Upload className="h-6 w-6 text-text-secondary" aria-hidden />
-      <p className="font-medium text-text">이미지를 끌어 놓거나 클릭해서 선택</p>
+      <span
+        aria-hidden
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent"
+      >
+        <Plus className="h-6 w-6" strokeWidth={1.5} />
+      </span>
+      <p className="text-sm font-semibold text-text">여기로 드래그하거나 클릭해 업로드</p>
       <p className="text-xs text-text-tertiary">
-        jpg / png / webp · 10MB 이하 · 최대 {remainingSlots}장 추가 가능
+        JPG · PNG · WebP · 각 10MB 이하 · 1000×1000 권장 · 최대 {remainingSlots}장 추가 가능
       </p>
+      <Button
+        type="button"
+        size="sm"
+        variant="primary"
+        className="mt-2"
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!disabled) inputRef.current?.click()
+        }}
+      >
+        파일 선택
+      </Button>
       <input
         ref={inputRef}
         type="file"
