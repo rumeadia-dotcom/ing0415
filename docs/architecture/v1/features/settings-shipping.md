@@ -1,7 +1,7 @@
-# features/settings-shipping.md — 배송 설정 (s9) 설계 (v2)
+# features/settings-shipping.md — 배송 설정 (s9) 설계
 
-> v2 주문·배송 자동화의 s9 도메인 단일 진입점.
-> 의존: `overview.md`, `cross-cutting/logen-adapter.md`, `docs/spec/PRD-v2-shipping.md` §3 / §4, `docs/spec/user_flow-v2-shipping.md` s9 (n58~n60).
+> 주문·배송 자동화의 s9 도메인 단일 진입점.
+> 의존: `overview-shipping.md`, `cross-cutting/logen-adapter.md`, `docs/spec/PRD.md` §7 / §8, `docs/spec/user_flow.md` s9 (n58~n60).
 > 소관: backend + security 주도 (자격증명 암호화), frontend / qa 리뷰.
 
 ---
@@ -156,7 +156,7 @@ const LogenVerifyResponse = z.object({
 - 카드 2: 발송인 정보 (이름/주소/연락처 요약) + [편집] → /settings/shipping/sender.
 - 카드 3: 동작 설정
   - 토글: "출력 후 자동 제출" (auto_dispatch_after_print)
-  - 기본 택배사: v2 = 로젠만 (disabled, "추가 예정" 표기).
+  - 기본 택배사: v1 = 로젠만 (disabled, "추가 예정" 표기).
 
 ### 5.2 n59 `/settings/shipping/logen`
 

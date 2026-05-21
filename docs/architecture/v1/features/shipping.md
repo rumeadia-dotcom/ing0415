@@ -1,7 +1,7 @@
-# features/shipping.md — 배송 처리 (s8) 설계 (v2)
+# features/shipping.md — 배송 처리 (s8) 설계
 
-> v2 주문·배송 자동화의 s8 도메인 단일 진입점.
-> 의존: `overview.md`, `features/orders.md`, `cross-cutting/logen-adapter.md`, `cross-cutting/market-adapter-v2.md`, `docs/spec/PRD-v2-shipping.md` §2.2 ~ §2.4, `docs/spec/user_flow-v2-shipping.md` s8 (n51~n57).
+> 주문·배송 자동화의 s8 도메인 단일 진입점.
+> 의존: `overview-shipping.md`, `features/orders.md`, `cross-cutting/logen-adapter.md`, `cross-cutting/market-adapter-shipping.md`, `docs/spec/PRD.md` §6.2 ~ §6.4, `docs/spec/user_flow.md` s8 (n51~n57).
 > 소관: backend 주도, frontend / qa 리뷰.
 
 ---
@@ -15,7 +15,7 @@
   - Realtime: `shipping_jobs` / `shipping_job_results` 구독.
 - **제외**:
   - 로젠 API 4 메서드 명세 → `cross-cutting/logen-adapter.md`.
-  - 마켓별 `submitTracking` 매트릭스 → `cross-cutting/market-adapter-v2.md`.
+  - 마켓별 `submitTracking` 매트릭스 → `cross-cutting/market-adapter-shipping.md`.
   - 로젠 자격증명 / 발송인 정보 → `features/settings-shipping.md`.
 
 ---

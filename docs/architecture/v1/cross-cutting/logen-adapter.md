@@ -1,7 +1,7 @@
-# cross-cutting/logen-adapter.md — 로젠택배 API 어댑터 명세 (v2)
+# cross-cutting/logen-adapter.md — 로젠택배 API 어댑터 명세
 
-> 로젠택배 B2B Open API 의 4 메서드를 v2 의 Edge Functions 가 공통으로 사용하기 위한 단일 어댑터 명세.
-> 의존: `docs/spec/PRD-v2-shipping.md` §2.2 / §2.3 / §3, `features/shipping.md`, `features/settings-shipping.md`.
+> 로젠택배 B2B Open API 의 4 메서드를 주문·배송 Edge Functions 가 공통으로 사용하기 위한 단일 어댑터 명세.
+> 의존: `docs/spec/PRD.md` §6.2 / §6.3 / §7, `features/shipping.md`, `features/settings-shipping.md`.
 > 위치: `apps/api/supabase/functions/_shared/logen-adapter.ts` (PR3 에서 구현).
 
 ---

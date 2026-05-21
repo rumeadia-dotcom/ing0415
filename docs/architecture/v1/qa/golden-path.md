@@ -639,7 +639,7 @@ export default defineConfig({
 ### 11.3 주기적 점검
 
 - `release/*` 브랜치 생성 시점마다 본 문서 §10 체크리스트 전체 통과 여부 재검증.
-- 새 마켓 어댑터 / Step / 라우트 / RLS 정책이 v2 에 도입되는 시점, 본 문서를 v2 골든 패스로 fork 한다 (`docs/architecture/v2/qa/golden-path.md`). v1 골든 패스는 v1 운영이 종료될 때까지 유지.
+- 새 마켓 어댑터 / Step / 라우트 / RLS 정책이 도입될 때마다 본 문서를 갱신한다. 별도 fork 없이 v1 골든 패스 단일 문서로 유지.
 
 ---
 

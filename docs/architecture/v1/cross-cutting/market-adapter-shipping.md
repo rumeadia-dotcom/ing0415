@@ -1,7 +1,7 @@
-# cross-cutting/market-adapter-v2.md — MarketAdapter v2 확장 (주문/송장)
+# cross-cutting/market-adapter-shipping.md — MarketAdapter 주문/송장 확장
 
-> v1 `cross-cutting/market-adapter.md` 의 5 메서드 인터페이스에 v2 가 **2 메서드를 추가**한다. 본 문서는 그 2 메서드의 매트릭스만 정의하며, v1 인터페이스·재시도·rate limit·debug/real 분리 정책은 v1 문서가 단일 출처.
-> 의존: `docs/architecture/v1/cross-cutting/market-adapter.md` (v1 단일 출처), `features/orders.md`, `features/shipping.md`, `docs/spec/PRD-v2-shipping.md` §2.1 / §2.4.
+> 상품 등록 도메인의 `cross-cutting/market-adapter.md` 5 메서드 인터페이스에 주문·배송 도메인이 **2 메서드를 추가**한다. 본 문서는 그 2 메서드의 매트릭스만 정의하며, 기존 인터페이스·재시도·rate limit·debug/real 분리 정책은 상품 등록 문서가 단일 출처.
+> 의존: `docs/architecture/v1/cross-cutting/market-adapter.md` (단일 출처), `features/orders.md`, `features/shipping.md`, `docs/spec/PRD.md` §6.1 / §6.4.
 
 ---
 
@@ -9,14 +9,14 @@
 
 ```ts
 export interface MarketAdapter {
-  // v1 기존 5 메서드 (변경 없음)
+  // 상품 등록 도메인 기존 5 메서드 (변경 없음)
   authenticate(...): Promise<...>;
   refreshToken(...): Promise<...>;
   fetchCategoryTree(): Promise<CategoryNode[]>;
   transformProduct(...): Promise<MarketPayload>;
   createProduct(...): Promise<{ externalId: string; productUrl: string }>;
 
-  // v2 신규 2 메서드
+  // 주문·배송 신규 2 메서드
   fetchOrders(input: FetchOrdersInput): Promise<FetchOrdersOutput>;
   submitTracking(input: SubmitTrackingInput): Promise<SubmitTrackingOutput>;
 }
@@ -84,7 +84,7 @@ export interface SubmitTrackingOutput {
 | G마켓 | ESM `setShipInfo(site='G')` | ESM API Key | orderNo, sendDate, deliveryCompanyCode='LOGEN', invoiceNo | resultCode='0' |
 | 옥션 | ESM `setShipInfo(site='A')` | ESM API Key | 동일 | 동일 |
 
-- 모든 마켓 `carrierCode='LOGEN'` 고정 (v2 MVP). 다중 택배사는 v3 이후.
+- 모든 마켓 `carrierCode='LOGEN'` 고정 (v1 출시 범위). 다중 택배사는 후속.
 - 마켓별 carrierCode 코드값 (네이버: "LOGEN" / 쿠팡: "LOGEN_KOREA" 등) 의 정확한 식별자는 PR4 구현 시 마켓 문서에서 확정.
 
 ---

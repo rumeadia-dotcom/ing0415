@@ -1,7 +1,7 @@
-# features/orders.md — 주문 자동 수집 (s7) 설계 (v2)
+# features/orders.md — 주문 자동 수집 (s7) 설계
 
-> 본 문서는 **v2 주문·배송 자동화** 의 s7 도메인을 단일 파일로 정의한다.
-> 의존: `docs/architecture/v2/overview.md`, `docs/architecture/v2/cross-cutting/market-adapter-v2.md`, `docs/spec/PRD-v2-shipping.md` §2.1 / §2.5 / §4, `docs/spec/user_flow-v2-shipping.md` s7 (n47~n50).
+> 본 문서는 **주문·배송 자동화** 의 s7 도메인을 단일 파일로 정의한다.
+> 의존: `docs/architecture/v1/overview-shipping.md`, `docs/architecture/v1/cross-cutting/market-adapter-shipping.md`, `docs/spec/PRD.md` §6.1 / §6.5 / §8, `docs/spec/user_flow.md` s7 (n47~n50).
 > 소관: backend 주도, frontend / security / qa 리뷰.
 
 ---
@@ -14,7 +14,7 @@
   - Edge Function: `orders-sync` (pg_cron 10분 폴링).
   - Realtime: `orders` 구독.
 - **제외 (다른 문서)**:
-  - 마켓별 `fetchOrders` 어댑터 메서드 → `cross-cutting/market-adapter-v2.md`.
+  - 마켓별 `fetchOrders` 어댑터 메서드 → `cross-cutting/market-adapter-shipping.md`.
   - 로젠 등록 자동 후속 → `features/shipping.md`.
   - `MarketAccount` 토큰 복호화 → v1 `cross-cutting/credential-vault.md`.
 

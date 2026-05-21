@@ -922,16 +922,16 @@ export class MarketError extends Error {
 
 ### 9.7 v2 Extension — fetchOrders + submitTracking (2026-05-21 도입)
 
-v2 배송 흐름 (PRD-v2-shipping.md §2.1 / §2.4) 도입에 따라 `MarketAdapter` 인터페이스가 5 → 7 메서드로 확장된다. 인터페이스 시그니처는 다음 두 메서드 추가:
+v2 배송 흐름 (PRD.md §6.1 / §6.4) 도입에 따라 `MarketAdapter` 인터페이스가 5 → 7 메서드로 확장된다. 인터페이스 시그니처는 다음 두 메서드 추가:
 
 ```ts
-// 마켓 주문 목록 조회 (PRD-v2-shipping §2.1)
+// 마켓 주문 목록 조회 (PRD §6.1)
 fetchOrders(
   input: FetchOrdersInput,
   credential?: StoredCredential,
 ): Promise<MarketOrder[]>
 
-// 송장 번호 제출 (PRD-v2-shipping §2.4)
+// 송장 번호 제출 (PRD §6.4)
 submitTracking(
   input: SubmitTrackingInput,
   credential?: StoredCredential,
