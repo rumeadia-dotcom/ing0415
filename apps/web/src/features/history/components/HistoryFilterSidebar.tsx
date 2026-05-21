@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { MARKET_IDS, type MarketId } from '@/lib/schemas/common'
 import { JOB_STATUSES, type JobStatus } from '@/lib/schemas/registration'
@@ -95,9 +96,17 @@ export function HistoryFilterSidebar({
 
   const isCustom = draft.period === 'custom'
 
+  const periodSummary =
+    PERIOD_OPTIONS.find((o) => o.value === draft.period)?.label ?? '지난 30일'
+  const marketCount = draft.markets?.length ?? 0
+  const marketSummary = marketCount === 0 ? '전체' : `${marketCount}개 선택`
+  const statusCount = draft.statuses?.length ?? 0
+  const statusSummary = statusCount === 0 ? '전체' : `${statusCount}개 선택`
+  const querySummary = draft.q?.trim() ? draft.q : '—'
+
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
-      <Fieldset legend="기간">
+      <Fieldset legend="기간" summary={periodSummary}>
         <div className="flex flex-col gap-1.5">
           {PERIOD_OPTIONS.map((opt) => {
             const checked = draft.period === opt.value
@@ -147,7 +156,7 @@ export function HistoryFilterSidebar({
 
       <FieldsetDivider />
 
-      <Fieldset legend="마켓">
+      <Fieldset legend="마켓" summary={marketSummary}>
         <div className="flex flex-col gap-1.5">
           {MARKET_IDS.map((id) => (
             <label
@@ -173,7 +182,7 @@ export function HistoryFilterSidebar({
 
       <FieldsetDivider />
 
-      <Fieldset legend="상태">
+      <Fieldset legend="상태" summary={statusSummary}>
         <div className="flex flex-col gap-1.5">
           {JOB_STATUSES.map((s) => (
             <label
@@ -200,7 +209,7 @@ export function HistoryFilterSidebar({
 
       <FieldsetDivider />
 
-      <Fieldset legend="검색">
+      <Fieldset legend="검색" summary={querySummary}>
         <Input
           type="search"
           aria-label="상품명 검색"
@@ -227,17 +236,44 @@ export function HistoryFilterSidebar({
 
 function Fieldset({
   legend,
+  summary,
+  defaultOpen = false,
   children,
 }: {
   legend: string
+  summary?: string
+  defaultOpen?: boolean
   children: React.ReactNode
 }): JSX.Element {
+  const [open, setOpen] = useState(defaultOpen)
+  const panelId = useId()
   return (
     <fieldset>
-      <legend className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-tertiary">
-        {legend}
+      <legend className="w-full">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+          className="-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between rounded-md px-1 py-1 text-left hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-tertiary">
+            {legend}
+          </span>
+          <span className="flex items-center gap-2">
+            {!open && summary ? (
+              <span className="text-xs text-text-secondary">{summary}</span>
+            ) : null}
+            <ChevronDown
+              aria-hidden
+              className={`h-4 w-4 shrink-0 text-text-tertiary transition-transform ${open ? '' : '-rotate-90'}`}
+            />
+          </span>
+        </button>
       </legend>
-      {children}
+      <div id={panelId} hidden={!open} className="mt-2.5">
+        {children}
+      </div>
     </fieldset>
   )
 }
