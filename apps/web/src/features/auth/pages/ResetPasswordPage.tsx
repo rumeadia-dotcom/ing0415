@@ -158,11 +158,11 @@ export function ResetPasswordPage(): JSX.Element {
                         'h-1 flex-1 rounded',
                         i <= strength.score
                           ? strength.toneClass
-                          : 'bg-[oklch(0.92_0.008_75)]',
+                          : 'bg-border',
                       )}
                     />
                   ))}
-                  <span className="ml-2 text-[11.5px] text-[oklch(0.48_0.012_60)]">
+                  <span className="ml-2 text-[11.5px] text-dim">
                     {strength.label}
                   </span>
                 </div>

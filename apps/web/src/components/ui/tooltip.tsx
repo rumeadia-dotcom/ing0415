@@ -29,7 +29,7 @@ export const TooltipContent = forwardRef<
       sideOffset={sideOffset}
       className={cn(
         'z-50 overflow-hidden rounded-[8px]',
-        'bg-[oklch(0.15_0.015_60)] text-white',
+        'bg-ink text-white',
         'px-[10px] py-[6px] text-[12px] font-medium',
         'shadow-[0_8px_16px_-4px_oklch(0_0_0_/_0.25)]',
         'data-[state=delayed-open]:animate-fade-in data-[state=closed]:animate-fade-out',

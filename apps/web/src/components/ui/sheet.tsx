@@ -27,7 +27,7 @@ const SheetOverlay = forwardRef<
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        'fixed inset-0 z-50 bg-[oklch(0_0_0_/_0.4)] backdrop-blur-sm',
+        'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm',
         'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
         className,
       )}
@@ -39,7 +39,7 @@ const SheetOverlay = forwardRef<
 const sheetVariants = cva(
   [
     'fixed z-50 gap-3 bg-white',
-    'border-[oklch(0.92_0.008_75)]',
+    'border-border',
     'shadow-[0_24px_48px_-12px_oklch(0_0_0_/_0.18)]',
     'data-[state=open]:animate-slide-in-from-top data-[state=closed]:animate-fade-out',
   ],
@@ -77,9 +77,9 @@ export const SheetContent = forwardRef<
         {children}
         <DialogPrimitive.Close
           className={cn(
-            'absolute right-3 top-3 rounded-sm text-[oklch(0.48_0.012_60)]',
+            'absolute right-3 top-3 rounded-sm text-dim',
             'opacity-70 transition-opacity hover:opacity-100',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-white',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
             'disabled:pointer-events-none',
           )}
           aria-label="닫기"
@@ -112,7 +112,7 @@ export const SheetTitle = forwardRef<
     <DialogPrimitive.Title
       ref={ref}
       className={cn(
-        'text-[20px] font-bold leading-tight tracking-tight text-[oklch(0.15_0.015_60)]',
+        'text-[20px] font-bold leading-tight tracking-tight text-ink',
         className,
       )}
       {...props}
@@ -127,7 +127,7 @@ export const SheetDescription = forwardRef<
   return (
     <DialogPrimitive.Description
       ref={ref}
-      className={cn('text-[13px] text-[oklch(0.48_0.012_60)]', className)}
+      className={cn('text-[13px] text-dim', className)}
       {...props}
     />
   )

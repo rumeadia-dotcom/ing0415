@@ -21,7 +21,7 @@ export const Progress = forwardRef<
       ref={ref}
       className={cn(
         'relative h-2 w-full overflow-hidden rounded-full',
-        'bg-[oklch(0.985_0.006_75)] border border-[oklch(0.92_0.008_75)]',
+        'bg-card-2 border border-border',
         className,
       )}
       {...props}
@@ -29,7 +29,7 @@ export const Progress = forwardRef<
       <ProgressPrimitive.Indicator
         className={cn(
           'h-full w-full flex-1 rounded-full',
-          'bg-[oklch(0.62_0.14_55)] transition-transform duration-300 ease-out',
+          'bg-accent transition-transform duration-300 ease-out',
         )}
         style={{ transform: `translateX(-${100 - (value ?? 0)}%)` }}
       />

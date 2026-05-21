@@ -24,7 +24,7 @@ export const ko = {
     settings: '설정',
     help: '도움말',
     shipping: {
-      group: '배송 (v2)',
+      group: '배송',
       orders: '주문 현황',
       print: '운송장 출력',
       dispatch: '송장 일괄 제출',

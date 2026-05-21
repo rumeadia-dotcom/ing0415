@@ -41,23 +41,23 @@ export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Ele
       data-sync-status={item.syncStatus}
       className={[
         'group relative flex items-center gap-3 rounded-[10px] border px-3 py-3 transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55)] focus-visible:ring-offset-1',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
         isError
-          ? 'border-[oklch(0.55_0.16_25)]/30 bg-[oklch(0.95_0.03_25)] hover:bg-[oklch(0.93_0.04_25)]'
+          ? 'border-danger/30 bg-danger-soft hover:bg-danger-soft/80'
           : hasNew
-            ? 'border-[oklch(0.92_0.008_75)] bg-white hover:bg-[oklch(0.985_0.006_75)]'
-            : 'border-[oklch(0.92_0.008_75)] bg-[oklch(0.985_0.006_75)] hover:bg-white',
+            ? 'border-border bg-white hover:bg-card-2'
+            : 'border-border bg-card-2 hover:bg-white',
       ].join(' ')}
     >
       <MarketLogo id={item.marketId} size="md" label={marketLabel} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[13.5px] font-semibold text-[oklch(0.15_0.015_60)]">
+          <span className="truncate text-[13.5px] font-semibold text-ink">
             {marketLabel}
           </span>
           <SyncBadge status={item.syncStatus} />
         </div>
-        <div className="mt-0.5 text-[11.5px] text-[oklch(0.68_0.01_60)]">
+        <div className="mt-0.5 text-[11.5px] text-faint">
           {isError
             ? '연결 오류 — 재인증 필요'
             : item.lastSyncedAt
@@ -70,20 +70,20 @@ export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Ele
           <div
             className={[
               'font-mono text-[20px] font-bold leading-none tabular-nums tracking-[-0.02em]',
-              hasNew ? 'text-[oklch(0.15_0.015_60)]' : 'text-[oklch(0.68_0.01_60)]',
+              hasNew ? 'text-ink' : 'text-faint',
             ].join(' ')}
           >
             {item.newOrdersCount}
           </div>
-          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-[oklch(0.68_0.01_60)]">
+          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
             신규
           </div>
         </div>
         <div>
-          <div className="font-mono text-[15px] font-semibold leading-none tabular-nums text-[oklch(0.48_0.012_60)]">
+          <div className="font-mono text-[15px] font-semibold leading-none tabular-nums text-dim">
             {item.todayTotalCount}
           </div>
-          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-[oklch(0.68_0.01_60)]">
+          <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
             오늘
           </div>
         </div>
@@ -92,7 +92,7 @@ export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Ele
         aria-hidden
         className={[
           'h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5',
-          isError ? 'text-[oklch(0.55_0.16_25)]' : 'text-[oklch(0.68_0.01_60)]',
+          isError ? 'text-danger' : 'text-faint',
           isSyncing ? 'opacity-50' : '',
         ].join(' ')}
       />
@@ -103,7 +103,7 @@ export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Ele
 function SyncBadge({ status }: { status: MarketOrderItem['syncStatus'] }): JSX.Element | null {
   if (status === 'error') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.95_0.03_25)] px-2 py-0.5 text-[10.5px] font-semibold text-[oklch(0.55_0.16_25)]">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-[10.5px] font-semibold text-danger">
         <AlertCircle className="h-3 w-3" aria-hidden />
         오류
       </span>
@@ -111,7 +111,7 @@ function SyncBadge({ status }: { status: MarketOrderItem['syncStatus'] }): JSX.E
   }
   if (status === 'syncing') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.95_0.025_235)] px-2 py-0.5 text-[10.5px] font-semibold text-[oklch(0.55_0.10_235)]">
+      <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[10.5px] font-semibold text-info">
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
         동기화 중
       </span>

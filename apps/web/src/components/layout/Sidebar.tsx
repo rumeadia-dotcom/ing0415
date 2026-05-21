@@ -24,8 +24,7 @@ import { cn } from '@/lib/utils'
  *  2) Nav 그룹 (그룹 타이틀 11px uppercase faint) — 메인 / 판매 / 환경
  *  3) 하단 셀러 mini card (avatar / name / email) — auto margin-top
  *
- * 색상은 globals.css/tailwind 토큰이 PR1 에서 합쳐지기 전까지 Studio 토큰 OKLCH arbitrary
- * (`bg-[oklch(...)]`) 로 명시한다. PR1 머지 후 token alias 로 교체 가능 (별도 sweep PR).
+ * 색상은 globals.css / tailwind.config.ts 의 named token (bg / card / ink / dim / faint / accent / border …) 만 사용.
  *
  * 활성 라우트 매칭은 NavLink 가 처리. aria-current="page" 자동 부여.
  * 모바일에서는 MobileNav 가 Sheet 로 동일 본문을 감싸 드로어 출력.
@@ -96,8 +95,8 @@ export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
         'flex h-full w-full flex-col',
         // Studio shell: 230px sidebar, card bg, 1px border-right (Studio `border` token)
         'md:w-[230px]',
-        'bg-[oklch(1_0_0)] dark:bg-[oklch(0.18_0.01_60)]',
-        'border-r border-[oklch(0.92_0.008_75)] dark:border-[oklch(0.28_0.01_60)]',
+        'bg-card',
+        'border-r border-border',
         'px-[14px] py-[18px]',
       )}
     >
@@ -128,9 +127,9 @@ function BrandSection(): JSX.Element {
           'grid place-items-center rounded-lg',
           'h-7 w-7',
           // ink background + accent ochre letter
-          'bg-[oklch(0.15_0.015_60)] dark:bg-[oklch(0.95_0.008_75)]',
+          'bg-ink',
           'text-[15px] font-bold',
-          'text-[oklch(0.62_0.14_55)]',
+          'text-accent',
         )}
       >
         M
@@ -139,7 +138,7 @@ function BrandSection(): JSX.Element {
         <div
           className={cn(
             'truncate text-[15px] font-bold leading-tight tracking-[-0.015em]',
-            'text-[oklch(0.15_0.015_60)] dark:text-[oklch(0.95_0.008_75)]',
+            'text-ink',
           )}
         >
           {ko.app.name}
@@ -147,7 +146,7 @@ function BrandSection(): JSX.Element {
         <div
           className={cn(
             'mt-[1px] truncate text-[10.5px] leading-tight',
-            'text-[oklch(0.68_0.01_60)]',
+            'text-faint',
           )}
         >
           {ko.shell.brandTagline}
@@ -170,7 +169,7 @@ function NavSection({ group, isFirst, onNavigate }: NavSectionProps): JSX.Elemen
         <div
           className={cn(
             'px-2 pb-1.5 text-[10.5px] font-semibold uppercase leading-tight tracking-[0.08em]',
-            'text-[oklch(0.68_0.01_60)]',
+            'text-faint',
           )}
         >
           {group.title}
@@ -211,7 +210,7 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps): JSX.Element {
         className={cn(
           baseRow,
           'font-medium',
-          'text-[oklch(0.68_0.01_60)]',
+          'text-faint',
           'cursor-not-allowed opacity-70',
         )}
       >
@@ -230,18 +229,18 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps): JSX.Element {
         cn(
           baseRow,
           'transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55)] focus-visible:ring-offset-1',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
           isActive
             ? cn(
-                'bg-[oklch(0.94_0.04_65)]',
-                'text-[oklch(0.15_0.015_60)]',
+                'bg-accent-soft',
+                'text-ink',
                 'font-semibold',
               )
             : cn(
                 'font-medium',
-                'text-[oklch(0.48_0.012_60)] dark:text-[oklch(0.78_0.01_60)]',
-                'hover:bg-[oklch(0.985_0.006_75)] dark:hover:bg-[oklch(0.22_0.01_60)]',
-                'hover:text-[oklch(0.22_0.015_60)] dark:hover:text-[oklch(0.95_0.008_75)]',
+                'text-dim',
+                'hover:bg-card-2',
+                'hover:text-text',
               ),
         )
       }
@@ -253,8 +252,8 @@ function SidebarItem({ item, onNavigate }: SidebarItemProps): JSX.Element {
           className={cn(
             'inline-flex items-center rounded-full border px-[7px] py-px',
             'text-[11px] font-semibold',
-            'border-[oklch(0.92_0.008_75)] bg-[oklch(0.985_0.006_75)]',
-            'text-[oklch(0.48_0.012_60)]',
+            'border-border bg-card-2',
+            'text-dim',
           )}
         >
           {tag}
@@ -269,8 +268,8 @@ function SellerMiniCard(): JSX.Element {
     <div
       className={cn(
         'mt-auto rounded-xl p-3',
-        'border border-[oklch(0.92_0.008_75)] dark:border-[oklch(0.28_0.01_60)]',
-        'bg-[oklch(0.985_0.006_75)] dark:bg-[oklch(0.22_0.01_60)]',
+        'border border-border',
+        'bg-card-2',
       )}
     >
       <div className="flex items-center gap-2">
@@ -278,7 +277,7 @@ function SellerMiniCard(): JSX.Element {
           aria-hidden="true"
           className={cn(
             'grid h-8 w-8 shrink-0 place-items-center rounded-full',
-            'bg-[oklch(0.94_0.04_65)] text-[oklch(0.62_0.14_55)]',
+            'bg-accent-soft text-accent',
             'text-[13px] font-bold',
           )}
         >
@@ -288,7 +287,7 @@ function SellerMiniCard(): JSX.Element {
           <div
             className={cn(
               'truncate text-[13px] font-semibold leading-tight',
-              'text-[oklch(0.15_0.015_60)] dark:text-[oklch(0.95_0.008_75)]',
+              'text-ink',
             )}
           >
             {ko.shell.sellerPlaceholderName}
@@ -296,7 +295,7 @@ function SellerMiniCard(): JSX.Element {
           <div
             className={cn(
               'mt-0.5 truncate text-[11px] leading-tight',
-              'text-[oklch(0.68_0.01_60)]',
+              'text-faint',
             )}
           >
             {ko.shell.sellerPlaceholderEmail}

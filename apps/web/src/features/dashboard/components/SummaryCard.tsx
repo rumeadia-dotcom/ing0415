@@ -25,11 +25,11 @@ export interface SummaryCardProps {
 }
 
 const TONE_DOT: Record<NonNullable<SummaryCardProps['tone']>, string> = {
-  accent: 'bg-[oklch(0.62_0.14_55)]',
-  info: 'bg-[oklch(0.55_0.10_235)]',
-  ok: 'bg-[oklch(0.55_0.10_160)]',
-  warn: 'bg-[oklch(0.62_0.12_70)]',
-  dim: 'bg-[oklch(0.68_0.01_60)]',
+  accent: 'bg-accent',
+  info: 'bg-info',
+  ok: 'bg-success',
+  warn: 'bg-warning',
+  dim: 'bg-faint',
 }
 
 export function SummaryCard({
@@ -45,11 +45,11 @@ export function SummaryCard({
     <Card className={cn('h-full rounded-[14px]', className)}>
       <CardContent className="flex h-full flex-col gap-2 px-[18px] py-[14px] pt-4">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] font-semibold uppercase tracking-wider text-[oklch(0.48_0.012_60)]">
+          <span className="text-[12px] font-semibold uppercase tracking-wider text-dim">
             {label}
           </span>
           {icon ? (
-            <span className="text-[oklch(0.68_0.01_60)]">{icon}</span>
+            <span className="text-faint">{icon}</span>
           ) : null}
         </div>
         {state === 'loading' ? (
@@ -57,16 +57,16 @@ export function SummaryCard({
         ) : state === 'error' ? (
           <div className="text-sm text-danger">불러오기 실패</div>
         ) : state === 'empty' ? (
-          <div className="text-[34px] font-bold leading-none tracking-[-0.03em] text-[oklch(0.68_0.01_60)]">
+          <div className="text-[34px] font-bold leading-none tracking-[-0.03em] text-faint">
             —
           </div>
         ) : (
-          <div className="text-[34px] font-bold leading-none tracking-[-0.03em] text-[oklch(0.15_0.015_60)] tabular-nums">
+          <div className="text-[34px] font-bold leading-none tracking-[-0.03em] text-ink tabular-nums">
             {value}
           </div>
         )}
         {hint ? (
-          <div className="mt-1 flex items-center gap-1.5 text-[11.5px] text-[oklch(0.68_0.01_60)]">
+          <div className="mt-1 flex items-center gap-1.5 text-[11.5px] text-faint">
             <span
               aria-hidden
               className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', TONE_DOT[tone])}

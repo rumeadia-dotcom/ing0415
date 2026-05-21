@@ -27,7 +27,7 @@ export function AppLayout(): JSX.Element {
       className={cn(
         'min-h-screen',
         // Studio bg (warm off-white) — OKLCH arbitrary, PR1 토큰 합류 후 alias 교체 예정
-        'bg-[oklch(0.975_0.008_75)] dark:bg-[oklch(0.18_0.01_60)]',
+        'bg-bg',
         // Studio shell grid: 230px sidebar + 1fr main (desktop), 단일 컬럼 (모바일)
         'md:grid md:grid-cols-[230px_1fr]',
         // 폰트 — Studio 사양 (Manrope + Pretendard 폴백). 토큰 미합류 상태 안전망.

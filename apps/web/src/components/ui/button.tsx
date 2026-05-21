@@ -27,7 +27,7 @@ const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-1.5 whitespace-nowrap',
     'rounded-[10px] font-semibold transition-colors',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.62_0.14_55_/_0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(0.975_0.008_75)]',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
     'disabled:pointer-events-none disabled:opacity-50',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
   ],
@@ -35,16 +35,16 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-[oklch(0.15_0.015_60)] !text-white hover:bg-[oklch(0.22_0.015_60)] font-bold',
+          'bg-ink !text-white hover:bg-text font-bold',
         secondary:
-          'bg-white text-[oklch(0.15_0.015_60)] border border-[oklch(0.85_0.01_75)] hover:bg-[oklch(0.985_0.006_75)] font-semibold',
+          'bg-white text-ink border border-border-strong hover:bg-card-2 font-semibold',
         ghost:
-          'bg-transparent text-[oklch(0.48_0.012_60)] border border-[oklch(0.92_0.008_75)] hover:bg-[oklch(0.985_0.006_75)] hover:text-[oklch(0.15_0.015_60)] font-semibold',
+          'bg-transparent text-dim border border-border hover:bg-card-2 hover:text-ink font-semibold',
         outline:
-          'bg-transparent text-[oklch(0.48_0.012_60)] border border-[oklch(0.92_0.008_75)] hover:bg-[oklch(0.985_0.006_75)] hover:text-[oklch(0.15_0.015_60)] font-semibold',
+          'bg-transparent text-dim border border-border hover:bg-card-2 hover:text-ink font-semibold',
         danger:
-          'bg-[oklch(0.55_0.16_25)] !text-white hover:bg-[oklch(0.50_0.16_25)] font-bold border-none',
-        link: 'text-[oklch(0.62_0.14_55)] underline-offset-4 hover:underline px-0 h-auto bg-transparent border-none font-semibold',
+          'bg-danger !text-white hover:brightness-90 font-bold border-none',
+        link: 'text-accent underline-offset-4 hover:underline px-0 h-auto bg-transparent border-none font-semibold',
       },
       size: {
         // sm: padding 6/12, radius 8, fontSize 12.5

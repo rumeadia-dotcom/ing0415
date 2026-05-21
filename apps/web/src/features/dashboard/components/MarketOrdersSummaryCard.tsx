@@ -42,29 +42,29 @@ export function MarketOrdersSummaryCard({
   return (
     <Card
       aria-labelledby="dashboard-market-orders-title"
-      className="rounded-[14px] border-[oklch(0.92_0.008_75)]"
+      className="rounded-[14px] border-border"
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-[18px] py-4">
         <div className="flex items-center gap-2">
           <ShoppingBag
-            className="h-4 w-4 text-[oklch(0.62_0.14_55)]"
+            className="h-4 w-4 text-accent"
             aria-hidden
           />
           <div>
             <CardTitle
               id="dashboard-market-orders-title"
-              className="text-[14px] font-bold leading-none text-[oklch(0.15_0.015_60)]"
+              className="text-[14px] font-bold leading-none text-ink"
             >
               마켓별 주문 현황
             </CardTitle>
-            <p className="mt-1.5 text-[11.5px] text-[oklch(0.68_0.01_60)]">
+            <p className="mt-1.5 text-[11.5px] text-faint">
               마켓별 신규 주문과 동기화 상태를 한눈에 확인하세요
             </p>
           </div>
         </div>
         <Link
           to="/orders"
-          className="text-[11.5px] font-semibold text-[oklch(0.48_0.012_60)] hover:text-[oklch(0.15_0.015_60)]"
+          className="text-[11.5px] font-semibold text-dim hover:text-ink"
           aria-label="주문 전체 보기"
         >
           전체 보기 →
@@ -129,11 +129,11 @@ function List({
         </div>
       )}
       {hasNoConnectedMarkets && (
-        <div className="rounded-[10px] border border-dashed border-[oklch(0.85_0.01_75)] bg-[oklch(0.985_0.006_75)] px-4 py-3 text-[12.5px] text-[oklch(0.48_0.012_60)]">
+        <div className="rounded-[10px] border border-dashed border-border-strong bg-card-2 px-4 py-3 text-[12.5px] text-dim">
           아직 마켓 계정이 연결되지 않아 주문이 들어오지 않습니다.{' '}
           <Link
             to="/markets"
-            className="font-semibold text-[oklch(0.62_0.14_55)] hover:underline"
+            className="font-semibold text-accent hover:underline"
           >
             마켓 연결하기 →
           </Link>
@@ -148,14 +148,14 @@ function ComingSoonRow({ marketId }: { marketId: MarketId }): JSX.Element {
   return (
     <div
       data-market={marketId}
-      className="flex items-center gap-3 rounded-[10px] border border-dashed border-[oklch(0.85_0.01_75)] bg-[oklch(0.985_0.006_75)] px-3 py-2.5 opacity-70"
+      className="flex items-center gap-3 rounded-[10px] border border-dashed border-border-strong bg-card-2 px-3 py-2.5 opacity-70"
       aria-label={`${marketLabel} ${ko.marketStatus.coming_soon}`}
     >
       <MarketLogo id={marketId} size="sm" label={marketLabel} />
-      <span className="flex-1 text-[12.5px] font-medium text-[oklch(0.48_0.012_60)]">
+      <span className="flex-1 text-[12.5px] font-medium text-dim">
         {marketLabel}
       </span>
-      <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[oklch(0.68_0.01_60)]">
+      <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-faint">
         {ko.marketStatus.coming_soon}
       </span>
     </div>
