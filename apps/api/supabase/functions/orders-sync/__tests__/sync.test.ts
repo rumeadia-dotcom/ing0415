@@ -7,15 +7,18 @@
  *
  * 커버리지:
  *   1) happy path — 4 마켓 어댑터 모두 orders 반환 → upsert → 신규 id 수집.
- *   2) 중복 방지 — 동일 (seller, market, external_order_id) 재실행 시 inserted=0, duplicates=N.
+ *   2) 중복 방지 — 동일 (market, external_order_id, seller) 재실행 시 inserted=0, duplicates=N.
  *   3) 한 마켓 실패 격리 — coupang throw 해도 나머지 3 마켓은 정상 진행.
  *   4) sellerId 필터 — 특정 셀러만 polling.
  *   5) fetchOrders 미 부착 어댑터 (PR4 미 머지 시나리오) → skip + errorCode 'adapter_no_fetch_orders'.
  *   6) logen invoke fire-and-forget — 실패해도 outcome 정상 반환.
+ *   7) non-new_pay status 필터 — 어댑터가 'dispatched' 등 반환 시 적재 제외.
  *
  * 강제:
  *   - 실 Supabase 호출 없음. in-memory mock SupabaseClient 사용.
- *   - 평문 토큰 / PII 노출 검증 없음 — _shared/logger 의 maskRecord 가 담당.
+ *   - PR4 `market-orders.ts` MarketOrderSchema 1:1 매핑 검증.
+ *   - PRD §4 컬럼 (buyer_name / receiver_* / product_name / quantity / order_amount /
+ *     status='collected' / collected_at) 매핑 검증.
  */
 
 import {
@@ -25,6 +28,7 @@ import {
 import { syncOrders } from '../lib/sync.ts'
 import type {
   MarketOrder,
+  MarketOrderStatus,
   OrderSyncAdapter,
 } from '../lib/adapter-shape.ts'
 import { createLogger } from '../../_shared/logger.ts'
@@ -47,9 +51,15 @@ interface OrderRow {
   seller_id: string
   market_id: string
   external_order_id: string
+  buyer_name: string
+  receiver_name: string
+  receiver_address: string
+  receiver_phone: string
+  product_name: string
+  quantity: number
+  order_amount: number
   status: string
-  ordered_at: string
-  payload: Record<string, unknown>
+  collected_at: string
 }
 
 interface MockState {
@@ -59,13 +69,14 @@ interface MockState {
 }
 
 function makeMockSupabase(state: MockState) {
-  // chainable query builder — 본 PR 이 쓰는 메서드만 구현.
   function tableAccounts() {
     let filtered = state.accounts.slice()
     const chain = {
       select: (_cols: string) => chain,
       eq: (col: string, val: unknown) => {
-        filtered = filtered.filter((r) => (r as unknown as Record<string, unknown>)[col] === val)
+        filtered = filtered.filter(
+          (r) => (r as unknown as Record<string, unknown>)[col] === val,
+        )
         return chain
       },
       in: (col: string, vals: unknown[]) => {
@@ -85,18 +96,11 @@ function makeMockSupabase(state: MockState) {
     let returningRows: OrderRow[] = []
     const chain = {
       upsert: (
-        rows: Array<{
-          seller_id: string
-          market_id: string
-          external_order_id: string
-          status: string
-          ordered_at: string
-          payload: Record<string, unknown>
-        }>,
+        rows: Array<Omit<OrderRow, 'id'>>,
         opts: { onConflict: string; ignoreDuplicates: boolean },
       ) => {
-        if (opts.onConflict !== 'seller_id,market_id,external_order_id') {
-          throw new Error('unexpected onConflict')
+        if (opts.onConflict !== 'market_id,external_order_id,seller_id') {
+          throw new Error(`unexpected onConflict: ${opts.onConflict}`)
         }
         const newRows: OrderRow[] = []
         for (const row of rows) {
@@ -159,7 +163,7 @@ function makeMockAdapter(opts: MockAdapterOpts): OrderSyncAdapter {
 }
 
 // ─────────────────────────────────────────────
-// 테스트 헬퍼
+// 테스트 헬퍼 — PR4 MarketOrderSchema 1:1
 // ─────────────────────────────────────────────
 
 const SELLER_A = '00000000-0000-0000-0000-00000000000a'
@@ -168,13 +172,20 @@ const SELLER_B = '00000000-0000-0000-0000-00000000000b'
 function makeOrder(
   marketId: MarketId,
   externalOrderId: string,
+  status: MarketOrderStatus = 'new_pay',
 ): MarketOrder {
   return {
-    marketId,
     externalOrderId,
-    status: '결제완료',
-    orderedAt: '2026-05-20T10:00:00+09:00',
-    payload: { sample: 'payload', market: marketId },
+    buyerName: '홍길동',
+    receiverName: '수령자',
+    receiverAddress: '서울시 강남구 ...',
+    receiverPhone: '010-0000-0000',
+    productName: '테스트 상품',
+    quantity: 1,
+    orderAmount: 10000,
+    status,
+    paidAt: '2026-05-20T10:00:00+09:00',
+    market: marketId,
   }
 }
 
@@ -248,6 +259,17 @@ Deno.test('orders-sync: happy path — 4 마켓 모두 신규 주문 적재', as
   assertEquals(outcome.perMarket['auction']?.inserted, 1)
   assertEquals(invoked.length, 1)
   assertEquals(invoked[0]?.length, 5)
+
+  // PRD §4 컬럼 매핑 검증 — 첫 row.
+  const sample = state.orders[0]
+  assertExists(sample)
+  assertEquals(sample.status, 'collected')
+  assertEquals(sample.buyer_name, '홍길동')
+  assertEquals(sample.receiver_name, '수령자')
+  assertEquals(sample.product_name, '테스트 상품')
+  assertEquals(sample.quantity, 1)
+  assertEquals(sample.order_amount, 10000)
+  assertEquals(sample.collected_at, '2026-05-20T10:00:00+09:00')
 })
 
 // ─────────────────────────────────────────────
@@ -362,11 +384,9 @@ Deno.test('orders-sync: sellerId 인자 시 해당 셀러만 polling', async () 
     orders: [],
     nextOrderSeq: 0,
   }
-  let calledWithSeller: string | undefined
   const adapters: Partial<Record<MarketId, OrderSyncAdapter>> = {
     naver: {
       async fetchOrders() {
-        // adapter 호출 자체는 셀러 구분 없음 — sellerId 필터는 market_accounts 단계에서.
         return Promise.resolve([makeOrder('naver', `NV-${Date.now()}`)])
       },
     },
@@ -375,12 +395,8 @@ Deno.test('orders-sync: sellerId 인자 시 해당 셀러만 polling', async () 
     { sellerId: SELLER_A },
     makeDeps(state, adapters),
   )
-  // SELLER_A 의 1 계정만 처리 → 1 신규.
   assertEquals(outcome.collected, 1)
   assertEquals(outcome.newOrderIds.length, 1)
-  // (sellerId 필터가 mock 의 .eq('seller_id') 로 작동하는지 검증)
-  calledWithSeller = SELLER_A
-  assertExists(calledWithSeller)
 })
 
 // ─────────────────────────────────────────────
@@ -401,7 +417,6 @@ Deno.test('orders-sync: 어댑터에 fetchOrders 없으면 skip + errorCode', as
     orders: [],
     nextOrderSeq: 0,
   }
-  // 의도적으로 비어 있는 객체 — fetchOrders 없음.
   const adapters: Partial<Record<MarketId, OrderSyncAdapter>> = {
     naver: {} as OrderSyncAdapter,
   }
@@ -437,7 +452,6 @@ Deno.test('orders-sync: logen invoke 실패해도 outcome 정상 반환', async 
     }),
   }
   const deps = makeDeps(state, adapters)
-  // logen invoke 가 throw 하도록 교체.
   const failingDeps = {
     ...deps,
     invokeLogenShipment: () => {
@@ -447,6 +461,42 @@ Deno.test('orders-sync: logen invoke 실패해도 outcome 정상 반환', async 
   const outcome = await syncOrders({}, failingDeps)
   assertEquals(outcome.collected, 1)
   assertEquals(outcome.newOrderIds.length, 1)
-  // errors 에는 fetch 관련만 — logen 실패는 별도 처리 (warn 로그만).
   assertEquals(outcome.errors.length, 0)
+})
+
+// ─────────────────────────────────────────────
+// 7) non-new_pay status 필터
+// ─────────────────────────────────────────────
+
+Deno.test('orders-sync: 어댑터가 non-new_pay status 반환 시 적재 제외', async () => {
+  const state: MockState = {
+    accounts: [
+      {
+        id: 'a1',
+        seller_id: SELLER_A,
+        market_id: 'naver',
+        credential_id: 'c1',
+        status: 'active',
+      },
+    ],
+    orders: [],
+    nextOrderSeq: 0,
+  }
+  const adapters: Partial<Record<MarketId, OrderSyncAdapter>> = {
+    naver: makeMockAdapter({
+      marketId: 'naver',
+      orders: [
+        makeOrder('naver', 'NV-NEW', 'new_pay'),
+        makeOrder('naver', 'NV-DISP', 'dispatched'),
+        makeOrder('naver', 'NV-DEL', 'delivered'),
+      ],
+    }),
+  }
+  const outcome = await syncOrders({}, makeDeps(state, adapters))
+
+  // 'new_pay' 1건만 적재. 나머지 2건은 부적격 제외.
+  assertEquals(outcome.collected, 1)
+  assertEquals(outcome.newOrderIds.length, 1)
+  assertEquals(state.orders.length, 1)
+  assertEquals(state.orders[0]?.external_order_id, 'NV-NEW')
 })
