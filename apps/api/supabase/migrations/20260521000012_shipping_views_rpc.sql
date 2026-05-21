@@ -70,12 +70,12 @@ with per_market as (
       select ma.id
       from public.market_accounts ma
       join public.orders o2 on o2.seller_id = ma.seller_id
-      where o2.id = min(r.order_id)
+      where o2.id = min(r.order_id::text)::uuid
         and ma.market_id = r.market_id
       limit 1
     )                                                          as market_account_id,
     -- 집계 id: 마켓 결과 그룹 식별자 (min uuid — deterministic)
-    min(r.id)                                                  as id,
+    min(r.id::text)::uuid                                      as id,
     -- 상태: 실패가 하나라도 있으면 'failed', 전부 성공이면 'success'
     case
       when count(*) filter (where r.status = 'failed') > 0
