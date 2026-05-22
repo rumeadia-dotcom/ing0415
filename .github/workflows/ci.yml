@@ -103,8 +103,9 @@ jobs:
         env:
           # vitest 는 dev 빌드 모드와 무관하지만, Sentry/Supabase init 코드의
           # zod 검증을 통과시키기 위해 placeholder 환경변수가 필요할 수 있다.
-          VITE_APP_MODE: debug
-          VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+          VITE_APP_MODE: dev
+          VITE_USE_MOCK: 'true'
+          VITE_SUPABASE_URL: https://dev.placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: placeholder-anon-key
           VITE_SENTRY_DSN: ''
 
@@ -155,8 +156,9 @@ jobs:
             echo "::notice::zod-mirror.test.ts not present yet — skipping (Stage G follow-up)."
           fi
         env:
-          VITE_APP_MODE: debug
-          VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+          VITE_APP_MODE: dev
+          VITE_USE_MOCK: 'true'
+          VITE_SUPABASE_URL: https://dev.placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: placeholder-anon-key
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -171,12 +173,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [debug, real]
+        mode: [dev, real]
     env:
       VITE_APP_MODE: ${{ matrix.mode }}
+      VITE_USE_MOCK: 'false'
       # PR CI 는 placeholder 시크릿으로 빌드 가능해야 한다.
       # 실제 시크릿은 deploy.yml 만 사용. 여기서는 "빌드가 깨지지 않는가" 만 검증.
-      VITE_SUPABASE_URL: ${{ matrix.mode == 'real' && 'https://real.placeholder.supabase.co' || 'https://debug.placeholder.supabase.co' }}
+      VITE_SUPABASE_URL: ${{ matrix.mode == 'real' && 'https://real.placeholder.supabase.co' || 'https://dev.placeholder.supabase.co' }}
       VITE_SUPABASE_ANON_KEY: ${{ matrix.mode == 'real' && secrets.REAL_SUPABASE_ANON_KEY || secrets.DEBUG_SUPABASE_ANON_KEY }}
       VITE_SENTRY_DSN: ${{ matrix.mode == 'real' && secrets.REAL_SENTRY_DSN || secrets.DEBUG_SENTRY_DSN }}
     steps:
@@ -217,8 +220,12 @@ jobs:
             echo "::error::Debug-only artifacts leaked into real bundle"
             exit 1
           fi
-          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]debug" dist/assets/; then
-            echo "::error::debug mode literal embedded in real bundle"
+          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]dev" dist/assets/; then
+            echo "::error::dev mode literal embedded in real bundle"
+            exit 1
+          fi
+          if grep -rE "VITE_USE_MOCK['\"]?\s*[:=]\s*['\"]true" dist/assets/; then
+            echo "::error::useMock=true literal embedded in real bundle"
             exit 1
           fi
           # service_role / supabase secret token 형 패턴이 번들에 들어갔는지 이중 안전망.
@@ -245,8 +252,8 @@ jobs:
     timeout-minutes: 15
     needs: build
     env:
-      VITE_APP_MODE: debug
-      VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+      VITE_APP_MODE: dev
+      VITE_SUPABASE_URL: https://dev.placeholder.supabase.co
       VITE_SUPABASE_ANON_KEY: placeholder-anon-key
       VITE_SENTRY_DSN: ''
       CI: 'true'
@@ -271,7 +278,7 @@ jobs:
       - name: Download debug dist artifact
         uses: actions/download-artifact@v4
         with:
-          name: dist-debug-${{ github.run_id }}
+          name: dist-dev-${{ github.run_id }}
           path: dist/
 
       - name: Cache Playwright browsers
@@ -318,8 +325,8 @@ jobs:
     timeout-minutes: 15
     needs: build
     env:
-      VITE_APP_MODE: debug
-      VITE_SUPABASE_URL: https://debug.placeholder.supabase.co
+      VITE_APP_MODE: dev
+      VITE_SUPABASE_URL: https://dev.placeholder.supabase.co
       VITE_SUPABASE_ANON_KEY: placeholder-anon-key
       VITE_SENTRY_DSN: ''
       CI: 'true'
@@ -344,7 +351,7 @@ jobs:
       - name: Download debug dist artifact
         uses: actions/download-artifact@v4
         with:
-          name: dist-debug-${{ github.run_id }}
+          name: dist-dev-${{ github.run_id }}
           path: dist/
 
       - name: Cache Playwright browsers

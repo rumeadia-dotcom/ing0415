@@ -107,7 +107,7 @@ CLAUDE.md "인프라 결정 (확정)" 의 항목을 표로 압축한다. "근거
 │   │   ├── market-refresh-token/
 │   │   ├── market-category-sync/
 │   │   └── registration-run/
-│   ├── seed.sql                  # 로컬 시드 (debug 프로젝트 전용)
+│   ├── seed.sql                  # 로컬 시드 (dev 프로젝트 전용)
 │   └── config.toml
 ├── docs/
 │   ├── architecture/
@@ -125,7 +125,7 @@ CLAUDE.md "인프라 결정 (확정)" 의 항목을 표로 압축한다. "근거
 │       └── v1/                   # 정식 HTML 프로토타입 (첫 화면 작업 시 신설)
 ├── tests/
 │   ├── e2e/                      # Playwright (골든 패스 포함)
-│   └── fixtures/                 # mock 픽스처 (debug 모드 데이터)
+│   └── fixtures/                 # mock 픽스처 (useMock=true 데이터)
 ├── prototype/                    # v0 시각 레퍼런스 (수정 동결)
 ├── .github/
 │   └── workflows/                # GitHub Actions
@@ -160,87 +160,81 @@ CLAUDE.md "인프라 결정 (확정)" 의 항목을 표로 압축한다. "근거
 
 ---
 
-## 4. 빌드 모드: debug / real
+## 4. 빌드 모드: dev / real + useMock 플래그
 
-앱은 빌드 시점에 두 모드 중 하나로 고정된다. 런타임 토글 없음.
+플래그 2개로 분리 (2026-05-22):
 
-### 4.1 모드 차이 매트릭스
+- **`VITE_APP_MODE`** (`dev` | `real`) — DB / Edge Function 타겟 + Sentry 환경 라벨
+- **`VITE_USE_MOCK`** (`true` | `false`) — 마켓 어댑터 소스 (mock vs real)
 
-| 항목 | debug | real |
-|---|---|---|
-| `VITE_APP_MODE` | `debug` | `real` |
-| Supabase 프로젝트 | debug 프로젝트 (별도 URL/anon key) | real 프로젝트 |
-| 데이터 소스 | mock 픽스처 (`tests/fixtures/`) + Supabase 혼용 가능 | Supabase 전용 |
-| 마켓 API | mock 어댑터 (`adapters/mock/*`) | 운영 어댑터 (스마트스토어/쿠팡/…) |
-| 소스맵 | 활성화 (브라우저 dev tools) | 비활성화 (Sentry 업로드 전용) |
-| 로깅 레벨 | `debug` 이상 (verbose) | `warn` 이상 (구조화 only) |
-| 인증 우회 | mock user 허용 (옵션) | Supabase Auth 강제, bypass 경로 0 |
-| Sentry DSN | debug DSN | real DSN |
-| 배포 트리거 | `develop` push → 미배포 (PR 빌드 sanity check) | `main` push → GitHub Pages 자동 배포 |
-| GitHub Pages URL | (배포 없음) | `<org>.github.io/<repo>/` |
+두 플래그 모두 **빌드 시점에 고정**. 런타임 토글 없음.
+
+### 4.1 유효 조합 매트릭스
+
+| MODE | USE_MOCK | 명령 | Supabase | 마켓 API | 용도 |
+|---|---|---|---|---|---|
+| `dev` | `true` | `pnpm dev` | dev (eqo...) | mock 어댑터 | 빠른 로컬 UI 작업 |
+| `dev` | `false` | `pnpm dev:db` / `build:dev` | dev (eqo...) | 실 마켓 API (sandbox) | 통합 검증 + CI sanity |
+| `real` | `false` | `pnpm dev:real` / `build:real` | real (lfr...) | 실 마켓 API (운영) | 운영 배포 |
+| `real` | `true` | — | — | — | **부트스트랩 시 throw** |
 
 ### 4.2 모드 스위치 메커니즘
 
-`VITE_APP_MODE` 환경변수가 단일 ground truth. `apps/web/src/lib/mode.ts` 가 1회 판정 후 export.
+`apps/web/src/lib/env.ts` 가 단일 ground truth. zod 로 검증 후 export.
 
 ```ts
-// apps/web/src/lib/mode.ts
-import { z } from 'zod';
+// apps/web/src/lib/env.ts (요약)
+const EnvSchema = z
+  .object({
+    VITE_APP_MODE: z.enum(['dev', 'real']).default('dev'),
+    VITE_USE_MOCK: booleanString.optional(),
+    // ... Supabase URL/key, Sentry DSN
+  })
+  .transform((v) => ({
+    ...v,
+    VITE_USE_MOCK: v.VITE_USE_MOCK ?? (v.VITE_APP_MODE === 'dev'),
+  }))
+  .refine((v) => !(v.VITE_APP_MODE === 'real' && v.VITE_USE_MOCK === true), {
+    message: 'real 모드에서는 VITE_USE_MOCK=true 를 사용할 수 없습니다',
+  })
 
-const ModeSchema = z.enum(['debug', 'real']);
-
-export const APP_MODE = ModeSchema.parse(import.meta.env.VITE_APP_MODE);
-
-export const isDebug = APP_MODE === 'debug';
-export const isReal = APP_MODE === 'real';
+export const isDev = env.VITE_APP_MODE === 'dev'
+export const isReal = env.VITE_APP_MODE === 'real'
+export const useMock = env.VITE_USE_MOCK
 ```
 
 ### 4.3 빌드 시점 분기 가드 (tree-shaking)
 
-debug 전용 코드는 real 번들에 절대 들어가지 않아야 한다. 다음 패턴을 강제한다.
+mock 전용 코드는 real 번들에 절대 들어가지 않아야 한다. 다음 패턴을 강제한다.
 
 ```ts
-// apps/web/src/lib/fixtures-loader.ts
-import { isDebug } from './mode';
+// apps/web/src/lib/markets/index.ts
+import { useMock } from '@/lib/env'
 
-export async function loadMockFixtures() {
-  if (!isDebug) return null;
-  // 동적 import 로 real 번들에서 청크 자체 제거
-  const { fixtures } = await import('../../tests/fixtures');
-  return fixtures;
+export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter> {
+  if (useMock) {
+    const { naverDebugAdapter } = await import('./debug/NaverDebugAdapter')
+    return naverDebugAdapter
+  }
+  const { naverRealAdapter } = await import('./real/naver')
+  return naverRealAdapter
 }
-```
-
-```ts
-// apps/web/src/features/markets/api/adapter-registry.ts
-import { isDebug } from '@/lib/mode';
-import { naverRealAdapter } from './adapters/naver';
-import { coupangRealAdapter } from './adapters/coupang';
-
-export const adapters = isDebug
-  ? await import('./adapters/mock').then((m) => m.mockAdapters)
-  : { naver: naverRealAdapter, coupang: coupangRealAdapter };
 ```
 
 #### 검증 룰
 
-- `if (isDebug)` 또는 `if (APP_MODE === 'debug')` 가드는 Vite 가 dead code elimination 으로 제거. (조건: import 가 top-level 정적이 아닌 dynamic import 형태일 것)
-- `tests/fixtures/` 는 `src/` 가 정적 import 금지. ESLint `no-restricted-imports` 룰로 차단.
-- 빌드 후 `dist/assets/*.js` 에 `mock` / `fixture` / `bypass` 키워드가 검색되면 real 빌드 fail. CI 단계에 grep 게이트 추가.
-
-```yaml
-# .github/workflows/release.yml (발췌)
-- name: Verify no mock leakage in real bundle
-  run: |
-    if grep -rE "(mockAdapters|window\.AppData|fixture)" dist/assets/ ; then
-      echo "Mock symbols leaked into real bundle"; exit 1
-    fi
-```
+- `if (useMock)` 가드 + dynamic import 만 사용. top-level 정적 import 는 PR 차단.
+- `tests/fixtures/` 는 `src/` 가 정적 import 금지. ESLint `no-restricted-imports` 룰.
+- 빌드 후 `dist/assets/*.js` 에 다음 패턴이 검색되면 real 빌드 fail (CI grep 게이트):
+  - `window.AppData`, `__MOCK_FIXTURES__`, `MockMarketAdapter`, `MOCK_SELLER`
+  - `VITE_APP_MODE` 리터럴 값 `dev`
+  - `VITE_USE_MOCK` 리터럴 값 `true`
+  - `service_role`, `sbp_v0_`, `sntrys_` 토큰형 패턴
 
 ### 4.4 모드 전환 시 사용자 데이터 호환성
 
-- 모드는 빌드 시점 고정. 사용자 세션·DB·Storage 가 프로젝트 단위로 다르므로 **debug 토큰 → real 앱 인증 불가, 역도 불가**.
-- 마이그레이션은 두 프로젝트에 **동일 SQL** 을 적용 (`supabase db push` 를 두 프로젝트에 각각 실행). schema drift 가 생기면 CI fail.
+- 모드는 빌드 시점 고정. 사용자 세션·DB·Storage 가 프로젝트 단위로 다르므로 **dev 토큰 → real 앱 인증 불가, 역도 불가**.
+- 마이그레이션은 두 프로젝트에 **동일 SQL** 을 적용 (`pnpm db:push:dev` / `pnpm db:push:real`). schema drift 가 생기면 CI fail.
 
 ---
 
@@ -248,20 +242,21 @@ export const adapters = isDebug
 
 ### 5.1 프로젝트 매트릭스
 
-| 항목 | debug 프로젝트 | real 프로젝트 |
+| 항목 | dev 프로젝트 | real 프로젝트 |
 |---|---|---|
+| Project Ref | `eqoywqoalwkwbrdsulfl` (MarketCast-Dev) | `lfrnythcujxdhehvkmtg` (MarketCast-Real) |
 | 사용처 | 개발·QA·`develop` 빌드 | 운영·`main` 빌드 |
-| Supabase URL | `https://<debug>.supabase.co` | `https://<real>.supabase.co` |
-| anon key | debug 전용 (public) | real 전용 (public) |
-| service role key | debug 전용 (GitHub Secrets `SUPABASE_DEBUG_SERVICE_ROLE`) | real 전용 (GitHub Secrets `SUPABASE_REAL_SERVICE_ROLE`) |
-| Functions 환경변수 | Supabase 대시보드 debug | Supabase 대시보드 real |
+| Supabase URL | `https://eqoywqoalwkwbrdsulfl.supabase.co` | `https://lfrnythcujxdhehvkmtg.supabase.co` |
+| anon key | dev 전용 (public) | real 전용 (public) |
+| service role key | dev 전용 (GitHub Secrets `SUPABASE_DEV_SERVICE_ROLE`) | real 전용 (GitHub Secrets `SUPABASE_REAL_SERVICE_ROLE`) |
+| Functions 환경변수 | Supabase 대시보드 dev | Supabase 대시보드 real |
 | 마켓 OAuth client_id/secret | 마켓 sandbox 자격증명 | 마켓 운영 자격증명 |
-| Sentry DSN | debug DSN | real DSN |
+| Sentry DSN | dev DSN | real DSN |
 | Seed 데이터 | `supabase/seed.sql` 자동 주입 | 주입 금지 |
 
 ### 5.2 환경변수 매트릭스
 
-| 변수 | debug 값 출처 | real 값 출처 | 노출 범위 |
+| 변수 | dev 값 출처 | real 값 출처 | 노출 범위 |
 |---|---|---|---|
 | `VITE_APP_MODE` | GitHub Actions secret/var | GitHub Actions secret/var | public (빌드 산출물에 포함) |
 | `VITE_SUPABASE_URL` | GitHub Secrets | GitHub Secrets | public (anon key 와 함께 노출됨) |
@@ -279,14 +274,14 @@ export const adapters = isDebug
 ```yaml
 # .github/workflows/db-migrate.yml (발췌)
 jobs:
-  migrate-debug:
+  migrate-dev:
     if: github.ref == 'refs/heads/develop'
     steps:
-      - run: supabase link --project-ref ${{ secrets.SUPABASE_DEBUG_REF }}
+      - run: supabase link --project-ref ${{ secrets.SUPABASE_DEV_REF }}
       - run: supabase db push
   migrate-real:
     if: github.ref == 'refs/heads/main'
-    needs: migrate-debug   # debug 통과 후만 real 적용
+    needs: migrate-dev   # dev 통과 후만 real 적용
     steps:
       - run: supabase link --project-ref ${{ secrets.SUPABASE_REAL_REF }}
       - run: supabase db push
@@ -312,7 +307,7 @@ jobs:
 | Concurrency 상한 | 명시 없음 (재귀 호출 5000 req/min 임계 외) | 명시 없음 |
 | Request Body 크기 상한 | 공식 문서 확인 안 됨 | 공식 문서 확인 안 됨 |
 
-**결정**: v1 운영은 **Paid 플랜 가정 (400s)**. Free 한도(150s) 는 debug 프로젝트에서 사용해도 무방하나, 운영 시간 모델은 400s 기준.
+**결정**: v1 운영은 **Paid 플랜 가정 (400s)**. Free 한도(150s) 는 dev 프로젝트에서 사용해도 무방하나, 운영 시간 모델은 400s 기준.
 
 ### 6.2 장기 잡 처리 패턴 (RegistrationJob)
 
@@ -384,9 +379,9 @@ export interface MarketAdapter {
 - mock 어댑터(`adapters/mock/<market>.ts`) 와 운영 어댑터(`adapters/<market>.ts`) 는 동일 인터페이스 구현. 모드 스위치만으로 교체.
 - 어댑터 버전은 `adapters/<market>/v<N>.ts` 형태로 관리. 마켓 API 정책 변경 시 신버전 어댑터 추가 → 점진 전환 (구버전과 신버전 병존 기간 명시).
 
-### 7.2 debug · real 모드 동일 보안 경로
+### 7.2 dev · real 모드 동일 보안 경로
 
-- 토큰·시크릿·OAuth refresh 흐름은 **debug 모드에서도 실제와 동일 코드 경로**로 실행. mock 어댑터라도 OAuth 콜백 처리·토큰 암호화 저장·refresh 만료 처리는 운영과 동일.
+- 토큰·시크릿·OAuth refresh 흐름은 **dev 모드 / useMock=true 어느 조합에서도 실제와 동일 코드 경로**로 실행. mock 어댑터라도 OAuth 콜백 처리·토큰 암호화 저장·refresh 만료 처리는 운영과 동일.
 - 즉 mock 모드 = "외부 마켓 응답만 mock", 보안 레이어(암호화·RLS·로그 마스킹) 는 우회 금지.
 - 인증 bypass (mock user) 는 옵션이며, 기본값은 off. PR 단위로 명시적 활성화 필요.
 
@@ -437,7 +432,7 @@ function maskDeep<T>(value: T): T {
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: APP_MODE,
-  enabled: isReal,            // debug 모드는 Sentry off (또는 별도 DSN)
+  enabled: isReal,            // dev 모드는 Sentry off (또는 별도 DSN)
   beforeSend(event) {
     return maskDeep(event);
   },
@@ -455,7 +450,7 @@ Sentry.init({
 ```
 1. apps/api/supabase/functions/_shared/adapters/<market>.ts        # 5메서드 구현
 2. apps/api/supabase/functions/_shared/adapters/<market>.test.ts   # 단위 테스트 (Deno test)
-3. tests/fixtures/markets/<market>.ts                     # debug 용 mock 응답
+3. tests/fixtures/markets/<market>.ts                     # useMock=true 용 mock 응답
 4. apps/api/supabase/functions/_shared/adapters/index.ts           # 1줄 export 추가
 5. apps/api/supabase/migrations/<ts>_seed_market_<market>.sql      # markets 테이블에 row insert
 ```

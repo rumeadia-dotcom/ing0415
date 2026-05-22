@@ -143,7 +143,7 @@ export function useHistoryFilters(): HistoryFilters {
 - `apps/web/src/lib/supabase.ts` — Supabase 클라이언트 단일 인스턴스
 - `apps/web/src/lib/query.ts` — TanStack Query 클라이언트 + 키 팩토리
 - `apps/web/src/lib/logger.ts` — 구조화 로거 (Sentry 연동)
-- `apps/web/src/lib/mode.ts` — `VITE_APP_MODE` 분기 (`debug` / `real`)
+- `apps/web/src/lib/env.ts` — `VITE_APP_MODE` (`dev` / `real`) + `VITE_USE_MOCK` (`true` / `false`) 분기
 - `apps/web/src/locales/ko.ts` — i18n 사전
 
 ### 3.2 도메인 내부 폴더 책임
@@ -560,7 +560,8 @@ export async function fetchDraft(sellerId: string): Promise<Product | null> {
 import { z } from 'zod';
 
 const envSchema = z.object({
-  VITE_APP_MODE: z.enum(['debug', 'real']),
+  VITE_APP_MODE: z.enum(['dev', 'real']),
+  VITE_USE_MOCK: z.union([z.literal('true'), z.literal('false')]).optional(),
   VITE_SUPABASE_URL: z.string().url(),
   VITE_SUPABASE_ANON_KEY: z.string().min(1),
   VITE_SENTRY_DSN: z.string().url().optional(),
@@ -790,7 +791,7 @@ export function RouteErrorBoundary() {
 ### 11.3 Sentry 초기화
 
 - `apps/web/src/lib/sentry.ts` 에서 초기화. `beforeSend` 훅이 OAuth 토큰·셀러 PII·마켓 자격증명 키 이름을 마스킹.
-- `VITE_APP_MODE === 'debug'` 일 때도 Sentry 활성화 (debug 프로젝트로 분리). 단, 콘솔 출력은 verbose.
+- `VITE_APP_MODE === 'dev'` 일 때도 Sentry 활성화 (dev 프로젝트로 분리). 단, 콘솔 출력은 verbose.
 - security 에이전트 검수 항목: `beforeSend` 마스킹 룰 + Sentry sourcemap 업로드 후 잔여물 `.gitignore` 등록.
 
 ---
@@ -843,11 +844,13 @@ export const router = createBrowserRouter([
 import { env } from '@/lib/env';
 
 export async function getMarketAdapter(market: string) {
-  if (env.VITE_APP_MODE === 'debug') {
+  if (env.VITE_USE_MOCK) {
     const mod = await import(`@/mocks/adapters/${market}.ts`);
     return mod.adapter;
   }
-  throw new Error('real 모드에서는 클라이언트에서 어댑터 직접 사용 금지');
+  // useMock=false: real 어댑터 dynamic import (src/lib/markets/real/*)
+  const mod = await import(`@/lib/markets/real/${market}`);
+  return mod.default;
 }
 ```
 
