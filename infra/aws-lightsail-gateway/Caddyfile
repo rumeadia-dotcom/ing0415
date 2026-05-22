@@ -1,0 +1,61 @@
+# Caddy v2 — Market Gateway TLS frontend.
+# 위치: /etc/caddy/Caddyfile (setup.sh 가 복사).
+# 설계: docs/architecture/v1/cross-cutting/market-gateway.md §4.1
+#
+# 사용 전 GATEWAY_DOMAIN 환경변수 또는 직접 도메인 치환.
+# Caddy 가 Let's Encrypt 인증서 자동 발급/갱신.
+
+{
+	# 운영 이메일 (Let's Encrypt 알림 + 만료 통지)
+	email ops@example.com
+	# 보안 기본값
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+gateway.example.com {
+	# TLS 자동 (Let's Encrypt). 별도 디렉티브 불필요.
+
+	# 보안 헤더
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		# 응답 헤더에서 Caddy 시그니처 제거
+		-Server
+	}
+
+	# 헬스체크 (외부 모니터링용)
+	handle /healthz {
+		reverse_proxy 127.0.0.1:8787
+	}
+
+	# 마켓 프록시 엔드포인트
+	handle /v1/proxy {
+		reverse_proxy 127.0.0.1:8787 {
+			# Edge Function 측 timeout 정합 (20s 업스트림 + 여유 5s)
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 25s
+			}
+		}
+	}
+
+	# 기타 경로는 차단
+	handle {
+		respond "not found" 404
+	}
+
+	# 액세스 로그
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100mb
+			roll_keep 7
+			roll_keep_for 720h
+		}
+		format json
+		# 민감 헤더 redact (Caddy 1.x log 필터)
+		# 본 게이트웨이 응답 헤더에는 마켓 토큰이 포함되지 않지만 방어적으로 redact
+	}
+}
