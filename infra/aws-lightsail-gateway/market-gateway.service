@@ -1,0 +1,52 @@
+# systemd unit — Market Gateway (Deno).
+# 위치: /etc/systemd/system/market-gateway.service (setup.sh 가 복사).
+# 설계: docs/architecture/v1/cross-cutting/market-gateway.md §4.1
+
+[Unit]
+Description=Market Gateway (Deno) — outbound proxy for Supabase Edge Functions
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=marketgw
+Group=marketgw
+WorkingDirectory=/opt/market-gateway
+EnvironmentFile=/etc/market-gateway/env
+ExecStart=/usr/local/bin/deno run --no-prompt --cached-only --allow-net --allow-env=MARKET_GATEWAY_SECRET,MARKET_GATEWAY_PORT,MARKET_GATEWAY_LOG_LEVEL,SENTRY_DSN main.ts
+Restart=always
+RestartSec=5s
+TimeoutStopSec=15s
+
+# 로그 → journald → systemd-journald → journalctl -u market-gateway
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=market-gateway
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/market-gateway
+ReadWritePaths=/var/log/market-gateway
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# 리소스 제한 (Lightsail $5 plan 기준)
+MemoryMax=1G
+TasksMax=128
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

@@ -184,10 +184,10 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
   - 결과/내보내기: §1.4.1 등록 결과 상세 내역, §1.4.2 등록 결과 CSV/Excel 내보내기.
   - HTML 상세: §3.6.1 WYSIWYG 에디터, §3.6.2 HTML 코드 유효성·XSS 검사, §3.6.3 HTML 상세 설명 미리보기.
 
-- **s5 마켓 계정** — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개** (real 어댑터까지 동작). **11번가 = '오픈 준비중'** (IP 화이트리스트 정책 미해결로 v2 이관). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
+- **s5 마켓 계정** — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부** (real 어댑터까지 동작). 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전, 고정 IP)** 경유 (`docs/architecture/v1/cross-cutting/market-gateway.md`). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
   - PRD §2.2.1 OAuth 인증 플로우, §2.2.2 API 연결 상태 실시간 표시, §2.2.3 OAuth 토큰 갱신 자동화, §2.3.1 연결 계정 목록 조회, §2.3.2 마켓 계정 추가/수정/삭제, §2.3.3 연결 상태 실시간 표시.
   - 자격증명 보안: §2.4.1 정기 보안 감사, §2.4.2 인증 정보 백업/복구.
-  - 근거: 4개 마켓 모두 v1 출시 가능. 11번가는 Supabase Edge Function 의 outbound IP 동적 문제로 11번가 IP 화이트리스트 정책과 충돌 — Pro 고정 IP / 외부 프록시 / 11번가 해제 신청 중 결정 후 v2 진입 (2026-05-19 결정, OQ-10 갱신).
+  - 근거: 5개 마켓 모두 v1 출시 가능. 11번가 IP 화이트리스트 정책은 Lightsail 인스턴스 고정 IP 등록으로 해소 (2026-05-22 결정, O-9 종결).
 
 - **s6 등록 이력** — 목록 + 기본 필터 + 재시도/마켓 제외 후 등록.
   - PRD §4.3.1 오류 수정 후 즉시 재시도, §4.3.2 오류 마켓 제외 후 나머지 일괄 등록, §4.4.1 등록 이력 상세 검색 (다중 조건), §4.4.2 오류 유형별 통계 (마켓별·기간별 성공률 차트), §4.4.3 등록 이력 CSV/Excel 내보내기.
@@ -202,7 +202,6 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 **제외 (v2 이후):**
 - s4 템플릿 관리 전체 (PRD §3.1~§3.5)
 - 2FA (§2.1.3)
-- 11번가 마켓 어댑터 (IP 화이트리스트 정책 해결 후 진입)
 - 멀티유저/권한 모델 (§3.3.3 템플릿 수정 권한, §4.1.3 대시보드 접근 권한) — 1인 셀러 모델 가정. 팀/조직 기능 도입 시점에 별도 트랙으로 재논의.
 
 **결제·정산 모델 (v1):** 전면 무료. 사용 패턴 수집을 위해 **월간 등록 건수 소프트 제한** (정확한 한도는 베타 운영 데이터 기반 후속 결정). Stripe·PG 연동·구독 결제는 v2+ 로 보류. PCI-DSS 적용 범위는 v1 에 없음.

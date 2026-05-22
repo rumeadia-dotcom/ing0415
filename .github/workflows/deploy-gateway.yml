@@ -1,0 +1,177 @@
+name: Deploy Market Gateway
+
+# AWS Lightsail Market Gateway 자동 배포·운영 워크플로우.
+# 설계: docs/architecture/v1/cross-cutting/market-gateway.md
+# 사용자 가이드: docs/handoff/lightsail-setup-guide.md
+#
+# 트리거:
+#   workflow_dispatch (수동) — Actions 탭에서 "Run workflow" 버튼
+#
+# 작업 종류 (action input):
+#   full-setup    — 첫 설치 또는 초기화 (apt + Deno + Caddy + systemd + 시크릿 자동 생성·동기화)
+#   update-main   — main.ts 만 갱신 후 서비스 재시작 (시크릿 변경 없음)
+#   rotate-secret — HMAC 시크릿 새로 생성하여 인스턴스 + Supabase 동시 갱신
+#   restart       — 서비스 재시작만
+#   healthcheck   — 헬스체크만
+#
+# 필요한 Secrets (Settings → Secrets and variables → Actions):
+#   LIGHTSAIL_SSH_KEY        — .pem 파일 전체 내용 (-----BEGIN ... -----END ... 포함)
+#   LIGHTSAIL_HOST           — Static IP (예: 43.201.83.78)
+#   GATEWAY_DOMAIN           — sslip.io 도메인 (예: 43-201-83-78.sslip.io)
+#   OPS_EMAIL                — Let's Encrypt 알림 받을 이메일
+#   SUPABASE_ACCESS_TOKEN    — Supabase Personal Access Token (https://supabase.com/dashboard/account/tokens)
+#   SUPABASE_DEV_PROJECT_REF — eqoywqoalwkwbrdsulfl
+#   SUPABASE_REAL_PROJECT_REF — lfrnythcujxdhehvkmtg
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '실행할 작업'
+        type: choice
+        required: true
+        default: full-setup
+        options:
+          - full-setup
+          - update-main
+          - rotate-secret
+          - restart
+          - healthcheck
+
+concurrency:
+  group: deploy-gateway
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 입력값 요약
+        run: |
+          echo "::notice::action = ${{ inputs.action }}"
+          echo "::notice::host = ${{ secrets.LIGHTSAIL_HOST }}"
+          echo "::notice::domain = ${{ secrets.GATEWAY_DOMAIN }}"
+
+      - name: SSH 키 준비
+        env:
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/lightsail.pem
+          chmod 0400 ~/.ssh/lightsail.pem
+          ssh-keyscan -T 10 -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # 연결 확인 (실패 시 즉시 abort)
+          ssh -i ~/.ssh/lightsail.pem -o BatchMode=yes -o ConnectTimeout=10 \
+            ubuntu@"$HOST" 'echo "ssh ok: $(hostname)"'
+
+      - name: 게이트웨이 파일 전송 (rsync)
+        if: ${{ inputs.action == 'full-setup' || inputs.action == 'update-main' }}
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/lightsail.pem -o StrictHostKeyChecking=yes" \
+            infra/aws-lightsail-gateway/ \
+            ubuntu@"$HOST":/tmp/market-gateway/
+
+      - name: setup.sh 실행 (full-setup)
+        if: ${{ inputs.action == 'full-setup' }}
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          GATEWAY_DOMAIN: ${{ secrets.GATEWAY_DOMAIN }}
+          OPS_EMAIL: ${{ secrets.OPS_EMAIL }}
+        run: |
+          ssh -i ~/.ssh/lightsail.pem ubuntu@"$HOST" \
+            "sudo GATEWAY_DOMAIN='$GATEWAY_DOMAIN' OPS_EMAIL='$OPS_EMAIL' bash /tmp/market-gateway/setup.sh"
+
+      - name: main.ts 만 갱신 (update-main)
+        if: ${{ inputs.action == 'update-main' }}
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+        run: |
+          ssh -i ~/.ssh/lightsail.pem ubuntu@"$HOST" '
+            sudo install -o marketgw -g marketgw -m 0644 \
+              /tmp/market-gateway/main.ts /opt/market-gateway/main.ts &&
+            sudo systemctl restart market-gateway
+          '
+
+      - name: HMAC 시크릿 생성·동기화 (full-setup / rotate-secret)
+        if: ${{ inputs.action == 'full-setup' || inputs.action == 'rotate-secret' }}
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          GATEWAY_DOMAIN: ${{ secrets.GATEWAY_DOMAIN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DEV_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+          REAL_REF: ${{ secrets.SUPABASE_REAL_PROJECT_REF }}
+        run: |
+          # 1) 신규 시크릿 생성 + Actions 로그에서 마스킹
+          NEW_SECRET=$(openssl rand -hex 32)
+          echo "::add-mask::$NEW_SECRET"
+
+          # 2) 인스턴스 env 파일에 반영 (기존 줄 교체 또는 신규 줄 추가)
+          ssh -i ~/.ssh/lightsail.pem ubuntu@"$HOST" "
+            sudo bash -c '
+              if grep -q \"^MARKET_GATEWAY_SECRET=\" /etc/market-gateway/env; then
+                sed -i \"s|^MARKET_GATEWAY_SECRET=.*|MARKET_GATEWAY_SECRET=$NEW_SECRET|\" /etc/market-gateway/env
+              else
+                echo \"MARKET_GATEWAY_SECRET=$NEW_SECRET\" >> /etc/market-gateway/env
+              fi
+              chown root:marketgw /etc/market-gateway/env
+              chmod 0640 /etc/market-gateway/env
+              systemctl restart market-gateway
+            '
+          "
+
+          # 3) Supabase CLI 설치 + dev / real 양쪽 secrets 등록
+          curl -fsSL https://github.com/supabase/cli/releases/download/v1.207.9/supabase_1.207.9_linux_amd64.deb -o /tmp/supabase.deb
+          sudo dpkg -i /tmp/supabase.deb
+
+          supabase secrets set \
+            MARKET_GATEWAY_SECRET="$NEW_SECRET" \
+            MARKET_GATEWAY_URL="https://$GATEWAY_DOMAIN" \
+            --project-ref "$DEV_REF"
+
+          supabase secrets set \
+            MARKET_GATEWAY_SECRET="$NEW_SECRET" \
+            MARKET_GATEWAY_URL="https://$GATEWAY_DOMAIN" \
+            --project-ref "$REAL_REF"
+
+          echo "::notice::시크릿 로테이션 완료. dev + real Supabase 와 인스턴스 env 동기화됨."
+
+      - name: 서비스 재시작 (restart)
+        if: ${{ inputs.action == 'restart' }}
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+        run: |
+          ssh -i ~/.ssh/lightsail.pem ubuntu@"$HOST" '
+            sudo systemctl restart market-gateway &&
+            sudo systemctl reload caddy &&
+            sudo systemctl --no-pager status market-gateway | head -20
+          '
+
+      - name: 헬스체크 (모든 action 공통)
+        env:
+          GATEWAY_DOMAIN: ${{ secrets.GATEWAY_DOMAIN }}
+        run: |
+          # Let's Encrypt 첫 발급은 최대 2분 걸릴 수 있음 — 최대 3분 재시도 (10초 × 18)
+          for i in $(seq 1 18); do
+            if BODY=$(curl -fsS --max-time 10 "https://$GATEWAY_DOMAIN/healthz"); then
+              echo "::notice::healthz OK — $BODY"
+              exit 0
+            fi
+            echo "  attempt $i / 18 — 10초 대기"
+            sleep 10
+          done
+          echo "::error::헬스체크 3분 동안 200 OK 실패"
+          exit 1
+
+      - name: SSH 키 정리
+        if: always()
+        run: rm -f ~/.ssh/lightsail.pem
