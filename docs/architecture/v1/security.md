@@ -296,7 +296,7 @@ import { redact } from '@/lib/security/redact';
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
-  environment: import.meta.env.VITE_APP_MODE, // 'debug' | 'real'
+  environment: import.meta.env.VITE_APP_MODE, // 'dev' | 'real'
   tracesSampleRate: 0.1,
   beforeSend(event) {
     // request / response / extra / contexts / tags / breadcrumbs 전체 마스킹

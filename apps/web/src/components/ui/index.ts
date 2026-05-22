@@ -32,6 +32,11 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs'
 export { Skeleton } from './skeleton'
 export { Progress } from './progress'
 export { Switch, type SwitchProps } from './switch'
+export { RichTextEditor, type RichTextEditorProps } from './rich-text-editor'
+export {
+  AddressSearchInput,
+  type AddressSearchInputProps,
+} from './address-search-input'
 export { Toaster } from './toaster'
 export {
   Sheet,

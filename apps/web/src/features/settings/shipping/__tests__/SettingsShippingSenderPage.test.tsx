@@ -11,6 +11,17 @@ vi.mock('@/features/auth', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+const openPostcodePopupMock = vi.fn()
+vi.mock('@/lib/daum-postcode', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/daum-postcode')>(
+    '@/lib/daum-postcode',
+  )
+  return {
+    ...actual,
+    openPostcodePopup: () => openPostcodePopupMock(),
+  }
+})
+
 import type * as ApiModule from '../api/shipping-settings-api'
 
 const fetchStatusMock = vi.fn()
@@ -48,6 +59,7 @@ describe('SettingsShippingSenderPage (n60)', () => {
   beforeEach(() => {
     fetchStatusMock.mockReset()
     setCredsMock.mockReset()
+    openPostcodePopupMock.mockReset()
   })
 
   it('loading: skeleton 표시', async () => {
@@ -66,12 +78,36 @@ describe('SettingsShippingSenderPage (n60)', () => {
       senderInfo: null,
     })
     setCredsMock.mockResolvedValue(undefined)
+    openPostcodePopupMock.mockResolvedValue({
+      zonecode: '06236',
+      address: '서울 강남구 테헤란로 123',
+      addressEnglish: '',
+      addressType: 'R',
+      bname: '',
+      buildingName: '',
+      apartment: 'N',
+      jibunAddress: '',
+      roadAddress: '서울 강남구 테헤란로 123',
+      sido: '서울',
+      sigungu: '강남구',
+      sigunguCode: '',
+      userSelectedType: 'R',
+      userLanguageType: 'K',
+    })
 
     const user = userEvent.setup()
     renderPage()
 
     await user.type(await screen.findByLabelText(/발송인명/), '홍길동 스토어')
-    await user.type(screen.getByLabelText(/발송지 주소/), '서울특별시 강남구 테헤란로 123')
+    await user.click(screen.getByRole('button', { name: /주소 검색/ }))
+    await waitFor(() => {
+      expect(openPostcodePopupMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(screen.getByLabelText('발송지 주소')).toHaveValue(
+        '[06236] 서울 강남구 테헤란로 123',
+      )
+    })
     await user.type(screen.getByLabelText(/연락처/), '010-1234-5678')
     await user.clear(screen.getByLabelText(/택배 운임/))
     await user.type(screen.getByLabelText(/택배 운임/), '2500')

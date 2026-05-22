@@ -17,6 +17,7 @@ import { ko } from '@/locales/ko'
 import { cn } from '@/lib/utils'
 import { useMarketAccounts } from '@/features/markets/hooks/useMarketAccounts'
 import { useLogenCredentialsStatus } from '@/features/settings/shipping/hooks/useLogenCredentialsStatus'
+import { useAuth } from '@/features/auth'
 
 /**
  * Sidebar — Studio shell 230px 사이드바.
@@ -279,6 +280,12 @@ function SidebarItem({ item, onNavigate, disabled, disabledReason }: SidebarItem
 }
 
 function SellerMiniCard(): JSX.Element {
+  const { user } = useAuth()
+  const meta = (user?.user_metadata ?? {}) as { display_name?: string }
+  const displayName = meta.display_name?.trim() || ko.shell.sellerPlaceholderName
+  const email = user?.email || ko.shell.sellerPlaceholderEmail
+  const initial = displayName.slice(0, 1) || '?'
+
   return (
     <div
       className={cn(
@@ -296,7 +303,7 @@ function SellerMiniCard(): JSX.Element {
             'text-[13px] font-bold',
           )}
         >
-          김
+          {initial}
         </div>
         <div className="min-w-0 flex-1">
           <div
@@ -305,7 +312,7 @@ function SellerMiniCard(): JSX.Element {
               'text-ink',
             )}
           >
-            {ko.shell.sellerPlaceholderName}
+            {displayName}
           </div>
           <div
             className={cn(
@@ -313,7 +320,7 @@ function SellerMiniCard(): JSX.Element {
               'text-faint',
             )}
           >
-            {ko.shell.sellerPlaceholderEmail}
+            {email}
           </div>
         </div>
       </div>
