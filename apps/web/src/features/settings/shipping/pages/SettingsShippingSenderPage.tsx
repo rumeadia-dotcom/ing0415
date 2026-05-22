@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useForm, type Resolver, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
+  AddressSearchInput,
   Button,
   Card,
   CardContent,
@@ -141,12 +142,20 @@ export function SettingsShippingSenderPage(): JSX.Element {
                 register={form.register('name')}
                 error={form.formState.errors.name?.message}
               />
-              <Field
-                id="sender-address"
-                label={t.senderAddressLabel}
-                placeholder={t.senderAddressPlaceholder}
-                register={form.register('address')}
-                error={form.formState.errors.address?.message}
+              <Controller
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <AddressSearchInput
+                    id="sender-address"
+                    label={t.senderAddressLabel}
+                    value={field.value}
+                    onChange={field.onChange}
+                    errorMessage={form.formState.errors.address?.message}
+                    required
+                    hint={t.senderAddressPlaceholder}
+                  />
+                )}
               />
               <Field
                 id="sender-phone"
