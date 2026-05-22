@@ -75,8 +75,8 @@ MIIEpAIBAAKCAQEA...
 | `GATEWAY_DOMAIN` | `43-201-83-78.sslip.io` |
 | `OPS_EMAIL` | `jhan@konai.com` |
 | `SUPABASE_ACCESS_TOKEN` | A.1 에서 발급한 토큰 |
-| `SUPABASE_DEV_PROJECT_REF` | `eqoywqoalwkwbrdsulfl` |
-| `SUPABASE_REAL_PROJECT_REF` | `lfrnythcujxdhehvkmtg` |
+| `DEV_SUPABASE_PROJECT_REF` | `eqoywqoalwkwbrdsulfl` |
+| `REAL_SUPABASE_PROJECT_REF` | `lfrnythcujxdhehvkmtg` (기존 `deploy.yml` 도 동일 시크릿 사용) |
 
 각 항목마다 **Add secret** 버튼으로 저장. 등록 완료 후 Secrets 목록에 7개가 보이면 성공.
 
