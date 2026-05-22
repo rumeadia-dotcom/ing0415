@@ -31,6 +31,7 @@ import { z } from 'npm:zod@3.23.8'
 import { MarketError } from '../errors.ts'
 import { createLogger } from '../logger.ts'
 import { generateCorrelationId } from '../correlation.ts'
+import { gatewayFetch } from '../gatewayFetch.ts'
 import type {
   AuthInput,
   CategoryNode,
@@ -187,14 +188,13 @@ async function coupangFetch(opts: {
   const url = `${COUPANG_API_BASE}${path}`
   const reqLogger = logger.with({ correlationId, jobId, market: MARKET })
 
-  reqLogger.info({ method, url: path }, '→ market request')
-
-  const controller = new AbortController()
-  const timerId = setTimeout(() => { controller.abort() }, timeoutMs)
+  reqLogger.info({ method, url: path }, '→ market request (gateway)')
 
   const start = Date.now()
   try {
-    const response = await fetch(url, {
+    const response = await gatewayFetch(MARKET, url, {
+      correlationId,
+      jobId,
       method,
       headers: {
         'Content-Type': 'application/json;charset=UTF-8',
@@ -202,29 +202,32 @@ async function coupangFetch(opts: {
         'X-Correlation-Id': correlationId,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
+      timeoutMs,
     })
-
     const latencyMs = Date.now() - start
-    reqLogger.info({ status: response.status, latencyMs }, '← market response')
+    reqLogger.info(
+      { status: response.status, latencyMs },
+      '← market response (gateway)',
+    )
     return response
   } catch (err) {
     const latencyMs = Date.now() - start
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      reqLogger.error({ latencyMs, marketErrorCode: 'timeout' }, '← market error')
-      throw new MarketError('network', '쿠팡 API 요청 timeout', {
+    if (err instanceof MarketError) {
+      reqLogger.error(
+        { latencyMs, marketErrorCode: err.code },
+        '← market error (gateway)',
+      )
+      throw new MarketError(err.code, `쿠팡 ${err.message}`, {
         market: MARKET,
         cause: err,
-        marketErrorCode: 'timeout',
+        status: err.context.status,
       })
     }
-    reqLogger.error({ latencyMs }, '← market error')
+    reqLogger.error({ latencyMs }, '← market error (gateway)')
     throw new MarketError('network', '쿠팡 API 네트워크 오류', {
       market: MARKET,
       cause: err,
     })
-  } finally {
-    clearTimeout(timerId)
   }
 }
 
