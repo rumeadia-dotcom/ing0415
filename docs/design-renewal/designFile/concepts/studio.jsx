@@ -1,5 +1,6 @@
 /* global React */
-// Concept B — "Studio": warm, soft, generous. Off-white + ochre accent.
+// Concept B — "Studio": warm, soft, generous. Off-white + vivid orange accent.
+// v1.3 (2026-05-22): accent ochre amber(hue 55) → vivid orange #ff5a1f(hue 35).
 
 const studioTokens = {
   bg:        'oklch(0.975 0.008 75)',     // warm off-white
@@ -11,8 +12,8 @@ const studioTokens = {
   dim:       'oklch(0.48 0.012 60)',
   faint:     'oklch(0.68 0.01 60)',
   ink:       'oklch(0.15 0.015 60)',
-  accent:    'oklch(0.62 0.14 55)',         // ochre amber
-  accentBg:  'oklch(0.94 0.04 65)',
+  accent:    'oklch(0.665 0.205 35)',       // #ff5a1f · vivid orange (v1.3 키컬러)
+  accentBg:  'oklch(0.96 0.05 35)',         // warm peach soft (소프트 배경)
   ok:        'oklch(0.55 0.10 160)',
   okBg:      'oklch(0.95 0.03 160)',
   warn:      'oklch(0.62 0.12 70)',

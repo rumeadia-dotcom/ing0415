@@ -6,9 +6,12 @@ import type { Config } from 'tailwindcss'
  * 토큰 마스터: docs/architecture/v1/ui-system.md + docs/design-renewal/designFile/concepts/studio-tokens.jsx
  * - 색상은 OKLCH `L C H` triplet CSS 변수 (apps/web/src/styles/globals.css)
  *   → `oklch(var(--*) / <alpha-value>)` 로 alpha 변형 지원.
- * - 라이트/다크는 `[data-theme="dark"]` 또는 `.dark` 양쪽 모두 동작.
- * - 마켓 브랜드색은 모드별로 살짝 nudge — globals.css 의 변수에서 처리.
+ * - 라이트 전용 (v1.3 다크모드 제거 — 2026-05-22). `darkMode` 키 삭제.
  * - xl breakpoint 는 1200px 로 override (D1 결정).
+ *
+ * v1.3 포인트 키컬러:
+ *  - accent 패밀리 ochre amber(hue 55) → vivid orange(#ff5a1f, hue 35).
+ *  - 신규 `accent.onlight` (--accent-on-light) 키 — 흰 배경 위 작은 라벨용 darker variant.
  *
  * v1.2 Studio 리뉴얼:
  *  - 색공간 RGB → OKLCH 전환.
@@ -17,7 +20,6 @@ import type { Config } from 'tailwindcss'
  */
 const config: Config = {
   content: ['./apps/web/index.html', './apps/web/src/**/*.{ts,tsx}'],
-  darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     screens: {
       sm: '640px',
@@ -54,12 +56,13 @@ const config: Config = {
           DEFAULT: 'oklch(var(--border) / <alpha-value>)',
           strong: 'oklch(var(--border-strong) / <alpha-value>)',
         },
-        // accent — Studio ochre amber
+        // accent — vivid orange (#ff5a1f, v1.3 키컬러)
         accent: {
           DEFAULT: 'oklch(var(--accent) / <alpha-value>)',
           hover: 'oklch(var(--accent-hover) / <alpha-value>)',
           soft: 'oklch(var(--accent-soft) / <alpha-value>)',
           'soft-border': 'oklch(var(--accent-soft-border) / <alpha-value>)',
+          onlight: 'oklch(var(--accent-on-light) / <alpha-value>)',
         },
         // status
         success: {
