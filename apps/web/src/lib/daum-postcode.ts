@@ -112,7 +112,7 @@ export async function openPostcodePopup(): Promise<DaumPostcodeData | null> {
  */
 export function formatPostcodeAddress(
   data: DaumPostcodeData,
-  detail: string = '',
+  detail = '',
 ): string {
   const base = data.roadAddress || data.jibunAddress || data.address
   const detailTrim = detail.trim()
