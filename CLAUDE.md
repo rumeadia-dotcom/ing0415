@@ -37,13 +37,15 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 
 | 명령 | 동작 |
 |---|---|
-| `pnpm dev` | 개발 서버 (Vite, `VITE_APP_MODE=debug`, http://localhost:5173) |
+| `pnpm dev` | 개발 서버 (Vite, `VITE_APP_MODE=dev VITE_USE_MOCK=true`, http://localhost:5173) |
+| `pnpm dev:db` | 개발 서버 (`VITE_APP_MODE=dev VITE_USE_MOCK=false`, dev-supabase + real 마켓 어댑터) |
+| `pnpm dev:real` | 개발 서버 (`VITE_APP_MODE=real VITE_USE_MOCK=false`, 운영 DB — 위험, 최소 사용) |
 | `pnpm typecheck` | `tsc --noEmit -p tsconfig.app.json` — 타입만 검증 |
 | `pnpm lint` | ESLint flat config (typescript-eslint strict + react + react-hooks + jsx-a11y, `no-explicit-any` error) |
 | `pnpm format` | Prettier 적용 |
 | `pnpm build` | `tsc --noEmit` → `vite build` (기본 모드) |
-| `pnpm build:debug` | `VITE_APP_MODE=debug` 로 빌드 |
-| `pnpm build:real` | `VITE_APP_MODE=real` 로 빌드 (운영 산출물) |
+| `pnpm build:dev` | `VITE_APP_MODE=dev VITE_USE_MOCK=false` 로 빌드 (CI sanity) |
+| `pnpm build:real` | `VITE_APP_MODE=real VITE_USE_MOCK=false` 로 빌드 (운영 산출물) |
 | `pnpm preview` | 빌드 산출물 로컬 서빙 |
 | `pnpm test` | Vitest 단위·통합 (run 1회) |
 | `pnpm test:watch` | Vitest watch 모드 |
@@ -51,6 +53,10 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 | `pnpm test:e2e` | Playwright E2E (dev / preview 서버 선행 + `E2E_BASE_URL` 지정) |
 | `pnpm test:e2e:ui` | Playwright UI 모드 |
 | `pnpm test:e2e:install` | Playwright Chromium 설치 (최초 1회) |
+| `pnpm supabase:link:dev` | Supabase CLI 를 dev 프로젝트 (eqo...) 로 link |
+| `pnpm supabase:link:real` | Supabase CLI 를 real 프로젝트 (lfr...) 로 link |
+| `pnpm db:push:dev` / `db:push:real` | link 후 마이그레이션 push (dev/real 각각) |
+| `pnpm functions:deploy:dev` / `functions:deploy:real` | link 후 Edge Functions 배포 (dev/real 각각) |
 
 전제: `pnpm install` 이 선행되어야 한다. Node `>=20`, pnpm `>=9` (`packageManager: pnpm@9.12.3` 고정).
 
@@ -60,7 +66,7 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 
 - **워크플로우**: `.github/workflows/ci.yml` (PR + push) / `deploy.yml` (`main` push + 태그 + `workflow_dispatch`).
 - **PR 머지 게이트** (branch protection):
-  - `develop`: Lint & Typecheck / Unit (Vitest) / Build matrix (debug + real) / E2E Golden Path 전체 통과.
+  - `develop`: Lint & Typecheck / Unit (Vitest) / Build matrix (dev + real) / E2E Golden Path 전체 통과.
   - `main`: 위 전부 + release/hotfix 만 허용 + linear history (squash).
 - **위험 게이트 (수동 결정)**:
   - **`supabase db push` 자동 적용 default 비활성.** `workflow_dispatch` 의 `apply_db_migrations=true` 입력 시에만 실행 (ci-cd.md §7 drift 정책).
@@ -71,7 +77,7 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 
 상세: `docs/architecture/v1/frontend.md` + `cross-cutting/market-adapter.md` + `cross-cutting/credential-vault.md`.
 
-- **단일 진입점 강제** — Supabase 는 `getSupabase()`, 마켓 어댑터는 `getMarketAdapter(marketId)`, 환경변수는 `isDebug` / `isReal` boolean. 직접 `createClient` / 어댑터 구현체 import / `import.meta.env.VITE_APP_MODE` 비교 모두 금지.
+- **단일 진입점 강제** — Supabase 는 `getSupabase()`, 마켓 어댑터는 `getMarketAdapter(marketId)`, 환경변수는 `isDev` / `isReal` / `useMock` boolean. 직접 `createClient` / 어댑터 구현체 import / `import.meta.env.VITE_APP_MODE` 비교 모두 금지.
 - **zod 스키마 단일 소스** — `apps/web/src/lib/schemas/`. RHF resolver + Supabase insert + 서버 응답 parse 3중 재사용. 컴포넌트 내부 inline `z.object` 금지.
 - **ENUM 마스터 위치** — `JOB_STATUSES` / `MARKET_RESULT_STATUSES` / `MARKET_IDS` 는 `schemas/registration.ts` + `schemas/common.ts` 에서만 정의. 타 도메인은 import.
 - **Query Key 규약** — `[domain, ...filters]` (예: `['products', { sellerId, status }]`). `queryClient` 기본값은 `frontend.md §4.3` 참조.
@@ -84,7 +90,7 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 
 - **PR 진입 기준** — 새 컴포넌트/hook/유틸 = 단위 테스트 1+ 성공 + 1+ 실패 시나리오 (R-001). 새 라우트 = `tests/e2e/a11y.spec.ts` ROUTES 배열 추가 + 회귀 axe 통과 (R-009). 새 zod 스키마 = pass 1 + fail ≥1.
 - **골든패스 게이트** — `tests/e2e/golden-path.spec.ts` 가 `main` 머지 차단 기준. `test.skip / test.fixme / test.only` 우회 PR 거부 (R-003).
-- **debug ↔ real 격차** — real 어댑터 도입 시 `tests/unit/adapters/<market>/parity.spec.ts` 추가 강제 (R-006).
+- **mock ↔ real 어댑터 격차** — real 어댑터 도입 시 `tests/unit/adapters/<market>/parity.spec.ts` 추가 강제 (R-006).
 
 ## 인프라 결정 (확정)
 
@@ -104,23 +110,28 @@ React + Vite + TS strict (`noUncheckedIndexedAccess`) / pnpm / React Router v6 +
 
 **함의 제약**: Edge Function timeout 내 완결 → 일괄 등록은 마켓당 함수 1회 + Postgres 진행상황 적재 + Realtime 푸시. 프론트 BFF 불가 → 서버 로직은 Edge Function / Postgres RPC.
 
-## 빌드 모드: debug / real
+## 빌드 모드: dev / real + useMock 플래그
 
-`VITE_APP_MODE` (`debug` | `real`) 빌드 타임 분기. 런타임 토글 아님.
+플래그 2개로 분리 (2026-05-22):
 
-| 항목 | debug | real |
-|---|---|---|
-| 데이터 소스 | mock 픽스처 (`window.AppData`) | Supabase (DB / Auth / Storage / Edge Functions) |
-| 마켓 API | mock 어댑터 | 실 마켓 API |
-| 소스맵 | on | off (또는 sentry-only) |
-| 로깅 | verbose | warn 이상 |
-| 인증 | bypass 가능 | Supabase Auth 강제 |
+- **`VITE_APP_MODE`** (`dev` | `real`) — DB / Edge Function 타겟 + Sentry 환경 라벨
+- **`VITE_USE_MOCK`** (`true` | `false`) — 마켓 어댑터 소스 (mock vs real)
+
+두 플래그 모두 **빌드 타임 분기**. 런타임 토글 아님.
+
+| 조합 | 명령 | 데이터 소스 | 마켓 API | 인증 |
+|---|---|---|---|---|
+| `dev` + `useMock=true` | `pnpm dev` | dev-supabase (eqo...) | mock 어댑터 | dev Supabase Auth |
+| `dev` + `useMock=false` | `pnpm dev:db` | dev-supabase (eqo...) | 실 마켓 API | dev Supabase Auth |
+| `real` + `useMock=false` | `pnpm dev:real` / `build:real` | real-supabase (lfr...) | 실 마켓 API | real Supabase Auth |
+| `real` + `useMock=true` | (금지) | — | — | 부트스트랩 시 throw |
 
 **규칙:**
 - mock / real 어댑터는 동일 `MarketAdapter` 인터페이스 (코드 분기 최소화).
-- debug 전용 코드는 `if (isDebug)` 가드 + tree-shaking. real 번들에 mock·시크릿 누출 0 (CI grep 검증).
-- 토큰·OAuth refresh 흐름은 debug 에서도 실 경로로 검증 (보안 우회 금지).
-- debug / real 별도 Supabase 프로젝트. 트래픽 교차 금지. SQL 마이그레이션 단일 소스 (Supabase CLI).
+- useMock=true 전용 코드는 `if (useMock)` 가드 + dynamic import. real 번들에 mock·시크릿 누출 0 (CI grep 검증 — `VITE_APP_MODE=dev` / `VITE_USE_MOCK=true` 리터럴 차단).
+- 토큰·OAuth refresh 흐름은 dev 에서도 실 경로로 검증 (보안 우회 금지).
+- dev / real 별도 Supabase 프로젝트 (project ref: dev=`eqoywqoalwkwbrdsulfl`, real=`lfrnythcujxdhehvkmtg`). 트래픽 교차 금지. SQL 마이그레이션 단일 소스 (Supabase CLI), 각 프로젝트에 개별 push.
+- env 파일은 mode-scoped: `apps/web/.env.development*` (dev 로드) / `apps/web/.env.real*` (real 로드, `--mode real` 진입). `.local` 접미사는 gitignored, 그 외 committed.
 
 ## 제품 도메인
 

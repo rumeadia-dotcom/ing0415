@@ -6,14 +6,14 @@
  * 강제:
  * - VITE_SENTRY_DSN 누락 시 비활성 (개발자 로컬·CI 환경 보호).
  * - beforeSend / beforeBreadcrumb 모두 redact 통과 — 한쪽만 적용된 PR 차단.
- * - environment 는 빌드 모드 (debug / real) 그대로. 두 환경 데이터 절대 혼입 금지.
+ * - environment 는 빌드 모드 (dev / real) 그대로. 두 환경 데이터 절대 혼입 금지.
  *
  * 호출 시점: `src/main.tsx` 의 createRoot() 직전 1회.
  */
 
 import * as Sentry from '@sentry/react'
 
-import { env, isDebug } from './env'
+import { env, isDev } from './env'
 import { redact } from './security/redact'
 
 let initialized = false
@@ -24,10 +24,10 @@ export function initSentry(): void {
 
   Sentry.init({
     dsn: env.VITE_SENTRY_DSN,
-    environment: isDebug ? 'debug' : 'real',
+    environment: isDev ? 'dev' : 'real',
     integrations: [Sentry.browserTracingIntegration()],
-    // debug 는 100% 추적 (콘솔 + Sentry 양쪽 검증), real 은 10%.
-    tracesSampleRate: isDebug ? 1.0 : 0.1,
+    // dev 는 100% 추적 (콘솔 + Sentry 양쪽 검증), real 은 10%.
+    tracesSampleRate: isDev ? 1.0 : 0.1,
 
     beforeSend(event) {
       // security.md §6.3: request / extra / contexts / tags / breadcrumbs 전체 마스킹.

@@ -61,6 +61,7 @@ jobs:
 
     env:
       VITE_APP_MODE: real
+      VITE_USE_MOCK: 'false'
       VITE_BASE_PATH: /ing0415/
       VITE_SUPABASE_URL: ${{ secrets.REAL_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.REAL_SUPABASE_ANON_KEY }}
@@ -128,8 +129,12 @@ jobs:
             echo "::error::Debug-only artifacts leaked into real bundle"
             exit 1
           fi
-          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]debug" dist/assets/; then
-            echo "::error::debug mode literal embedded in real bundle"
+          if grep -rE "VITE_APP_MODE['\"]?\s*[:=]\s*['\"]dev" dist/assets/; then
+            echo "::error::dev mode literal embedded in real bundle"
+            exit 1
+          fi
+          if grep -rE "VITE_USE_MOCK['\"]?\s*[:=]\s*['\"]true" dist/assets/; then
+            echo "::error::useMock=true literal embedded in real bundle"
             exit 1
           fi
           if grep -rE "service_role|sbp_v0_|sntrys_" dist/assets/; then

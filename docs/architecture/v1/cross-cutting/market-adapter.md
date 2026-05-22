@@ -318,18 +318,18 @@ export type CreateProductResult = z.infer<typeof CreateProductResultSchema>;
 
 ---
 
-## 4. debug / real 어댑터 동등성
+## 4. mock / real 어댑터 동등성
 
 ### 4.1 모드 분기 (단 1지점)
 
 ```ts
 // apps/web/src/lib/markets/index.ts
-import { isDebug } from '@/lib/env';
+import { useMock } from '@/lib/env';
 import type { MarketAdapter } from './types';
 import type { MarketId } from '@/lib/schemas/common';
 
 export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter> {
-  if (isDebug) {
+  if (useMock) {
     const { createDebugAdapter } = await import('./debug');
     return createDebugAdapter(market);
   }

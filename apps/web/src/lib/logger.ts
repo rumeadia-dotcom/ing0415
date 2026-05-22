@@ -1,4 +1,4 @@
-import { isDebug } from './env'
+import { isDev } from './env'
 
 /**
  * 간이 구조화 로거.
@@ -16,7 +16,7 @@ const PRIORITY: Record<Level, number> = {
   error: 3,
 }
 
-const MIN_LEVEL: Level = isDebug ? 'debug' : 'warn'
+const MIN_LEVEL: Level = isDev ? 'debug' : 'warn'
 
 function emit(level: Level, args: readonly unknown[]): void {
   if (PRIORITY[level] < PRIORITY[MIN_LEVEL]) return

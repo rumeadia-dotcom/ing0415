@@ -174,9 +174,10 @@ on conflict (market, code) do nothing;
 
 | 변수 | 값 (예) | 비고 |
 |---|---|---|
-| `VITE_APP_MODE` | `debug` | 실 마켓 API 호출 차단 |
-| `VITE_SUPABASE_URL` | debug 프로젝트 URL | platform.md §Supabase 분리 |
-| `VITE_SUPABASE_ANON_KEY` | debug anon key | public 가능 |
+| `VITE_APP_MODE` | `dev` | DB 타겟 (dev-supabase) |
+| `VITE_USE_MOCK` | `true` | 실 마켓 API 호출 차단 |
+| `VITE_SUPABASE_URL` | dev 프로젝트 URL | platform.md §Supabase 분리 |
+| `VITE_SUPABASE_ANON_KEY` | dev anon key | public 가능 |
 | `SUPABASE_SERVICE_ROLE_KEY` | debug service role | 시드 정리 전용. CI Secret. |
 | `MSW_ENABLED` | `true` | MSW 핸들러 활성화 |
 | `PLAYWRIGHT_BASE_URL` | `http://localhost:5173` | Vite dev 또는 `pnpm preview` |
@@ -401,7 +402,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      VITE_APP_MODE: debug
+      VITE_APP_MODE: dev
+      VITE_USE_MOCK: 'true'
       VITE_SUPABASE_URL: ${{ secrets.SUPABASE_DEBUG_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_DEBUG_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_DEBUG_SERVICE_ROLE_KEY }}
@@ -485,14 +487,14 @@ jobs:
 
 ### 7.3 모드 차이 자동 감시
 
-다음 검사를 골든 패스 spec 안에 추가한다 — debug 시나리오라도 모드 차이의 단서를 잡기 위함이다:
+다음 검사를 골든 패스 spec 안에 추가한다 — useMock=true 시나리오라도 모드 차이의 단서를 잡기 위함이다:
 
-- 환경 변수 `VITE_APP_MODE` 가 spec 시작 시점에 `debug` 인지 assertion (real 모드에서 본 spec 이 실수로 돌면 차단).
+- 환경 변수 `VITE_APP_MODE` 가 spec 시작 시점에 `dev` 인지 assertion (real 모드에서 본 spec 이 실수로 돌면 차단).
 - MSW 핸들러가 단 한 번이라도 fallback (`onUnhandledRequest='error'`) 으로 빠지면 spec 실패. → real API 가 MSW 가 모르는 새 엔드포인트를 호출하기 시작했다는 신호.
 
 ```ts
 test.beforeAll(() => {
-  if (process.env.VITE_APP_MODE !== 'debug') {
+  if (process.env.VITE_APP_MODE !== 'dev') {
     throw new Error('Golden Path Playwright spec must run in debug mode. real 모드는 §7.2 수동 절차로.');
   }
 });

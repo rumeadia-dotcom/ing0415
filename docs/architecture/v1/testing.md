@@ -377,7 +377,7 @@ tests/
 
 ### 12.1 원칙
 
-- debug 모드 (`VITE_APP_MODE=debug`) 의 mock 어댑터와 real 모드의 실제 어댑터는 **동일 `MarketAdapter` 인터페이스** 구현.
+- useMock=true 의 mock 어댑터와 useMock=false 의 실제 어댑터는 **동일 `MarketAdapter` 인터페이스** 구현.
 - 두 어댑터의 응답은 **같은 zod 스키마** (`MarketResponseSchema`) 를 통과해야 한다.
 
 ### 12.2 격차 테스트
