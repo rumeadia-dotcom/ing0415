@@ -290,7 +290,10 @@ function createBuilder(table: string): any {
           const rows = Array.isArray(state.mutate.payload)
             ? state.mutate.payload
             : [state.mutate.payload]
-          for (const r of rows) state.rows.push(r)
+          for (const r of rows) {
+            if (!r.id) r.id = crypto.randomUUID()
+            state.rows.push(r)
+          }
           if (state.selectMode === 'single' || state.selectMode === 'maybeSingle') {
             return { data: rows[0], error: null }
           }
