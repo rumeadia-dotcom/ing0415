@@ -2,7 +2,12 @@
 
 > 작성: 2026-05-22 / 대상: 운영자 (사용자 본인) / 마스터: `docs/architecture/v1/cross-cutting/market-gateway.md`
 
-본 문서는 Lightsail 인스턴스 (`43.201.83.78`) 에 Market Gateway 를 띄우기까지 **사용자가 직접 실행할 단계** 만 모은 체크리스트다. Claude 가 대신 못 하는 영역 (AWS 콘솔 / SSH / 11번가 셀러센터) 전부 본 문서에 박혀 있다.
+본 문서는 Lightsail 인스턴스 (`43.201.83.78`) 에 Market Gateway 를 띄우기까지 **사용자가 직접 실행할 단계** 만 모은 체크리스트다.
+
+**두 가지 방식 제공**:
+
+- **Part A — GitHub Actions 자동 배포 (Windows / Mac / Linux 모두 추천)**: GH Secrets 에 값 7개 등록 + 버튼 1번. CLI 환경 무관.
+- **Part B — SSH 수동 (Linux / WSL2 / Git Bash 환경 보유자용 fallback)**: rsync + ssh 직접.
 
 ## 0. 결정된 값 (변경 금지)
 
@@ -12,6 +17,131 @@
 | 자동 도메인 | `43-201-83-78.sslip.io` |
 | 인스턴스 | Lightsail nano ($3.5/월, Ubuntu 22.04, RAM 512MB / 20GB SSD) |
 | 리전 | Seoul (`ap-northeast-2`) |
+
+---
+
+# Part A — GitHub Actions 자동 배포 (추천)
+
+CLI 환경 (Linux / Mac / WSL) 없이 GitHub 웹 UI 만으로 진행 가능.
+
+## A.1 사전 작업: Supabase Personal Access Token 발급
+
+GH Actions 가 Supabase secrets 를 자동 등록하기 위해 필요.
+
+1. https://supabase.com/dashboard/account/tokens 접속
+2. **Generate new token** 클릭
+3. Name 입력 (예: `gh-actions-market-gateway`)
+4. **Generate token** 클릭
+5. 보여지는 토큰 값을 **메모장에 임시 보관** (이 화면 떠나면 다시 못 봄)
+
+## A.2 사전 작업: SSH `.pem` 파일 내용 확보
+
+Lightsail 콘솔에서 받은 `.pem` 파일을 **메모장으로 열어서** 전체 내용 복사.
+
+내용 형식 (예):
+
+```
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAACFwAAAAdzc2gtcn
+...여러 줄...
+-----END OPENSSH PRIVATE KEY-----
+```
+
+또는
+
+```
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA...
+-----END RSA PRIVATE KEY-----
+```
+
+**처음 `-----BEGIN` 부터 마지막 `-----END ... -----` 까지 전체** 가 한 덩어리.
+
+## A.3 GitHub Secrets 7개 등록
+
+브라우저로:
+
+1. https://github.com/rumeadia-dotcom/ing0415 접속
+2. 상단 탭 **Settings**
+3. 좌측 메뉴 **Secrets and variables** → **Actions**
+4. **New repository secret** 버튼
+
+다음 7개를 하나씩 등록 (Name 은 **정확히** 동일하게):
+
+| Name | Value |
+|---|---|
+| `LIGHTSAIL_SSH_KEY` | A.2 에서 복사한 `.pem` 파일 **전체 내용** (`-----BEGIN` 부터 `-----END` 줄 포함) |
+| `LIGHTSAIL_HOST` | `43.201.83.78` |
+| `GATEWAY_DOMAIN` | `43-201-83-78.sslip.io` |
+| `OPS_EMAIL` | `jhan@konai.com` |
+| `SUPABASE_ACCESS_TOKEN` | A.1 에서 발급한 토큰 |
+| `SUPABASE_DEV_PROJECT_REF` | `eqoywqoalwkwbrdsulfl` |
+| `SUPABASE_REAL_PROJECT_REF` | `lfrnythcujxdhehvkmtg` |
+
+각 항목마다 **Add secret** 버튼으로 저장. 등록 완료 후 Secrets 목록에 7개가 보이면 성공.
+
+> 등록한 값은 다시 볼 수 없음 (보안). 오타 시 삭제 후 재등록.
+
+## A.4 Lightsail 방화벽 (콘솔)
+
+AWS Lightsail 콘솔 → 인스턴스 → **Networking** 탭 → **IPv4 Firewall**:
+
+| Application | Protocol | Port | Source |
+|---|---|---|---|
+| SSH | TCP | 22 | `0.0.0.0/0` (Any IPv4) — GH Actions runner IP 가 동적이라 일시적으로 전체 허용 |
+| HTTP | TCP | 80 | Any IPv4 (Let's Encrypt ACME) |
+| HTTPS | TCP | 443 | Any IPv4 |
+
+> **보안 강화 옵션**: 첫 셋업 완료 후 SSH 22 를 본인 IP 만으로 좁히고, 재배포 시 GH Actions IP 또는 일시 오픈으로 운영. 현재는 첫 셋업이라 Any 로 시작.
+
+## A.5 워크플로우 실행 (full-setup)
+
+1. https://github.com/rumeadia-dotcom/ing0415/actions 접속
+2. 좌측 워크플로우 목록에서 **Deploy Market Gateway** 클릭
+3. 우측 상단 **Run workflow** 드롭다운 버튼 클릭
+4. Branch: `main` 또는 `claude/fetch-98aut` (워크플로우 파일이 들어간 브랜치)
+5. `실행할 작업` 드롭다운에서 **`full-setup`** 선택
+6. **Run workflow** 클릭
+
+## A.6 진행 상황 확인
+
+3 ~ 5분 소요. 단계별로:
+
+| Step | 기대 결과 | 실패 시 |
+|---|---|---|
+| `SSH 키 준비` | `ssh ok: ip-...` | LIGHTSAIL_SSH_KEY 형식 오류 — 다시 등록 |
+| `게이트웨이 파일 전송` | rsync 로그 | LIGHTSAIL_HOST / 방화벽 22 |
+| `setup.sh 실행` | apt + Deno + Caddy 설치 로그 | 인스턴스 디스크·메모리 |
+| `HMAC 시크릿 생성·동기화` | `시크릿 로테이션 완료` | SUPABASE_ACCESS_TOKEN 권한 |
+| `헬스체크` | `healthz OK — {"ok":true,...}` | Let's Encrypt 발급 지연 (최대 3분 자동 재시도) |
+
+모든 단계 ✅ (초록 체크) 면 게이트웨이 운영 시작.
+
+## A.7 운영 (이후 반복 사용)
+
+같은 워크플로우의 `실행할 작업` 만 바꿔 재실행:
+
+| Action | 용도 |
+|---|---|
+| `full-setup` | 첫 설치 또는 초기화. 시크릿도 새로 생성. |
+| `update-main` | `main.ts` 만 갱신 + 서비스 재시작 (시크릿 변경 X). git push 후 사용. |
+| `rotate-secret` | HMAC 시크릿만 새로 발급. 분기 1회 권장. |
+| `restart` | 서비스 + Caddy 재시작. |
+| `healthcheck` | 외부 헬스체크만 — 다른 작업 안 함. |
+
+## A.8 11번가 IP 화이트리스트 등록
+
+GH Actions 와 무관하게 **별도** 진행 (병행 가능).
+
+- 11번가 셀러오피스 (https://soffice.11st.co.kr) 로그인
+- API 관리 / Open API → IP 등록
+- 등록 IP: `43.201.83.78` (1개)
+- 검토 시간 소요 (일~수일)
+- 등록 완료 안 되어도 다른 마켓 (네이버 / 쿠팡 / G·옥션) 은 정상 동작
+
+---
+
+# Part B — SSH 수동 (fallback)
 
 ## 1. AWS Lightsail 방화벽 (콘솔 작업)
 
