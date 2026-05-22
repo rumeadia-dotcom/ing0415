@@ -16,7 +16,7 @@
 ## 1. 목적 · 범위
 
 - **목적**: 마켓 API 의 변덕(엔드포인트·페이로드·rate limit·인증방식)을 5메서드 인터페이스 1장 뒤에 격리한다.
-- **범위 (2026-05-19 갱신)**: **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 — real 어댑터까지 동작**. 11번가 = "오픈 준비중" (Supabase Edge Function outbound IP 동적 문제 + 11번가 IP 화이트리스트 정책 충돌로 v2 이관). v1 단계에서 `authenticate(input)` 의 `input` 이 **4-way `AuthInput` discriminated union** 으로 확장됨 — OAuth code (네이버) / HMAC 키 (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가, v2). 11번가 어댑터 파일은 인터페이스 호환을 위해 stub 만 유지하고 v1 운영 경로에서 호출 시 즉시 throw.
+- **범위 (2026-05-22 v1.3 갱신)**: **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부 — real 어댑터까지 동작**. 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전 고정 IP)** 를 경유 (`market-gateway.md` 참조). 11번가 IP 화이트리스트 정책은 gateway 의 고정 IP 등록으로 해소. v1 단계에서 `authenticate(input)` 의 `input` 은 **4-way `AuthInput` discriminated union** — OAuth code (네이버) / HMAC 키 (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가). 어댑터 내부 `fetch` 는 모두 `_shared/gatewayFetch()` 로 wrapping.
 - **비범위**: 재시도·rate limit·이미지 변환·로깅·감사 — 어댑터 **바깥**(`registration-run` Edge Function 오케스트레이터 + `_shared/*`).
 
 ---
@@ -62,7 +62,7 @@ export interface MarketAdapter {
 
   /**
    * 4-way 인증 input → 저장 가능한 credential.
-   * 입력: AuthInput = oauth_code (네이버) | hmac_key (쿠팡) | esm_jwt (G마켓·옥션) | api_key (11번가, v2).
+   * 입력: AuthInput = oauth_code (네이버) | hmac_key (쿠팡) | esm_jwt (G마켓·옥션) | api_key (11번가).
    * 출력: StoredCredential = kind + payload (+ OAuth 만 expiresAt).
    * 에러: MarketError('unauthorized' | 'validation' | 'network' | 'server' | 'unknown').
    */
@@ -138,7 +138,7 @@ export type TokenSet = z.infer<typeof TokenSetSchema>;
 //  - oauth_code: 네이버 스마트스토어 (`type=SELF` Authorization Code)
 //  - hmac_key:   쿠팡 윙 OpenAPI (VENDOR_ID + ACCESS_KEY + SECRET_KEY)
 //  - esm_jwt:    G마켓·옥션 ESM 2.0 (masterId + secretKey + sellerId + site)
-//  - api_key:    11번가 (API Key 단일. IP 화이트리스트 미해결로 v2 — 인터페이스 호환 보존용)
+//  - api_key:    11번가 (API Key 단일. v1.3 정식 진입 — AWS Lightsail Gateway 고정 IP 화이트리스트 등록 후 활성)
 export const OAuthCodeAuthInputSchema = z.object({
   kind: z.literal('oauth_code'),
   code: z.string().min(1),
@@ -333,8 +333,9 @@ export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter>
     const { createDebugAdapter } = await import('./debug');
     return createDebugAdapter(market);
   }
-  // 2026-05-19: v1 정식 4 마켓 (naver / coupang / gmarket / auction) real 어댑터 활성.
-  // 11번가는 Supabase Edge Function outbound IP 화이트리스트 정책 미해결로 v2 이관.
+  // 2026-05-22 v1.3: 5 마켓 전부 (naver / coupang / gmarket / auction / 11st) real 어댑터 활성.
+  // 모든 마켓 호출은 AWS Lightsail Market Gateway (서울 리전 고정 IP) 경유 — market-gateway.md 참조.
+  // 11번가 IP 화이트리스트 정책은 gateway 고정 IP 등록으로 해소.
   switch (market) {
     case 'naver': {
       const { createNaverAdapter } = await import('./real/naver');
@@ -352,10 +353,11 @@ export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter>
       const { createAuctionAdapter } = await import('./real/auction');
       return createAuctionAdapter();
     }
-    case '11st':
-      // v2 이관 — Supabase Edge Function outbound IP 동적 ↔ 11번가 IP 화이트리스트 정책 충돌.
-      // 인터페이스 호환을 위해 stub 만 유지 (api_key kind), 호출 시 즉시 throw.
-      throw new Error('Adapter 11st is not in v1 (오픈 준비중 — IP 화이트리스트 v2 결정)');
+    case '11st': {
+      // v1.3 정식 진입 — AWS Lightsail Market Gateway 고정 IP 를 11번가 화이트리스트에 등록 후 활성.
+      const { create11stAdapter } = await import('./real/11st');
+      return create11stAdapter();
+    }
     default: {
       const _exhaustive: never = market;
       throw new Error(`unknown market: ${String(_exhaustive)}`);
@@ -446,7 +448,7 @@ export function createDebugAdapter(market: MarketId): MarketAdapter {
           },
         });
       }
-      // api_key (11번가 v2 — debug 에서는 인터페이스 호환 검증용)
+      // api_key (11번가 v1.3 정식 — AWS Lightsail Gateway 경유)
       return StoredCredentialSchema.parse({
         kind: 'api_key',
         payload: { apiKey: input.apiKey },
@@ -668,7 +670,7 @@ export async function withRetry<T>(
 |---|---|---|---|
 | 스마트스토어 (naver) | 3 RPS | Phase 2 실측 | 공식 문서 미공개, 잠정값. Phase 2 의 부하 테스트로 보정. |
 | 쿠팡 (coupang) | 5 RPS | Phase 2 실측 | 동일 |
-| 11st / gmarket / auction | - | - | v2 |
+| gmarket / auction / 11st | 3 RPS (잠정) | Phase 2 실측 | 공식 문서 미공개. Phase 2 부하 테스트로 보정. |
 
 ```ts
 // apps/api/supabase/functions/_shared/limiter.ts
@@ -788,7 +790,7 @@ export class MarketError extends Error {
 
 ## 8. 인증 흐름 (provider 별)
 
-> **2026-05-19 갱신**: OAuth 흐름은 **네이버 한정**. 쿠팡 (HMAC) / G마켓·옥션 (ESM JWT) 은 **`markets-connect` Edge Function 의 폼 입력 흐름** 으로 처리 — `features/markets.md` §4 / §5 참조. 11번가 (API Key) 는 v2.
+> **2026-05-22 v1.3 갱신**: OAuth 흐름은 **네이버 한정**. 쿠팡 (HMAC) / G마켓·옥션 (ESM JWT) / 11번가 (API Key) 는 **`markets-connect` Edge Function 의 폼 입력 흐름** 으로 처리 — `features/markets.md` §4 / §5 참조. 11번가는 v1.3 정식 진입 (AWS Lightsail Gateway 경유).
 
 ### 8.1 시퀀스 (네이버 OAuth — ASCII)
 
@@ -830,9 +832,9 @@ export class MarketError extends Error {
 
 ---
 
-## 9. 마켓별 차이 매트릭스 (v1 4 마켓 + 11번가 v2 stub)
+## 9. 마켓별 차이 매트릭스 (v1 5 마켓 전부)
 
-> **2026-05-19 갱신**: v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 (real 어댑터까지 동작). 11번가 = v2 (IP 화이트리스트 정책).
+> **2026-05-22 v1.3 갱신**: v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부 (real 어댑터까지 동작). 11번가는 AWS Lightsail Gateway 의 고정 IP 화이트리스트 등록으로 진입.
 > 잠정값은 Phase 2 통합 테스트 후 갱신. 갱신 시 본 문서 §13 미해결 사안 행 제거.
 
 ### 9.0 인증 방식 / 엔드포인트 요약 (5 마켓 마스터 표)
@@ -841,9 +843,9 @@ export class MarketError extends Error {
 |---|---|---|---|---|---|---|
 | 네이버 스마트스토어 (`naver`) | `oauth` | `oauth_code` | `https://api.commerce.naver.com/external/v1/oauth2/token` | 지원 (refresh_token rotation) | 불필요 | **v1** |
 | 쿠팡 (`coupang`) | `hmac` | `hmac_key` | `https://api-gateway.coupang.com` (HMAC-SHA256 헤더 서명) | 없음 (영구 키) | 불필요 | **v1** |
-| G마켓 (`gmarket`) | `esm_jwt` | `esm_jwt` | `https://etapi.gmarket.com` (`site='G'`) | JWT `iat` 만료 시 어댑터가 매 호출 직전 자체 재생성 | 불필요 | **v1** |
-| 옥션 (`auction`) | `esm_jwt` | `esm_jwt` | `https://etapi.gmarket.com` (`site='A'` — 동일 ESM 2.0 게이트웨이) | 동일 (JWT 자체 재생성) | 불필요 | **v1** |
-| 11번가 (`11st`) | `api_key` | `api_key` | `https://api.11st.co.kr` | 없음 | **필요** (Supabase Edge Function outbound IP 동적 ↔ 11번가 정책 충돌) | **v2** |
+| G마켓 (`gmarket`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='G'`) | JWT `iat` 만료 시 어댑터가 매 호출 직전 자체 재생성 | 불필요 | **v1** |
+| 옥션 (`auction`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='A'` — 동일 ESM Single Account API) | 동일 (JWT 자체 재생성) | 불필요 | **v1** |
+| 11번가 (`11st`) | `api_key` | `api_key` | `https://api.11st.co.kr` | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
 
 **확장 정책 (v1 부터 4-way union)**: 본 표의 5 마켓이 4 가지 `AuthInput.kind` 를 모두 커버한다 (oauth_code / hmac_key / esm_jwt / api_key). 신규 인증 방식 추가 시:
 
@@ -855,7 +857,7 @@ export class MarketError extends Error {
 
 ### 9.1 호출 / 인증 사양
 
-| 항목 | 네이버 (`naver`) | 쿠팡 (`coupang`) | G마켓 (`gmarket`) | 옥션 (`auction`) | 11번가 (`11st`) — v2 |
+| 항목 | 네이버 (`naver`) | 쿠팡 (`coupang`) | G마켓 (`gmarket`) | 옥션 (`auction`) | 11번가 (`11st`) |
 |---|---|---|---|---|---|
 | 인증 표준 | OAuth 2.0 Authorization Code (`type=SELF`) | HMAC-SHA256 헤더 서명 (요청별) | ESM 2.0 JWT (HS256, 셀러 secretKey 서명) | 동일 (`site='A'`) | API Key 헤더 |
 | 토큰/키 보관 형태 | access + refresh + expiresAt (TokenSet) | accessKey + secretKey + vendorId (영구) | masterId + secretKey + sellerId + site (영구) | 동일 | apiKey 단일 (영구) |
@@ -866,28 +868,28 @@ export class MarketError extends Error {
 | `access_token` TTL | 잠정 1시간 | n/a (영구) | n/a (JWT 매 호출 재생성) | 동일 | n/a (영구) |
 | `refresh_token` TTL | 잠정 14일 | — | — | — | — |
 | refresh rotation | rotation 있음 가정 | n/a | n/a | n/a | n/a |
-| HTTP timeout (어댑터 fetch) | 15s | 15s | 15s | 15s | n/a (v2) |
-| 429 헤더 | `Retry-After` (초) | `Retry-After` (초) | (Phase 2 실측) | (동일) | (v2) |
-| RPS (§5.3 잠정) | 3 | 5 | 3 (Phase 2 실측) | 3 (Phase 2 실측) | v2 |
-| IP 화이트리스트 | 불필요 | 불필요 | 불필요 | 불필요 | **필요** → v2 차단 |
+| HTTP timeout (어댑터 fetch) | 15s | 15s | 15s | 15s | 15s |
+| 429 헤더 | `Retry-After` (초) | `Retry-After` (초) | (Phase 2 실측) | (동일) | (Phase 2 실측) |
+| RPS (§5.3 잠정) | 3 | 5 | 3 (Phase 2 실측) | 3 (Phase 2 실측) | 3 (Phase 2 실측) |
+| IP 화이트리스트 | 불필요 | 불필요 | 불필요 | 불필요 | **필요** → AWS Lightsail Gateway 고정 IP 등록으로 해소 |
 
 ### 9.2 카테고리 트리
 
 | 항목 | naver | coupang | gmarket | auction | 11st |
 |---|---|---|---|---|---|
-| 최대 깊이 | 4 (잠정) | 5 (잠정) | 4 (잠정) | 4 (잠정) | v2 |
-| 조회 방식 | 전체 트리 1회 | 분할 페이징 (Phase 2 확인) | 전체 트리 1회 | 동일 | v2 |
-| 캐시 정책 | 24h TTL (호출측 책임) | 24h TTL | 24h TTL | 24h TTL | v2 |
-| 변경 통지 | webhook 없음 → polling | 동일 | 동일 | 동일 | v2 |
+| 최대 깊이 | 4 (잠정) | 5 (잠정) | 4 (잠정) | 4 (잠정) | 4 (잠정) |
+| 조회 방식 | 전체 트리 1회 | 분할 페이징 (Phase 2 확인) | 전체 트리 1회 | 동일 | (Phase 2 실측) |
+| 캐시 정책 | 24h TTL (호출측 책임) | 24h TTL | 24h TTL | 24h TTL | 24h TTL |
+| 변경 통지 | webhook 없음 → polling | 동일 | 동일 | 동일 | 동일 |
 
 ### 9.3 이미지 규격 (Phase 2 실측 보정 예정)
 
 | 항목 | naver | coupang | gmarket | auction | 11st |
 |---|---|---|---|---|---|
-| 권장 해상도 | 1000×1000 이상 | 1000×1000 이상 | 600×600 이상 | 동일 | v2 |
-| 허용 포맷 | JPEG / PNG | JPEG / PNG / WebP | JPEG / PNG | 동일 | v2 |
-| 최대 용량 | 10 MB | 5 MB | 5 MB | 동일 | v2 |
-| 최대 장수 | 10 | 10 | 10 | 10 | v2 |
+| 권장 해상도 | 1000×1000 이상 | 1000×1000 이상 | 600×600 이상 | 동일 | 600×600 이상 (잠정) |
+| 허용 포맷 | JPEG / PNG | JPEG / PNG / WebP | JPEG / PNG | 동일 | JPEG / PNG (잠정) |
+| 최대 용량 | 10 MB | 5 MB | 5 MB | 동일 | 5 MB (잠정) |
+| 최대 장수 | 10 | 10 | 10 | 10 | 10 (잠정) |
 
 > 이미지 변환 파이프라인은 본 문서 범위 밖. `cross-cutting/image-pipeline.md` 참조.
 
@@ -1045,7 +1047,7 @@ submitTracking(
 | O-6 | Edge Function timeout 한도 확정 → 마켓당 호출 분할 단위 | §5.4 / `features/registration.md` 잡 분할 | **결정 완료** (OQ-15, Pro 400s 가정) |
 | O-7 | Vault vs pgcrypto envelope 최종 결정 | `security.md` §4.2 | **결정 완료** (OQ-04, pgcrypto) |
 | O-8 | 부분 성공(partial) 정의 — 마켓별 적용 범위 | §7.1 `CreateProductResult.status` | Phase 2 |
-| O-9 | 11번가 IP 화이트리스트 정책 해결책 (Supabase Pro 고정 IP / 외부 프록시 / 정책 협상) | §9.0 / `features/markets.md` §3.2 / 11st 어댑터 활성화 | **v2** 진입 직전 결정 |
+| O-9 | 11번가 IP 화이트리스트 정책 해결책 | §9.0 / `features/markets.md` §3.2 / 11st 어댑터 활성화 | **결정 완료** (2026-05-22, v1.3) — AWS Lightsail Market Gateway 고정 IP 등록. `market-gateway.md` 참조 |
 | O-10 | ESM 2.0 JWT 의 `iat` 클럭 스큐 허용치 / 어댑터 내부 재생성 정책 | §9.1 gmarket / auction 어댑터 | Phase 2 |
 
 ---
@@ -1068,3 +1070,4 @@ submitTracking(
 |---|---|---|---|
 | 2026-05-18 | v1.0 | 최초 작성. MarketAdapter 5메서드 / 공용 zod / mock-real 동등성 / 재시도·rate-limit 외부 위임 / 에러 매핑 / OAuth 시퀀스 / 마켓별 차이 매트릭스 / 테스트 매트릭스 정의. | backend |
 | 2026-05-19 | v1.1 | **5마켓 MVP 확장 Wave 1**. `authenticate(input)` 의 input 을 4-way `AuthInput` discriminated union 으로 확장 (oauth_code / hmac_key / esm_jwt / api_key). `refreshToken` optional 명시. 반환 타입 `TokenSet` → `StoredCredential`. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 활성, 11번가 = v2 (IP 화이트리스트). §9 마켓별 차이 매트릭스 5마켓 표로 확장. | backend + architect |
+| 2026-05-22 | v1.3 | **11번가 v1 정식 진입**. AWS Lightsail Market Gateway (서울 리전, 고정 IP) 도입 결정으로 IP 화이트리스트 정책 해소 (`market-gateway.md`). v1 정식 = 5 마켓 전부. 모든 마켓 호출이 `_shared/gatewayFetch()` 경유. §9 매트릭스 11번가 컬럼 v1 정식화. O-9 미해결 사안 종결. | architect |
