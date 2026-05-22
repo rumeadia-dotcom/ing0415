@@ -3,11 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Studio 디자인 토큰 매칭: light = warm off-white bg, dark = warm dark page -->
-    <meta name="theme-color" content="oklch(0.975 0.008 75)" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="oklch(0.18 0.012 60)" media="(prefers-color-scheme: dark)" />
+    <!-- Studio 디자인 토큰 매칭: light 전용 (v1.3 다크모드 제거) -->
+    <meta name="theme-color" content="oklch(0.975 0.008 75)" />
     <!-- Google Fonts preconnect (Manrope + JetBrains Mono) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,31 +17,11 @@
     />
     <title>MarketCast</title>
     <!--
-      테마 부트스트랩 (ui-system.md §11.2):
-      첫 페인트 깜빡임 회피용 inline 스크립트. React 마운트 전에 실행되어야 함.
-      localStorage.theme 우선 → 없으면 prefers-color-scheme 추종.
-      data-theme 속성 + class 두 형태 모두 세팅 (Tailwind darkMode 호환).
+      v1.3 다크모드 제거 (2026-05-22) — 라이트 전용. data-theme 속성도 사실상 불필요하나
+      globals.css 의 :focus-visible / ::selection 이 oklch(var(--ring)) 참조하므로 안전하게 'light' 유지.
     -->
     <script>
-      // TEMP: 다크/시스템 모드 임시 비활성 — 라이트 강제. 다시 켤 때 아래 주석 블록 복구.
       document.documentElement.setAttribute('data-theme', 'light')
-      /*
-      ;(function () {
-        try {
-          var t = localStorage.getItem('theme')
-          var sys = window.matchMedia('(prefers-color-scheme: dark)').matches
-          var isDark = t === 'dark' || ((t === 'system' || t === null) && sys)
-          if (isDark) {
-            document.documentElement.setAttribute('data-theme', 'dark')
-            document.documentElement.classList.add('dark')
-          } else {
-            document.documentElement.setAttribute('data-theme', 'light')
-          }
-        } catch (_) {
-          // localStorage 접근 실패 시 라이트 기본
-        }
-      })()
-      */
     </script>
   </head>
   <body>

@@ -53,7 +53,7 @@ function StudioTokens() {
       <section style={{ marginBottom: 28 }}>
         <SectionHeading>색상 · 시맨틱</SectionHeading>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-          <TokenSwatch label="accent · 오커" value={t.accent} />
+          <TokenSwatch label="accent · 비비드 오렌지" value={t.accent} />
           <TokenSwatch label="ok · 성공" value={t.ok} />
           <TokenSwatch label="warn · 경고" value={t.warn} />
           <TokenSwatch label="danger · 오류" value={t.danger} />

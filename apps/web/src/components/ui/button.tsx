@@ -20,8 +20,13 @@ import { cn } from '@/lib/utils'
  *  - border: oklch(0.92 0.008 75)
  *  - borderHi: oklch(0.85 0.01 75)
  *  - dim: oklch(0.48 0.012 60)
- *  - accent (focus): oklch(0.62 0.14 55)
+ *  - accent (primary CTA / focus): oklch(0.665 0.205 35) — vivid orange #ff5a1f (v1.3 키컬러)
  *  - danger: oklch(0.55 0.16 25)
+ *
+ * v1.3 primary 변경: bg-ink !text-white → bg-accent !text-white.
+ *  - 오렌지 배경 + 흰 글자 = 대비 ~3.3:1. 14px bold 이상 (button 컴포넌트 기본 size 충족) → WCAG AA large-text 3:1 통과.
+ *  - hover 시 accent-hover (L=0.60, 약 #e84e15) 로 darker, 텍스트는 동일 흰색 유지.
+ *  - 주의: 흰 글자 + accent 조합은 ≥14px bold/≥18px 텍스트에서만 사용. 본문 텍스트엔 금지.
  */
 const buttonVariants = cva(
   [
@@ -35,7 +40,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-ink !text-white hover:bg-text font-bold',
+          'bg-accent !text-white hover:bg-accent-hover font-bold',
         secondary:
           'bg-white text-ink border border-border-strong hover:bg-card-2 font-semibold',
         ghost:

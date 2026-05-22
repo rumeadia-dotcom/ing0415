@@ -3,8 +3,14 @@
  *
  * 마스터 문서: docs/architecture/v1/ui-system.md §3 / §11 / §12
  * - 색상 변수는 OKLCH `L C H` triplet (alpha 미포함) → Tailwind 가 `oklch(var(--*) / <alpha-value>)` 로 alpha 변형 합성.
- * - 라이트 = `:root`, 다크 = `[data-theme="dark"]` 또는 `.dark` (양쪽 지원).
+ * - 라이트 전용 (v1.3 다크모드 제거 — 2026-05-22). `:root` 만 정의, `[data-theme="dark"]` / `.dark` 블록 없음.
  * - raw HEX 사용 금지 — 모든 색은 이 파일에서만 선언.
+ *
+ * v1.3 포인트 키컬러 교체 (2026-05-22):
+ *  - accent 패밀리 hue 55 (ochre amber) → hue 35 (#ff5a1f vivid orange) 로 in-place 교체.
+ *  - 신규 보조 토큰 `--accent-on-light` (L=0.55, darker variant) — 흰 배경 위 작은 라벨의 WCAG AA 4.5:1 보장.
+ *  - 다크모드 제거: `[data-theme='dark'] / .dark` 블록 + ThemeToggle UI + use-theme 훅 전부 삭제.
+ *  - 적용 범위: 67곳 `text-accent`/`bg-accent`/`bg-accent-soft` 자동 반영 + `button.tsx` primary 변경.
  *
  * v1.2 Studio 디자인 리뉴얼 (2026-05-21):
  *  - v1.1 navy/cream/blue 팔레트를 OKLCH 기반 Studio 팔레트(warm off-white + ochre)로 교체.
@@ -51,11 +57,14 @@
     --border: 0.92 0.008 75;
     --border-strong: 0.85 0.01 75;
 
-    /* accent — ochre amber (Studio brand) */
-    --accent: 0.62 0.14 55;
-    --accent-hover: 0.55 0.14 55;
-    --accent-soft: 0.94 0.04 65;
-    --accent-soft-border: 0.88 0.06 65;
+    /* accent — vivid orange (#ff5a1f, v1.3 키컬러)
+     * hue 35 = 적-주황. 흰 배경 위 작은 텍스트(<14px) 는 대비 빠듯 → --accent-on-light 사용.
+     * 마켓 옥션(hue 38) 과 인접 시 시각 분리 필요 (border/spacing 강화). */
+    --accent: 0.665 0.205 35;
+    --accent-hover: 0.60 0.205 35;
+    --accent-soft: 0.96 0.05 35;
+    --accent-soft-border: 0.90 0.08 35;
+    --accent-on-light: 0.55 0.18 35; /* 흰 배경 위 작은 라벨용 darker variant — WCAG AA 4.5:1 보장 */
 
     /* status — Studio soft tones */
     --success: 0.55 0.1 160;
@@ -72,7 +81,7 @@
     --info-on-soft: 0.42 0.09 235;
 
     /* focus ring = accent */
-    --ring: 0.62 0.14 55;
+    --ring: 0.665 0.205 35;
 
     /* 마켓 브랜드 — Studio OKLCH 변환 (m1~m5) */
     --market-naver: 0.62 0.16 152; /* m1 emerald green */
@@ -95,8 +104,8 @@
     --navy: 0.15 0.015 60; /* = ink (워드마크 'Market' 좌측) */
     --brand-grad: linear-gradient(
       135deg,
-      oklch(0.62 0.14 55) 0%,
-      oklch(0.7 0.13 50) 55%,
+      oklch(0.665 0.205 35) 0%,
+      oklch(0.72 0.18 40) 55%,
       oklch(0.62 0.16 152) 100%
     );
 
@@ -116,73 +125,6 @@
     --row-h: 44px;
 
     color-scheme: light;
-  }
-
-  [data-theme='dark'],
-  .dark {
-    /* ── 다크 모드 (Studio dark) ─────────────────────────────────────
-     * L 을 0.45~0.6 만큼 낮춰 surface 어둡게, ink/text 는 끌어올려 4.5:1 대비 유지.
-     * accent/semantic hue 는 유지하고 L+C 만 살짝 nudge.
-     */
-    --surface: 0.18 0.012 60; /* warm dark page */
-    --surface-subtle: 0.22 0.012 60;
-    --surface-muted: 0.25 0.012 60;
-    --card: 0.22 0.012 60;
-    --card2: 0.25 0.012 60;
-
-    --ink: 0.95 0.008 60;
-    --text: 0.9 0.008 60;
-    --text-secondary: 0.7 0.01 60;
-    --text-tertiary: 0.55 0.012 60;
-    --dim: 0.7 0.01 60;
-    --faint: 0.55 0.012 60;
-
-    --border: 0.32 0.012 60;
-    --border-strong: 0.42 0.012 60;
-
-    --accent: 0.72 0.15 55;
-    --accent-hover: 0.78 0.15 55;
-    --accent-soft: 0.32 0.08 60;
-    --accent-soft-border: 0.42 0.1 60;
-
-    --success: 0.7 0.12 160;
-    --success-soft: 0.3 0.06 160;
-    --success-on-soft: 0.85 0.12 160;
-    --warning: 0.78 0.14 70;
-    --warning-soft: 0.32 0.08 70;
-    --warning-on-soft: 0.88 0.14 75;
-    --danger: 0.7 0.18 25;
-    --danger-soft: 0.3 0.08 25;
-    --danger-on-soft: 0.85 0.16 25;
-    --info: 0.72 0.13 235;
-    --info-soft: 0.3 0.06 235;
-    --info-on-soft: 0.85 0.12 235;
-
-    --ring: 0.72 0.15 55;
-
-    /* 마켓 브랜드 — 다크에서 L 살짝 올려 가독성 확보 */
-    --market-naver: 0.7 0.16 152;
-    --market-coupang: 0.68 0.21 22;
-    --market-gmarket: 0.66 0.14 175;
-    --market-auction: 0.7 0.19 38;
-    --market-eleventh: 0.68 0.22 0;
-
-    /* legacy alias — dark (워드마크는 다크에서도 동일 톤 유지) */
-    --navy: 0.95 0.008 60;
-    --brand-grad: linear-gradient(
-      135deg,
-      oklch(0.72 0.15 55) 0%,
-      oklch(0.78 0.14 50) 55%,
-      oklch(0.7 0.16 152) 100%
-    );
-
-    /* shadow — 다크는 더 깊게 (pure black 기반) */
-    --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.4);
-    --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.5), 0 1px 2px -1px oklch(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px oklch(0 0 0 / 0.55), 0 4px 6px -4px oklch(0 0 0 / 0.45);
-    --shadow-pop: 0 20px 25px -5px oklch(0 0 0 / 0.6), 0 8px 10px -6px oklch(0 0 0 / 0.5);
-
-    color-scheme: dark;
   }
 
   /* 기본 html / body — Manrope 우선, 한글 Pretendard fallback */
