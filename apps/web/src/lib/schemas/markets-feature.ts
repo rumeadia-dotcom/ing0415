@@ -153,25 +153,69 @@ export const EsmJwtConnectFormSchema = z.object({
 })
 export type EsmJwtConnectForm = z.infer<typeof EsmJwtConnectFormSchema>
 
-/** markets-connect Edge Function Request — 폼 두 종을 union 으로 통합. */
-export const ConnectRequestSchema = z.discriminatedUnion('market', [
-  HmacConnectFormSchema,
-  z.object({
-    market: z.literal('gmarket'),
-    accountLabel: z.string().min(1).max(40),
-    masterId: z.string().min(1).max(80),
-    secretKey: z.string().min(1).max(200),
-    sellerId: z.string().min(1).max(80),
-  }),
-  z.object({
-    market: z.literal('auction'),
-    accountLabel: z.string().min(1).max(40),
-    masterId: z.string().min(1).max(80),
-    secretKey: z.string().min(1).max(200),
-    sellerId: z.string().min(1).max(80),
-  }),
-])
+/**
+ * markets-connect Edge Function Request — 서버 (apps/api/supabase/functions/markets-connect/index.ts)
+ * 의 RequestSchema 와 정합. `credentials` 안에 kind 별 union.
+ *
+ * 폼 입력 (HmacConnectForm / EsmJwtConnectForm) → 본 형식 변환은 toConnectRequest() 사용.
+ */
+const HmacKeyCredentialSchema = z.object({
+  kind: z.literal('hmac_key'),
+  accessKey: z.string().min(1),
+  secretKey: z.string().min(1),
+  vendorId: z.string().min(1),
+})
+const EsmJwtCredentialSchema = z.object({
+  kind: z.literal('esm_jwt'),
+  masterId: z.string().min(1),
+  secretKey: z.string().min(1),
+  sellerId: z.string().min(1),
+  site: z.enum(['G', 'A']),
+})
+export const ConnectRequestSchema = z.object({
+  marketId: V1KeyConnectMarketSchema,
+  accountLabel: z.string().min(1).max(40),
+  credentials: z.discriminatedUnion('kind', [
+    HmacKeyCredentialSchema,
+    EsmJwtCredentialSchema,
+  ]),
+})
 export type ConnectRequest = z.infer<typeof ConnectRequestSchema>
+
+/**
+ * 폼 데이터 → markets-connect Edge Function payload.
+ *
+ *  - 쿠팡: HmacConnectForm  → credentials.kind = 'hmac_key'
+ *  - G마켓: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'G'
+ *  - 옥션: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'A'
+ */
+export function toConnectRequest(
+  form: HmacConnectForm | EsmJwtConnectForm,
+): ConnectRequest {
+  if (form.market === 'coupang') {
+    return {
+      marketId: 'coupang',
+      accountLabel: form.accountLabel,
+      credentials: {
+        kind: 'hmac_key',
+        accessKey: form.accessKey,
+        secretKey: form.secretKey,
+        vendorId: form.vendorId,
+      },
+    }
+  }
+  return {
+    marketId: form.market,
+    accountLabel: form.accountLabel,
+    credentials: {
+      kind: 'esm_jwt',
+      masterId: form.masterId,
+      secretKey: form.secretKey,
+      sellerId: form.sellerId,
+      site: form.market === 'gmarket' ? 'G' : 'A',
+    },
+  }
+}
 
 export const ConnectResponseSchema = z.object({
   accountId: z.string().uuid(),
