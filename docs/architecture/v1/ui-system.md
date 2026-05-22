@@ -33,6 +33,7 @@
 > 이 PR 에서 명시적으로 갱신된 부분만 정리:
 > - **accent 패밀리** — ochre amber (hue 55) → **vivid orange `#ff5a1f` (hue 35)**. OKLCH 값: `--accent: 0.665 0.205 35`, `--accent-hover: 0.60 0.205 35`, `--accent-soft: 0.96 0.05 35`, `--accent-soft-border: 0.90 0.08 35`.
 > - **신규 보조 토큰** — `--accent-on-light: 0.55 0.18 35` (흰 배경 위 작은 라벨용 darker variant, WCAG AA 4.5:1 보장). Tailwind 키 `accent.onlight`.
+> - **primary CTA 텍스트 색** — 흰색. `bg-accent !text-white` 조합 = 대비 ~3.3:1 → ≥14px bold (button 컴포넌트 기본 size) 기준 **WCAG AA large-text 3:1 통과**. 본문 텍스트엔 사용 금지.
 > - **다크 모드 제거** — 라이트 전용 운영. `:root` 만 정의, `[data-theme='dark']` / `.dark` 블록 + `useTheme` 훅 + `ThemeToggle` UI 삭제. §11 (라이트/다크 토글) 도 deprecate.
 > - **`--brand-grad`** — 그래디언트 hue 시리즈 (35 → 40 → 152) 로 동기 갱신.
 >
