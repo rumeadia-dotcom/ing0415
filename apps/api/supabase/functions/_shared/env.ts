@@ -50,6 +50,15 @@ const EnvSchema = z.object({
   COUPANG_VENDOR_ID: z.string().min(1).optional(),
   COUPANG_ACCESS_KEY: z.string().min(1).optional(),
   COUPANG_SECRET_KEY: z.string().min(1).optional(),
+
+  // Market Gateway (AWS Lightsail, 서울 리전 고정 IP).
+  //   - 마스터: docs/architecture/v1/cross-cutting/market-gateway.md
+  //   - real 모드의 모든 마켓 호출이 본 게이트웨이 경유. debug 모드는 mock 어댑터가 우회.
+  //   - 부팅 시점에는 optional — gatewayFetch() 호출 시점에 누락이면 throw (real 모드).
+  //   - BASE_URL: 게이트웨이 도메인 (예: https://gateway.example.com). 경로는 /v1/proxy 가 자동 추가.
+  //   - SECRET:   인스턴스 측 /etc/market-gateway/env 의 MARKET_GATEWAY_SECRET 과 동일 (≥32B hex).
+  MARKET_GATEWAY_BASE_URL: z.string().url().optional(),
+  MARKET_GATEWAY_SECRET: z.string().min(32).optional(),
 })
 
 export type Env = z.infer<typeof EnvSchema>
