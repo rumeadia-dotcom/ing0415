@@ -20,21 +20,25 @@
 |---|---|
 | 공급자 | AWS Lightsail |
 | 리전 | Seoul (`ap-northeast-2`) |
-| Plan | $5/월 (vCPU 2 / RAM 2GB / 60GB SSD / 3TB transfer) |
+| Plan | $3.5/월 nano (vCPU 2 / RAM 512MB / 20GB SSD / 1TB transfer) |
 | OS | Ubuntu 22.04 LTS |
 | Static IP | 1개 (attach 중 무료, detach 금지) |
+| DNS | `<ip-hyphen>.sslip.io` 자동 (예: `43-201-83-78.sslip.io`) — DNS 패널 조작·도메인 구매 불요 |
+| swap | 2GB (setup.sh 자동 생성, 512MB RAM 보강) |
 
 ## 배포 절차
 
 상세는 `market-gateway.md §6.2` 참조. 요약:
 
+사용자용 단계별 가이드: [`docs/handoff/lightsail-setup-guide.md`](../../docs/handoff/lightsail-setup-guide.md). 요약:
+
 ```bash
 # 1) AWS Lightsail 콘솔
-#    - Seoul 리전 / Ubuntu 22.04 / $5 plan 인스턴스 생성
+#    - Seoul 리전 / Ubuntu 22.04 / $3.5 nano plan 인스턴스 생성
 #    - Static IP 발급 + 인스턴스 attach
 #    - SSH 키 다운로드
-#    - Networking: 22 (SSH 본인 IP) + 80 + 443 만 허용
-#    - DNS A 레코드: gateway.<운영 도메인> → Static IP
+#    - Networking: 22 (SSH 본인 IP) + 80 (ACME) + 443 만 허용
+#    - DNS 패널 작업 없음 — sslip.io 자동 매핑
 
 # 2) SSH 접속
 ssh -i ~/.ssh/<key>.pem ubuntu@<static-ip>
@@ -44,7 +48,9 @@ ssh -i ~/.ssh/<key>.pem ubuntu@<static-ip>
 rsync -avz infra/aws-lightsail-gateway/ ubuntu@<static-ip>:/tmp/market-gateway/
 
 # 4) 인스턴스 측에서 셋업 실행
-sudo GATEWAY_DOMAIN=gateway.example.com OPS_EMAIL=ops@example.com \
+#    GATEWAY_DOMAIN 은 Static IP 의 하이픈 형태 + .sslip.io
+#    예) Static IP 43.201.83.78 → 43-201-83-78.sslip.io
+sudo GATEWAY_DOMAIN=43-201-83-78.sslip.io OPS_EMAIL=ops@<domain> \
   bash /tmp/market-gateway/setup.sh
 
 # 5) MARKET_GATEWAY_SECRET 채우기
@@ -58,7 +64,7 @@ sudo systemctl restart market-gateway
 #    또는 supabase secrets set MARKET_GATEWAY_SECRET=<hex>
 
 # 7) 헬스체크
-curl -i https://gateway.example.com/healthz
+curl -i https://43-201-83-78.sslip.io/healthz
 # → 200 {"ok":true,"ts":...}
 
 # 8) 마켓별 화이트리스트 등록 (Phase 4~5 진입 직전, 사람 액션)
@@ -104,7 +110,7 @@ ssh ubuntu@<ip> 'sudo install -o marketgw -g marketgw -m 0644 /tmp/main.ts /opt/
 
 - `/etc/market-gateway/env` 권한 `0640 root:marketgw`. 일반 사용자 접근 차단
 - HMAC 시크릿은 Edge Function env + 인스턴스 env 양쪽 일치. 로테이션 시 양쪽 동시 갱신
-- `main.ts` 의 `ALLOWED_UPSTREAM_HOSTS` 화이트리스트 — 임의 URL forwarding 차단 (SSRF 방어)
+- `main.ts` 의 `ALLOWED_UPSTREAM_HOSTS` 화이트리스트 — 임의 URL forwarding 차단 (SSRF 방어). 현재: `api.commerce.naver.com` / `api-gateway.coupang.com` / `sa.esmplus.com` (G·옥션 공유 ESM Single Account API) / `api.11st.co.kr`
 - Caddy hardening: HSTS preload / X-Content-Type-Options nosniff / -Server
 - systemd hardening: NoNewPrivileges / ProtectSystem=strict / SystemCallFilter=@system-service
 

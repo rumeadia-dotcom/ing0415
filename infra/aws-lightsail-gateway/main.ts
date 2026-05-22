@@ -22,7 +22,7 @@ const ALLOWED_MARKETS = new Set(['naver', 'coupang', 'gmarket', 'auction', '11st
 const ALLOWED_UPSTREAM_HOSTS = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
-  'etapi.gmarket.com',
+  'sa.esmplus.com',
   'api.11st.co.kr',
 ]);
 

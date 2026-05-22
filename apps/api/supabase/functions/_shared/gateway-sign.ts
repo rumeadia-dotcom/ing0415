@@ -60,8 +60,7 @@ export async function hmacSignHex(secret: string, payload: string): Promise<stri
 export function bufToHex(buf: ArrayBuffer): string {
   const arr = new Uint8Array(buf)
   let out = ''
-  for (let i = 0; i < arr.length; i++) {
-    const byte = arr[i] ?? 0
+  for (const byte of arr) {
     out += byte.toString(16).padStart(2, '0')
   }
   return out
@@ -75,7 +74,7 @@ export function bufToHex(buf: ArrayBuffer): string {
 export const GATEWAY_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
-  'etapi.gmarket.com',
+  'sa.esmplus.com',
   'api.11st.co.kr',
 ])
 

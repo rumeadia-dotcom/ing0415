@@ -39,6 +39,32 @@ apt_install() {
     unzip ufw fail2ban
 }
 
+setup_swap() {
+  # 512MB RAM nano plan 안정성 보강. 2GB swap 자동 생성.
+  # 이미 swap 이 있거나 /swapfile 존재 시 skip (idempotent).
+  log "swap 2GB 생성 (idempotent)"
+  if [[ -f /swapfile ]]; then
+    log "  → /swapfile 이미 존재 — skip"
+    return
+  fi
+  if swapon --show | grep -q .; then
+    log "  → swap 이미 활성 — skip"
+    return
+  fi
+  fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=progress
+  chmod 0600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  if ! grep -q '/swapfile' /etc/fstab; then
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
+  # swappiness: 디스크 I/O 부담 최소화 (메모리 압박 시에만 swap 사용)
+  sysctl -w vm.swappiness=10 >/dev/null
+  if ! grep -q '^vm.swappiness' /etc/sysctl.conf; then
+    echo 'vm.swappiness=10' >> /etc/sysctl.conf
+  fi
+}
+
 setup_user() {
   log "marketgw 사용자 생성"
   if ! id -u marketgw >/dev/null 2>&1; then
@@ -141,6 +167,7 @@ start_service() {
 main() {
   require_root
   apt_install
+  setup_swap
   setup_user
   install_deno
   install_caddy

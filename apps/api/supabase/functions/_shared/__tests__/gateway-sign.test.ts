@@ -97,7 +97,7 @@ describe('gateway-sign / assertGatewayUrl', () => {
   it('whitelisted 호스트는 통과', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com/products')).not.toThrow()
     expect(() => assertGatewayUrl('https://api-gateway.coupang.com/v2/x')).not.toThrow()
-    expect(() => assertGatewayUrl('https://etapi.gmarket.com/x')).not.toThrow()
+    expect(() => assertGatewayUrl('https://sa.esmplus.com/api/v1/x')).not.toThrow()
     expect(() => assertGatewayUrl('https://api.11st.co.kr/x')).not.toThrow()
   })
 
