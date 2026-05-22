@@ -86,6 +86,9 @@ const SettingsShippingLogenPage = lazy(
 const SettingsShippingSenderPage = lazy(
   () => import('@/features/settings/shipping/pages/SettingsShippingSenderPage'),
 )
+const SettingsPoliciesPage = lazy(
+  () => import('@/features/settings/policies/pages/SettingsPoliciesPage'),
+)
 // legal (비인증 접근 가능)
 const TermsPage = lazy(() => import('@/features/legal/pages/TermsPage'))
 const PrivacyPage = lazy(() => import('@/features/legal/pages/PrivacyPage'))
@@ -201,6 +204,7 @@ const routes: RouteObject[] = [
             ],
           },
           { path: 'settings', element: withSuspense(<SettingsPage />) },
+          { path: 'settings/policies', element: withSuspense(<SettingsPoliciesPage />) },
           // v2 — 주문 현황 (s7 n47~n50). 마켓 미연동 시 페이지 안에서 미등록 안내.
           {
             path: 'orders',

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm, type Resolver } from 'react-hook-form'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useForm, type Resolver, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, Check, Lightbulb } from 'lucide-react'
 import {
@@ -8,6 +8,7 @@ import {
   ErrorMessage,
   Input,
   Label,
+  RichTextEditor,
   Skeleton,
   Tooltip,
   TooltipContent,
@@ -234,7 +235,14 @@ export function StepInfoPage(): JSX.Element {
                   </select>
                   {(policies?.length ?? 0) === 0 && (
                     <p className="text-xs font-medium text-warning-on-soft">
-                      등록된 배송 정책이 없습니다. 별도 화면에서 1건 이상 생성해 주세요 (v2 별도 페이지).
+                      등록된 배송 정책이 없습니다.{' '}
+                      <RouterLink
+                        to="/settings/policies"
+                        className="underline underline-offset-2 hover:text-text"
+                      >
+                        배송 정책 관리에서 1건 이상 추가하세요
+                      </RouterLink>
+                      .
                     </p>
                   )}
                 </>
@@ -243,18 +251,24 @@ export function StepInfoPage(): JSX.Element {
 
             <Field
               id="info-description"
-              label="상품 설명 (HTML, 선택)"
-              hint="50,000자 이내 · v2 WYSIWYG"
+              label="상품 설명 (선택)"
+              hint="50,000자 이내"
               error={form.formState.errors.descriptionHtml?.message}
             >
-              <textarea
-                id="info-description"
-                rows={6}
-                className="flex w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                {...form.register('descriptionHtml', { setValueAs: (v) => (v === '' ? null : v) })}
+              <Controller
+                control={form.control}
+                name="descriptionHtml"
+                render={({ field }) => (
+                  <RichTextEditor
+                    id="info-description"
+                    value={field.value ?? ''}
+                    onChange={(html) => field.onChange(html === '' ? null : html)}
+                    placeholder="상품 설명을 입력하세요. 굵게/목록/링크/이미지 사용 가능."
+                  />
+                )}
               />
               <p className="text-xs text-text-tertiary">
-                WYSIWYG 에디터는 v2 에 제공됩니다. 현재는 plain text 또는 HTML 문자열만 가능.
+                저장 시 XSS 위험 태그·이벤트 속성은 자동으로 제거됩니다.
               </p>
             </Field>
           </div>

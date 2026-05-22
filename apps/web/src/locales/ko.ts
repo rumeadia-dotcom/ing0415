@@ -401,6 +401,7 @@ export const ko = {
       logen_failed: '로젠 등록 실패',
       waybill_printed: '운송장 출력',
       tracking_submitted: '마켓 송장 제출',
+      dispatch_failed: '송장 제출 실패',
     },
     dispatch: {
       pending: '제출 대기',
@@ -430,6 +431,7 @@ export const ko = {
       heading: '설정',
       account: '계정',
       shipping: '배송 설정',
+      policies: '배송 정책',
       notifications: '알림',
       billing: '청구',
       team: '팀',
@@ -552,6 +554,88 @@ export const ko = {
         title: '아직 로젠 API 가 연결되지 않았습니다',
         body:
           '운송장 자동 발급을 사용하려면 로젠 자격증명을 등록해야 합니다. [로젠 API 설정] 을 눌러 시작하세요.',
+      },
+    },
+    policies: {
+      title: '배송 정책',
+      subtitle:
+        '상품 등록 시 선택할 배송 정책을 관리합니다. 기본 정책 1개는 자동으로 선택됩니다.',
+      listTitle: '배송 정책 목록',
+      listDescription: '등록한 배송 정책을 확인하고 수정·삭제할 수 있습니다.',
+      addCta: '새 정책 추가',
+      empty: {
+        title: '등록된 배송 정책이 없습니다',
+        body:
+          '상품 등록을 시작하려면 배송 정책을 1건 이상 추가하세요. 기본 정책으로 지정한 항목이 자동 선택됩니다.',
+      },
+      columns: {
+        name: '정책명',
+        method: '배송 방식',
+        fee: '배송비',
+        etaDays: '예상 배송일수',
+        isDefault: '기본값',
+        actions: '관리',
+      },
+      methodLabels: {
+        parcel: '택배',
+        direct: '직접배송',
+        quick: '퀵배송',
+        visit_pickup: '방문수령',
+      },
+      badge: {
+        isDefault: '기본',
+      },
+      fee: {
+        free: '무료',
+        unit: '원',
+      },
+      etaUnit: '일',
+      actions: {
+        edit: '수정',
+        delete: '삭제',
+        setDefault: '기본값으로 지정',
+      },
+      dialog: {
+        createTitle: '새 배송 정책',
+        editTitle: '배송 정책 수정',
+        description:
+          '상품 등록 시 선택 가능한 배송 정책을 입력하세요. 기본값으로 지정하면 다른 정책의 기본값은 해제됩니다.',
+        nameLabel: '정책명',
+        namePlaceholder: '예: 일반 택배 (선결제)',
+        methodLabel: '배송 방식',
+        feeLabel: '배송비 (원)',
+        feePlaceholder: '예: 3000',
+        etaDaysLabel: '예상 배송일수 (일)',
+        etaDaysPlaceholder: '예: 2',
+        isDefaultLabel: '기본 정책으로 지정',
+        isDefaultDescription:
+          '상품 등록 화면에서 자동으로 선택됩니다. 셀러당 1개만 기본값으로 둘 수 있습니다.',
+        submit: '저장',
+        submitting: '저장 중…',
+        cancel: '취소',
+      },
+      delete: {
+        confirmTitle: '배송 정책을 삭제할까요?',
+        confirmBody:
+          '삭제하면 이 정책을 사용 중인 미완료 상품 등록은 다시 선택해야 합니다.',
+        confirmBodyDefault:
+          '기본 배송 정책을 삭제하면 상품 등록 화면에서 자동 선택될 항목이 없어집니다. 그래도 삭제하시겠습니까?',
+        confirmCta: '삭제',
+        confirmingCta: '삭제 중…',
+        cancelCta: '취소',
+      },
+      toast: {
+        createSuccess: '배송 정책을 추가했습니다.',
+        createError: '배송 정책을 추가하지 못했습니다.',
+        updateSuccess: '배송 정책을 수정했습니다.',
+        updateError: '배송 정책을 수정하지 못했습니다.',
+        deleteSuccess: '배송 정책을 삭제했습니다.',
+        deleteError: '배송 정책을 삭제하지 못했습니다.',
+        setDefaultSuccess: '기본 배송 정책을 변경했습니다.',
+        setDefaultError: '기본 배송 정책을 변경하지 못했습니다.',
+      },
+      errors: {
+        fetch: '배송 정책을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
       },
     },
   },

@@ -43,6 +43,7 @@ test-results/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/worktrees/
+.claude/scheduled_tasks.lock
 
 # Design canvas editor state + duplicate uploads (mirror of docs/design-renewal/s*.md)
 docs/design-renewal/designFile/.design-canvas.state.json

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   OrderStatusEnum,
   OrderSchema,
-  OrderListFilterSchema,
-  ManualWaybillResolveInputSchema,
+  OrdersFilterSchema,
+  ManualResolveWaybillSchema,
   ORDER_STATUSES,
 } from '@/lib/schemas/orders'
 
@@ -13,6 +13,10 @@ import {
  * 마스터:
  *  - docs/spec/PRD.md §6.1 / §8 (orders DDL / 상태 ENUM)
  *  - docs/architecture/v1/testing.md §6.1 (pass 1 + fail ≥1)
+ *
+ * 정합 갱신 (2026-05-21):
+ *  - 페이징은 keyset cursor (PR8 채택). offset 기반 OrderListFilterSchema 제거.
+ *  - 수동 송장 보정은 ManualResolveWaybillSchema 단일 — carrierCode 는 DB 책임.
  */
 
 describe('OrderStatusEnum (6상태)', () => {
@@ -93,74 +97,97 @@ describe('OrderSchema', () => {
   })
 })
 
-describe('OrderListFilterSchema', () => {
-  it('빈 객체 parse 통과 (limit 20 default, offset 0 default)', () => {
-    const res = OrderListFilterSchema.safeParse({})
+describe('OrdersFilterSchema (keyset cursor)', () => {
+  it('빈 객체 parse 통과 (pageSize 50 default, cursor 없음)', () => {
+    const res = OrdersFilterSchema.safeParse({})
     expect(res.success).toBe(true)
     if (res.success) {
-      expect(res.data.limit).toBe(20)
-      expect(res.data.offset).toBe(0)
+      expect(res.data.pageSize).toBe(50)
+      expect(res.data.cursor).toBeUndefined()
+      expect(res.data.cursorId).toBeUndefined()
     }
   })
 
-  it('marketId / status 조합 parse 통과', () => {
-    expect(
-      OrderListFilterSchema.safeParse({
-        marketId: 'coupang',
-        status: 'logen_registered',
-        keyword: '텀블러',
-        limit: 50,
-        offset: 100,
-      }).success,
-    ).toBe(true)
+  it('marketId / status / cursor 조합 parse 통과', () => {
+    const res = OrdersFilterSchema.safeParse({
+      marketId: 'coupang',
+      status: 'logen_registered',
+      q: '텀블러',
+      pageSize: 20,
+      cursor: '2026-05-20T10:00:00.000Z',
+      cursorId: '44444444-4444-4444-4444-444444444444',
+    })
+    expect(res.success).toBe(true)
   })
 
-  it('limit 0 이면 parse 실패 (min 1)', () => {
-    expect(OrderListFilterSchema.safeParse({ limit: 0 }).success).toBe(false)
+  it('pageSize 0 이면 parse 실패 (min 1)', () => {
+    expect(OrdersFilterSchema.safeParse({ pageSize: 0 }).success).toBe(false)
   })
 
-  it('limit 101 이면 parse 실패 (max 100)', () => {
-    expect(OrderListFilterSchema.safeParse({ limit: 101 }).success).toBe(false)
+  it('pageSize 101 이면 parse 실패 (max 100)', () => {
+    expect(OrdersFilterSchema.safeParse({ pageSize: 101 }).success).toBe(false)
   })
 
-  it('dateFrom > dateTo 면 refine 실패', () => {
-    const res = OrderListFilterSchema.safeParse({
-      dateFrom: '2026-05-22T00:00:00.000Z',
-      dateTo: '2026-05-21T00:00:00.000Z',
+  it('from > to 면 refine 실패', () => {
+    const res = OrdersFilterSchema.safeParse({
+      from: '2026-05-22T00:00:00.000Z',
+      to: '2026-05-21T00:00:00.000Z',
     })
     expect(res.success).toBe(false)
     if (!res.success) {
-      expect(res.error.issues[0]?.path).toEqual(['dateTo'])
+      expect(res.error.issues[0]?.path).toEqual(['to'])
     }
+  })
+
+  it('pageSize 가 number 가 아니면 parse 실패 (잘못된 cursor 페이로드)', () => {
+    expect(
+      OrdersFilterSchema.safeParse({ pageSize: 'twenty' }).success,
+    ).toBe(false)
+  })
+
+  it('status 가 OrderShippingStatus 외 값(dispatch_failed)이면 parse 실패', () => {
+    // dispatch_failed 는 marketDispatchStatus 측 실패라 shippingStatus 필터로는 받지 않는다.
+    expect(
+      OrdersFilterSchema.safeParse({ status: 'dispatch_failed' }).success,
+    ).toBe(false)
   })
 })
 
-describe('ManualWaybillResolveInputSchema', () => {
+describe('ManualResolveWaybillSchema', () => {
   const valid = {
     orderId: '33333333-3333-3333-3333-333333333333',
     waybillNumber: 'WB-12345678',
   }
 
-  it('필수 필드만으로 parse 통과 (carrierCode default LOGEN)', () => {
-    const res = ManualWaybillResolveInputSchema.safeParse(valid)
+  it('필수 필드만으로 parse 통과 (carrierCode 는 DB 책임이라 입력 없음)', () => {
+    const res = ManualResolveWaybillSchema.safeParse(valid)
     expect(res.success).toBe(true)
     if (res.success) {
-      expect(res.data.carrierCode).toBe('LOGEN')
+      // schema 에 carrierCode 가 없음 — DB 가 LOGEN 으로 보정.
+      expect('carrierCode' in res.data).toBe(false)
     }
   })
 
-  it('waybillNumber 가 빈 문자열이면 parse 실패', () => {
+  it('note (옵션) 포함 parse 통과', () => {
+    const res = ManualResolveWaybillSchema.safeParse({
+      ...valid,
+      note: '로젠 콜센터 수기 발급',
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('waybillNumber 가 8자 미만이면 parse 실패', () => {
     expect(
-      ManualWaybillResolveInputSchema.safeParse({
+      ManualResolveWaybillSchema.safeParse({
         ...valid,
-        waybillNumber: '',
+        waybillNumber: 'WB-123',
       }).success,
     ).toBe(false)
   })
 
   it('orderId 가 UUID 가 아니면 parse 실패', () => {
     expect(
-      ManualWaybillResolveInputSchema.safeParse({
+      ManualResolveWaybillSchema.safeParse({
         ...valid,
         orderId: 'not-a-uuid',
       }).success,

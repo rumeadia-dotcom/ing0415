@@ -27,7 +27,7 @@ interface NavItem {
 
 export interface SettingsNavProps {
   /** 현재 활성 항목을 강제 지정. 미지정 시 `useLocation()` 기반 자동 매칭. */
-  active?: 'account' | 'shipping'
+  active?: 'account' | 'shipping' | 'policies'
 }
 
 export function SettingsNav({ active }: SettingsNavProps): JSX.Element {
@@ -37,6 +37,7 @@ export function SettingsNav({ active }: SettingsNavProps): JSX.Element {
   const items: readonly (NavItem & { key: string })[] = [
     { key: 'account', label: ko.settings.nav.account, to: '/settings' },
     { key: 'shipping', label: ko.settings.nav.shipping, to: '/settings/shipping' },
+    { key: 'policies', label: ko.settings.nav.policies, to: '/settings/policies' },
     { key: 'notifications', label: ko.settings.nav.notifications, v2: true },
     { key: 'billing', label: ko.settings.nav.billing, v2: true },
     { key: 'team', label: ko.settings.nav.team, v2: true },
