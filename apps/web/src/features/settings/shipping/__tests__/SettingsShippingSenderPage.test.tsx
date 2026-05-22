@@ -11,11 +11,11 @@ vi.mock('@/features/auth', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import type * as DaumPostcodeModule from '@/lib/daum-postcode'
+
 const openPostcodePopupMock = vi.fn()
 vi.mock('@/lib/daum-postcode', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/daum-postcode')>(
-    '@/lib/daum-postcode',
-  )
+  const actual = await vi.importActual<typeof DaumPostcodeModule>('@/lib/daum-postcode')
   return {
     ...actual,
     openPostcodePopup: () => openPostcodePopupMock(),
