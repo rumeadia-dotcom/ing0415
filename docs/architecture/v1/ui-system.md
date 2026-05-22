@@ -28,13 +28,23 @@
 
 ## 3. 컬러 토큰 매트릭스
 
+> **⚠️ v1.3 갱신 (2026-05-22) — 이 섹션의 표는 v1.1 시점 (Blue + 라이트/다크) 기준이라 현재 globals.css 와 정합이 깨져 있다. 실제 ground truth 는 `apps/web/src/styles/globals.css` (v1.2 Studio + v1.3 vivid orange) 이다.**
+>
+> 이 PR 에서 명시적으로 갱신된 부분만 정리:
+> - **accent 패밀리** — ochre amber (hue 55) → **vivid orange `#ff5a1f` (hue 35)**. OKLCH 값: `--accent: 0.665 0.205 35`, `--accent-hover: 0.60 0.205 35`, `--accent-soft: 0.96 0.05 35`, `--accent-soft-border: 0.90 0.08 35`.
+> - **신규 보조 토큰** — `--accent-on-light: 0.55 0.18 35` (흰 배경 위 작은 라벨용 darker variant, WCAG AA 4.5:1 보장). Tailwind 키 `accent.onlight`.
+> - **다크 모드 제거** — 라이트 전용 운영. `:root` 만 정의, `[data-theme='dark']` / `.dark` 블록 + `useTheme` 훅 + `ThemeToggle` UI 삭제. §11 (라이트/다크 토글) 도 deprecate.
+> - **`--brand-grad`** — 그래디언트 hue 시리즈 (35 → 40 → 152) 로 동기 갱신.
+>
+> v1.1 RGB / Blue 표 전체 → v1.2 Studio OKLCH 표로 마이그레이션은 별도 정합 PR.
+
 ### 3.1 토큰 카테고리 (Tailwind `theme.extend.colors` 네임스페이스)
 
 `surface` / `text` / `border` / `accent` / `success` / `warning` / `danger` / `info` / `market`
 
 shadcn 관례 (`background`, `foreground`, `primary`, `card` 등) 와 **공존**한다. shadcn 표준 키는 그대로 두고, 우리 도메인 색(`market.*`, `surface.subtle`, `surface.muted`)을 `extend` 로 덧붙인다.
 
-### 3.2 라이트 / 다크 매트릭스
+### 3.2 라이트 / 다크 매트릭스 (※ v1.1 잔존 — globals.css 가 ground truth)
 
 | 토큰 | Tailwind 키 | Light (HEX) | Dark (HEX) | 비고 / 대비 |
 |---|---|---|---|---|
@@ -364,34 +374,41 @@ interface MarketIconProps {
 
 ---
 
-## 11. 라이트/다크 토글 메커니즘
+## 11. 라이트/다크 토글 메커니즘 ⚠️ **DEPRECATED — v1.3 다크모드 제거 (2026-05-22)**
 
-### 11.1 구현
+> 라이트 전용 운영으로 전환. 본 섹션은 **재도입 시 참고용 히스토리** 로만 유지.
+>
+> **제거된 산출물:**
+> - `apps/web/src/lib/use-theme.ts` (훅) — 삭제
+> - `apps/web/src/components/layout/Header.tsx` 의 `ThemeToggle` 함수/주석 블록 — 삭제
+> - `apps/web/src/styles/globals.css` `[data-theme='dark'], .dark` 블록 — 삭제
+> - `apps/web/index.html` inline 부트스트랩 스크립트 — 단순화 (`data-theme='light'` 고정)
+> - `tailwind.config.ts` `darkMode` 키 — 삭제
+>
+> **재도입 절차** (필요 시):
+> 1. globals.css `[data-theme='dark']` 블록 복원 (이전 hue 35 기준 다크 톤 재계산)
+> 2. tailwind.config.ts `darkMode: ['class', '[data-theme="dark"]']` 추가
+> 3. use-theme.ts 훅 + Header.tsx ThemeToggle 복원
+> 4. index.html inline 스크립트 복원 (localStorage 우선 + prefers-color-scheme 추종)
+> 5. §12 다크 대비 표 재검증
+>
+> 아래 v1.1 시점 구현 메모는 참고만.
 
-- HTML `<html class="dark">` 토글. Tailwind `darkMode: 'class'`.
-- CSS 변수 토큰을 `:root` (light) / `.dark` (dark) 두 곳에 정의.
-- 상태 저장: `localStorage.theme` (`'light'` / `'dark'` / `'system'`).
+### 11.1 구현 (deprecated)
 
-### 11.2 우선순위
+- ~~HTML `<html class="dark">` 토글. Tailwind `darkMode: 'class'`.~~
+- ~~CSS 변수 토큰을 `:root` (light) / `.dark` (dark) 두 곳에 정의.~~
+- ~~상태 저장: `localStorage.theme` (`'light'` / `'dark'` / `'system'`).~~
 
-1. **사용자 선택 우선** (localStorage 에 `light`/`dark` 명시) — 다음 방문에도 유지.
-2. localStorage 가 `system` 이거나 없으면 → `prefers-color-scheme` 미디어 쿼리 따름.
-3. SSR 불가 (GitHub Pages SPA) 라서 첫 페인트 깜빡임 회피용 inline `<script>` 를 `index.html` `<head>` 최상단에 둠:
+### 11.2 우선순위 (deprecated)
 
-```html
-<script>
-  (function(){
-    const t = localStorage.getItem('theme');
-    const sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (t === 'dark' || (t !== 'light' && sys)) document.documentElement.classList.add('dark');
-  })();
-</script>
-```
+~~1. **사용자 선택 우선** (localStorage 에 `light`/`dark` 명시) — 다음 방문에도 유지.~~
+~~2. localStorage 가 `system` 이거나 없으면 → `prefers-color-scheme` 미디어 쿼리 따름.~~
+~~3. SSR 불가 (GitHub Pages SPA) 라서 첫 페인트 깜빡임 회피용 inline `<script>` 를 `index.html` `<head>` 최상단에 둠.~~
 
-### 11.3 토글 UI
+### 11.3 토글 UI (deprecated)
 
-- topbar 우측 `icon-btn` 으로 sun/moon 아이콘. 3-state 토글: light → dark → system → light.
-- `Tooltip` 으로 현재 모드 명시. aria-label `"테마 변경: 현재 다크 모드"`.
+~~topbar 우측 `icon-btn` 으로 sun/moon 아이콘. 3-state 토글: light → dark → system → light.~~
 
 ---
 

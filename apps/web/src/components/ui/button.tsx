@@ -20,8 +20,12 @@ import { cn } from '@/lib/utils'
  *  - border: oklch(0.92 0.008 75)
  *  - borderHi: oklch(0.85 0.01 75)
  *  - dim: oklch(0.48 0.012 60)
- *  - accent (focus): oklch(0.62 0.14 55)
+ *  - accent (primary CTA / focus): oklch(0.665 0.205 35) — vivid orange #ff5a1f (v1.3 키컬러)
  *  - danger: oklch(0.55 0.16 25)
+ *
+ * v1.3 primary 변경: bg-ink !text-white → bg-accent !text-ink.
+ *  - 오렌지 배경 + ink(다크 그레이) 글자 = 대비 8:1+ (AAA).
+ *  - 레퍼런스의 베이지 베이스 위에서 강한 포인트 컬러로 동작.
  */
 const buttonVariants = cva(
   [
@@ -35,7 +39,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-ink !text-white hover:bg-text font-bold',
+          'bg-accent !text-ink hover:bg-accent-hover hover:!text-white font-bold',
         secondary:
           'bg-white text-ink border border-border-strong hover:bg-card-2 font-semibold',
         ghost:
