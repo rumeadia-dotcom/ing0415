@@ -27,7 +27,7 @@ import type { MarketAdapter } from '../types'
  * Debug 모드 mock 어댑터.
  * 마스터: docs/architecture/v1/cross-cutting/market-adapter.md §4.2
  *
- * 본 모듈은 `if (isDebug)` 가드 + dynamic import 안에서만 로드되어야 한다
+ * 본 모듈은 `if (useMock)` 가드 + dynamic import 안에서만 로드되어야 한다
  * (real 번들에 tree-shaking).
  *
  * 시나리오: `globalThis.__MOCK_SCENARIO__` 로 주입 (테스트·E2E 에서 사용).

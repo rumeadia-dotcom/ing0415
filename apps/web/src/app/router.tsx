@@ -201,7 +201,7 @@ const routes: RouteObject[] = [
             ],
           },
           { path: 'settings', element: withSuspense(<SettingsPage />) },
-          // v2 — 주문 현황 (s7 n47~n50)
+          // v2 — 주문 현황 (s7 n47~n50). 마켓 미연동 시 페이지 안에서 미등록 안내.
           {
             path: 'orders',
             children: [
@@ -210,7 +210,7 @@ const routes: RouteObject[] = [
               { path: ':orderId', element: withSuspense(<OrderDetailPage />) },
             ],
           },
-          // v2 — 배송 처리 (s8 n52~n57)
+          // v2 — 배송 처리 (s8 n52~n57). 마켓·로젠 미연동 시 페이지 안에서 미등록 안내.
           {
             path: 'shipping',
             children: [

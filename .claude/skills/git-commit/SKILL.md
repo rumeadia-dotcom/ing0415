@@ -9,6 +9,20 @@ description: "Git 변경사항을 분석하여 커밋 메시지를 자동 생성
 
 ## 실행 절차
 
+0. **WIP 핸드오프 선행 갱신** (먼저)
+   - `docs/handoff/WIP-*.md` 활성 파일을 식별합니다 (`ls docs/handoff/WIP-*.md`).
+   - 이번 commit 으로 들어갈 변경이 다음 중 하나라면 **`wip-update` 스킬을 먼저 invoke** 하여 WIP 를 갱신한 뒤 본 commit 절차를 이어갑니다:
+     - 새 기능 (feat) — 백엔드/프론트엔드 코드 신규
+     - 마이그레이션·Edge Function·시크릿 관련 인프라 변경
+     - 운영 액션 (Vault 시크릿·env vars·CI 시크릿) 추가/변경 발생
+     - Phase 전환·마일스톤 완료
+   - 다음에 해당하면 WIP 갱신을 생략합니다:
+     - 단순 typo·주석·문서 oneline 수정
+     - 의존성 minor bump
+     - 본 commit 자체가 WIP 갱신 (`docs/handoff/WIP-*.md` 단일 파일)
+   - WIP 가 staged 에 이미 포함되어 있으면 추가 갱신 없이 진행.
+   - WIP 갱신이 별 commit 으로 분리되면 commit 순서: **WIP commit → 기능 commit**.
+
 1. **Git 저장소 확인**
    - 현재 디렉토리가 Git 저장소인지 확인합니다.
    - Git 저장소가 아니면 오류 메시지를 표시하고 종료합니다.

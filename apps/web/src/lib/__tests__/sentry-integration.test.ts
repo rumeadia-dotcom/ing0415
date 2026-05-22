@@ -32,7 +32,7 @@ vi.mock('@sentry/react', () => ({
 // ─── env 모킹 — DSN 토글용 ─────────────────────────────
 const envState = {
   VITE_SENTRY_DSN: 'https://public@sentry.test/1' as string | undefined,
-  VITE_APP_MODE: 'debug' as 'debug' | 'real',
+  VITE_APP_MODE: 'dev' as 'dev' | 'real',
 }
 
 vi.mock('../env', () => ({
@@ -42,8 +42,8 @@ vi.mock('../env', () => ({
       VITE_APP_MODE: envState.VITE_APP_MODE,
     }
   },
-  get isDebug() {
-    return envState.VITE_APP_MODE === 'debug'
+  get isDev() {
+    return envState.VITE_APP_MODE === 'dev'
   },
   get isReal() {
     return envState.VITE_APP_MODE === 'real'
@@ -55,7 +55,7 @@ describe('initSentry() — beforeSend / beforeBreadcrumb 마스킹 통합 (D-D P
     initSpy.mockClear()
     vi.resetModules()
     envState.VITE_SENTRY_DSN = 'https://public@sentry.test/1'
-    envState.VITE_APP_MODE = 'debug'
+    envState.VITE_APP_MODE = 'dev'
   })
 
   afterEach(() => {
