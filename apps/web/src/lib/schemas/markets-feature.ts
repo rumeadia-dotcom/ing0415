@@ -9,7 +9,8 @@ import { MarketIdSchema } from './common'
  *   - oauth   = 'naver'             — markets-oauth-start / markets-oauth-callback
  *   - hmac    = 'coupang'           — markets-connect (kind='hmac_key')
  *   - esm_jwt = 'gmarket','auction' — markets-connect (kind='esm_jwt')
- *   - 11st = disabled (오픈 준비중, IP 화이트리스트 미해결)
+ *   - api_key = '11st'              — markets-connect (kind='api_key', 서버 stub. Wave 2 에서 본격)
+ *   (2026-05-23 — 5마켓 정식 결정과 11번가 stub 활성화 mirror 갱신)
  */
 
 /** OAuth 방식 = 네이버만. markets-oauth-start / callback 의 market enum. */
