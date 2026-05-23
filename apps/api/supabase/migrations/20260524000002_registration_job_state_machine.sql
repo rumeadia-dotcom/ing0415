@@ -164,7 +164,7 @@ grant execute on function public.fn_registration_job_transition(uuid, text, text
 
 comment on function public.fn_registration_job_transition(uuid, text, text) is
   'registration-job-state.md §4 7×7 전이표 단일 source of truth. service_role only. '
-  || 'Edge Function (registration-market-worker, registration-retry) 의 raw UPDATE 대체. '
-  || 'status 컬럼 + 타임스탬프(started_at/completed_at/cancelled_*) 만 갱신. '
-  || 'retry_count / error_summary 는 호출측 책임. '
-  || 'cancel 전이는 p_actor 에 uuid 필수.';
+  'Edge Function (registration-market-worker, registration-retry) 의 raw UPDATE 대체. '
+  'status 컬럼 + 타임스탬프(started_at/completed_at/cancelled_*) 만 갱신. '
+  'retry_count / error_summary 는 호출측 책임. '
+  'cancel 전이는 p_actor 에 uuid 필수.';
