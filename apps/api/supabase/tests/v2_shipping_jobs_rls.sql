@@ -6,7 +6,7 @@
 --   shipping_jobs / shipping_job_results 에 대해 셀러 A 가 B 데이터를 어떤 채널로도
 --   접근하지 못함을 회귀 검증. shipping_job_results 는 부모 잡 join 기반 RLS.
 
-\set ON_ERROR_STOP on
+-- (removed) \set ON_ERROR_STOP on : psql meta-command - supabase test db 컨텍스트에서 SQLSTATE 42601. BEGIN/ROLLBACK 트랜잭션 + pgTAP 자체 fail 핸들링으로 대체.
 
 begin;
 

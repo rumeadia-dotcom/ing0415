@@ -7,7 +7,7 @@
 --   메타는 logen_credentials_meta view 로만 본인 row 1건 가시되어야 함.
 --   userId/custCd 평문이 SQL 응답으로 새지 않는지도 회귀.
 
-\set ON_ERROR_STOP on
+-- (removed) \set ON_ERROR_STOP on : psql meta-command - supabase test db 컨텍스트에서 SQLSTATE 42601. BEGIN/ROLLBACK 트랜잭션 + pgTAP 자체 fail 핸들링으로 대체.
 
 begin;
 
@@ -69,46 +69,49 @@ insert into public.logen_credentials (
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated"}';
 
-select is(
-  (select count(*)::bigint from public.logen_credentials),
-  0::bigint,
-  'logen_credentials: authenticated 는 본인 row 조차 raw SELECT 불가 (정책 0개)'
+-- logen_credentials 마이그 (20260521000003) 는 authenticated 에 GRANT 자체 없음
+-- (service_role only). 따라서 SELECT/UPDATE/DELETE 시도 시 SQLSTATE 42501
+-- (insufficient_privilege) 가 발생 — RLS 차단보다 한 단계 더 강한 격리.
+-- 보안적으로 동등하므로 throws_ok 패턴으로 검증.
+select throws_ok(
+  $sql$ select count(*) from public.logen_credentials $sql$,
+  '42501',
+  null,
+  'logen_credentials: authenticated 는 raw SELECT 거부 (GRANT 없음)'
 );
 
-select is(
-  (select count(*)::bigint from public.logen_credentials
-    where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid),
-  0::bigint,
-  'logen_credentials: 셀러 A 는 B 자격증명 raw SELECT 불가'
+select throws_ok(
+  $sql$ select count(*) from public.logen_credentials
+        where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $sql$,
+  '42501',
+  null,
+  'logen_credentials: 셀러 A 는 B row 명시 SELECT 거부'
 );
 
-with upd as (
-  update public.logen_credentials set sender_name = 'HACKED'
-    where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid returning 1
-)
-select is(
-  (select count(*)::bigint from upd),
-  0::bigint,
-  'logen_credentials: 셀러 A 는 B 자격증명 UPDATE 불가'
+select throws_ok(
+  $sql$ update public.logen_credentials set sender_name = 'HACKED'
+        where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $sql$,
+  '42501',
+  null,
+  'logen_credentials: 셀러 A 는 B row UPDATE 거부'
 );
 
-with del as (
-  delete from public.logen_credentials
-    where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid returning 1
-)
-select is(
-  (select count(*)::bigint from del),
-  0::bigint,
-  'logen_credentials: 셀러 A 는 B 자격증명 DELETE 불가'
+select throws_ok(
+  $sql$ delete from public.logen_credentials
+        where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $sql$,
+  '42501',
+  null,
+  'logen_credentials: 셀러 A 는 B row DELETE 거부'
 );
 
 reset role;
 set local role anon;
 set local "request.jwt.claims" to '{}';
-select is(
-  (select count(*)::bigint from public.logen_credentials),
-  0::bigint,
-  'logen_credentials: anon 권한은 raw SELECT 0건'
+select throws_ok(
+  $sql$ select count(*) from public.logen_credentials $sql$,
+  '42501',
+  null,
+  'logen_credentials: anon 도 raw SELECT 거부'
 );
 
 reset role;

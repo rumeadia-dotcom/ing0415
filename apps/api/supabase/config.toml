@@ -14,6 +14,16 @@ max_rows = 1000
 port = 54322
 major_version = 17
 
+[db.seed]
+# seed.sql 의 psql meta-command (\set) 가 supabase CLI 의 seed loader
+# (`Seeding data from supabase/seed.sql...`) 컨텍스트에서 SQLSTATE 42601
+# 거부. seed.sql 본문 자체가 "Supabase Studio SQL Editor 에서 수동 실행"
+# 가정 (파일 헤더 주석 참조) — 자동 적용은 의도 외.
+#
+# 영향: supabase start / supabase test db 시 seed 자동 적용 안 함.
+# 개발자는 setup-dev-supabase.md 의 절차로 수동 실행.
+enabled = false
+
 [db.pooler]
 enabled = false
 port = 54329
