@@ -169,11 +169,15 @@ async function handleProxy(req: Request): Promise<Response> {
   const ctl = new AbortController();
   const tid = setTimeout(() => ctl.abort(), UPSTREAM_TIMEOUT_MS);
   let upstream: Response;
+  // Deno fetch 는 GET/HEAD 요청에 body 가 있으면 (빈 문자열 포함) TypeError 던짐.
+  // gatewayFetch() 측이 body 를 항상 '' 로 채우므로 (payload 직렬화 일관성) 여기서 정리.
+  const upstreamMethod = payload.method.toUpperCase();
+  const hasBody = upstreamMethod !== 'GET' && upstreamMethod !== 'HEAD' && payload.body !== '';
   try {
     upstream = await fetch(payload.url, {
       method: payload.method,
       headers: payload.headers ?? {},
-      body: payload.body,
+      body: hasBody ? payload.body : undefined,
       signal: ctl.signal,
     });
   } catch (e) {
