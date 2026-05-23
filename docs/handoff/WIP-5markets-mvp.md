@@ -1,27 +1,22 @@
-# MarketCast — WIP 핸드오프 (2026-05-23 P.M.)
+# MarketCast — WIP 핸드오프 (2026-05-23 evening)
 
-**develop HEAD**: `191a56e` — docs(qa): qa-matrix.md 신설 (#132)
-**main HEAD**: `e6d0c4d` — chore(rule) 운영 사고 진단 chain 룰 (#108). release 보류 (사용자 지시 "develop 까지만 머지")
-**테스트**: 877 passed / 26 todo (86 files)
-**최근 운영 배포**: v0.9 (Market Gateway 도입 + Phase 4-A 어댑터 게이트웨이 경유) — 이후 develop 만 누적
+**develop HEAD**: `65e2808` — chore: main → develop 백머지 (v0.10.1) (#138)
+**main HEAD**: `b821cf8` — hotfix/v0.10.1 — registration_job_state_machine COMMENT SQL syntax fix (#137)
+**테스트**: 877 passed / 26 todo (85 files passed / 1 skipped)
+**최근 운영 배포**: **v0.10 + v0.10.1** — qa-matrix + audit fix + v1.4 Phase 1 (order-grouping) + `fn_registration_job_transition` COMMENT 절 SQL syntax hotfix
 
-## 2026-05-23 P.M. 세션 요약 (audit fix + 후속 보강)
+## 2026-05-23 저녁 세션 요약 (release v0.10 + hotfix v0.10.1)
 
-3개 에이전트 audit (backend / security / qa) → 9 PR develop 머지. 운영 사고 차단 + qa 매트릭스 단일 진실 확보.
+오전(P.M.) audit fix 9 PR (#123~#132) + WIP (#134) 가 develop 에 누적된 상태에서 운영 배포 절차 실행.
 
-| PR | 내용 | 카테고리 |
+| PR | 내용 | 비고 |
 |---|---|---|
-| #123 | **RPC fn_ prefix mismatch hotfix** — logen / shipping-dispatch 100% fail 차단 | backend audit |
-| #124 | orders-sync bodyPreview PII 누출 제거 | security audit |
-| #125 | markets-verify `credential_inactive` / `adapter_unavailable` UI 매핑 | qa audit |
-| #126 | a11y ROUTES 9개 추가 (18→26) + `/register/categories` 제거 | qa audit |
-| #127 | Market Gateway `x-gw-sig` / `x-gw-ts` 헤더 마스킹 | security audit |
-| #128 | `fn_registration_job_transition` — registration_jobs 상태 전이 single source | 후속 |
-| #129 | order_groups backfill 검증 SQL + 운영 매뉴얼 | 후속 |
-| #130 | sanitize parity test (client/server DOMPurify, 26/26 통과 — drift no) | 후속 |
-| #132 | **qa-matrix.md 신설** — PRD §1~§9 + s7~s9 커버리지 매트릭스 (330줄) | 후속 |
+| #135 | **release: v0.10 — qa-matrix + audit fix + v1.4 Phase 1** (main 머지 `d786811`) | release-deploy 스킬 §1~§7 |
+| #136 | chore: main → develop 백머지 (v0.10) (`ec576e9`) | orphan 0, 충돌 0 |
+| #137 | **hotfix/v0.10.1 — `fn_registration_job_transition` COMMENT SQL syntax fix** (main 머지 `b821cf8`) | apply_db_migrations 1차 실행 시 SQLSTATE 42601 발생 → `COMMENT ON ... IS '...' \|\| '...'` 가 PostgreSQL expression 거부. `\|\|` 제거 + SQL 표준 string literal 연속으로 교체 |
+| #138 | chore: main → develop 백머지 (v0.10.1) (`65e2808`) | 1파일 충돌 `--theirs` 채택, orphan 0 |
 
-PR #131 은 stale base (e6d0c4d 분기) 충돌로 close → qa-matrix.md 만 추출 후 #132 rebase 재제출.
+v0.10 운영 배포 (deploy.yml) — 자동 트리거 + `apply_db_migrations=true` workflow_dispatch 2회차에서 5잡 전부 success. Build (real) / Deploy Pages / Deploy Edge Functions / Apply DB Migrations / Sentry release.
 
 ## 스택 한눈에
 
@@ -47,7 +42,7 @@ Seller (auth.users) ─┬─ MarketAccount ─── credential_payload jsonb +
                      ├─ Product ─┬─ ProductImage ─ ImageTransform (마켓별 N)
                      │           └─ ProductMarketMapping (카테고리/규격)
                      ├─ RegistrationJob ─── JobMarketResult (1:N)
-                     │       └─ fn_registration_job_transition() — 상태 전이 single source (#128)
+                     │       └─ fn_registration_job_transition() — 상태 전이 single source (v0.10.1 운영 적용)
                      └─ ShippingPolicy
 
 주문·배송 (s7~s9, v1.4 grouping)
@@ -69,44 +64,49 @@ Seller ─┬─ Order ── order_group_id → OrderGroup (1박스=1송장, Ph
 | v0.8~v0.9 | Market Gateway Phase 1~2 + Phase 4-A (쿠팡·ESM 게이트웨이 경유) | 운영 배포 |
 | 2026-05-22 | 5마켓 v1 정식 결정 (IP 화이트리스트 5마켓 공통) | 결정 |
 | 2026-05-23 A.M. | hotfix v0.9.1~v0.9.9 + chain 진단 룰 + chunk splitting + v1.4 Phase 1 DB | #98~#122 |
-| **2026-05-23 P.M.** | **audit fix 9 PR (위 표)** | **#123~#132** |
+| 2026-05-23 P.M. | audit fix 9 PR (qa-matrix 신설 + 운영 사고 차단) | #123~#132 |
+| **2026-05-23 evening** | **release v0.10 + hotfix v0.10.1 운영 배포 완료** | **#135~#138** |
 
 ## 운영 현황
 
 - **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/`
-- **최근 deploy**: release/v0.9 / Phase 4-A (2026-05-23 A.M.). 이후 P.M. 9 PR 은 develop 만 누적 (사용자 "develop 까지만 머지" 지시)
-- **dev Supabase** (`eqoywqoalwkwbrdsulfl`): A.M. 까지 적용. **P.M. 신규 마이그레이션 3개 미적용** ⚠
+- **최근 deploy**: v0.10 + v0.10.1 (2026-05-23 evening). deploy.yml 5잡 success (Build real / Pages / Edge Fn / **Apply DB Migrations** / Sentry).
+- **real Supabase** (`lfrnythcujxdhehvkmtg`): v0.10.1 신규 마이그 3개 적용 완료.
+  - `20260523000003_order_groups.sql`
+  - `20260524000001_rpc_fn_prefix_fix.sql`
+  - `20260524000002_registration_job_state_machine.sql` (v0.10.1 syntax fix 후 success)
+- **dev Supabase** (`eqoywqoalwkwbrdsulfl`): **위 3개 마이그 미적용** ⚠ (release 흐름에서 real 만 적용)
 
 ---
 
 ## ⚠ 즉시 필요한 운영 액션 (사용자 작업)
 
-### 1. dev DB 마이그레이션 적용 (3개 신규)
+### 1. dev DB 마이그레이션 3개 적용
 
 ```bash
 pnpm supabase:link:dev
 pnpm db:push:dev
 ```
 
-적용 대상:
-- `20260523000003_order_groups.sql` — order_groups 테이블 + orders.order_group_id 컬럼 + 1:1 backfill
-- `20260524000001_rpc_fn_prefix_fix.sql` — `fn_set_logen_credentials` / `fn_get_logen_credentials` / `fn_increment_shipping_job_counters` (Edge Function 100% fail 차단)
-- `20260524000002_registration_job_state_machine.sql` — `fn_registration_job_transition`
+대상:
+- `20260523000003_order_groups.sql`
+- `20260524000001_rpc_fn_prefix_fix.sql`
+- `20260524000002_registration_job_state_machine.sql` (v0.10.1 syntax fix 적용본)
 
 적용 후 검증:
 ```bash
 psql <dev-conn-string> -f scripts/sql/verify-order-groups-backfill.sql
 ```
-6개 SELECT 통과 (자세히는 `docs/handoff/order-groups-backfill-verification.md`).
+6개 SELECT 통과 (`docs/handoff/order-groups-backfill-verification.md`).
 
 ### 2. dev Edge Function 재배포
 
 ```bash
 pnpm functions:deploy:dev
 ```
-- `pgcrypto-logen.ts` (PR #123 RPC 호출)
-- `shipping-dispatch-market-worker/lib/result-update.ts` (PR #123 RPC 호출)
-- `jmr-update.ts` / `registration-retry/index.ts` (PR #128 RPC 경유로 교체)
+
+- `pgcrypto-logen.ts` / `shipping-dispatch-market-worker/lib/result-update.ts` — fn_set/get_logen_credentials, fn_increment_shipping_job_counters RPC 호출 활성화
+- `jmr-update.ts` / `registration-retry/index.ts` — fn_registration_job_transition RPC 경유
 
 ### 3. dev Edge Function secrets (미설정인 경우)
 
@@ -117,15 +117,9 @@ DAILY_SALT             = <32+ char random>
 PUBLIC_APP_ORIGIN      = http://localhost:5173
 ```
 
-### 4. 운영(real) Vault / env vars — 이전 세션과 동일 (변동 없음)
+### 4. 운영(real) — 추가 액션 없음
 
-```
-supabase_functions_url  = https://lfrnythcujxdhehvkmtg.supabase.co/functions/v1
-service_role_key        = <real service_role JWT>
-LOGEN_API_BASE_URL      = https://openapi.ilogen.com
-LOGEN_PGCRYPTO_KEY      = <암호화 키>
-RESEND_API_KEY          = <PR3 머지 후>
-```
+deploy.yml workflow_dispatch (`apply_db_migrations=true`) 로 마이그·Edge Function·Pages·Sentry 전부 자동 적용 완료. 운영 검증은 markets 자격증명 등록 시나리오로 확인 (사용자 보고 "완료").
 
 ---
 
@@ -135,7 +129,7 @@ RESEND_API_KEY          = <PR3 머지 후>
 
 베타 셀러 모집 / 네이버 type=SERVICE 심사 / 쿠팡 Wing IP 정책 확정 / G·옥션 ESM+ 키 발급 / 로젠 B2B 계약 / Resend 도메인 인증.
 
-### 🔴 신규 P0 (qa-matrix 갭 top 3)
+### 🔴 P0 (qa-matrix 갭 top 3)
 
 | 항목 | 근거 | 차단 |
 |---|---|---|
@@ -197,13 +191,13 @@ git fetch origin && git checkout develop && git pull && pnpm install && pnpm tes
 
 ### 우선 순위
 
-1. **⚠ 운영 액션 §1+§2 실행** — dev DB 마이그 3개 + Edge Function 재배포. 안 하면 로젠 / shipping-dispatch / registration-retry / order_groups 본 동작 불가.
+1. **⚠ 운영 액션 §1+§2 실행** — dev DB 마이그 3개 + Edge Function 재배포. 안 하면 dev 환경 logen / shipping-dispatch / registration-retry / order_groups 본 동작 불가.
 2. **P0 RLS-SQL 단위 테스트** (qa-matrix #1) — `supabase test db` 환경 셋업 + 셀러 cross-access 매트릭스. 보안 P0.
 3. **partial / retry / skip-market E2E 3종** (qa-matrix #2) — 셀러 시드 가능해진 후 진입.
 4. **debug ↔ real parity.spec.ts 5종** (qa-matrix #3) — R-006 정합 회복.
 5. **(보류 해제 시) Phase 4-B-1 네이버 어댑터 본격** — OAuth code + 카테고리 + 상품 등록.
 6. **(보류 해제 시) Phase 4-B-2 Wave 2 11번가 본격** — API Key 폼 활성화.
-7. **release/v0.10 검토** — develop 누적 9 PR 안정성 충분하면 main 까지 release/* PR 진행 (사용자 승인 필요).
+7. **release/v0.11 검토** — develop 누적 변경이 쌓이면 다음 release/* PR 진행 (사용자 승인 필요).
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
 - 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
@@ -213,6 +207,11 @@ git fetch origin && git checkout develop && git pull && pnpm install && pnpm tes
 ### ⚠ 운영 사고 진단 룰 (CLAUDE.md, PR #108)
 - 운영 fail 진단 시 단계별 점검 금지. chain 6단계 (서버 throw / 직렬화 / 클라 parse / 클라 schema / UI 매핑 / DB·인프라) 동시 grep.
 - 사용자 재현 5회 이상 요구 = 실패한 진단.
+
+### ⚠ SQL `COMMENT ON ... IS` 룰 (PR #137 사례)
+- `COMMENT ON FUNCTION ... IS '...' || '...'` = expression context 거부 (SQLSTATE 42601).
+- 다행 string 코멘트는 SQL 표준 string literal 연속 (`'a '` 다음 줄에 `'b '` — newline + whitespace 만 있으면 자동 concat) 사용.
+- 마이그레이션 신설 시 `psql --dry-run` 류 검증 권장 (CI 통합은 후속).
 
 ### ⚠ qa-matrix 진입 게이트 (PR #132)
 - 신규 기능 PR 진입 시 `docs/architecture/v1/qa/qa-matrix.md` 의 해당 행 갱신 필수.
