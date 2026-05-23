@@ -276,7 +276,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download debug dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist-dev-${{ github.run_id }}
           path: dist/
@@ -349,7 +349,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download debug dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist-dev-${{ github.run_id }}
           path: dist/
