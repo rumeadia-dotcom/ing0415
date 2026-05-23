@@ -29,6 +29,45 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        /**
+         * 매뉴얼 chunk 분리 (loop 사이클 5, 2026-05-23).
+         * 이전: 메인 index.js = 1.3 MB (모든 의존성 + 모든 라우트 통합).
+         * 이후: vendor chunk 별 분리 → 초기 로드 시 main 만 receive,
+         *       무거운 라이브러리 (Tiptap / Supabase) 는 사용 라우트 진입 시.
+         */
+        manualChunks: {
+          // React 코어 — 모든 페이지 공통, 가벼움 (~50KB)
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // 데이터 레이어 — 모든 페이지 공통
+          'data-vendor': ['@tanstack/react-query', '@supabase/supabase-js', 'zod'],
+          // WYSIWYG 에디터 — s3 등록 화면 한정 (Tiptap + StarterKit + Link + Image)
+          'editor-vendor': [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/extension-link',
+            '@tiptap/extension-image',
+            '@tiptap/extension-placeholder',
+          ],
+          // 보안 sanitize — s3 등록 화면 한정
+          'security-vendor': ['dompurify'],
+          // 폼 + UI 라이브러리 — 여러 화면 공통
+          'ui-vendor': [
+            'react-hook-form',
+            '@hookform/resolvers',
+            'sonner',
+            'lucide-react',
+            'class-variance-authority',
+            'clsx',
+            'tailwind-merge',
+          ],
+          // Sentry — 운영 모니터링 (lazy 불가, 초기 import)
+          'sentry-vendor': ['@sentry/react'],
+        },
+      },
+    },
   },
   server: {
     port: 5174,

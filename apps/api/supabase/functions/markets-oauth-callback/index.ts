@@ -171,17 +171,23 @@ export default Deno.serve(
           },
         )
       } catch (e) {
-        let httpCode: 'invalid_code' | 'market_unavailable' | 'rate_limited' =
-          'market_unavailable'
+        let httpCode:
+          | 'invalid_code'
+          | 'credentials_invalid'
+          | 'market_network'
+          | 'market_server'
+          | 'market_unavailable'
+          | 'rate_limited' = 'market_unavailable'
         let reason = 'unknown'
         if (e instanceof MarketError) {
           reason = e.code
           if (e.code === 'unauthorized') httpCode = 'invalid_code'
           else if (e.code === 'rate_limit') httpCode = 'rate_limited'
-          else if (e.code === 'server' || e.code === 'network') {
-            httpCode = 'market_unavailable'
-          } else if (e.code === 'validation') httpCode = 'invalid_code'
+          else if (e.code === 'network') httpCode = 'market_network'
+          else if (e.code === 'server') httpCode = 'market_server'
+          else if (e.code === 'validation') httpCode = 'credentials_invalid'
         }
+        const details = { stage: 'authenticate', market, reason }
         await appendAudit({
           category: 'markets',
           event: 'oauth_callback_failure',
@@ -199,12 +205,21 @@ export default Deno.serve(
           error_code: reason,
         })
         if (httpCode === 'invalid_code') {
-          throw HttpErrors.unauthorized(httpCode, 'market rejected the code')
+          throw HttpErrors.unauthorized(httpCode, 'market rejected the code', details)
+        }
+        if (httpCode === 'credentials_invalid') {
+          throw HttpErrors.badRequest(httpCode, 'credential format invalid', details)
         }
         if (httpCode === 'rate_limited') {
-          throw HttpErrors.rateLimit()
+          throw HttpErrors.rateLimit(undefined, details)
         }
-        throw HttpErrors.internal(httpCode, 'market currently unavailable')
+        if (httpCode === 'market_network') {
+          throw HttpErrors.internal(httpCode, 'market network error', details)
+        }
+        if (httpCode === 'market_server') {
+          throw HttpErrors.internal(httpCode, 'market server error', details)
+        }
+        throw HttpErrors.internal(httpCode, 'market currently unavailable', details)
       }
 
       // 안전 가드: OAuth 콜백은 'oauth' kind 만 받아들임.
@@ -243,6 +258,7 @@ export default Deno.serve(
         throw HttpErrors.internal(
           'vault_unavailable',
           'credential vault unavailable',
+          { stage: 'vault', market },
         )
       }
 
@@ -279,7 +295,10 @@ export default Deno.serve(
           },
           '← market_accounts upsert error',
         )
-        throw HttpErrors.internal('internal', 'failed to persist account')
+        throw HttpErrors.internal('internal', 'failed to persist account', {
+          stage: 'account',
+          market,
+        })
       }
 
       // 6) audit

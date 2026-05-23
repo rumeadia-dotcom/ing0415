@@ -150,18 +150,46 @@ export default Deno.serve(
       )
     }
 
-    // 잡 상태 retrying 으로 전이 + retry_count++
-    const transitionRes = await service
+    // 잡 상태 retrying 으로 전이 (state.md §4: partial|failed → retrying).
+    // fn_registration_job_transition 이 단일 source of truth (race 가드 + 합법성 체크 포함).
+    const { error: transitionErr } = await service.rpc(
+      'fn_registration_job_transition',
+      { p_job_id: body.jobId, p_to_status: 'retrying', p_actor: 'system' },
+    )
+    if (transitionErr) {
+      logger.error(
+        {
+          jobId: body.jobId,
+          to: 'retrying',
+          code: transitionErr.code ?? 'unknown',
+          msg: transitionErr.message,
+        },
+        '← job transition to retrying failed',
+      )
+      // illegal_transition (P0001) 은 race (이미 다른 요청이 전이) — 클라이언트에 conflict.
+      // 그 외는 internal.
+      if (transitionErr.code === 'P0001') {
+        throw HttpErrors.conflict(
+          'job_not_retryable',
+          'job already transitioned by another request',
+        )
+      }
+      throw HttpErrors.internal('job_transition_failed', 'failed to set retrying')
+    }
+
+    // retry_count++ 는 RPC 외부 책임 (state.md §6.1, fn 주석 — "retry_count 호출측 책임").
+    // 위 전이로 이미 status='retrying' 이므로 race 가드는 (id + seller_id) 로 충분.
+    const retryCountRes = await service
       .from('registration_jobs')
-      .update({
-        status: 'retrying',
-        retry_count: retryCount + 1,
-      })
+      .update({ retry_count: retryCount + 1 })
       .eq('id', body.jobId)
       .eq('seller_id', sellerId)
-      .in('status', ['partial', 'failed'])
-    if (transitionRes.error) {
-      throw HttpErrors.internal('job_transition_failed', 'failed to set retrying')
+    if (retryCountRes.error) {
+      logger.error(
+        { jobId: body.jobId, rpcError: retryCountRes.error.code ?? 'unknown' },
+        '← retry_count increment failed',
+      )
+      throw HttpErrors.internal('job_transition_failed', 'failed to increment retry_count')
     }
 
     // 대상 jmr 을 pending 으로 reset

@@ -120,10 +120,12 @@ function buildHappyCredential(
       })
     }
     case 'api_key': {
-      // 11번가 — 오픈 준비중. authenticate 호출 자체가 v1 운영에서 차단되어야 함.
+      // 11번가 — Phase 4-B-2 Wave 2 본격 구현 대기 중 stub.
+      // useMock 흐름은 별도 ElevenstDebugAdapter 사용 (markets/index.ts) — 본 분기는
+      // 직접 createMockAdapter('11st') 호출 시 (단위 테스트 등) 만 도달.
       throw new MarketError(
         'unknown',
-        `${market}: api_key adapter is not in v1 (오픈 준비중 — IP 화이트리스트 미해결)`,
+        `${market}: api_key adapter stub — Phase 4-B-2 Wave 2 본격 구현 예정`,
         { market },
       )
     }

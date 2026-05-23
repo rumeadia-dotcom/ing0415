@@ -9,7 +9,8 @@ import { MarketIdSchema } from './common'
  *   - oauth   = 'naver'             — markets-oauth-start / markets-oauth-callback
  *   - hmac    = 'coupang'           — markets-connect (kind='hmac_key')
  *   - esm_jwt = 'gmarket','auction' — markets-connect (kind='esm_jwt')
- *   - 11st = disabled (오픈 준비중, IP 화이트리스트 미해결)
+ *   - api_key = '11st'              — markets-connect (kind='api_key', 서버 stub. Wave 2 에서 본격)
+ *   (2026-05-23 — 5마켓 정식 결정과 11번가 stub 활성화 mirror 갱신)
  */
 
 /** OAuth 방식 = 네이버만. markets-oauth-start / callback 의 market enum. */
@@ -112,6 +113,18 @@ export const VerifyResponseSchema = z.object({
   status: MarketAccountStatusSchema,
   lastVerifiedAt: z.string().datetime({ offset: true }),
   correlationId: z.string().uuid(),
+  /**
+   * status='error' / 'expired' / 'revoked' 일 때만 채워짐 (status='active' 시 null).
+   *
+   * UI 가 마켓 결과 카드에 표시할 구체 메시지의 hint. PR #110 의 markets-connect
+   * 에러 세분화 패턴과 정합 — formatMarketError(code, market) 로 한국어 메시지 + prefix.
+   *
+   * 신설 (2026-05-23): 기존엔 status='error' 만 보여 사용자가 어떤 마켓의 어떤 단계
+   * fail 인지 알 수 없었음.
+   */
+  errorCode: z.string().optional(),
+  errorMessage: z.string().optional(),
+  errorMarket: z.string().optional(),
 })
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>
 
@@ -244,7 +257,17 @@ export const MarketApiErrorSchema = z.object({
   correlationId: z.string().uuid().optional(),
   details: z
     .object({
-      stage: z.enum(['authenticate', 'category_ping', 'vault', 'account']).optional(),
+      stage: z
+      .enum([
+        'authenticate',
+        'category_ping',
+        'vault',
+        'account',
+        'account_lookup',
+        'vault_revoke',
+        'account_revoke',
+      ])
+      .optional(),
       market: z.string().optional(),
       reason: z.string().optional(),
     })

@@ -488,9 +488,10 @@ Sentry.init({
 
 다음 v2 항목은 **인터페이스를 v1 시점에 유지**하되 구현은 보류:
 
-- 11번가 / G마켓 / 옥션 어댑터: 인터페이스 5메서드 사양은 동일. `adapters/` 디렉토리에 `// TODO: v2` 스텁 파일 금지(YAGNI). 필요 시점에 새 파일 추가.
+- ~~11번가 / G마켓 / 옥션 어댑터: v2~~ → **2026-05-22 5마켓 정식 결정으로 v1 정식 진입**. G마켓 / 옥션은 Phase 4-A (PR #96) 에서 ESM JWT 어댑터 본격 구현 + gateway 경유. 11번가는 Phase 4-B-2 Wave 1 (PR #111) 에서 stub 활성화, Wave 2 에서 본격 구현 예정 (정식 API spec + 발급 키 확보 후).
 - 템플릿(s4): 데이터 모델 `templates` 테이블은 v1 마이그레이션에 **포함 금지** (YAGNI). v2 진입 시 마이그레이션 추가.
-- 알림·CSV 내보내기: v1 시점에 어떤 hook·디렉토리도 만들지 않음.
+- 알림(s10): 도메인 stub 정의서 `docs/design-renewal/s10-notifications.md` (PR #112) 만 신설. 실 테이블 / Edge Function / UI 는 PR3 트랙 후속.
+- CSV 내보내기: v1 시점에 어떤 hook·디렉토리도 만들지 않음.
 - 결제·정산: PCI-DSS 적용 범위 0. v1 코드베이스에 결제 의존 0.
 
 ---

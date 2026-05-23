@@ -49,7 +49,30 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
       { accountId: account.id },
       {
         onSuccess: (data) => {
-          toast.success(`${tt.reverify} — ${data.status}`)
+          // status='active' 면 성공 토스트. error/expired/revoked 면 새 errorCode /
+          // errorMessage / errorMarket 필드를 활용하여 마켓별 구체 메시지 표시.
+          // (v0.9.7 의 markets-connect 패턴과 정합 — PR #118 후속)
+          if (data.status === 'active') {
+            toast.success(`${tt.reverify} — active`)
+            return
+          }
+          if (data.errorCode) {
+            const formatted = formatMarketError({
+              code: data.errorCode,
+              message: data.errorMessage ?? '',
+              correlationId: data.correlationId,
+              details: data.errorMarket
+                ? { market: data.errorMarket }
+                : undefined,
+            })
+            toast.error(formatted.message, {
+              description: formatted.correlationId
+                ? `요청 ID: ${formatted.correlationId}`
+                : undefined,
+            })
+            return
+          }
+          toast.error(`${tt.reverify} — ${data.status}`)
         },
         onError: (err) => {
           if (err instanceof MarketApiInvocationError) {

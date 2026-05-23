@@ -75,16 +75,28 @@ export class HttpError extends Error {
 export const HttpErrors = {
   badRequest: (code: string, message: string, details?: Record<string, unknown>) =>
     new HttpError(400, code, message, details),
-  unauthorized: (code = 'unauthorized', message = 'authentication required') =>
-    new HttpError(401, code, message),
-  forbidden: (code = 'forbidden', message = 'access denied') =>
-    new HttpError(403, code, message),
-  notFound: (code = 'not_found', message = 'resource not found') =>
-    new HttpError(404, code, message),
+  unauthorized: (
+    code = 'unauthorized',
+    message = 'authentication required',
+    details?: Record<string, unknown>,
+  ) => new HttpError(401, code, message, details),
+  forbidden: (
+    code = 'forbidden',
+    message = 'access denied',
+    details?: Record<string, unknown>,
+  ) => new HttpError(403, code, message, details),
+  notFound: (
+    code = 'not_found',
+    message = 'resource not found',
+    details?: Record<string, unknown>,
+  ) => new HttpError(404, code, message, details),
   conflict: (code: string, message: string, details?: Record<string, unknown>) =>
     new HttpError(409, code, message, details),
-  rateLimit: (retryAfterMs?: number) =>
-    new HttpError(429, 'rate_limit', 'too many requests', { retryAfterMs }),
+  rateLimit: (retryAfterMs?: number, details?: Record<string, unknown>) =>
+    new HttpError(429, 'rate_limit', 'too many requests', {
+      retryAfterMs,
+      ...(details ?? {}),
+    }),
   internal: (
     code = 'internal',
     message = 'internal server error',

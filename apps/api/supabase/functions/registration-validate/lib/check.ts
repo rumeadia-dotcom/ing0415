@@ -13,6 +13,7 @@ import {
   type MarketMapping,
   type Product,
 } from '../../_shared/index.ts'
+import { checkHtmlSafe } from '../../_shared/sanitize-html.ts'
 import type {
   ImageRow,
   MappingRow,
@@ -93,6 +94,20 @@ function checkBasics(
       field: 'description_html',
       message: '쿠팡은 상세 설명이 최소 10자 필요합니다',
     })
+  }
+
+  // XSS dual-defense (§13.5) — 클라이언트 DOMPurify 가 통과시켰어도 서버에서 동등 sanitize.
+  // 결과 다르면 우회 시도 또는 정책 drift — validation 에러로 거부.
+  if (product.description_html) {
+    const { safe } = checkHtmlSafe(product.description_html)
+    if (!safe) {
+      issues.push({
+        marketId,
+        code: 'description_html_unsafe',
+        field: 'description_html',
+        message: '상세 설명에 허용되지 않은 HTML 태그·속성이 포함되어 있습니다',
+      })
+    }
   }
 
   return issues

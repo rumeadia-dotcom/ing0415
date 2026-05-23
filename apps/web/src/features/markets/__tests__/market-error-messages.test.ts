@@ -29,6 +29,8 @@ describe('formatMarketError', () => {
     'market_server',
     'category_ping_failed',
     'invalid_credentials',
+    'credential_inactive',
+    'adapter_unavailable',
   ]
 
   it.each(allCodes)('%s 코드는 한국어 메시지가 매핑된다', (code) => {
