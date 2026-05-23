@@ -40,13 +40,20 @@ import {
 export class MarketApiInvocationError extends Error {
   readonly code: string
   readonly correlationId: string | null
+  readonly details: MarketApiError['details']
   readonly raw: unknown
 
-  constructor(payload: MarketApiError | { code: string; message: string; correlationId?: string }, raw?: unknown) {
+  constructor(
+    payload:
+      | MarketApiError
+      | { code: string; message: string; correlationId?: string; details?: MarketApiError['details'] },
+    raw?: unknown,
+  ) {
     super(payload.message)
     this.name = 'MarketApiInvocationError'
     this.code = payload.code
     this.correlationId = 'correlationId' in payload ? (payload.correlationId ?? null) : null
+    this.details = 'details' in payload ? payload.details : undefined
     this.raw = raw
   }
 
@@ -55,6 +62,7 @@ export class MarketApiInvocationError extends Error {
       code: this.code,
       message: this.message,
       correlationId: this.correlationId ?? crypto.randomUUID(),
+      details: this.details,
     }
   }
 }
