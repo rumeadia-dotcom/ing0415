@@ -22,10 +22,24 @@ create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net  with schema extensions;
 
 ------------------------------------------------------------------------
--- 2. vault secret 존재성 검사 (없으면 마이그레이션 실패 — drift 방지)
+-- 2. vault secret 존재성 검사 (drift detect)
 --    운영자는 다음 secret 을 사전 등록해야 한다:
 --      - supabase_functions_url   → 예: https://<ref>.supabase.co/functions/v1
 --      - service_role_key         → 운영 service_role JWT
+--
+--    이전 (v0.10.1 이전) 에는 미등록 시 raise exception 으로 마이그 자체를
+--    fail-fast 시켰다. 그러나 CI / dev / local supabase 환경 (vault 미등록
+--    상태) 에서도 본 마이그가 적용되어야 RLS-pgTAP 회귀 / a11y E2E 등이
+--    돌아가므로 raise notice + return 으로 약화한다.
+--
+--    운영 drift 방지는 후속 PR 에서 `deploy.yml` 의 별도 verify 잡으로 책임:
+--      - main push / workflow_dispatch 시점에 vault.decrypted_secrets 조회
+--      - 누락 시 deploy fail (cron 잡 schedule 은 통과하더라도 net.http_post
+--        runtime fail 로 orders-sync 가 동작 안 함 → 운영 사고)
+--
+--    cron 잡 자체는 §4 에서 등록한다 — vault 미등록 환경 (CI/dev) 에서도
+--    schedule 은 등록되지만 net.http_post 시점에 vault.decrypted_secrets 가
+--    null 이라 cron 실행이 즉시 fail (cron.job_run_details 에 기록).
 ------------------------------------------------------------------------
 do $$
 declare
@@ -34,14 +48,12 @@ declare
 begin
   select decrypted_secret into v_functions_url
     from vault.decrypted_secrets where name = 'supabase_functions_url';
-  if v_functions_url is null then
-    raise exception '[pg_cron orders-sync] vault secret "supabase_functions_url" 미 등록. 운영자가 vault 에 사전 등록 필요.';
-  end if;
-
   select decrypted_secret into v_service_key
     from vault.decrypted_secrets where name = 'service_role_key';
-  if v_service_key is null then
-    raise exception '[pg_cron orders-sync] vault secret "service_role_key" 미 등록.';
+
+  if v_functions_url is null or v_service_key is null then
+    raise notice '[pg_cron orders-sync] vault secret 미등록 (functions_url=% / service_key=%). CI/dev 환경 가정 — schedule 등록은 진행하나 cron 실행은 runtime 시점에 fail. 운영자는 dashboard 의 Vault 에서 사전 등록 필요.',
+      (v_functions_url is not null), (v_service_key is not null);
   end if;
 end;
 $$;
