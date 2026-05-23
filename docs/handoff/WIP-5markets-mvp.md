@@ -226,12 +226,14 @@ git fetch origin && git checkout develop && git pull && pnpm install && pnpm tes
 
 **811 passed** (2026-05-23 기준) 확인 후 진입.
 
-### 우선 순위 (2026-05-23 갱신)
-1. **Phase 4-B-1 — 네이버 스마트스토어 어댑터 보강** (현재 stub). OAuth code 흐름 + 카테고리 + 상품 등록 어댑터 + 단위 테스트 + ESM endpoint 정확도 검증 같이.
-2. **5마켓 IP 화이트리스트 등록 + 정식 키 발급** (셀러 액션, 검토 대기 시간 길음 — 병행 진행 권장)
-3. **markets-connect 외 다른 markets-* 함수 에러 세분화** — v0.9.7 패턴을 oauth-callback / verify / disconnect 에도 확장
-4. **Phase 4-B-2 — 11번가 어댑터 신규**
-5. **이전 우선순위 (보존)** — 설계문서 sweep / dev DB seed / 알림 도메인 (PR3)
+### 우선 순위 (2026-05-23 loop 사이클 4 갱신)
+1. **🔴 registration-validate 서버 측 XSS sanitize 추가** — `features/registration.md §13.5` 가 명시했지만 코드 미구현. 클라이언트 DOMPurify 신뢰 X. Deno-compatible 라이브러리 (예: `npm:isomorphic-dompurify`) + 단위 테스트.
+2. **Phase 4-B-1 — 네이버 스마트스토어 어댑터 보강** (현재 stub). OAuth code 흐름 + 카테고리 + 상품 등록 + 단위 테스트.
+3. **Phase 4-B-2 Wave 2 — 11번가 어댑터 본격 구현** — 정식 API spec + 발급 키 확보 후 5메서드 본체 + UI 활성화 (`CONNECTION_METHODS` 'disabled' → 'api_key_form' + ProviderConnectShell 의 api_key 폼).
+4. **5마켓 IP 화이트리스트 등록 + 정식 키 발급** (셀러 액션, 검토 대기 시간 길음 — 병행).
+5. **메인 chunk 1.3MB 코드 스플리팅 개선** — 라우트별 lazy / 라이브러리 분리. 운영 영향 적음.
+6. **ESM endpoint 정확도 검증** — `/api/v1/category` 가 404 (운영 확인). 실 ESM API 문서 기반 path 검증 (Phase 4-B-1 와 함께 가능).
+7. **이전 우선순위 (보존)** — 설계문서 design-renewal 추가 sweep / dev DB seed 실제 적용 / s10 알림 도메인 PR3 트랙 (테이블·EF·UI).
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
 - 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 분기 금지.
