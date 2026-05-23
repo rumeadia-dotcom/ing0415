@@ -79,11 +79,14 @@ begin
 end$$;
 
 -- 상품 1건 (registration_jobs.product_id FK)
-insert into public.products (id, seller_id, name, status)
+-- products 스키마 (20260519000005): id / seller_id / name / price NN / base_category_id NN / status default.
+insert into public.products (id, seller_id, name, price, base_category_id, status)
 values (
   '00000000-0000-0000-0000-0000000000aa'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid,
   'KPI 테스트 상품',
+  10000,
+  'test_category',
   'draft'
 )
 on conflict (id) do nothing;
