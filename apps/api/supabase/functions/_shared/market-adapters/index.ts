@@ -5,12 +5,12 @@
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §4.1
  *   - src/lib/markets/index.ts (클라이언트 측 동등 분기)
  *
- * v1 라인업 (2026-05-19, Wave 2 — OQ-10 재결정):
- *   - naver   (oauth)   : 활성. debug = mock, real = stub throw (Wave 5).
- *   - coupang (hmac)    : 활성. debug = mock, real = stub throw (Wave 5).
- *   - gmarket (esm_jwt) : 활성. debug = mock, real = stub throw (Wave 5).
- *   - auction (esm_jwt) : 활성. debug = mock, real = stub throw (Wave 5).
- *   - 11st    (api_key) : v1 미사용 (오픈 준비중). debug 여도 즉시 throw.
+ * v1 라인업 (2026-05-23 갱신 — 5마켓 정식 결정):
+ *   - naver   (oauth)   : 활성. debug = mock, real = stub throw (보강 대기 — Phase 4-B-1)
+ *   - coupang (hmac)    : 활성. debug = mock, real = 본격 구현 + gateway 경유 (Phase 4-A)
+ *   - gmarket (esm_jwt) : 활성. debug = mock, real = 본격 구현 + gateway 경유 (Phase 4-A)
+ *   - auction (esm_jwt) : 활성. debug = mock, real = 본격 구현 + gateway 경유 (Phase 4-A)
+ *   - 11st    (api_key) : 활성. debug = mock, real = **stub** — 정식 API spec 확보 후 별도 PR (Phase 4-B-2)
  *
  * 강제:
  *   - 본 함수 외 위치에서 `isDebug` 로 어댑터 본체 분기 금지. 발견 시 PR 차단.
@@ -24,6 +24,7 @@ import type { MarketId } from '../schemas.ts'
 import { createAuctionAdapter } from './auction.ts'
 import { createCoupangAdapter } from './coupang.ts'
 import { createMockAdapter, type MockScenario } from './debug.ts'
+import { createElevenStAdapter } from './eleven-st.ts'
 import { createGmarketAdapter } from './gmarket.ts'
 import { createNaverAdapter } from './naver.ts'
 
@@ -35,12 +36,6 @@ export function getMarketAdapter(
   marketId: MarketId,
   opts: GetAdapterOptions = {},
 ): MarketAdapter {
-  // 11번가 — v1 미사용 다중 방어.
-  if (marketId === '11st') {
-    throw new Error(
-      '11번가는 v1 미사용 (오픈 준비중) — v2 IP 화이트리스트 정책 해결 후',
-    )
-  }
   if (isDebug) {
     return createMockAdapter(marketId, opts.scenario)
   }
@@ -53,6 +48,8 @@ export function getMarketAdapter(
       return createGmarketAdapter()
     case 'auction':
       return createAuctionAdapter()
+    case '11st':
+      return createElevenStAdapter()
   }
 }
 
