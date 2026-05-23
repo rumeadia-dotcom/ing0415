@@ -358,11 +358,13 @@ export function makeLogenInvoker(opts: {
       body: JSON.stringify({ orderIds }),
     })
     if (!res.ok) {
-      const body = await res.text().catch(() => '')
+      // 응답 본문에 셀러 PII (이름·주소·전화) 또는 로젠 자격증명 hint 가 섞일 수
+      // 있어 bodyPreview 송출 금지 (security.md §6.2 / CLAUDE.md "외부 API 로깅 패턴").
+      // status 만 남기고 본문 폐기 — 진단은 correlationId 로 Edge Function 로그에서 추적.
+      await res.text().catch(() => '')
       opts.logger.warn(
         {
           status: res.status,
-          bodyPreview: body.slice(0, 200),
         },
         '← logen-register-shipment non-2xx (PR6 미 머지 시 정상)',
       )
