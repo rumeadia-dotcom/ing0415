@@ -14,7 +14,8 @@
 
 ### 1.1 목적 (3줄)
 
-- 셀러가 **네이버 스마트스토어 / 쿠팡 / G마켓 / 옥션** 4개 마켓 계정을 4-way 인증 흐름 (OAuth code / HMAC key / ESM JWT) 으로 안전하게 연결·해제·상태 확인하도록 한다 (v1 정식 = 4 마켓). 11번가는 "오픈 준비중" — Supabase Edge Function outbound IP 동적 ↔ 11번가 IP 화이트리스트 정책 충돌로 v2 이관.
+- 셀러가 **네이버 스마트스토어 / 쿠팡 / G마켓 / 옥션 / 11번가** 5개 마켓 계정을 4-way 인증 흐름 (OAuth code / HMAC key / ESM JWT / API Key) 으로 안전하게 연결·해제·상태 확인하도록 한다 (v1 정식 = 5 마켓, 2026-05-22 결정).
+- **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 **AWS Lightsail Market Gateway 의 고정 IP** (`docs/architecture/v1/cross-cutting/market-gateway.md`) 를 모든 마켓의 셀러 콘솔 (셀러센터 / Wing / ESM / 커머스 API 센터) 에 등록 후 키 발급. 어플리케이션 측 흐름과는 별도로, 셀러 가입 안내에 IP 등록을 명시.
 - 마켓 자격증명(OAuth 토큰 / HMAC 키 / ESM JWT 키)은 `market_credentials` (credential-vault.md, 단일 `credential_payload jsonb` 컬럼 + pgcrypto 암호화) 단일 경로로 저장하며, 클라이언트 평문 노출 0 을 유지한다.
 - 마켓별 연결 상태(`active` / `expired` / `revoked` / `error`) 를 Realtime 으로 셀러 화면에 즉시 반영한다.
 
@@ -27,7 +28,7 @@
   - 등록 잡 시점 자격증명 사용 (`registration-run`) → `features/registration.md` (Phase 2).
   - Sentry 마스킹 / RLS 보안 헌법 → `security.md`.
   - 이미지 변환 → `cross-cutting/image-pipeline.md`.
-- **MVP 우선 (v1, 2026-05-19 5마켓 확장 Wave 1)**: **네이버 / 쿠팡 / G마켓 / 옥션 4개 real 어댑터 활성**. **11번가 = "오픈 준비중"** UI 비활성 카드 (어댑터 stub 파일은 `api_key` kind 로 인터페이스 호환 보존, 호출 시 즉시 throw). 11번가 활성화는 Supabase Edge Function outbound IP 화이트리스트 해결책 결정 후 v2 — `OQ-09 (v2 후보)` 참조.
+- **MVP 우선 (v1, 2026-05-22 5마켓 정식 결정)**: **네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 real 어댑터 전부 활성**. 모든 마켓 호출은 AWS Lightsail Market Gateway (서울 리전 고정 IP) 경유. **셀러는 해당 고정 IP 를 5개 마켓 셀러 콘솔에 사전 등록 후 키 발급** (모든 마켓 공통 — IP 미등록 시 키 발급 단계에서 거부됨, 2026-05-23 정정).
 
 ### 1.3 user_flow s5 노드 매핑
 
