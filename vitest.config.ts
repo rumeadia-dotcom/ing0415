@@ -18,6 +18,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'apps/web/src'),
+      // Deno `npm:` specifier → Node 패키지 매핑.
+      // Edge Function 측 _shared/sanitize-html.ts 가 `npm:isomorphic-dompurify@2.20.0` 로
+      // import 하는데 Vitest 는 Node 환경 → Deno specifier 해석 불가.
+      // 동일 버전 (2.20.0) devDep 설치 + 본 alias 로 bridge (sanitize parity 테스트 전용).
+      'npm:isomorphic-dompurify@2.20.0': 'isomorphic-dompurify',
     },
   },
   test: {
