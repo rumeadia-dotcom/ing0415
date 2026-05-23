@@ -12,7 +12,7 @@
 --   5) anon            : SELECT 0건
 --   6) service_role    : 양쪽 row 가시
 
-\set ON_ERROR_STOP on
+-- (removed) \set ON_ERROR_STOP on : psql meta-command - supabase test db 컨텍스트에서 SQLSTATE 42601. BEGIN/ROLLBACK 트랜잭션 + pgTAP 자체 fail 핸들링으로 대체.
 
 begin;
 

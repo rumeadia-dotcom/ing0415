@@ -33,7 +33,7 @@
 --   - 본 파일은 psql 변수(`\set`) 를 사용하지 않는다 — `supabase test db` 와 plain psql
 --     양쪽 모두에서 동일하게 동작하도록 모든 UUID/JSON 을 인라인 SQL 리터럴로 박았다.
 
-\set ON_ERROR_STOP on
+-- (removed) \set ON_ERROR_STOP on : psql meta-command - supabase test db 컨텍스트에서 SQLSTATE 42601. BEGIN/ROLLBACK 트랜잭션 + pgTAP 자체 fail 핸들링으로 대체.
 
 begin;
 

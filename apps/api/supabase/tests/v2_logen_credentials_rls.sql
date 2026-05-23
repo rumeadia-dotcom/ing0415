@@ -7,7 +7,7 @@
 --   메타는 logen_credentials_meta view 로만 본인 row 1건 가시되어야 함.
 --   userId/custCd 평문이 SQL 응답으로 새지 않는지도 회귀.
 
-\set ON_ERROR_STOP on
+-- (removed) \set ON_ERROR_STOP on : psql meta-command - supabase test db 컨텍스트에서 SQLSTATE 42601. BEGIN/ROLLBACK 트랜잭션 + pgTAP 자체 fail 핸들링으로 대체.
 
 begin;
 
