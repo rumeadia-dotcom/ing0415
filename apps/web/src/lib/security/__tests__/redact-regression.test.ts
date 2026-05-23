@@ -26,6 +26,7 @@
  *   R13. 중첩 객체 (data.credentials.accessKey)
  *   R14. 배열 안의 토큰
  *   R15. sellerId (UUID, internal — 마스킹 안 됨이 정상)
+ *   R16. Market Gateway HMAC 헤더 (x-gw-sig / x-gw-ts) — replay 표면 차단
  *
  * 주의:
  *   redact 는 키 이름 매칭 + JWT 패턴만 본다. JWT 형이 아닌 임의 토큰 문자열은
@@ -192,6 +193,20 @@ describe('redact() — Sentry PII 마스킹 회귀 (D-D Phase 4)', () => {
     // 운영 진단을 위해 internal sellerId 는 그대로 보존되어야 한다 (CLAUDE.md 규약)
     expect(out.sellerId).toBe(uuid)
     expect(out.seller_id).toBe(uuid)
+  })
+
+  // ─── R16. Market Gateway HMAC 헤더 ─────────────────────────────
+  it('R16: Market Gateway HMAC 헤더 (x-gw-sig / x-gw-ts) → 마스킹', () => {
+    const out = redact({
+      headers: {
+        'x-gw-sig': 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8',
+        'x-gw-ts': '1716563000',
+      },
+    }) as { headers: Record<string, unknown> }
+    expectMasked(out.headers['x-gw-sig'])
+    expectMasked(out.headers['x-gw-ts'])
+    expect(JSON.stringify(out)).not.toContain('a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8')
+    expect(JSON.stringify(out)).not.toContain('1716563000')
   })
 
   // ─── 부가: 원본 미변경 (immutability) — Sentry event 재사용 안전 검증 ─────────────
