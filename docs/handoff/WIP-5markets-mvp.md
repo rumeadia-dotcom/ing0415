@@ -1,55 +1,45 @@
-# MarketCast — WIP 핸드오프 (2026-05-23)
+# MarketCast — WIP 핸드오프 (2026-05-23 P.M.)
 
-**develop HEAD**: `71748ca` (loop 사이클 1 client mirror drift fix) — 추가 사이클 진행 중
-**main HEAD**: `e6d0c4d` — chore(rule): 운영 사고 진단 룰 추가 (#108) — release 보류 (사용자 지시)
-**활성 PR (develop base)**: dependabot
-**최근 운영 배포**: v0.9 (Market Gateway 도입 + Phase 4-A 어댑터 게이트웨이 경유)
-**테스트**: 832 passed / 26 todo
+**develop HEAD**: `191a56e` — docs(qa): qa-matrix.md 신설 (#132)
+**main HEAD**: `e6d0c4d` — chore(rule) 운영 사고 진단 chain 룰 (#108). release 보류 (사용자 지시 "develop 까지만 머지")
+**테스트**: 877 passed / 26 todo (86 files)
+**최근 운영 배포**: v0.9 (Market Gateway 도입 + Phase 4-A 어댑터 게이트웨이 경유) — 이후 develop 만 누적
 
-## 2026-05-23 세션 요약 (Phase 4-A 운영 검증)
+## 2026-05-23 P.M. 세션 요약 (audit fix + 후속 보강)
 
-릴리즈 / 핫픽스 12개 머지 — 게이트웨이 인프라 운영 검증 완료.
+3개 에이전트 audit (backend / security / qa) → 9 PR develop 머지. 운영 사고 차단 + qa 매트릭스 단일 진실 확보.
 
 | PR | 내용 | 카테고리 |
 |---|---|---|
-| #90 / #91 / #95 | Market Gateway Phase 1~2 통합 + release/v0.8 | release |
-| #93 | hotfix v0.8.1 — Supabase project_ref 시크릿 네이밍 통일 | hotfix |
-| #96 / #97 | Phase 4-A — 쿠팡·ESM 어댑터 gatewayFetch() 전환 + release/v0.9 | release |
-| #98 v0.9.1 | MARKET_GATEWAY_BASE_URL 정합 + 운영 env 셋업 가이드 | hotfix |
-| #99 v0.9.2 | markets-connect 클라이언트↔서버 zod 스키마 정합 | hotfix |
-| #100 v0.9.3 | markets-connect duplicate check PG 에러 로그 추가 (진단) | hotfix |
-| #101 v0.9.4 | service_role 테이블·시퀀스 GRANT 마이그레이션 | hotfix |
-| #102 v0.9.5 | audit_log.category 'markets' 허용 + service_role 함수 EXECUTE | hotfix |
-| #103 | docs 정정 — IP 화이트리스트 5마켓 공통 | docs |
-| #104 v0.9.6 | 게이트웨이 GET/HEAD body TypeError fix | hotfix |
-| #105 v0.9.7 | markets-connect 에러 세분화 + UI 마켓명·단계 prefix | hotfix |
-| #106 v0.9.8 | HttpErrors.internal 의 details 인자 누락 fix | hotfix |
-| #107 v0.9.9 | invokeEdge error.context.body ReadableStream parse fix | hotfix |
-| #108 | chore(rule) — 운영 사고 진단 chain 전체 점검 룰 | chore |
+| #123 | **RPC fn_ prefix mismatch hotfix** — logen / shipping-dispatch 100% fail 차단 | backend audit |
+| #124 | orders-sync bodyPreview PII 누출 제거 | security audit |
+| #125 | markets-verify `credential_inactive` / `adapter_unavailable` UI 매핑 | qa audit |
+| #126 | a11y ROUTES 9개 추가 (18→26) + `/register/categories` 제거 | qa audit |
+| #127 | Market Gateway `x-gw-sig` / `x-gw-ts` 헤더 마스킹 | security audit |
+| #128 | `fn_registration_job_transition` — registration_jobs 상태 전이 single source | 후속 |
+| #129 | order_groups backfill 검증 SQL + 운영 매뉴얼 | 후속 |
+| #130 | sanitize parity test (client/server DOMPurify, 26/26 통과 — drift no) | 후속 |
+| #132 | **qa-matrix.md 신설** — PRD §1~§9 + s7~s9 커버리지 매트릭스 (330줄) | 후속 |
 
-운영 검증 결과:
-- ✅ 어댑터 → gatewayFetch() → 게이트웨이 (HMAC + 화이트리스트) → 마켓 API 전 구간 정상 동작
-- ✅ 게이트웨이 로그에 G마켓 트래픽 도달 확인 (`→ proxy request market=gmarket target=sa.esmplus.com`)
-- ⚠️ ESM `/api/v1/category` 가 404 — 어댑터 endpoint 정확도 검증 필요 (Phase 4-B 영역)
-- ⚠️ 사용자 임의 키 + IP 미등록 상태라 마켓 응답 모두 거부. 정식 운영은 5마켓 셀러 콘솔 IP 등록 + 정식 키 발급 선행
+PR #131 은 stale base (e6d0c4d 분기) 충돌로 close → qa-matrix.md 만 추출 후 #132 rebase 재제출.
 
 ## 스택 한눈에
 
 ```
 프론트:  React 18 + Vite + TS strict + shadcn + Tailwind + TanStack Query + RHF + zod
-         + Tiptap (WYSIWYG, v0.6~) + Daum Postcode SDK (주소 API, v0.6~)
+         + Tiptap (WYSIWYG) + Daum Postcode SDK + DOMPurify (client) + isomorphic-dompurify (server)
 백엔드:  Supabase (Postgres + RLS + Auth + Storage + Realtime + Edge Functions Deno + pg_cron + Vault)
+         + AWS Lightsail Market Gateway (서울, 43.201.83.78, HMAC + 호스트 화이트리스트)
 호스팅:  GitHub Pages (정적 SPA + 404.html fallback) + Supabase Cloud
-모니터링: Sentry (PII 마스킹 강제)
+모니터링: Sentry (PII 마스킹 강제 — redact.ts / masking.ts 양쪽 동기)
 CI/CD:   GitHub Actions (PR + main 분리, auto-merge 활성)
-브랜치:  Git Flow (main / develop / release/* / feature/* / hotfix/*) — feature base 는 항상 develop
-빌드모드: VITE_APP_MODE=dev|real + VITE_USE_MOCK=true|false 두 플래그 분리
-         dev+mock=빠른 UI / dev+real-API=통합 검증 / real+real-API=운영 / real+mock=금지
+브랜치:  Git Flow (main / develop / release/* / feature/* / hotfix/*) — feature base = develop
+빌드모드: VITE_APP_MODE=dev|real + VITE_USE_MOCK=true|false (dev+mock / dev+real-API / real+real-API / real+mock=금지)
 ```
 
 ## 도메인 모델
 
-v1 출시 범위 = 상품 등록(s1~s6) + 주문·배송 자동화(s7~s9) + 알림(s10, PR3 신설 진행 중).
+v1 출시 범위 = 상품 등록(s1~s6) + 주문·배송 자동화(s7~s9) + 알림(s10) + v1.4 order-grouping Phase 1.
 
 ```
 상품 등록 (s1~s6)
@@ -57,163 +47,142 @@ Seller (auth.users) ─┬─ MarketAccount ─── credential_payload jsonb +
                      ├─ Product ─┬─ ProductImage ─ ImageTransform (마켓별 N)
                      │           └─ ProductMarketMapping (카테고리/규격)
                      ├─ RegistrationJob ─── JobMarketResult (1:N)
-                     └─ ShippingPolicy (name / fee / method / eta_days / is_default)
+                     │       └─ fn_registration_job_transition() — 상태 전이 single source (#128)
+                     └─ ShippingPolicy
 
-주문·배송 (s7~s9)
-Seller ─┬─ Order (4 마켓 폴링)
+주문·배송 (s7~s9, v1.4 grouping)
+Seller ─┬─ Order ── order_group_id → OrderGroup (1박스=1송장, Phase 1 backfill 1:1)
         │   status: collected → logen_registered → waybill_printed → tracking_submitted
-        │   (logen_failed / dispatch_failed 분기)
-        ├─ ShippingJob ─── ShippingJobResult (1:N, 마켓별)
-        └─ LogenCredentials (pgcrypto — userId/custCd + 발송인 + 발송지 주소)
-
-알림 (s10 — PR3 진행 중)
-Seller ─┬─ Notification (in-app + email 큐 single source)
-        └─ NotificationPreferences (채널×타입 매트릭스 + quiet_hours)
+        ├─ ShippingJob ─── ShippingJobResult (1:N)
+        └─ LogenCredentials (pgcrypto — userId/custCd + 발송인/지)
 ```
 
-## 완료된 작업 (전체 요약)
+## 완료된 작업 (요약)
 
-| 단계 | 내용 | 커밋/PR |
+| 단계 | 내용 | 비고 |
 |---|---|---|
-| Stage A~H | 부트스트랩 (빌드·디자인·라우팅·데이터계층·DB마이그·EdgeFn·테스트·CI) | — |
+| Stage A~H | 부트스트랩 (빌드·디자인·라우팅·데이터·DB·EdgeFn·테스트·CI) | — |
 | B-1~B-5 | 인증·대시보드·상품등록·마켓계정·이력 본구현 + 브랜드 리스킨 | — |
-| C-1~C-3 | 네이버 OAuth / 쿠팡 HMAC / G마켓·옥션 ESM real 어댑터 | PR #2 #14 #17 |
-| C-4 | 4마켓 fan-out 통합 시나리오 12종 (mock) | PR #12 |
-| D-A~D-D | axe E2E / pgTAP RLS / 법적 페이지 / Sentry PII 마스킹 | PR #11 #13 #15 #16 |
-| v0.4 운영 배포 | 주문·배송 자동화 + 마켓/로젠 가드 + DB 스키마 fix | PR #38 #39 #65 |
-| v0.5 운영 배포 | env 플래그 분리 + mock 인프라 + stale chunk 핫픽스 | PR #79 #80 |
-| **v0.6 운영 배포** | **WYSIWYG 에디터 + 발송지 주소 API + 배송 정책 화면 + 주문·배송 정합** | **PR #76 #82** |
-
-## v0.6 신규 기능 — 상세 (2026-05-22)
-
-### WYSIWYG 에디터 (PRD §3.6.1 / §3.6.2)
-- Tiptap (StarterKit + Link + Image + Placeholder) + DOMPurify sanitize
-- `RichTextEditor` 공통 컴포넌트, `sanitizeHtml()` XSS 차단
-
-### 발송지 주소 Daum Postcode API
-- `daum-postcode.ts` SDK 동적 로드 + `AddressSearchInput` 컴포넌트
-- `SettingsShippingSenderPage` address 필드 교체 (수기 입력 제거)
-
-### 배송 정책 관리 화면 (PRD §1.1.4)
-- `/settings/policies` — 4상태 + 생성/수정/삭제/기본값 토글 Dialog
-- `ShippingPolicyFormSchema` zod 단일 소스, `useUpdateShippingPolicy` / `useDeleteShippingPolicy` hook
-
-### mock insert id 버그 수정
-- mock `insert` 시 id 없으면 `crypto.randomUUID()` 자동 생성 → 배송 정책 select 빈값 해결
+| C-1~C-4 | 4마켓 OAuth/HMAC/ESM real 어댑터 + fan-out 통합 12종 mock | — |
+| D-A~D-D | axe E2E / pgTAP RLS / 법적 페이지 / Sentry 마스킹 | — |
+| v0.4~v0.6 | 주문·배송 자동화 / env 플래그 분리 / WYSIWYG + 발송지 API + 배송 정책 | 운영 배포 |
+| v0.8~v0.9 | Market Gateway Phase 1~2 + Phase 4-A (쿠팡·ESM 게이트웨이 경유) | 운영 배포 |
+| 2026-05-22 | 5마켓 v1 정식 결정 (IP 화이트리스트 5마켓 공통) | 결정 |
+| 2026-05-23 A.M. | hotfix v0.9.1~v0.9.9 + chain 진단 룰 + chunk splitting + v1.4 Phase 1 DB | #98~#122 |
+| **2026-05-23 P.M.** | **audit fix 9 PR (위 표)** | **#123~#132** |
 
 ## 운영 현황
 
 - **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/`
-- **최근 deploy**: release/v0.6 → `completed / success` (2026-05-22T04:44)
-- **dev Supabase** (`eqoywqoalwkwbrdsulfl`): 마이그레이션 27개 + Edge Functions 23개 적용 완료
-- **dev Vault 시크릿**: `supabase_functions_url`, `service_role_key` 등록 완료
-- **dev Edge Function secrets** (미등록): `MASTER_KEY_*` / `DAILY_SALT` / `PUBLIC_APP_ORIGIN` / 마켓 OAuth 키
+- **최근 deploy**: release/v0.9 / Phase 4-A (2026-05-23 A.M.). 이후 P.M. 9 PR 은 develop 만 누적 (사용자 "develop 까지만 머지" 지시)
+- **dev Supabase** (`eqoywqoalwkwbrdsulfl`): A.M. 까지 적용. **P.M. 신규 마이그레이션 3개 미적용** ⚠
 
 ---
 
 ## ⚠ 즉시 필요한 운영 액션 (사용자 작업)
 
-### 1. dev Edge Function secrets 등록 (UI 회원가입 검증 후 단계적)
+### 1. dev DB 마이그레이션 적용 (3개 신규)
+
+```bash
+pnpm supabase:link:dev
+pnpm db:push:dev
 ```
-# Supabase Studio (dev) → Project Settings → Edge Functions → Secrets
+
+적용 대상:
+- `20260523000003_order_groups.sql` — order_groups 테이블 + orders.order_group_id 컬럼 + 1:1 backfill
+- `20260524000001_rpc_fn_prefix_fix.sql` — `fn_set_logen_credentials` / `fn_get_logen_credentials` / `fn_increment_shipping_job_counters` (Edge Function 100% fail 차단)
+- `20260524000002_registration_job_state_machine.sql` — `fn_registration_job_transition`
+
+적용 후 검증:
+```bash
+psql <dev-conn-string> -f scripts/sql/verify-order-groups-backfill.sql
+```
+6개 SELECT 통과 (자세히는 `docs/handoff/order-groups-backfill-verification.md`).
+
+### 2. dev Edge Function 재배포
+
+```bash
+pnpm functions:deploy:dev
+```
+- `pgcrypto-logen.ts` (PR #123 RPC 호출)
+- `shipping-dispatch-market-worker/lib/result-update.ts` (PR #123 RPC 호출)
+- `jmr-update.ts` / `registration-retry/index.ts` (PR #128 RPC 경유로 교체)
+
+### 3. dev Edge Function secrets (미설정인 경우)
+
+```
 MASTER_KEY_CURRENT_KID = mk_2026_q2
 MASTER_KEY_MK_2026_Q2  = <openssl rand -base64 32>
 DAILY_SALT             = <32+ char random>
 PUBLIC_APP_ORIGIN      = http://localhost:5173
 ```
-→ pgcrypto/마켓 연결 흐름 진입 시 필수. 미설정 시 마켓 연결 시점에 Edge Function 500.
 
-### 2. 운영(real) Vault 시크릿 등록
+### 4. 운영(real) Vault / env vars — 이전 세션과 동일 (변동 없음)
+
 ```
 supabase_functions_url  = https://lfrnythcujxdhehvkmtg.supabase.co/functions/v1
 service_role_key        = <real service_role JWT>
+LOGEN_API_BASE_URL      = https://openapi.ilogen.com
+LOGEN_PGCRYPTO_KEY      = <암호화 키>
+RESEND_API_KEY          = <PR3 머지 후>
 ```
-→ pg_cron `orders-sync` 운영 활성.
-
-### 3. 운영 Edge Function env vars
-```
-LOGEN_API_BASE_URL    = https://openapi.ilogen.com
-LOGEN_PGCRYPTO_KEY    = <암호화 키>
-RESEND_API_KEY        = <PR3 머지 후>
-RESEND_FROM_EMAIL     = noreply@<도메인>
-```
-
-### 4. GitHub Secrets 정리 (env 플래그 분리 후속)
-CI 워크플로우가 `DEBUG_SUPABASE_ANON_KEY` / `DEBUG_SENTRY_DSN` 시크릿 이름 사용 중. 이름 통일 원하면 `DEV_*` 추가 후 워크플로우 PR.
 
 ---
 
 ## 남은 작업
 
-### 🔴 외부 차단 (사람이 해야 하는 선행 조건)
+### 🔴 외부 차단 (사람이 해야 하는 선행 조건 — 변동 없음)
+
+베타 셀러 모집 / 네이버 type=SERVICE 심사 / 쿠팡 Wing IP 정책 확정 / G·옥션 ESM+ 키 발급 / 로젠 B2B 계약 / Resend 도메인 인증.
+
+### 🔴 신규 P0 (qa-matrix 갭 top 3)
+
+| 항목 | 근거 | 차단 |
+|---|---|---|
+| **RLS-SQL 단위 테스트 부재** | 8개+ 셀러 테이블 cross-access 검증 0건 | pgTAP CI 환경 필요 |
+| partial / retry / skip-market E2E 3종 | `golden-path.md §9` 권장 | 셀러 시드 + 어댑터 시뮬레이션 |
+| debug ↔ real parity.spec.ts 5종 | R-006 헌법 위반 잠재 | 마켓별 fixture 매트릭스 |
+
+### 🟠 마켓·로젠 스펙 의존 보류 (외부 차단)
 
 | 항목 | 차단 내용 |
 |---|---|
-| 베타 셀러 모집 (1~2명) | 실 사업자 자격증명 (OAuth/HMAC/ESM + 로젠 B2B) |
-| 네이버 type=SERVICE 확인 | 외부 SaaS 등록 심사 |
-| 쿠팡 Wing OpenAPI IP 정책 | Edge Function outbound IP 동적 여부 |
-| G·옥션 ESM+ 키 발급 심사 | 관리자 심사 ~1주 |
-| 로젠택배 B2B 계약 | userId/custCd + 출력 라벨 프린터 |
-| Resend 도메인 인증 | PR3 머지 후 가능 |
+| 골든패스 G1~G10 (9 fixme) | 셀러 시드 + 마켓 OAuth fake / 로젠 fake |
+| 11번가 parity / 본격 어댑터 (Phase 4-B-2 Wave 2) | 11번가 API spec 미확보 |
+| 네이버 어댑터 보강 (Phase 4-B-1) | 외부 spec 의존 |
+| v1.4 Phase 2~4 (order-grouping 본격) | 마켓 multi-row 응답 / 로젠 send_list 스펙 |
+| ESM endpoint 정확도 (`/api/v1/category` 404) | 실 ESM 문서 기반 path 검증 |
 
-### 🟠 phase 2: dev DB seed (별 PR)
+### 🟠 미진입 v1 스코프 (변동 없음)
 
-mock으로 fixtures shape을 zod schema 기반으로 만들었으나, 실제 RPC/view 응답과 격차 가능.
-`apps/api/supabase/seed.sql` 작성 → `pnpm db:push:dev` → `pnpm dev:db` 모드로 mock과 비교.
-
-### 🟢 v1 잔여 운영 게이트
-
-| 항목 | 상태 |
+| PRD § | 항목 |
 |---|---|
-| 골든패스 G1~G10 (9 fixme) + axe 14 fixme | PR2 트랙 — 별도 진행 |
-| 시드 셀러 인프라 (`seed.sql` + Playwright globalSetup) | phase 2 와 결합 |
-| CI service_role 시크릿 매트릭스 갱신 | PR2 의존 |
-| pgTAP RLS cross-tenant | `supabase test db` CI 연동 별도 |
-| Sentry 마스킹 운영환경 실검증 | real Sentry 프로젝트 연동 후 |
-
-### 🟠 신규 v1 스코프 잔여
-
-| PRD § | 항목 | 진행 |
-|---|---|---|
-| §1.4.3 + §2.3.4 | 알림 도메인 (in-app + 이메일) | PR3 트랙 |
-| §1.4.2 + §4.4.3 | CSV 내보내기 (papaparse) | 미진입 |
-| §2.4.1 / §2.4.2 | 정기 보안 감사 + 백업/복구 | 미진입 |
-| §4.2.1 / §4.2.3 / §4.4.2 | 오류 통계 + 차트 | 미진입 — 라이브러리 미선정 |
-| §5.4.1 | 이미지 WebP + 변형본 | 미진입 |
-
-### 🟠 Phase 4 잔여 (2026-05-23 추가)
-
-| 항목 | 진행 |
-|---|---|
-| **Phase 4-A 운영 검증** — 어댑터 → 게이트웨이 → 마켓 흐름 | ✅ 완료 (2026-05-23). 게이트웨이 트래픽 도달 확인 |
-| **Phase 4-B-1 — 네이버 스마트스토어 어댑터 보강** | 미진입. 현재 `naver.ts` stub. OAuth code 흐름 + 카테고리 + 상품 등록 |
-| **Phase 4-B-2 — 11번가 어댑터 신규** | 미진입. 현재 어댑터 파일 자체 없음. API Key 인증 |
-| **ESM endpoint 정확도** | `/api/v1/category` 가 404 — 실 ESM 문서 기반 path 검증 필요 (Phase 4-B 일부) |
-| **5마켓 IP 화이트리스트 등록 + 정식 키 발급** | 셀러 액션. `docs/handoff/lightsail-setup-guide.md §7` 참조 |
-| **markets-connect 외 다른 markets-* 함수 에러 세분화** | hotfix v0.9.7 패턴을 oauth-callback / verify / disconnect 에도 확장 (각 ~15분) |
-| **`<ErrorMessage>` 펼치기/접기 + correlationId copy 버튼** | UI 작업 (CLAUDE.md 룰) |
+| §1.4.3 + §2.3.4 | 알림 도메인 (in-app + 이메일, PR3 트랙) |
+| §1.4.2 + §4.4.3 | CSV 내보내기 (papaparse) |
+| §2.4.x | 정기 보안 감사 + 백업/복구 |
+| §4.2.x / §4.4.2 | 오류 통계 + 차트 (라이브러리 미선정) |
+| §5.4.1 | 이미지 WebP + 변형본 |
 
 ---
 
 ## 후속 정합 백로그 (architecture v1 drift)
 
-1. `design-renewal/s3-register.md` / `s9-settings.md` 갱신 필요 (v0.6 WYSIWYG / 배송 정책 화면 추가).
-2. `docs/architecture/v1/features/registration.md` §3.6 및 `settings-shipping.md` WYSIWYG + 주소 API 반영.
-3. §4.4.2 차트 라이브러리 미선정 — 진입 전 결정.
-4. §1.4.3/§2.3.4/§4.2.* 알림 도메인 정의서 — PR3 가 `s10-notifications.md` 신설로 해소 예정.
-5. **env 플래그 분리 후속**: GitHub Secrets `DEBUG_*` → `DEV_*` 통일 (옵션).
+1. `design-renewal/s3-register.md` / `s9-settings.md` 갱신 (v0.6 WYSIWYG / 배송 정책 / v1.4 order-grouping 다이어그램).
+2. `features/registration.md` §3.6 + `settings-shipping.md` WYSIWYG + 주소 API 반영.
+3. §4.4.2 차트 라이브러리 결정.
+4. s10 알림 도메인 정의서 (PR3 신설 예정).
+5. `qa-matrix.md` (#132) — 신규 기능 PR 진입 시 본 매트릭스의 빈칸 = R-001 / R-009 위반. 행 추가 강제.
 
 ---
 
 ## 백로그 (v1 이후 / 영구 보류)
 
-- ~~**11번가 통합** — v2~~ → **2026-05-22 5마켓 정식 결정으로 v1 진입**. Phase 4-B-2 Wave 1 (PR #111) 에서 서버 stub 활성화. Wave 2 에서 정식 API spec 적용 본격 구현 예정.
 - 로젠 외 택배사 (CJ / 한진) — v2
-- 마켓 주문 웹훅(push) → 10분 폴링 대체 — v2
+- 마켓 주문 웹훅(push) → 폴링 대체 — v2
 - s4 템플릿 관리 / 소셜 로그인 / 2FA — v2
 - 멀티유저 권한 — 1인 셀러 모델 유지 시 영구 보류
 - 마켓 단건 재시도 / 카테고리 자동 추천 ML — v2
-- WebKit·Firefox E2E 활성 — v2
+- WebKit·Firefox E2E — v2
 - Stripe·PG 연동 / 구독 결제 — v2
 
 ---
@@ -221,26 +190,30 @@ mock으로 fixtures shape을 zod schema 기반으로 만들었으나, 실제 RPC
 ## 다음 세션 진입
 
 ```bash
-git fetch origin && git checkout develop && git pull && pnpm install && pnpm test
+git fetch origin && git checkout develop && git pull && pnpm install && pnpm test -- --run
 ```
 
-**811 passed** (2026-05-23 기준) 확인 후 진입.
+**877 passed / 26 todo** 확인 후 진입.
 
-### 우선 순위 (2026-05-23 loop 사이클 4 갱신)
-1. **🔴 registration-validate 서버 측 XSS sanitize 추가** — `features/registration.md §13.5` 가 명시했지만 코드 미구현. 클라이언트 DOMPurify 신뢰 X. Deno-compatible 라이브러리 (예: `npm:isomorphic-dompurify`) + 단위 테스트.
-2. **Phase 4-B-1 — 네이버 스마트스토어 어댑터 보강** (현재 stub). OAuth code 흐름 + 카테고리 + 상품 등록 + 단위 테스트.
-3. **Phase 4-B-2 Wave 2 — 11번가 어댑터 본격 구현** — 정식 API spec + 발급 키 확보 후 5메서드 본체 + UI 활성화 (`CONNECTION_METHODS` 'disabled' → 'api_key_form' + ProviderConnectShell 의 api_key 폼).
-4. **5마켓 IP 화이트리스트 등록 + 정식 키 발급** (셀러 액션, 검토 대기 시간 길음 — 병행).
-5. **메인 chunk 1.3MB 코드 스플리팅 개선** — 라우트별 lazy / 라이브러리 분리. 운영 영향 적음.
-6. **ESM endpoint 정확도 검증** — `/api/v1/category` 가 404 (운영 확인). 실 ESM API 문서 기반 path 검증 (Phase 4-B-1 와 함께 가능).
-7. **이전 우선순위 (보존)** — 설계문서 design-renewal 추가 sweep / dev DB seed 실제 적용 / s10 알림 도메인 PR3 트랙 (테이블·EF·UI).
+### 우선 순위
+
+1. **⚠ 운영 액션 §1+§2 실행** — dev DB 마이그 3개 + Edge Function 재배포. 안 하면 로젠 / shipping-dispatch / registration-retry / order_groups 본 동작 불가.
+2. **P0 RLS-SQL 단위 테스트** (qa-matrix #1) — `supabase test db` 환경 셋업 + 셀러 cross-access 매트릭스. 보안 P0.
+3. **partial / retry / skip-market E2E 3종** (qa-matrix #2) — 셀러 시드 가능해진 후 진입.
+4. **debug ↔ real parity.spec.ts 5종** (qa-matrix #3) — R-006 정합 회복.
+5. **(보류 해제 시) Phase 4-B-1 네이버 어댑터 본격** — OAuth code + 카테고리 + 상품 등록.
+6. **(보류 해제 시) Phase 4-B-2 Wave 2 11번가 본격** — API Key 폼 활성화.
+7. **release/v0.10 검토** — develop 누적 9 PR 안정성 충분하면 main 까지 release/* PR 진행 (사용자 승인 필요).
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
-- 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 분기 금지.
-- Claude Code `Agent` 도구의 `isolation: "worktree"` 는 base 를 `main` 으로 잡으므로
-  prompt 에서 `git fetch origin develop && git checkout -B feature/X origin/develop` 강제 명시.
-- 과거 사고: PR #28~#37 main lineage 분기 → cherry-pick 회수. 재발 방지.
+- 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
+- `Agent isolation: "worktree"` 는 default base 가 main — prompt 에서 `git fetch origin develop && git checkout -B feature/X origin/develop` 강제.
+- 과거 사고: PR #28~#37 main lineage 분기 cherry-pick 회수.
 
-### ⚠ 빌드 모드 룰 강제 (CLAUDE.md §빌드 모드)
-- `VITE_APP_MODE`·`VITE_USE_MOCK` 는 cross-env (package.json scripts) 가 주입. `.env*` 에서 직접 설정 금지.
-- `if (useMock)` 가드는 항상 dynamic import 와 결합. top-level static import 는 PR 차단.
+### ⚠ 운영 사고 진단 룰 (CLAUDE.md, PR #108)
+- 운영 fail 진단 시 단계별 점검 금지. chain 6단계 (서버 throw / 직렬화 / 클라 parse / 클라 schema / UI 매핑 / DB·인프라) 동시 grep.
+- 사용자 재현 5회 이상 요구 = 실패한 진단.
+
+### ⚠ qa-matrix 진입 게이트 (PR #132)
+- 신규 기능 PR 진입 시 `docs/architecture/v1/qa/qa-matrix.md` 의 해당 행 갱신 필수.
+- 미커버 칸 ↑ → R-001 / R-009 위반 잠재.
