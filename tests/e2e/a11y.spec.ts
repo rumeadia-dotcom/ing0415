@@ -10,22 +10,41 @@ import AxeBuilder from '@axe-core/playwright'
  * 본 파일에 새 라우트 추가 시 작성자가 함께 갱신 (R-009).
  */
 
+// 본 배열은 router.tsx 의 path 정의와 1:1 매칭. 신규 라우트 추가 시 함께 갱신 (R-009).
+// 동적 segment (':jobId', ':orderId', ':provider') 는 e2e 가 fixture seed 없이 axe 만 돌리므로 제외.
 const ROUTES = [
+  // s1 인증 (비인증)
   '/login',
   '/signup',
   '/forgot-password',
   '/reset-password',
+  // s2 대시보드
   '/dashboard',
-  '/markets',
-  '/markets/connect',
+  // s3 등록 위저드
   '/register',
   '/register/info',
   '/register/images',
   '/register/markets',
-  '/register/categories',
   '/register/preview',
+  // s5 마켓 계정
+  '/markets',
+  '/markets/connect',
+  // s6 등록 이력
   '/history',
+  // 설정
   '/settings',
+  '/settings/policies',
+  // s7 주문 (v2)
+  '/orders',
+  '/orders/list',
+  // s8 배송 처리 (v2)
+  '/shipping/print',
+  '/shipping/dispatch',
+  '/shipping/history',
+  // s9 배송 설정 (v2)
+  '/settings/shipping',
+  '/settings/shipping/logen',
+  '/settings/shipping/sender',
   // D-C: 비인증 정적 페이지 (약관 / 개인정보처리방침 / 매뉴얼)
   '/legal/terms',
   '/legal/privacy',
