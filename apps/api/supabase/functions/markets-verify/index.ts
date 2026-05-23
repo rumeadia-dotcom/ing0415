@@ -75,7 +75,9 @@ export default Deno.serve(
       .maybeSingle()
 
     if (accErr) {
-      throw HttpErrors.internal('internal', 'account lookup failed')
+      throw HttpErrors.internal('internal', 'account lookup failed', {
+        stage: 'account_lookup',
+      })
     }
     if (!account || account.seller_id !== sellerId) {
       throw HttpErrors.notFound('not_found', 'account not found')

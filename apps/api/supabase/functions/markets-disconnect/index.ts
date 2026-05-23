@@ -76,7 +76,9 @@ export default Deno.serve(
           },
           '← market_accounts lookup error',
         )
-        throw HttpErrors.internal('internal', 'account lookup failed')
+        throw HttpErrors.internal('internal', 'account lookup failed', {
+          stage: 'account_lookup',
+        })
       }
       if (!account || account.seller_id !== sellerId) {
         // 정보 누출 방지 — forbidden 도 not_found 로 통일
@@ -109,7 +111,9 @@ export default Deno.serve(
           },
           '← market_credentials revoke error',
         )
-        throw HttpErrors.internal('internal', 'credential revoke failed')
+        throw HttpErrors.internal('internal', 'credential revoke failed', {
+          stage: 'vault_revoke',
+        })
       }
 
       // market_accounts 상태 전이 (revoked)
@@ -131,7 +135,9 @@ export default Deno.serve(
           },
           '← market_accounts revoke error',
         )
-        throw HttpErrors.internal('internal', 'account revoke failed')
+        throw HttpErrors.internal('internal', 'account revoke failed', {
+          stage: 'account_revoke',
+        })
       }
 
       // market_account_audit
