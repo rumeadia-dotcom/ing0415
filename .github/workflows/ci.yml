@@ -383,3 +383,54 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 7. pgTAP RLS 회귀 (cross-tenant 격리 + KPI view 정확도)
+  #    apps/api/supabase/tests/*.sql 자동 실행. 마이그/RLS 변경 PR 안전망.
+  #    docs/architecture/v1/qa/qa-matrix.md QA-AUTH-006 / QA-HIST-006 /
+  #    QA-ORD-011 / QA-SHIP-013 / QA-CFG-006 회귀 게이트.
+  #
+  #    이전까지 테스트 파일 (rls-cross-tenant.sql 102 케이스 등) 은 존재했으나
+  #    CI 통합 부재로 PR 별 자동 회귀 0건이었다 (qa-matrix §1 P0 갭).
+  # ──────────────────────────────────────────────────────────────────────────
+  pgtap-rls:
+    name: pgTAP RLS (Supabase local)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # supabase start 가 docker postgres + auth + 의존 컨테이너를 띄운다.
+      # 마이그(108개+) 의 auth.users FK 의존성 때문에 단순 postgres service container
+      # 로는 대체 불가. 가벼운 부팅을 위해 불필요 컨테이너 (studio / inbucket /
+      # logflare / vector / imgproxy / pooler / edge-runtime / storage / realtime)
+      # 는 제외한다. db + auth + analytics(필수) 만 띄움.
+      - name: Start Supabase local stack
+        working-directory: apps/api
+        run: |
+          supabase start \
+            --exclude realtime,storage-api,imgproxy,studio,inbucket,edge-runtime,logflare,vector,pooler
+
+      # supabase test db 는 격리된 임시 DB 에서 tests/*.sql 를 실행한다.
+      # 파일 자체가 begin/rollback 으로 격리되어 있어 잔여 row 없음.
+      - name: Run pgTAP tests
+        working-directory: apps/api
+        run: supabase test db
+
+      - name: Capture Supabase logs on failure
+        if: failure()
+        working-directory: apps/api
+        run: |
+          supabase logs --service db --no-pager || true
+          supabase logs --service auth --no-pager || true
+
+      - name: Stop Supabase local stack
+        if: always()
+        working-directory: apps/api
+        run: supabase stop --no-backup || true
