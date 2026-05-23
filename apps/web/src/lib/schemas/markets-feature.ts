@@ -113,6 +113,18 @@ export const VerifyResponseSchema = z.object({
   status: MarketAccountStatusSchema,
   lastVerifiedAt: z.string().datetime({ offset: true }),
   correlationId: z.string().uuid(),
+  /**
+   * status='error' / 'expired' / 'revoked' 일 때만 채워짐 (status='active' 시 null).
+   *
+   * UI 가 마켓 결과 카드에 표시할 구체 메시지의 hint. PR #110 의 markets-connect
+   * 에러 세분화 패턴과 정합 — formatMarketError(code, market) 로 한국어 메시지 + prefix.
+   *
+   * 신설 (2026-05-23): 기존엔 status='error' 만 보여 사용자가 어떤 마켓의 어떤 단계
+   * fail 인지 알 수 없었음.
+   */
+  errorCode: z.string().optional(),
+  errorMessage: z.string().optional(),
+  errorMarket: z.string().optional(),
 })
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>
 

@@ -136,6 +136,9 @@ export default Deno.serve(
           status: 'expired' as AccountStatus,
           lastVerifiedAt: new Date().toISOString(),
           correlationId,
+          errorCode: 'credential_inactive',
+          errorMessage: '자격증명이 만료되었습니다. 재연결해 주세요.',
+          errorMarket: marketId,
         },
         { correlationId },
       )
@@ -172,6 +175,9 @@ export default Deno.serve(
           status: 'error' as AccountStatus,
           lastVerifiedAt: nowIso,
           correlationId,
+          errorCode: 'adapter_unavailable',
+          errorMessage: reason,
+          errorMarket: marketId,
         },
         { correlationId },
       )
@@ -247,6 +253,10 @@ export default Deno.serve(
                   status: 'revoked' as AccountStatus,
                   lastVerifiedAt: new Date().toISOString(),
                   correlationId,
+                  errorCode: reason,
+                  errorMessage:
+                    refreshErr instanceof Error ? refreshErr.message : 'token refresh failed',
+                  errorMarket: marketId,
                 },
                 { correlationId },
               )
@@ -261,6 +271,9 @@ export default Deno.serve(
             status: 'revoked' as AccountStatus,
             lastVerifiedAt: new Date().toISOString(),
             correlationId,
+            errorCode: e.code,
+            errorMessage: e.message,
+            errorMarket: marketId,
           },
           { correlationId },
         )
@@ -299,6 +312,9 @@ export default Deno.serve(
           status: 'error' as AccountStatus,
           lastVerifiedAt: nowIso,
           correlationId,
+          errorCode: reason,
+          errorMessage: e instanceof MarketError ? e.message : 'verify failed',
+          errorMarket: marketId,
         },
         { correlationId },
       )
