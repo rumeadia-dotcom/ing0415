@@ -79,7 +79,7 @@ begin
 end$$;
 
 -- 상품 1건 (registration_jobs.product_id FK)
-insert into public.products (id, seller_id, title, status)
+insert into public.products (id, seller_id, name, status)
 values (
   '00000000-0000-0000-0000-0000000000aa'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid,
