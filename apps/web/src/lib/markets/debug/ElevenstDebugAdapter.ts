@@ -15,45 +15,47 @@ import type {
 } from '@/lib/schemas'
 
 /**
- * 11번가 debug 어댑터 — 11번가는 v1 미사용 (오픈 준비중) (인터페이스 호환 stub).
+ * 11번가 debug 어댑터 — Phase 4-B-2 Wave 2 본격 구현 대기 중 stub (2026-05-23 갱신).
  * 마스터: docs/architecture/v1/cross-cutting/market-adapter.md §9
  *
- * 11번가는 API Key + IP 화이트리스트 정책. Supabase Edge Function 의 outbound IP 가
- * 동적이라 IP 화이트리스트 등록 경로 미해결 → 호출 불가. v2 이관 (2026-05-19 결정).
+ * 2026-05-22 5마켓 정식 결정. Lightsail Gateway 고정 IP 도입으로 IP 화이트리스트
+ * 정책 해결. 다만 11번가 Open API 정식 spec / endpoint / 응답 schema 확보가
+ * 별도 작업 (Phase 4-B-2 Wave 2 후속 PR) — 본 stub 은 그 작업 전까지 5메서드
+ * 인터페이스 호환만 보존.
  *
- * v1 운영 경로에서는 UI 가 disabled 라 호출 자체가 차단되지만, 어댑터 인터페이스 호환
- * 보존을 위해 본 파일 유지. credentialKind = 'api_key'. 5개 메서드 모두 즉시 throw.
+ * 서버 측: apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts (PR #111).
+ * credentialKind = 'api_key'. 5개 메서드 모두 즉시 throw.
  */
 
 const MARKET = '11st' as const
-const NOT_IN_V1 =
-  '11번가는 v1 미사용 (오픈 준비중) — v2 IP 화이트리스트 정책 해결 후'
+const STUB_MESSAGE =
+  '11번가 어댑터 stub — 정식 API spec 확보 후 별도 PR (Phase 4-B-2 Wave 2) 에서 본격 구현 예정'
 
 export const elevenstDebugAdapter: MarketAdapter = {
   market: MARKET,
   credentialKind: 'api_key',
   authenticate(_input: AuthInput): Promise<StoredCredential> {
-    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
   },
   fetchCategoryTree(): Promise<CategoryNode[]> {
-    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
   },
   transformProduct(_product: Product, _mapping: MarketMapping): MarketPayload {
-    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
   },
   createProduct(_payload: MarketPayload): Promise<CreateProductResult> {
-    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
   },
   fetchOrders(
     _input: FetchOrdersInput,
     _credential?: StoredCredential,
   ): Promise<MarketOrder[]> {
-    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
   },
   submitTracking(
     _input: SubmitTrackingInput,
     _credential?: StoredCredential,
   ): Promise<MarketSubmitTrackingResult> {
-    throw new MarketError('validation', NOT_IN_V1, { market: MARKET })
+    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
   },
 }

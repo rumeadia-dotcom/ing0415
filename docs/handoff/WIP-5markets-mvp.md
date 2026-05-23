@@ -1,9 +1,10 @@
 # MarketCast — WIP 핸드오프 (2026-05-23)
 
-**develop HEAD**: backmerge 진행 중 (chore/backmerge-v0.9-and-wip 머지 후 main HEAD 와 동일)
-**main HEAD**: `e6d0c4d` — chore(rule): 운영 사고 진단 룰 추가 (#108)
-**활성 PR (develop base)**: 본 백머지 PR + dependabot
+**develop HEAD**: `71748ca` (loop 사이클 1 client mirror drift fix) — 추가 사이클 진행 중
+**main HEAD**: `e6d0c4d` — chore(rule): 운영 사고 진단 룰 추가 (#108) — release 보류 (사용자 지시)
+**활성 PR (develop base)**: dependabot
 **최근 운영 배포**: v0.9 (Market Gateway 도입 + Phase 4-A 어댑터 게이트웨이 경유)
+**테스트**: 832 passed / 26 todo
 
 ## 2026-05-23 세션 요약 (Phase 4-A 운영 검증)
 
