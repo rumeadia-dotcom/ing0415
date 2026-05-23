@@ -99,6 +99,15 @@ export default Deno.serve(
       .in('status', ['active', 'expired'])
       .maybeSingle()
     if (dupErr) {
+      logger.error(
+        {
+          pgMessage: dupErr.message,
+          pgCode: dupErr.code,
+          pgDetails: dupErr.details,
+          pgHint: dupErr.hint,
+        },
+        'duplicate check pg error',
+      )
       throw HttpErrors.internal('internal', 'duplicate check failed')
     }
     if (existing) {
