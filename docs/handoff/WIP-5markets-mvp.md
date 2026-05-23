@@ -1,8 +1,36 @@
-# MarketCast — WIP 핸드오프 (2026-05-22)
+# MarketCast — WIP 핸드오프 (2026-05-23)
 
-**develop HEAD**: `4517cd0` — 768 passed / 26 todo / 0 failed
-**main HEAD**: `618446c` — release/v0.6 운영 배포 완료 (2026-05-22T04:44)
-**활성 PR (develop base)**: dependabot 7건
+**develop HEAD**: backmerge 진행 중 (chore/backmerge-v0.9-and-wip 머지 후 main HEAD 와 동일)
+**main HEAD**: `e6d0c4d` — chore(rule): 운영 사고 진단 룰 추가 (#108)
+**활성 PR (develop base)**: 본 백머지 PR + dependabot
+**최근 운영 배포**: v0.9 (Market Gateway 도입 + Phase 4-A 어댑터 게이트웨이 경유)
+
+## 2026-05-23 세션 요약 (Phase 4-A 운영 검증)
+
+릴리즈 / 핫픽스 12개 머지 — 게이트웨이 인프라 운영 검증 완료.
+
+| PR | 내용 | 카테고리 |
+|---|---|---|
+| #90 / #91 / #95 | Market Gateway Phase 1~2 통합 + release/v0.8 | release |
+| #93 | hotfix v0.8.1 — Supabase project_ref 시크릿 네이밍 통일 | hotfix |
+| #96 / #97 | Phase 4-A — 쿠팡·ESM 어댑터 gatewayFetch() 전환 + release/v0.9 | release |
+| #98 v0.9.1 | MARKET_GATEWAY_BASE_URL 정합 + 운영 env 셋업 가이드 | hotfix |
+| #99 v0.9.2 | markets-connect 클라이언트↔서버 zod 스키마 정합 | hotfix |
+| #100 v0.9.3 | markets-connect duplicate check PG 에러 로그 추가 (진단) | hotfix |
+| #101 v0.9.4 | service_role 테이블·시퀀스 GRANT 마이그레이션 | hotfix |
+| #102 v0.9.5 | audit_log.category 'markets' 허용 + service_role 함수 EXECUTE | hotfix |
+| #103 | docs 정정 — IP 화이트리스트 5마켓 공통 | docs |
+| #104 v0.9.6 | 게이트웨이 GET/HEAD body TypeError fix | hotfix |
+| #105 v0.9.7 | markets-connect 에러 세분화 + UI 마켓명·단계 prefix | hotfix |
+| #106 v0.9.8 | HttpErrors.internal 의 details 인자 누락 fix | hotfix |
+| #107 v0.9.9 | invokeEdge error.context.body ReadableStream parse fix | hotfix |
+| #108 | chore(rule) — 운영 사고 진단 chain 전체 점검 룰 | chore |
+
+운영 검증 결과:
+- ✅ 어댑터 → gatewayFetch() → 게이트웨이 (HMAC + 화이트리스트) → 마켓 API 전 구간 정상 동작
+- ✅ 게이트웨이 로그에 G마켓 트래픽 도달 확인 (`→ proxy request market=gmarket target=sa.esmplus.com`)
+- ⚠️ ESM `/api/v1/category` 가 404 — 어댑터 endpoint 정확도 검증 필요 (Phase 4-B 영역)
+- ⚠️ 사용자 임의 키 + IP 미등록 상태라 마켓 응답 모두 거부. 정식 운영은 5마켓 셀러 콘솔 IP 등록 + 정식 키 발급 선행
 
 ## 스택 한눈에
 
@@ -152,6 +180,18 @@ mock으로 fixtures shape을 zod schema 기반으로 만들었으나, 실제 RPC
 | §4.2.1 / §4.2.3 / §4.4.2 | 오류 통계 + 차트 | 미진입 — 라이브러리 미선정 |
 | §5.4.1 | 이미지 WebP + 변형본 | 미진입 |
 
+### 🟠 Phase 4 잔여 (2026-05-23 추가)
+
+| 항목 | 진행 |
+|---|---|
+| **Phase 4-A 운영 검증** — 어댑터 → 게이트웨이 → 마켓 흐름 | ✅ 완료 (2026-05-23). 게이트웨이 트래픽 도달 확인 |
+| **Phase 4-B-1 — 네이버 스마트스토어 어댑터 보강** | 미진입. 현재 `naver.ts` stub. OAuth code 흐름 + 카테고리 + 상품 등록 |
+| **Phase 4-B-2 — 11번가 어댑터 신규** | 미진입. 현재 어댑터 파일 자체 없음. API Key 인증 |
+| **ESM endpoint 정확도** | `/api/v1/category` 가 404 — 실 ESM 문서 기반 path 검증 필요 (Phase 4-B 일부) |
+| **5마켓 IP 화이트리스트 등록 + 정식 키 발급** | 셀러 액션. `docs/handoff/lightsail-setup-guide.md §7` 참조 |
+| **markets-connect 외 다른 markets-* 함수 에러 세분화** | hotfix v0.9.7 패턴을 oauth-callback / verify / disconnect 에도 확장 (각 ~15분) |
+| **`<ErrorMessage>` 펼치기/접기 + correlationId copy 버튼** | UI 작업 (CLAUDE.md 룰) |
+
 ---
 
 ## 후속 정합 백로그 (architecture v1 drift)
@@ -183,12 +223,14 @@ mock으로 fixtures shape을 zod schema 기반으로 만들었으나, 실제 RPC
 git fetch origin && git checkout develop && git pull && pnpm install && pnpm test
 ```
 
-**768 passed** 확인 후 진입.
+**811 passed** (2026-05-23 기준) 확인 후 진입.
 
-### 우선 순위
-1. **설계문서 sweep** — `design-renewal/s3-register.md` / `s9-settings.md` + `docs/architecture/v1/features/registration.md` + `settings-shipping.md` v0.6 기능 반영
-2. **phase 2: dev DB seed** — `apps/api/supabase/seed.sql` 작성 → `pnpm dev:db` 투어
-3. **PR3 알림 도메인 진입** — `s10-notifications.md` 신설 + in-app/email 알림 구현
+### 우선 순위 (2026-05-23 갱신)
+1. **Phase 4-B-1 — 네이버 스마트스토어 어댑터 보강** (현재 stub). OAuth code 흐름 + 카테고리 + 상품 등록 어댑터 + 단위 테스트 + ESM endpoint 정확도 검증 같이.
+2. **5마켓 IP 화이트리스트 등록 + 정식 키 발급** (셀러 액션, 검토 대기 시간 길음 — 병행 진행 권장)
+3. **markets-connect 외 다른 markets-* 함수 에러 세분화** — v0.9.7 패턴을 oauth-callback / verify / disconnect 에도 확장
+4. **Phase 4-B-2 — 11번가 어댑터 신규**
+5. **이전 우선순위 (보존)** — 설계문서 sweep / dev DB seed / 알림 도메인 (PR3)
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
 - 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 분기 금지.
