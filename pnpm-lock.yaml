@@ -147,6 +147,9 @@ importers:
       globals:
         specifier: ^15.12.0
         version: 15.15.0
+      isomorphic-dompurify:
+        specifier: 2.20.0
+        version: 2.20.0
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -2187,6 +2190,10 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  isomorphic-dompurify@2.20.0:
+    resolution: {integrity: sha512-zOq12fJPtNE+4dPd2S0xpWXl8NZj0C6k2xikT1yl/Lv/5p3QLafZqlVFy4xTGU9qHSkyEENcIbp2c0oahCNRYg==}
+    engines: {node: '>=18'}
+
   iterator.prototype@1.1.5:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
     engines: {node: '>= 0.4'}
@@ -2207,6 +2214,15 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       canvas: ^2.11.2
+    peerDependenciesMeta:
+      canvas:
+        optional: true
+
+  jsdom@26.1.0:
+    resolution: {integrity: sha512-Cvc9WUhxSMEo4McES3P7oK3QaXldCfNWp7pl2NNeiIFlCoLr3kfq9kb1fxftiwk1FLV7CvpvDfonxtzUDeSOPg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      canvas: ^3.0.0
     peerDependenciesMeta:
       canvas:
         optional: true
@@ -5251,6 +5267,16 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isomorphic-dompurify@2.20.0:
+    dependencies:
+      dompurify: 3.4.5
+      jsdom: 26.1.0
+    transitivePeerDependencies:
+      - bufferutil
+      - canvas
+      - supports-color
+      - utf-8-validate
+
   iterator.prototype@1.1.5:
     dependencies:
       define-data-property: 1.1.4
@@ -5281,6 +5307,33 @@ snapshots:
       nwsapi: 2.2.23
       parse5: 7.3.0
       rrweb-cssom: 0.7.1
+      saxes: 6.0.0
+      symbol-tree: 3.2.4
+      tough-cookie: 5.1.2
+      w3c-xmlserializer: 5.0.0
+      webidl-conversions: 7.0.0
+      whatwg-encoding: 3.1.1
+      whatwg-mimetype: 4.0.0
+      whatwg-url: 14.2.0
+      ws: 8.20.1
+      xml-name-validator: 5.0.0
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
+  jsdom@26.1.0:
+    dependencies:
+      cssstyle: 4.6.0
+      data-urls: 5.0.0
+      decimal.js: 10.6.0
+      html-encoding-sniffer: 4.0.0
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
+      is-potential-custom-element-name: 1.0.1
+      nwsapi: 2.2.23
+      parse5: 7.3.0
+      rrweb-cssom: 0.8.0
       saxes: 6.0.0
       symbol-tree: 3.2.4
       tough-cookie: 5.1.2
