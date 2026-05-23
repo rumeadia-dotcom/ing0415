@@ -171,9 +171,18 @@ const LogenVerifyResponse = z.object({
 ### 5.3 n60 `/settings/shipping/sender`
 
 - 폼: 발송인명 / 발송지 주소 / 연락처 / fareTy / dlvFare.
-- 주소: 카카오 우편번호 API 또는 직접 입력 (v1 register step 4 의 컴포넌트 재사용 검토 — frontend.md 참조).
+- 주소: **v0.6 부터 Daum Postcode API 연동** (`AddressSearchInput` 공통 컴포넌트 + `apps/web/src/lib/daum-postcode.ts` SDK 동적 로드). 수기 입력 제거 — 셀러는 주소 검색만 가능.
 - fareTy: enum select ('C' = 착불, 'S' = 선불 등 — 운영값은 OQ-V2-04 해결 후 확정).
 - 저장: 일반 UPDATE (암호화 컬럼 아님, RLS 로 본인만).
+
+### 5.4 `/settings/policies` (v0.6 신규 — 배송 정책 관리)
+
+- **목적**: 셀러가 자주 사용하는 배송 정책 (이름·요금·배송 방식·예상 일수·기본값) 을 미리 만들어두고, 상품 등록 (s3 Step 1) 에서 `shippingPolicyId` 로 select.
+- **PRD 근거**: §1.1.4 (기본 배송 정보 입력) 의 진화 — 단일 입력 → 정책 풀 + 기본값.
+- **데이터**: `shipping_policies` 테이블 (`apps/api/supabase/migrations/`). zod `ShippingPolicyFormSchema` (`apps/web/src/lib/schemas/shipping-policy.ts`).
+- **hook**: `useShippingPolicies` / `useUpdateShippingPolicy` / `useDeleteShippingPolicy`.
+- **UI**: 4상태 (loading / data / error / empty) + 신규/수정/삭제/기본값 토글 Dialog.
+- **권한**: 본인 정책만 (RLS — `seller_id = auth.uid()`).
 
 ---
 

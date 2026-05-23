@@ -43,9 +43,9 @@
 | 1.4.1 | 등록 결과 상세 내역 | Step 5 (`JobMarketResultRow` 마켓별 카드) |
 | 1.4.2 | 등록 결과 CSV/Excel 내보내기 | Step 5 (s6 이력 화면과 공유 — 본 도메인은 진입 링크만) |
 | 1.4.3 | 등록 성공/실패 알림 설정 | 횡단 알림 도메인 (본 화면은 발생 트리거만) |
-| 3.6.1 | HTML 상세 WYSIWYG 에디터 | Step 1 의 `descriptionHtml` (v1 = plain textarea, v2 = WYSIWYG) |
-| 3.6.2 | HTML 상세 코드 유효성·XSS 검사 | 서버 sanitize (Edge Function) |
-| 3.6.3 | HTML 상세 미리보기 | Step 4 미리보기 카드에 포함 |
+| 3.6.1 | HTML 상세 WYSIWYG 에디터 | Step 1 의 `descriptionHtml` — **v0.6 부터 Tiptap WYSIWYG** (StarterKit + Link + Image + Placeholder), `RichTextEditor` 공통 컴포넌트 |
+| 3.6.2 | HTML 상세 코드 유효성·XSS 검사 | **클라이언트 DOMPurify sanitize** (`sanitizeHtml()` — `apps/web/src/lib/sanitize-html.ts`) + 서버 추가 검증 |
+| 3.6.3 | HTML 상세 미리보기 | Step 4 미리보기 카드에 포함 (sanitize 결과 그대로 렌더) |
 
 ### 1.4 user_flow s3 노드 매핑
 
@@ -97,7 +97,7 @@
 | `originalPrice` | number int \| null | ≥ 0, **≥ price** (`refine`) | 할인율 표시용. 선택 |
 | `brand` | string \| null | ≤ 50자 | 일부 카테고리 (의류/뷰티) 에서 마켓이 필수로 요구 → Step 4 경고 |
 | `manufacturer` | string \| null | ≤ 50자 | 동상 |
-| `descriptionHtml` | string \| null | ≤ 50000자 | v1 plain textarea, v2 WYSIWYG |
+| `descriptionHtml` | string \| null | ≤ 50000자 | **v0.6 부터 Tiptap WYSIWYG** (StarterKit + Link + Image + Placeholder) + DOMPurify sanitize |
 | `baseCategoryId` | string | required | 내부 분류 키 (마켓 카테고리는 Step 3 에서 별도 매핑) |
 | `shippingPolicyId` | string uuid | required | `useShippingPolicies` select. 0개면 빠른 생성 안내 (별도 페이지) |
 
@@ -553,9 +553,9 @@ stateDiagram-v2
 
 ### 8.3 HTML 상세 에디터 (Step 1 `descriptionHtml`)
 
-- v1: plain textarea (50000자 한도).
-- v2: WYSIWYG 에디터 (§3.6.1).
-- **리뉴얼 시 결정 필요**: 에디터 라이브러리 (TipTap / Lexical / Slate / ProseMirror) — 디자이너가 UI 패널 (툴바·이미지 인서트·미리보기 토글) 명세를 잡아야 개발이 라이브러리 매핑.
+- **v0.6 (현재)**: Tiptap WYSIWYG (StarterKit + Link + Image + Placeholder). 50000자 한도. `RichTextEditor` 공통 컴포넌트 (`apps/web/src/components/ui/rich-text-editor.tsx`). DOMPurify sanitize (`sanitizeHtml()`) 로 XSS 차단.
+- **리뉴얼 시 가능 보강**: 툴바 커스터마이즈, 이미지 인서트 UX 개선 (현재 url 입력만 → drag&drop / Storage 업로드 연동), 마켓별 변환 미리보기 (이미지·HTML 깨짐 표시).
+- 에디터 라이브러리 결정 마무리됨 (Tiptap) — 리뉴얼은 UX 보강만.
 
 ### 8.4 카테고리 트리 검색 (Step 3 `CategoryMappingCard`)
 

@@ -70,10 +70,9 @@
   - 토큰 복호화 (`market_credentials.decrypt_token` RPC) → `cross-cutting/credential-vault.md`.
   - 마켓 OAuth 연결 / 해제 / `market_accounts` 상태 → `features/markets.md`.
   - 템플릿 불러오기 (n22) → **v2 (s4 템플릿 도메인)** 로 보류.
-  - HTML WYSIWYG 상세 에디터 (§3.6) → v2.
 - **MVP 우선**:
-  - 마켓: naver / coupang 만 실 등록 (`market-adapter.md` 와 동일).
-  - HTML 상세설명은 v1 에서 **plain HTML textarea + 미리보기** 만 (WYSIWYG 없이). XSS 는 등록 시점 DOMPurify (server-side 동등 검증은 §13 참조).
+  - 마켓: 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부 (2026-05-22 5마켓 정식 결정, `market-adapter.md` §0 갱신분과 정합).
+  - HTML 상세설명 **v0.6 부터 Tiptap WYSIWYG** (StarterKit + Link + Image + Placeholder) + 클라이언트 DOMPurify sanitize + 서버 추가 검증 (§13.5).
 
 ### 1.3 user_flow s3 노드 매핑
 
@@ -1029,11 +1028,14 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
 │  배송정책 *         [ 기본 배송정책 (택배 / 3000원 / 2일)    ▼ ]  [+ 새 정책]      │
 │                                                                                     │
 │  상세설명 (HTML)    ┌─────────────────────────────────────────────────────────┐    │
-│                     │  <p>여기에 HTML 입력. WYSIWYG 는 v2 에서 도입.</p>     │    │
+│                     │  Tiptap WYSIWYG 에디터 (v0.6 ~)                         │    │
+│                     │  [B] [I] [Link] [Img] | 본문 영역                       │    │
+│                     │  ─────────────────────────────────────────────────────  │    │
+│                     │  <p>여기에 HTML 입력. WYSIWYG 적용됨.</p>              │    │
 │                     │                                                         │    │
-│                     │  (textarea + 우측 [ 미리보기 ] 토글)                   │    │
+│                     │  (RichTextEditor + 우측 [ 미리보기 ] 토글)             │    │
 │                     └─────────────────────────────────────────────────────────┘    │
-│                     ⓘ 50,000자 이내, 외부 스크립트/iframe 자동 제거됩니다.        │
+│                     ⓘ 50,000자 이내, DOMPurify 로 외부 스크립트/iframe 자동 제거.   │
 │                                                                                     │
 │                                                              [ 다음 → ]            │
 └─────────────────────────────────────────────────────────────────────────────────────┘
