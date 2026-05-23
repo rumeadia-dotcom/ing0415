@@ -1,4 +1,3 @@
-import { useMock } from '@/lib/env'
 import type { MarketId } from '@/lib/schemas'
 import type { MarketAdapter } from './types'
 
@@ -17,10 +16,17 @@ import type { MarketAdapter } from './types'
  *     시나리오 등에서 직접 호출 시 명확한 에러로 throw.
  *
  * `authenticate` 의 input 은 4-way AuthInput discriminated union — 마켓별 kind 분기.
- * 본 함수 외 위치에서 `useMock` 로 어댑터 본체를 분기하는 패턴은 PR 차단.
+ *
+ * **빌드 타임 분기 강제 (loop 사이클 2, 2026-05-23)**:
+ *   `if (import.meta.env.VITE_USE_MOCK === 'true')` 패턴 사용 — vite 가 빌드 시점에
+ *   env 값을 inline 후 minifier 가 dead branch elimination. real 빌드의 dist 에
+ *   mock 어댑터 chunk 가 포함되지 않도록 보장.
+ *   - env.ts 의 `useMock` runtime 변수는 다른 위치 (가드 / 로깅) 에서만 사용.
+ *   - 본 함수 외 위치에서 `useMock` / `import.meta.env.VITE_USE_MOCK` 로 어댑터
+ *     본체를 분기하는 패턴은 PR 차단.
  */
 export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter> {
-  if (useMock) {
+  if (import.meta.env.VITE_USE_MOCK === 'true') {
     switch (market) {
       case 'naver': {
         const { naverDebugAdapter } = await import('./debug/NaverDebugAdapter')
