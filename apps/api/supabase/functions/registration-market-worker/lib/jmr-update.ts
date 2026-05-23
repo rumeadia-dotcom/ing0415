@@ -123,11 +123,26 @@ export async function recomputeJobStatus(
   )
   if (hasNonFinal) {
     // pending → running 만 전이. running/retrying 은 유지.
-    await service
+    // state.md §4: 합법 전이는 fn_registration_job_transition 단일 source of truth.
+    // 현재 상태가 pending 이 아니면 race (worker 동시 invoke) — 무시 (정상).
+    const { data: jobRow } = await service
       .from('registration_jobs')
-      .update({ status: 'running', started_at: new Date().toISOString() })
+      .select('status')
       .eq('id', jobId)
-      .in('status', ['pending'])
+      .maybeSingle()
+    if (jobRow && (jobRow as { status?: string }).status === 'pending') {
+      const { error: transitionErr } = await service.rpc(
+        'fn_registration_job_transition',
+        { p_job_id: jobId, p_to_status: 'running', p_actor: 'system' },
+      )
+      if (transitionErr) {
+        // race 또는 illegal_transition — 다른 worker 가 이미 전이시켰을 가능성.
+        logger.warn(
+          { jobId, code: transitionErr.code ?? 'unknown', msg: transitionErr.message },
+          '← job transition pending→running skipped',
+        )
+      }
+    }
     return
   }
 
@@ -139,9 +154,27 @@ export async function recomputeJobStatus(
   else if (failedFinalCount === active.length) next = 'failed'
   else next = 'partial'
 
-  await service
+  // 종결 전이도 fn_registration_job_transition 경유. 단, 현재 상태가 이미 terminal 이면 raise.
+  // running / retrying 에서만 종결로 갈 수 있음 (state.md §4).
+  const { data: jobRow } = await service
     .from('registration_jobs')
-    .update({ status: next, completed_at: new Date().toISOString() })
+    .select('status')
     .eq('id', jobId)
-    .in('status', ['running', 'retrying', 'pending'])
+    .maybeSingle()
+  const currentStatus = jobRow && (jobRow as { status?: string }).status
+  if (currentStatus !== 'running' && currentStatus !== 'retrying') {
+    // pending 또는 이미 terminal. recompute 호출 시점 race — 정상으로 무시.
+    logger.warn({ jobId, currentStatus }, '← terminal transition skipped (not in running/retrying)')
+    return
+  }
+  const { error: transitionErr } = await service.rpc(
+    'fn_registration_job_transition',
+    { p_job_id: jobId, p_to_status: next, p_actor: 'system' },
+  )
+  if (transitionErr) {
+    logger.error(
+      { jobId, to: next, code: transitionErr.code ?? 'unknown', msg: transitionErr.message },
+      '← job terminal transition failed',
+    )
+  }
 }
