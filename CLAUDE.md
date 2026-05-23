@@ -187,7 +187,8 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - **s5 마켓 계정** — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부** (real 어댑터까지 동작). 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전, 고정 IP)** 경유 (`docs/architecture/v1/cross-cutting/market-gateway.md`). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
   - PRD §2.2.1 OAuth 인증 플로우, §2.2.2 API 연결 상태 실시간 표시, §2.2.3 OAuth 토큰 갱신 자동화, §2.3.1 연결 계정 목록 조회, §2.3.2 마켓 계정 추가/수정/삭제, §2.3.3 연결 상태 실시간 표시.
   - 자격증명 보안: §2.4.1 정기 보안 감사, §2.4.2 인증 정보 백업/복구.
-  - 근거: 5개 마켓 모두 v1 출시 가능. 11번가 IP 화이트리스트 정책은 Lightsail 인스턴스 고정 IP 등록으로 해소 (2026-05-22 결정, O-9 종결).
+  - **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 셀러의 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 Lightsail Gateway 의 고정 IP (`43.201.83.78`) 를 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리 / 11번가 셀러오피스 모두에 등록 후 키 발급. 미등록 시 키 발급 자체가 거부되거나 API 호출 시 거부 (`docs/handoff/lightsail-setup-guide.md §7` / `§A.8`).
+  - 근거: 5개 마켓 모두 v1 출시 가능. **5개 마켓 모두 IP 화이트리스트 정책이 있음** (이전에 11번가만 있다고 잘못 기재) — Lightsail 인스턴스 고정 IP 1개를 모든 마켓 셀러 콘솔에 등록하는 방식으로 일괄 해소 (2026-05-22 결정 / 2026-05-23 정정, O-9 종결).
 
 - **s6 등록 이력** — 목록 + 기본 필터 + 재시도/마켓 제외 후 등록.
   - PRD §4.3.1 오류 수정 후 즉시 재시도, §4.3.2 오류 마켓 제외 후 나머지 일괄 등록, §4.4.1 등록 이력 상세 검색 (다중 조건), §4.4.2 오류 유형별 통계 (마켓별·기간별 성공률 차트), §4.4.3 등록 이력 CSV/Excel 내보내기.
@@ -315,6 +316,23 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 
 - 새 파일이나 디렉토리를 만들 때, `.gitignore` 에 추가해야 하는지 검토하고 필요 시 제안한다.
 - 임시 파일, 빌드 산출물(`dist/`, `.turbo/`), 환경 변수(`.env*`), Supabase 로컬 캐시(`supabase/.branches/`, `supabase/.temp/`), Sentry sourcemap 업로드 후 잔여물, OS 산출물(`.DS_Store`) 등이 의도치 않게 커밋되는 것을 방지.
+
+### 운영 사고 진단 — 한 번에 chain 전체 점검 (2026-05-23 추가)
+
+운영 fail (UI 가 generic 에러로 보임 / Edge Function 5xx / 마켓 API 거부 등) 진단 시 **한 단계씩 점진 진단 금지**. 사용자에게 같은 시나리오 (자격증명 등록·로그 캡처·SQL 실행 등) 를 5번 이상 반복시키는 것은 실패한 진단이다.
+
+**진단 착수 시 다음 chain 을 한 번에 grep + Read 로 훑은 후 추정 가능한 가설 목록부터 제시**:
+
+1. **서버 throw 지점** — Edge Function 의 `HttpErrors.*` / `MarketError` 호출처 + 인자 시그니처
+2. **응답 직렬화** — `_shared/http.ts:err()` / `_shared/errors.ts:HttpErrors.*` 가 details / 추가 필드 보존하는지
+3. **클라이언트 응답 parse** — `invokeEdge` 의 `error.context.body` 형태 (Supabase JS v2 는 ReadableStream — `.clone().json()` 필요)
+4. **클라이언트 schema** — 신규 필드 / optional / `passthrough()` 처리되어 있는지
+5. **UI 매핑 / 메시지 표** — 신규 code 가 매핑 표에 등록되어 있는지
+6. **운영 DB / 인프라** — RLS / GRANT / 마이그레이션 적용 여부 / 환경변수 / IP 화이트리스트
+
+진단 시작 시 사용자에게 묶음 명령 (여러 가설을 동시에 검증할 SQL / 로그 쿼리 / DevTools 한 줄 / 게이트웨이 journalctl) 을 한 번에 전달하고, 사용자가 1~2회 재시도로 결과 전체를 보내도록 한다.
+
+**근거**: 2026-05-23 markets-connect 운영 검증에서 위 chain 의 5개 단계 — PG GRANT / audit category constraint / `HttpErrors.internal` 시그니처 누락 / `error.context.body` ReadableStream parse / 가이드 IP 화이트리스트 정정 — 의 버그가 동시에 잠재했으나 한 단계씩 진단하여 hotfix 8개 (v0.9.1 ~ v0.9.9) 로 쪼개졌고 사용자가 같은 자격증명 등록을 7회 반복함.
 
 ## Design Documents
 

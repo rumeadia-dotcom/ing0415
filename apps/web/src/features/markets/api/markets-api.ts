@@ -40,13 +40,20 @@ import {
 export class MarketApiInvocationError extends Error {
   readonly code: string
   readonly correlationId: string | null
+  readonly details: MarketApiError['details']
   readonly raw: unknown
 
-  constructor(payload: MarketApiError | { code: string; message: string; correlationId?: string }, raw?: unknown) {
+  constructor(
+    payload:
+      | MarketApiError
+      | { code: string; message: string; correlationId?: string; details?: MarketApiError['details'] },
+    raw?: unknown,
+  ) {
     super(payload.message)
     this.name = 'MarketApiInvocationError'
     this.code = payload.code
     this.correlationId = 'correlationId' in payload ? (payload.correlationId ?? null) : null
+    this.details = 'details' in payload ? payload.details : undefined
     this.raw = raw
   }
 
@@ -55,6 +62,7 @@ export class MarketApiInvocationError extends Error {
       code: this.code,
       message: this.message,
       correlationId: this.correlationId ?? crypto.randomUUID(),
+      details: this.details,
     }
   }
 }
@@ -74,7 +82,19 @@ async function invokeEdge<TReq, TRes>({ fn, request, requestSchema, responseSche
 
   if (error) {
     logger.warn({ fn, err: error.message }, '← market edge function error')
-    const parsed = MarketApiErrorSchema.safeParse((error as { context?: { body?: unknown } }).context?.body ?? data)
+    // Supabase JS v2 의 FunctionsHttpError 는 error.context 에 fetch Response 를 담는다.
+    // error.context.body 는 ReadableStream 이라 직접 parse 불가 — response.json() 을 await 해야 함.
+    // 이전엔 stream 그대로 schema.safeParse → 실패 → 'internal' fallback → UI 가 항상 "알 수 없는 오류" 표시.
+    let errorBody: unknown = data
+    const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.clone === 'function' && typeof ctx.json === 'function') {
+      try {
+        errorBody = await ctx.clone().json()
+      } catch {
+        // body 가 JSON 이 아닐 수 있음 — data 폴백 유지
+      }
+    }
+    const parsed = MarketApiErrorSchema.safeParse(errorBody)
     if (parsed.success) {
       throw new MarketApiInvocationError(parsed.data, error)
     }

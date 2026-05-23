@@ -85,6 +85,9 @@ export const HttpErrors = {
     new HttpError(409, code, message, details),
   rateLimit: (retryAfterMs?: number) =>
     new HttpError(429, 'rate_limit', 'too many requests', { retryAfterMs }),
-  internal: (code = 'internal', message = 'internal server error') =>
-    new HttpError(500, code, message),
+  internal: (
+    code = 'internal',
+    message = 'internal server error',
+    details?: Record<string, unknown>,
+  ) => new HttpError(500, code, message, details),
 }

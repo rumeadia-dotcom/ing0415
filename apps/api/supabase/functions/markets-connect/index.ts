@@ -99,6 +99,15 @@ export default Deno.serve(
       .in('status', ['active', 'expired'])
       .maybeSingle()
     if (dupErr) {
+      logger.error(
+        {
+          pgMessage: dupErr.message,
+          pgCode: dupErr.code,
+          pgDetails: dupErr.details,
+          pgHint: dupErr.hint,
+        },
+        'duplicate check pg error',
+      )
       throw HttpErrors.internal('internal', 'duplicate check failed')
     }
     if (existing) {
@@ -158,11 +167,21 @@ export default Deno.serve(
     } catch (e) {
       const reason = marketReason(e)
       await auditFail('authenticate', reason)
-      if (reason === 'unauthorized' || reason === 'validation') {
-        throw HttpErrors.badRequest('invalid_credentials', 'market rejected the credentials')
+      const details = { stage: 'authenticate', market, reason }
+      if (reason === 'unauthorized') {
+        throw HttpErrors.badRequest('credentials_unauthorized', 'market rejected credentials', details)
+      }
+      if (reason === 'validation') {
+        throw HttpErrors.badRequest('credentials_invalid', 'credential format invalid', details)
       }
       if (reason === 'rate_limit') throw HttpErrors.rateLimit()
-      throw HttpErrors.internal('market_unavailable', 'market currently unavailable')
+      if (reason === 'network') {
+        throw HttpErrors.internal('market_network', 'market network error', details)
+      }
+      if (reason === 'server') {
+        throw HttpErrors.internal('market_server', 'market server error', details)
+      }
+      throw HttpErrors.internal('market_unavailable', `auth failed (${reason})`, details)
     }
     const credentialKind: MarketCredentialKind = stored.kind
 
@@ -176,8 +195,21 @@ export default Deno.serve(
     } catch (e) {
       const reason = marketReason(e)
       await auditFail('category_ping', reason)
+      const details = { stage: 'category_ping', market, reason }
       if (reason === 'rate_limit') throw HttpErrors.rateLimit()
-      throw HttpErrors.internal('market_unavailable', 'category ping failed')
+      if (reason === 'unauthorized') {
+        throw HttpErrors.badRequest('credentials_unauthorized', 'market rejected credentials', details)
+      }
+      if (reason === 'validation') {
+        throw HttpErrors.internal('category_ping_failed', 'market returned invalid response', details)
+      }
+      if (reason === 'network') {
+        throw HttpErrors.internal('market_network', 'market network error', details)
+      }
+      if (reason === 'server') {
+        throw HttpErrors.internal('market_server', 'market server error', details)
+      }
+      throw HttpErrors.internal('category_ping_failed', `category ping failed (${reason})`, details)
     }
 
     // 3) storeCredential (jsonb 통합 저장)

@@ -153,25 +153,69 @@ export const EsmJwtConnectFormSchema = z.object({
 })
 export type EsmJwtConnectForm = z.infer<typeof EsmJwtConnectFormSchema>
 
-/** markets-connect Edge Function Request — 폼 두 종을 union 으로 통합. */
-export const ConnectRequestSchema = z.discriminatedUnion('market', [
-  HmacConnectFormSchema,
-  z.object({
-    market: z.literal('gmarket'),
-    accountLabel: z.string().min(1).max(40),
-    masterId: z.string().min(1).max(80),
-    secretKey: z.string().min(1).max(200),
-    sellerId: z.string().min(1).max(80),
-  }),
-  z.object({
-    market: z.literal('auction'),
-    accountLabel: z.string().min(1).max(40),
-    masterId: z.string().min(1).max(80),
-    secretKey: z.string().min(1).max(200),
-    sellerId: z.string().min(1).max(80),
-  }),
-])
+/**
+ * markets-connect Edge Function Request — 서버 (apps/api/supabase/functions/markets-connect/index.ts)
+ * 의 RequestSchema 와 정합. `credentials` 안에 kind 별 union.
+ *
+ * 폼 입력 (HmacConnectForm / EsmJwtConnectForm) → 본 형식 변환은 toConnectRequest() 사용.
+ */
+const HmacKeyCredentialSchema = z.object({
+  kind: z.literal('hmac_key'),
+  accessKey: z.string().min(1),
+  secretKey: z.string().min(1),
+  vendorId: z.string().min(1),
+})
+const EsmJwtCredentialSchema = z.object({
+  kind: z.literal('esm_jwt'),
+  masterId: z.string().min(1),
+  secretKey: z.string().min(1),
+  sellerId: z.string().min(1),
+  site: z.enum(['G', 'A']),
+})
+export const ConnectRequestSchema = z.object({
+  marketId: V1KeyConnectMarketSchema,
+  accountLabel: z.string().min(1).max(40),
+  credentials: z.discriminatedUnion('kind', [
+    HmacKeyCredentialSchema,
+    EsmJwtCredentialSchema,
+  ]),
+})
 export type ConnectRequest = z.infer<typeof ConnectRequestSchema>
+
+/**
+ * 폼 데이터 → markets-connect Edge Function payload.
+ *
+ *  - 쿠팡: HmacConnectForm  → credentials.kind = 'hmac_key'
+ *  - G마켓: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'G'
+ *  - 옥션: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'A'
+ */
+export function toConnectRequest(
+  form: HmacConnectForm | EsmJwtConnectForm,
+): ConnectRequest {
+  if (form.market === 'coupang') {
+    return {
+      marketId: 'coupang',
+      accountLabel: form.accountLabel,
+      credentials: {
+        kind: 'hmac_key',
+        accessKey: form.accessKey,
+        secretKey: form.secretKey,
+        vendorId: form.vendorId,
+      },
+    }
+  }
+  return {
+    marketId: form.market,
+    accountLabel: form.accountLabel,
+    credentials: {
+      kind: 'esm_jwt',
+      masterId: form.masterId,
+      secretKey: form.secretKey,
+      sellerId: form.sellerId,
+      site: form.market === 'gmarket' ? 'G' : 'A',
+    },
+  }
+}
 
 export const ConnectResponseSchema = z.object({
   accountId: z.string().uuid(),
@@ -186,9 +230,25 @@ export type ConnectResponse = z.infer<typeof ConnectResponseSchema>
 // ─────────────────────────────────────────────
 // 공통 에러 응답
 // ─────────────────────────────────────────────
+//
+// 서버 (apps/api/.../_shared/http.ts:err) 는 body 에 { code, message, details? }
+// 를 담고 correlationId 는 응답 헤더 (x-correlation-id) 로 전달한다.
+// 따라서 client schema 의 correlationId 는 optional — 클라이언트가 헤더에서
+// 별도로 가져오거나 randomUUID 로 폴백한다 (MarketApiInvocationError).
+//
+// details 는 Edge Function 측에서 stage / market / reason 등 마켓 컨텍스트를
+// 담아 보낸다. UI 가 마켓별 prefix · 단계별 안내 메시지에 사용.
 export const MarketApiErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
-  correlationId: z.string().uuid(),
+  correlationId: z.string().uuid().optional(),
+  details: z
+    .object({
+      stage: z.enum(['authenticate', 'category_ping', 'vault', 'account']).optional(),
+      market: z.string().optional(),
+      reason: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
 })
 export type MarketApiError = z.infer<typeof MarketApiErrorSchema>
