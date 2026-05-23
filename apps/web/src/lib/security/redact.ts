@@ -60,6 +60,13 @@ const REDACT_KEYS: ReadonlySet<string> = new Set([
   'authorization',
   'cookie',
   'set-cookie',
+  // Market Gateway HMAC 헤더 (cross-cutting/market-gateway.md)
+  // x-gw-sig 자체는 HMAC 결과 (재현 불가) 이지만, x-gw-ts 와 함께 노출되면 replay 공격
+  // 표면이 약간 늘어남. 운영 로그 정책상 둘 다 마스킹.
+  'x-gw-sig',
+  'x-gw-ts',
+  'xgwsig',
+  'xgwts',
   // OAuth 콜백 (D-D 회귀 — code 는 10분짜리지만 복원 시 토큰 발급 가능)
   'code',
   'state',
