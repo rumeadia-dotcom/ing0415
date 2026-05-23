@@ -40,6 +40,9 @@ export type MarketErrorCode =
   | 'market_server'
   | 'category_ping_failed'
   | 'invalid_credentials' // legacy (markets-oauth-callback 등 다른 함수 호환)
+  // markets-verify (Edge Function) 응답 code — UI 매핑 누락 (2026-05-24 hotfix)
+  | 'credential_inactive'
+  | 'adapter_unavailable'
 
 /** 시스템 영문 마켓 ID → 한국어 표기. UI prefix 에 사용. */
 const MARKET_LABEL: Record<string, string> = {
@@ -89,6 +92,10 @@ const MESSAGE_MAP: Record<MarketErrorCode, string> = {
     '자격증명은 확인되었지만 카테고리 조회에 실패했습니다. 운영팀에 자동 알림되었습니다.',
   invalid_credentials:
     '자격증명이 거부되었습니다. Access Key / Secret Key 를 다시 확인해 주세요.',
+  credential_inactive:
+    '저장된 자격증명이 비활성 상태입니다. 마켓을 다시 연결해 주세요.',
+  adapter_unavailable:
+    '마켓 어댑터를 초기화하지 못했습니다. 잠시 후 다시 시도해 주세요.',
 }
 
 function toCode(raw: string | undefined): MarketErrorCode {
