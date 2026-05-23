@@ -187,7 +187,8 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - **s5 마켓 계정** — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부** (real 어댑터까지 동작). 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전, 고정 IP)** 경유 (`docs/architecture/v1/cross-cutting/market-gateway.md`). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
   - PRD §2.2.1 OAuth 인증 플로우, §2.2.2 API 연결 상태 실시간 표시, §2.2.3 OAuth 토큰 갱신 자동화, §2.3.1 연결 계정 목록 조회, §2.3.2 마켓 계정 추가/수정/삭제, §2.3.3 연결 상태 실시간 표시.
   - 자격증명 보안: §2.4.1 정기 보안 감사, §2.4.2 인증 정보 백업/복구.
-  - 근거: 5개 마켓 모두 v1 출시 가능. 11번가 IP 화이트리스트 정책은 Lightsail 인스턴스 고정 IP 등록으로 해소 (2026-05-22 결정, O-9 종결).
+  - **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 셀러의 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 Lightsail Gateway 의 고정 IP (`43.201.83.78`) 를 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리 / 11번가 셀러오피스 모두에 등록 후 키 발급. 미등록 시 키 발급 자체가 거부되거나 API 호출 시 거부 (`docs/handoff/lightsail-setup-guide.md §7` / `§A.8`).
+  - 근거: 5개 마켓 모두 v1 출시 가능. **5개 마켓 모두 IP 화이트리스트 정책이 있음** (이전에 11번가만 있다고 잘못 기재) — Lightsail 인스턴스 고정 IP 1개를 모든 마켓 셀러 콘솔에 등록하는 방식으로 일괄 해소 (2026-05-22 결정 / 2026-05-23 정정, O-9 종결).
 
 - **s6 등록 이력** — 목록 + 기본 필터 + 재시도/마켓 제외 후 등록.
   - PRD §4.3.1 오류 수정 후 즉시 재시도, §4.3.2 오류 마켓 제외 후 나머지 일괄 등록, §4.4.1 등록 이력 상세 검색 (다중 조건), §4.4.2 오류 유형별 통계 (마켓별·기간별 성공률 차트), §4.4.3 등록 이력 CSV/Excel 내보내기.

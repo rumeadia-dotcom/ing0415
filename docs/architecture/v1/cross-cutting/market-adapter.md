@@ -16,7 +16,7 @@
 ## 1. 목적 · 범위
 
 - **목적**: 마켓 API 의 변덕(엔드포인트·페이로드·rate limit·인증방식)을 5메서드 인터페이스 1장 뒤에 격리한다.
-- **범위 (2026-05-22 v1.3 갱신)**: **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부 — real 어댑터까지 동작**. 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전 고정 IP)** 를 경유 (`market-gateway.md` 참조). 11번가 IP 화이트리스트 정책은 gateway 의 고정 IP 등록으로 해소. v1 단계에서 `authenticate(input)` 의 `input` 은 **4-way `AuthInput` discriminated union** — OAuth code (네이버) / HMAC 키 (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가). 어댑터 내부 `fetch` 는 모두 `_shared/gatewayFetch()` 로 wrapping.
+- **범위 (2026-05-22 v1.3 / 2026-05-23 정정)**: **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부 — real 어댑터까지 동작**. 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전 고정 IP)** 를 경유 (`market-gateway.md` 참조). **5개 마켓 전부** 가 셀러의 키 발급 단계에서 IP 화이트리스트 등록을 요구하며 (이전엔 11번가만 있다고 잘못 기재), gateway 의 고정 IP 1개를 5개 마켓 셀러 콘솔에 모두 등록하는 방식으로 일괄 해소. v1 단계에서 `authenticate(input)` 의 `input` 은 **4-way `AuthInput` discriminated union** — OAuth code (네이버) / HMAC 키 (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가). 어댑터 내부 `fetch` 는 모두 `_shared/gatewayFetch()` 로 wrapping.
 - **비범위**: 재시도·rate limit·이미지 변환·로깅·감사 — 어댑터 **바깥**(`registration-run` Edge Function 오케스트레이터 + `_shared/*`).
 
 ---
