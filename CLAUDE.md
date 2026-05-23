@@ -317,6 +317,23 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 - 새 파일이나 디렉토리를 만들 때, `.gitignore` 에 추가해야 하는지 검토하고 필요 시 제안한다.
 - 임시 파일, 빌드 산출물(`dist/`, `.turbo/`), 환경 변수(`.env*`), Supabase 로컬 캐시(`supabase/.branches/`, `supabase/.temp/`), Sentry sourcemap 업로드 후 잔여물, OS 산출물(`.DS_Store`) 등이 의도치 않게 커밋되는 것을 방지.
 
+### 운영 사고 진단 — 한 번에 chain 전체 점검 (2026-05-23 추가)
+
+운영 fail (UI 가 generic 에러로 보임 / Edge Function 5xx / 마켓 API 거부 등) 진단 시 **한 단계씩 점진 진단 금지**. 사용자에게 같은 시나리오 (자격증명 등록·로그 캡처·SQL 실행 등) 를 5번 이상 반복시키는 것은 실패한 진단이다.
+
+**진단 착수 시 다음 chain 을 한 번에 grep + Read 로 훑은 후 추정 가능한 가설 목록부터 제시**:
+
+1. **서버 throw 지점** — Edge Function 의 `HttpErrors.*` / `MarketError` 호출처 + 인자 시그니처
+2. **응답 직렬화** — `_shared/http.ts:err()` / `_shared/errors.ts:HttpErrors.*` 가 details / 추가 필드 보존하는지
+3. **클라이언트 응답 parse** — `invokeEdge` 의 `error.context.body` 형태 (Supabase JS v2 는 ReadableStream — `.clone().json()` 필요)
+4. **클라이언트 schema** — 신규 필드 / optional / `passthrough()` 처리되어 있는지
+5. **UI 매핑 / 메시지 표** — 신규 code 가 매핑 표에 등록되어 있는지
+6. **운영 DB / 인프라** — RLS / GRANT / 마이그레이션 적용 여부 / 환경변수 / IP 화이트리스트
+
+진단 시작 시 사용자에게 묶음 명령 (여러 가설을 동시에 검증할 SQL / 로그 쿼리 / DevTools 한 줄 / 게이트웨이 journalctl) 을 한 번에 전달하고, 사용자가 1~2회 재시도로 결과 전체를 보내도록 한다.
+
+**근거**: 2026-05-23 markets-connect 운영 검증에서 위 chain 의 5개 단계 — PG GRANT / audit category constraint / `HttpErrors.internal` 시그니처 누락 / `error.context.body` ReadableStream parse / 가이드 IP 화이트리스트 정정 — 의 버그가 동시에 잠재했으나 한 단계씩 진단하여 hotfix 8개 (v0.9.1 ~ v0.9.9) 로 쪼개졌고 사용자가 같은 자격증명 등록을 7회 반복함.
+
 ## Design Documents
 
 - `docs/architecture/v1/` — 플랫폼 · 프론트엔드 · UI 스타일 설계문서. 글로벌 아키텍처 결정, 디자인 토큰, 공통 컴포넌트 명세.
