@@ -244,7 +244,17 @@ export const MarketApiErrorSchema = z.object({
   correlationId: z.string().uuid().optional(),
   details: z
     .object({
-      stage: z.enum(['authenticate', 'category_ping', 'vault', 'account']).optional(),
+      stage: z
+      .enum([
+        'authenticate',
+        'category_ping',
+        'vault',
+        'account',
+        'account_lookup',
+        'vault_revoke',
+        'account_revoke',
+      ])
+      .optional(),
       market: z.string().optional(),
       reason: z.string().optional(),
     })
