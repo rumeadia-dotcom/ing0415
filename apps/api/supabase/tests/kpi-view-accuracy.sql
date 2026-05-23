@@ -236,7 +236,7 @@ select is(
 -- 시드: 별도 month (지난 달) 에 4건 (30s / 60s / 90s / 120s) + failed 1건 (분포 왜곡 안 됨 검증)
 -- 셀러 6 단독 사용.
 
-insert into public.registration_jobs (id, seller_id, product_id, status, created_at, started_at, completed_at)
+insert into public.registration_jobs (id, seller_id, product_id, status, created_at, started_at, completed_at, error_summary)
 values
   ('00000000-0000-0000-0003-000000000001'::uuid,
    '00000000-0000-0000-0000-000000000006'::uuid,
@@ -244,28 +244,32 @@ values
    'succeeded',
    date_trunc('month', now() - interval '2 month') + interval '1 day',
    date_trunc('month', now() - interval '2 month') + interval '1 day',
-   date_trunc('month', now() - interval '2 month') + interval '1 day' + interval '30 second'),
+   date_trunc('month', now() - interval '2 month') + interval '1 day' + interval '30 second',
+   null),
   ('00000000-0000-0000-0003-000000000002'::uuid,
    '00000000-0000-0000-0000-000000000006'::uuid,
    '00000000-0000-0000-0000-0000000000aa'::uuid,
    'succeeded',
    date_trunc('month', now() - interval '2 month') + interval '2 day',
    date_trunc('month', now() - interval '2 month') + interval '2 day',
-   date_trunc('month', now() - interval '2 month') + interval '2 day' + interval '60 second'),
+   date_trunc('month', now() - interval '2 month') + interval '2 day' + interval '60 second',
+   null),
   ('00000000-0000-0000-0003-000000000003'::uuid,
    '00000000-0000-0000-0000-000000000006'::uuid,
    '00000000-0000-0000-0000-0000000000aa'::uuid,
    'succeeded',
    date_trunc('month', now() - interval '2 month') + interval '3 day',
    date_trunc('month', now() - interval '2 month') + interval '3 day',
-   date_trunc('month', now() - interval '2 month') + interval '3 day' + interval '90 second'),
+   date_trunc('month', now() - interval '2 month') + interval '3 day' + interval '90 second',
+   null),
   ('00000000-0000-0000-0003-000000000004'::uuid,
    '00000000-0000-0000-0000-000000000006'::uuid,
    '00000000-0000-0000-0000-0000000000aa'::uuid,
    'succeeded',
    date_trunc('month', now() - interval '2 month') + interval '4 day',
    date_trunc('month', now() - interval '2 month') + interval '4 day',
-   date_trunc('month', now() - interval '2 month') + interval '4 day' + interval '120 second'),
+   date_trunc('month', now() - interval '2 month') + interval '4 day' + interval '120 second',
+   null),
   -- failed 잡 — view 는 분포에서 제외해야 함 (왜곡 방지)
   ('00000000-0000-0000-0003-000000000005'::uuid,
    '00000000-0000-0000-0000-000000000006'::uuid,
