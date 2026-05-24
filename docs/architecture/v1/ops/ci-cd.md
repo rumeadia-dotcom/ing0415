@@ -369,6 +369,7 @@ jobs:
 | Source map 업로드 후 dist 에서 삭제 | 공개 노출 회피 | platform.md "real 모드 소스맵 비공개" 인용 |
 | `dlx @sentry/cli` | 별도 라이브러리 설치 회피 | 빌드 캐시 무관 |
 | migrate 가 functions deploy 보다 먼저 | 스키마 우선 | 새 컬럼 의존 함수가 먼저 배포돼 500 나는 회귀 차단 |
+| **`verify-vault-secrets` 잡** | **Pages·Edge Functions 배포 전 vault drift 검증** | PR #140 에서 마이그 #20260521000010 의 vault 가드를 `raise notice` 로 약화 → cron 잡 runtime silent fail 위험. Management API SQL endpoint 로 `supabase_functions_url` / `service_role_key` 존재만 boolean 으로 SELECT (값 노출 0). 누락 시 deploy 차단. service_role 키는 여전히 CI secret 미저장 (§5 룰 유지) |
 
 ### 4.3 거부된 옵션
 - **Functions 배포를 Pages 배포 후로**: 새 프론트가 옛 함수 호출하는 시간 창이 더 길어짐. 함수가 먼저(혹은 동시) 가 안전.
