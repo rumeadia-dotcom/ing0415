@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm, type Resolver, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -72,9 +72,29 @@ export function SettingsPoliciesPage(): JSX.Element {
   const [dialogState, setDialogState] = useState<DialogState>({ kind: 'closed' })
   const [deleteTarget, setDeleteTarget] = useState<ShippingPolicy | null>(null)
 
-  const openCreate = (): void => setDialogState({ kind: 'create' })
-  const openEdit = (policy: ShippingPolicy): void =>
+  // cycle 38: 다이얼로그 닫힘 시 트리거 element 로 포커스 복귀 (WCAG 2.4.3).
+  // discriminated state + 다중 트리거 패턴이라 DialogTrigger asChild 안 됨 → onCloseAutoFocus 콜백.
+  const lastTriggerRef = useRef<HTMLElement | null>(null)
+  const track = (e: { currentTarget: HTMLElement }): void => {
+    lastTriggerRef.current = e.currentTarget
+  }
+  const restoreFocus = (e: Event): void => {
+    e.preventDefault()
+    requestAnimationFrame(() => lastTriggerRef.current?.focus())
+  }
+
+  const openCreate = (e: React.MouseEvent<HTMLElement>): void => {
+    track(e)
+    setDialogState({ kind: 'create' })
+  }
+  const openEdit = (policy: ShippingPolicy, e: React.MouseEvent<HTMLElement>): void => {
+    track(e)
     setDialogState({ kind: 'edit', policy })
+  }
+  const openDelete = (policy: ShippingPolicy, e: React.MouseEvent<HTMLElement>): void => {
+    track(e)
+    setDeleteTarget(policy)
+  }
   const closeDialog = (): void => setDialogState({ kind: 'closed' })
 
   const handleSetDefault = (policy: ShippingPolicy): void => {
@@ -166,7 +186,7 @@ export function SettingsPoliciesPage(): JSX.Element {
                 <PoliciesList
                   policies={list.data}
                   onEdit={openEdit}
-                  onDelete={(p) => setDeleteTarget(p)}
+                  onDelete={openDelete}
                   onSetDefault={handleSetDefault}
                   setDefaultPending={updateMut.isPending}
                 />
@@ -180,6 +200,7 @@ export function SettingsPoliciesPage(): JSX.Element {
       <PolicyFormDialog
         state={dialogState}
         onClose={closeDialog}
+        onCloseAutoFocus={restoreFocus}
         submitting={createMut.isPending || updateMut.isPending}
         onSubmitCreate={(values) =>
           createMut.mutate(values, {
@@ -210,6 +231,7 @@ export function SettingsPoliciesPage(): JSX.Element {
         deleting={deleteMut.isPending}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
+        onCloseAutoFocus={restoreFocus}
       />
     </div>
   )
@@ -219,7 +241,11 @@ export function SettingsPoliciesPage(): JSX.Element {
 // 빈 상태
 // ─────────────────────────────────────────────
 
-function EmptyState({ onAdd }: { onAdd: () => void }): JSX.Element {
+function EmptyState({
+  onAdd,
+}: {
+  onAdd: (e: React.MouseEvent<HTMLElement>) => void
+}): JSX.Element {
   const t = ko.settings.policies
   return (
     <div
@@ -250,8 +276,8 @@ function EmptyState({ onAdd }: { onAdd: () => void }): JSX.Element {
 
 interface PoliciesListProps {
   policies: ShippingPolicy[]
-  onEdit: (p: ShippingPolicy) => void
-  onDelete: (p: ShippingPolicy) => void
+  onEdit: (p: ShippingPolicy, e: React.MouseEvent<HTMLElement>) => void
+  onDelete: (p: ShippingPolicy, e: React.MouseEvent<HTMLElement>) => void
   onSetDefault: (p: ShippingPolicy) => void
   setDefaultPending: boolean
 }
@@ -316,7 +342,7 @@ function PoliciesList({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => onEdit(p)}
+              onClick={(e) => onEdit(p, e)}
               aria-label={`${p.name} ${t.actions.edit}`}
             >
               <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
@@ -326,7 +352,7 @@ function PoliciesList({
               type="button"
               variant="danger"
               size="sm"
-              onClick={() => onDelete(p)}
+              onClick={(e) => onDelete(p, e)}
               aria-label={`${p.name} ${t.actions.delete}`}
             >
               <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
@@ -357,6 +383,7 @@ type DialogState =
 interface PolicyFormDialogProps {
   state: DialogState
   onClose: () => void
+  onCloseAutoFocus: (e: Event) => void
   submitting: boolean
   onSubmitCreate: (values: ShippingPolicyForm) => void
   onSubmitEdit: (id: string, values: ShippingPolicyForm) => void
@@ -391,6 +418,7 @@ function defaultsFor(state: DialogState): ShippingPolicyForm {
 function PolicyFormDialog({
   state,
   onClose,
+  onCloseAutoFocus,
   submitting,
   onSubmitCreate,
   onSubmitEdit,
@@ -435,7 +463,7 @@ function PolicyFormDialog({
         if (!next) onClose()
       }}
     >
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{t.dialog.description}</DialogDescription>
@@ -609,6 +637,7 @@ interface DeleteConfirmDialogProps {
   deleting: boolean
   onConfirm: () => void
   onCancel: () => void
+  onCloseAutoFocus: (e: Event) => void
 }
 
 function DeleteConfirmDialog({
@@ -616,6 +645,7 @@ function DeleteConfirmDialog({
   deleting,
   onConfirm,
   onCancel,
+  onCloseAutoFocus,
 }: DeleteConfirmDialogProps): JSX.Element {
   const t = ko.settings.policies.delete
   const open = target !== null
@@ -628,7 +658,7 @@ function DeleteConfirmDialog({
         if (!next) onCancel()
       }}
     >
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{t.confirmTitle}</DialogTitle>
           <DialogDescription>
