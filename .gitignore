@@ -48,3 +48,9 @@ test-results/
 # Design canvas editor state + duplicate uploads (mirror of docs/design-renewal/s*.md)
 docs/design-renewal/designFile/.design-canvas.state.json
 docs/design-renewal/designFile/uploads/
+
+# Manual verification artifacts (scripts/verify-mock-flow.mjs 출력)
+verify-out/
+
+# Manual verification artifacts (scripts/verify-mock-flow.mjs 출력)
+verify-out/
