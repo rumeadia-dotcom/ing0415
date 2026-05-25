@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useDocumentTitle } from '@/lib/use-document-title'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -31,6 +32,7 @@ import { studioClass } from '../lib/studio-tokens'
  * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function SignupPage(): JSX.Element {
+  useDocumentTitle('회원가입')
   const { signUp } = useAuth()
   const [submitError, setSubmitError] = useState<MappedAuthError | null>(null)
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null)

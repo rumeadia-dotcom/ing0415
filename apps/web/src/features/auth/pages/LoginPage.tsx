@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useDocumentTitle } from '@/lib/use-document-title'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -33,6 +34,7 @@ import { studioClass } from '../lib/studio-tokens'
  * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function LoginPage(): JSX.Element {
+  useDocumentTitle('로그인')
   const navigate = useNavigate()
   const location = useLocation()
   const { signInWithPassword } = useAuth()
