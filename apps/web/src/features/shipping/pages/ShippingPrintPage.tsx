@@ -68,14 +68,14 @@ export function ShippingPrintPage(): JSX.Element {
     const waybills =
       selectedOrders.length > 0 ? selectedOrders.map((o) => o.waybillNumber) : allWaybills
     if (waybills.length === 0) {
-      toast.error('출력할 운송장이 없습니다.')
+      toast.error(ko.commonToasts.noWaybillsToPrint)
       return
     }
     try {
       const url = buildOutSlipPrintPopUrl({ waybillNumbers: waybills })
       const popup = window.open(url, 'logen-print-pop', 'width=900,height=700')
       if (!popup) {
-        toast.error('팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.')
+        toast.error(ko.commonToasts.popupBlocked)
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : '팝업 URL 생성 실패'
@@ -89,7 +89,7 @@ export function ShippingPrintPage(): JSX.Element {
         ? selectedOrders.map((o) => o.orderId)
         : orders.map((o) => o.orderId)
     if (targetIds.length === 0) {
-      toast.error('대상 주문이 없습니다.')
+      toast.error(ko.commonToasts.noOrdersToProcess)
       return
     }
     markPrinted.mutate(
