@@ -246,27 +246,24 @@ describe('refreshToken — OAuth 한정', () => {
 })
 
 // ─────────────────────────────────────────────
-// 11번가 — v1 운영에서 authenticate 차단 (오픈 준비중).
+// 11번가 — 2026-05-25 v1 활성 (api_key 분기) — 다른 4마켓과 동등.
 // ─────────────────────────────────────────────
-describe('11st debug 어댑터 — v1 차단', () => {
+describe('11st debug 어댑터 — v1 활성 (api_key)', () => {
   const adapter = createMockAdapter('11st')
 
   it('credentialKind = "api_key"', () => {
     expect(adapter.credentialKind).toBe('api_key')
   })
 
-  it('authenticate(happy) → MarketError throw (오픈 준비중)', async () => {
-    await expect(
-      adapter.authenticate(AUTH_INPUT_FOR['11st']),
-    ).rejects.toBeInstanceOf(MarketError)
-    await expect(
-      adapter.authenticate(AUTH_INPUT_FOR['11st']),
-    ).rejects.toMatchObject({
-      context: { market: '11st' },
-    })
+  it('authenticate(happy) → StoredCredential.kind = "api_key"', async () => {
+    const result = await adapter.authenticate(AUTH_INPUT_FOR['11st'])
+    expect(result.kind).toBe('api_key')
+    expect((result as { payload: { apiKey: string } }).payload.apiKey).toBe(
+      (AUTH_INPUT_FOR['11st'] as { apiKey: string }).apiKey,
+    )
   })
 
-  it('잘못된 input kind 거부 — naver oauth_code 입력해도 차단됨', async () => {
+  it('잘못된 input kind 거부 — naver oauth_code 입력 시 validation throw', async () => {
     await expect(
       adapter.authenticate(AUTH_INPUT_FOR.naver),
     ).rejects.toBeInstanceOf(MarketError)

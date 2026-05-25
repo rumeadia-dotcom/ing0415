@@ -17,6 +17,7 @@ import { MarketPreviewCard } from '../components/MarketPreviewCard'
 import { RegistrationApiError } from '../api/registration-api'
 import { formatRegistrationError } from '../utils/registration-error-messages'
 import type { MarketId } from '@/features/markets/types'
+import { ko } from '@/locales/ko'
 
 /**
  * StepPreviewPage — n20 등록 미리보기 (4/5). Studio 룩.
@@ -74,7 +75,7 @@ export function StepPreviewPage(): JSX.Element {
               description: f.correlationId ? `요청 ID: ${f.correlationId}` : undefined,
             })
           } else {
-            toast.error('등록을 시작할 수 없습니다.')
+            toast.error(ko.commonToasts.startRegistrationFailed)
           }
         },
       },
@@ -111,11 +112,11 @@ export function StepPreviewPage(): JSX.Element {
             {step1?.name ?? '(상품명 없음)'}
           </h2>
           <dl className="mt-2.5 flex flex-wrap gap-x-6 gap-y-2 text-[12.5px]">
-            <PreviewStat label="판매가" value={`₩${(step1?.price ?? 0).toLocaleString()}`} />
+            <PreviewStat label="판매가" value={`${(step1?.price ?? 0).toLocaleString()}원`} />
             {step1?.originalPrice != null && (
               <PreviewStat
                 label="정상가"
-                value={`₩${step1.originalPrice.toLocaleString()}`}
+                value={`${step1.originalPrice.toLocaleString()}원`}
               />
             )}
             <PreviewStat label="이미지" value={`${images.length}장`} />
@@ -125,7 +126,7 @@ export function StepPreviewPage(): JSX.Element {
         <div className="border-t border-border pt-3 md:border-l md:border-t-0 md:pl-5 md:pt-0 md:text-right">
           <p className="text-[11.5px] font-semibold text-text-tertiary">예상 수수료 합계</p>
           <p className="mt-0.5 font-mono text-[24px] font-bold tracking-tight text-text">
-            ₩{totalEstimatedFee.toLocaleString()}
+            {totalEstimatedFee.toLocaleString()}원
           </p>
           <p className="mt-0.5 text-[11.5px] text-text-tertiary">
             {successfulMarketCount}/{selections.length}개 마켓 진행 가능

@@ -110,7 +110,7 @@ ssh ubuntu@<ip> 'sudo install -o marketgw -g marketgw -m 0644 /tmp/main.ts /opt/
 
 - `/etc/market-gateway/env` 권한 `0640 root:marketgw`. 일반 사용자 접근 차단
 - HMAC 시크릿은 Edge Function env + 인스턴스 env 양쪽 일치. 로테이션 시 양쪽 동시 갱신
-- `main.ts` 의 `ALLOWED_UPSTREAM_HOSTS` 화이트리스트 — 임의 URL forwarding 차단 (SSRF 방어). 현재: `api.commerce.naver.com` / `api-gateway.coupang.com` / `sa.esmplus.com` (G·옥션 공유 ESM Single Account API) / `api.11st.co.kr`
+- `main.ts` 의 `ALLOWED_UPSTREAM_HOSTS` 화이트리스트 — 임의 URL forwarding 차단 (SSRF 방어). 현재: `api.commerce.naver.com` / `api-gateway.coupang.com` / `sa.esmplus.com` (G·옥션 공유 ESM Single Account API) / `openapi.11st.co.kr` (11번가 Seller API)
 - Caddy hardening: HSTS preload / X-Content-Type-Options nosniff / -Server
 - systemd hardening: NoNewPrivileges / ProtectSystem=strict / SystemCallFilter=@system-service
 

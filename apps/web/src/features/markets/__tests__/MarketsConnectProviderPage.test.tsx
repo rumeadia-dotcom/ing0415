@@ -114,9 +114,13 @@ describe('MarketsConnectProviderPage', () => {
     expect(await screen.findByText(/이미 사용 중인 라벨입니다/)).toBeInTheDocument()
   })
 
-  it('disabled(11st): 오픈 준비중 안내만, 폼 없음', () => {
+  it('api_key(11st): API Key 입력 폼 + 연결 CTA + 발급 가이드 (오픈 준비중 문구 없음)', () => {
     renderAt('/markets/connect/11st')
-    expect(screen.getByRole('heading', { name: /11번가.*오픈 준비중/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^연결$/ })).not.toBeInTheDocument()
+    // 폼 헤더 — 11번가 계정 연결 + API Key 방식 안내
+    expect(screen.getByRole('heading', { name: /11번가.*계정 연결/ })).toBeInTheDocument()
+    expect(screen.getByText(/API Key 방식/)).toBeInTheDocument()
+    // API Key SecretField + 연결 CTA
+    expect(screen.getByLabelText(/API Key/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^연결$/ })).toBeInTheDocument()
   })
 })

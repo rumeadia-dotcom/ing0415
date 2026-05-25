@@ -9,12 +9,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui'
 import { useRegistrationStart } from '@/features/registration/hooks/useRegistrationStart'
 import { RegistrationApiError } from '@/features/registration/api/registration-api'
 import { formatRegistrationError } from '@/features/registration/utils/registration-error-messages'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import type { JobDetail } from '@/lib/schemas/history-filter'
+import { ko } from '@/locales/ko'
 
 interface HistoryExcludeDialogProps {
   jobId: string
@@ -84,7 +86,7 @@ export function HistoryExcludeDialog({
   const handleConfirm = (): void => {
     const targets = Array.from(selected)
     if (targets.length === 0) {
-      toast.error('재등록할 마켓을 1개 이상 선택해야 합니다.')
+      toast.error(ko.commonToasts.selectAtLeastOneMarket)
       return
     }
     start.mutate(
@@ -110,15 +112,16 @@ export function HistoryExcludeDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={!canTrigger}
-        onClick={() => handleOpenChange(true)}
-      >
-        실패 마켓만 재등록
-      </Button>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!canTrigger}
+        >
+          실패 마켓만 재등록
+        </Button>
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>실패 마켓만 재등록</DialogTitle>

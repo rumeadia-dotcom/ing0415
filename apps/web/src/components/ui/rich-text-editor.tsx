@@ -56,6 +56,7 @@ export function RichTextEditor({
   const editorId = id ?? fallbackId
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },

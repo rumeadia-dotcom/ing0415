@@ -52,6 +52,7 @@ export function MarketOrdersSummaryCard({
           />
           <div>
             <CardTitle
+              as="h2"
               id="dashboard-market-orders-title"
               className="text-[14px] font-bold leading-none text-ink"
             >

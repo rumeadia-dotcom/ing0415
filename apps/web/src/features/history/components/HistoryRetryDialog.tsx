@@ -8,12 +8,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui'
 import { useRegistrationRetry } from '@/features/registration/hooks/useRegistrationRetry'
 import { RegistrationApiError } from '@/features/registration/api/registration-api'
 import { formatRegistrationError } from '@/features/registration/utils/registration-error-messages'
 import { MARKET_CATALOG } from '@/features/markets/types'
 import type { JobDetail } from '@/lib/schemas/history-filter'
+import { ko } from '@/locales/ko'
 
 interface HistoryRetryDialogProps {
   jobId: string
@@ -49,7 +51,7 @@ export function HistoryRetryDialog({
 
   const handleConfirm = (): void => {
     if (retriable.length === 0) {
-      toast.info('재시도 가능한 마켓이 없습니다.')
+      toast.info(ko.commonToasts.noRetryableMarkets)
       setOpen(false)
       return
     }
@@ -73,15 +75,16 @@ export function HistoryRetryDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={!canTrigger}
-        onClick={() => setOpen(true)}
-      >
-        재시도
-      </Button>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={!canTrigger}
+        >
+          재시도
+        </Button>
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>실패한 마켓 재시도</DialogTitle>

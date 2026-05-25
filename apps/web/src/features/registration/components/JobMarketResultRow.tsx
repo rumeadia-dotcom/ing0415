@@ -86,6 +86,7 @@ export function JobMarketResultRow({
           >
             <ExternalLink className="h-3 w-3" aria-hidden />
             외부 상품 보기
+            <span className="sr-only">(새 창에서 열림)</span>
             {result.externalProductId && (
               <span className="ml-1 font-mono text-text-tertiary">· {result.externalProductId}</span>
             )}

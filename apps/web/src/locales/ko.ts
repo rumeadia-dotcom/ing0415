@@ -11,6 +11,18 @@ export const ko = {
   app: {
     name: 'MarketCast',
   },
+  // cycle 40: 여러 feature 가 공유하는 toast 문구 — feature scope 에 두기 어색한 generic 메시지.
+  commonToasts: {
+    productSaveFailed: '상품 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    startRegistrationFailed: '등록을 시작할 수 없습니다.',
+    selectAtLeastOneMarket: '재등록할 마켓을 1개 이상 선택해야 합니다.',
+    noRetryableMarkets: '재시도 가능한 마켓이 없습니다.',
+    noRestartableMarkets: '재등록 가능한 마켓이 없습니다.',
+    noWaybillsToPrint: '출력할 운송장이 없습니다.',
+    noOrdersToProcess: '대상 주문이 없습니다.',
+    noOrdersToDispatch: '제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.',
+    popupBlocked: '팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.',
+  },
   nav: {
     main: '메인',
     aux: '보조',
@@ -42,6 +54,11 @@ export const ko = {
     primaryNavLabel: '주요 메뉴',
     sellerPlaceholderName: 'konai 셀러',
     sellerPlaceholderEmail: 'seller@konai.com',
+  },
+  // cycle 45: 이미지 업로드 클라이언트 사이드 validation 메시지.
+  imageUpload: {
+    invalidMime: 'jpg / png / webp 만 허용됩니다.',
+    fileTooLarge: '10MB 이하만 업로드 가능합니다.',
   },
   status: {
     pending: '대기',
@@ -124,12 +141,12 @@ export const ko = {
       title: '아직 연결된 마켓이 없습니다.',
       body: '상품을 등록하려면 먼저 1개 이상의 마켓 계정을 연결하세요.',
       cta: '+ 첫 마켓 연결하기',
-      hint: 'v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4종 · 11번가는 오픈 준비중',
+      hint: 'v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 마켓',
     },
     connect: {
       pageTitle: '마켓 연결',
       pageSubtitle:
-        '연결할 마켓을 선택하세요. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션. 11번가는 오픈 준비중.',
+        '연결할 마켓을 선택하세요. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개.',
       breadcrumb: {
         markets: '마켓 계정',
         new: '신규 연결',
@@ -138,10 +155,10 @@ export const ko = {
         oauth: 'OAuth 2.0 · 마켓 로그인 페이지로 이동',
         hmac: 'HMAC · Access / Secret / Vendor ID 입력',
         esm_jwt: 'ESM JWT · Master / Secret / Seller ID 입력',
-        disabled: 'v2 예정 · IP 화이트리스트 해소 후 진입',
+        api_key: 'API Key · 셀러오피스에서 발급한 영구 키 입력',
       },
       cardCta: '연결 시작 →',
-      cardCtaDisabled: 'v2 예정',
+      cardCtaDisabled: '준비중',
       backToList: '마켓 목록으로',
       backToSelect: '마켓 선택으로',
       cancel: '취소',
@@ -152,7 +169,7 @@ export const ko = {
         oauth: 'OAuth 2.0 방식 · 마켓 로그인 페이지에서 동의',
         hmac: 'HMAC 방식 · Wing 셀러 콘솔에서 발급',
         esm_jwt: 'ESM JWT 방식 · ESM Plus 콘솔에서 발급',
-        disabled: '현재 오픈 준비중입니다',
+        api_key: 'API Key 방식 · 11번가 셀러오피스 OPEN API 센터에서 발급',
       },
       issuanceGuide: '발급 가이드 ↗',
       docLinkFallback: 'API 가이드 바로가기 ↗',
@@ -160,6 +177,7 @@ export const ko = {
         naver: '네이버 커머스 API 바로가기 ↗',
         coupang: '쿠팡 Wing API 바로가기 ↗',
         esmplus: 'ESM Plus 콘솔 바로가기 ↗',
+        elevenst: '11번가 OPEN API 센터 바로가기 ↗',
       },
       oauth: {
         guideTitle: '연결 절차 — 네이버 스마트스토어',
@@ -224,9 +242,18 @@ export const ko = {
         '입력값은 pgcrypto 로 암호화되어 저장돼요. 화면에 다시 노출되지 않아요.',
       securityWarn:
         '시크릿 키는 절대 외부에 공유하지 마세요. 분실 시 발급처에서 재발급해야 해요.',
-      disabled: {
-        title: (label: string) => `${label} — 오픈 준비중`,
-        body: 'IP 화이트리스트 정책 해결 후 v2 단계에서 진입합니다. 현재는 네이버 · 쿠팡 · G마켓 · 옥션 4개 마켓만 연결할 수 있습니다.',
+      apiKey: {
+        apiKey: 'API Key',
+        apiKeyPlaceholder: '11번가 셀러오피스에서 발급한 키',
+        guideTitle: '키 발급 절차 — 11번가 OPEN API',
+        guideSteps: [
+          '11번가 셀러오피스(seller.11st.co.kr) 또는 OPEN API 센터(openapi.11st.co.kr)에 판매자 계정으로 로그인합니다',
+          '메인 페이지 하단 [OPEN API] 또는 셀러오피스 [API 발급] 메뉴로 진입합니다',
+          'Seller API 발급 양식에서 IP 화이트리스트에 `43.201.83.78` (MarketCast Lightsail Gateway 고정 IP) 를 등록합니다',
+          '사용 용도에 "11번가 상품 관리 및 주문관리" 를 입력하고 발급 신청합니다',
+          '발급된 영구 API Key 를 안전한 곳에 즉시 복사해 보관합니다 (재확인 불가)',
+          '11번가 정식 상품 등록 API spec 미확보 — 자격증명 저장은 가능하지만 등록·카테고리 조회 본격 동작은 별도 업데이트 예정',
+        ] as const,
       },
     },
     callback: {
@@ -344,6 +371,7 @@ export const ko = {
       filterFrom: '시작일',
       filterTo: '종료일',
       filterReset: '필터 초기화',
+      filterResetDisabledHint: '현재 적용된 필터가 없습니다',
       searchPlaceholder: '상품명 · 주문번호 · 수취인 검색',
       tableProduct: '상품',
       tableMarket: '마켓',
@@ -359,6 +387,7 @@ export const ko = {
         '필터를 넓혀보세요. 마켓 / 상태 / 검색어를 조정하면 더 많은 주문이 표시됩니다.',
       emptyAbsoluteHint:
         '주문 동기화는 10분 주기로 자동 실행돼요. 들어오면 이 화면에서 바로 확인할 수 있습니다.',
+      emptyAbsoluteCta: '마켓 연결 확인',
       emptySyncHint:
         '팁: 주문 동기화는 10분 주기로 자동 실행됩니다. 최근 동기화 시각은 화면 상단에서 확인할 수 있어요.',
       errorLoad: '주문 목록을 불러오지 못했습니다',
@@ -479,7 +508,7 @@ export const ko = {
       autoDispatchCard: {
         title: '출력 후 자동 제출',
         description:
-          '운송장 출력을 완료하면 4개 마켓에 송장번호를 자동으로 제출합니다. OFF 면 [송장 일괄 제출] 을 직접 눌러야 합니다.',
+          '운송장 출력을 완료하면 5개 마켓에 송장번호를 자동으로 제출합니다. OFF 면 [송장 일괄 제출] 을 직접 눌러야 합니다.',
         on: 'ON',
         off: 'OFF',
         toggleAriaLabel: '출력 후 자동 제출 토글',
@@ -662,7 +691,7 @@ export const ko = {
     },
     dispatch: {
       title: '송장 일괄 제출',
-      subtitle: '출력이 완료된 주문의 송장을 4개 마켓에 동시에 제출합니다',
+      subtitle: '출력이 완료된 주문의 송장을 5개 마켓에 동시에 제출합니다',
       preview: {
         heading: '제출 미리보기',
         marketCount: '{market} {count}건',
@@ -957,7 +986,7 @@ export const ko = {
         shippingIntro: {
           title: '6. 주문·배송 자동화 (v2)',
           body:
-            'v2 부터 4개 마켓의 주문이 자동으로 수집되고, 로젠택배로 일괄 등록·운송장 출력·송장 제출까지 한 번에 처리됩니다.\n\n전체 일과 흐름:\n  ① (자동) 10분마다 4개 마켓에서 신규 주문을 수집합니다.\n  ② (자동) 수집된 주문이 로젠택배에 자동 등록되어 운송장번호가 발급됩니다.\n  ③ (수동 1클릭) [주문·배송 → 운송장 출력] 에서 출력 버튼을 눌러 운송장을 프린터로 출력합니다.\n  ④ (자동 또는 1클릭) "출력 후 자동 제출" 이 ON 이면 출력 직후 4개 마켓에 송장번호가 자동 제출됩니다. OFF 면 [송장 일괄 제출] 을 직접 눌러야 합니다.',
+            'v2 부터 5개 마켓의 주문이 자동으로 수집되고, 로젠택배로 일괄 등록·운송장 출력·송장 제출까지 한 번에 처리됩니다.\n\n전체 일과 흐름:\n  ① (자동) 10분마다 5개 마켓에서 신규 주문을 수집합니다.\n  ② (자동) 수집된 주문이 로젠택배에 자동 등록되어 운송장번호가 발급됩니다.\n  ③ (수동 1클릭) [주문·배송 → 운송장 출력] 에서 출력 버튼을 눌러 운송장을 프린터로 출력합니다.\n  ④ (자동 또는 1클릭) "출력 후 자동 제출" 이 ON 이면 출력 직후 5개 마켓에 송장번호가 자동 제출됩니다. OFF 면 [송장 일괄 제출] 을 직접 눌러야 합니다.',
         },
         shippingLogen: {
           title: '7. 로젠 API 설정 (최초 1회)',
@@ -972,7 +1001,7 @@ export const ko = {
         shippingSubmit: {
           title: '9. 마켓 송장 제출',
           body:
-            '"출력 후 자동 제출" 이 OFF 인 경우 [주문·배송 → 송장 일괄 제출] 에서 직접 트리거합니다.\n\n  • 송장 제출은 4개 마켓에 병렬로 진행되며 일반적으로 30초 이내에 완료됩니다.\n  • 마켓 중 일부만 실패한 경우, 해당 마켓만 선택하여 재시도할 수 있습니다.\n  • 제출이 완료된 주문은 상태가 `tracking_submitted` 로 전환되며, [배송 이력] 에서 확인할 수 있습니다.',
+            '"출력 후 자동 제출" 이 OFF 인 경우 [주문·배송 → 송장 일괄 제출] 에서 직접 트리거합니다.\n\n  • 송장 제출은 5개 마켓에 병렬로 진행되며 일반적으로 30초 이내에 완료됩니다.\n  • 마켓 중 일부만 실패한 경우, 해당 마켓만 선택하여 재시도할 수 있습니다.\n  • 제출이 완료된 주문은 상태가 `tracking_submitted` 로 전환되며, [배송 이력] 에서 확인할 수 있습니다.',
         },
         shippingTrouble: {
           title: '10. 배송 자동화 트러블슈팅',

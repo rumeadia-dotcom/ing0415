@@ -12,6 +12,7 @@ import { PartialJobBanner } from '../components/PartialJobBanner'
 import { RegistrationApiError } from '../api/registration-api'
 import { formatRegistrationError } from '../utils/registration-error-messages'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
+import { ko } from '@/locales/ko'
 
 /**
  * StepResultPage — n21 / n24 / n25 (5/5). Studio 룩.
@@ -81,7 +82,7 @@ export function StepResultPage(): JSX.Element {
       .filter((r) => r.marketStatus !== 'success' && r.marketStatus !== 'failed_final')
       .map((r) => r.marketId)
     if (targetMarkets.length === 0) {
-      toast.info('재등록 가능한 마켓이 없습니다.')
+      toast.info(ko.commonToasts.noRestartableMarkets)
       return
     }
     start.mutate(

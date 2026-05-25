@@ -19,6 +19,8 @@ export function Toaster(props: ToasterProps) {
       position="top-right"
       duration={5000}
       closeButton
+      // 한국어 aria-label — 기본값 'Notifications alt+T' 는 SR 사용자에게 영어로 노출됨
+      containerAriaLabel="알림"
       toastOptions={{
         unstyled: false,
         classNames: {

@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { Step1Schema } from '@/lib/schemas/registration'
+import { ko } from '@/locales/ko'
 import type { z } from 'zod'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
 import { useDuplicateProductCheck } from '../hooks/useDuplicateProductCheck'
@@ -79,7 +80,7 @@ export function StepInfoPage(): JSX.Element {
           navigate('/register/images')
         },
         onError: (err) => {
-          toast.error('상품 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+          toast.error(ko.commonToasts.productSaveFailed)
           logger.warn({ err: String(err) }, 'upsert product draft failed')
         },
       },

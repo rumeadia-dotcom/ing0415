@@ -1,22 +1,30 @@
 /**
- * 11번가 어댑터 debug ↔ real parity (degenerate — 양쪽 모두 stub).
+ * 11번가 어댑터 debug ↔ real parity.
  * 마스터: docs/architecture/v1/testing.md §12 / qa-matrix.md QA-FAIL-301.
  *
- * 11번가는 Phase 4-B-2 Wave 2 본격 구현 대기 중. 현 시점:
- *   - debug: 인터페이스 보존 stub (6 메서드 모두 throw MarketError).
- *   - real: `getMarketAdapter('11st')` 가 import 단계에서 Error throw (markets/index.ts).
+ * 11번가 = API Key (영구). refreshToken 없음. 2026-05-25 scaffold 후:
+ *   - mock: createMockAdapter('11st') — 다른 4마켓과 동일 분기 (authenticate /
+ *     fetchCategoryTree / transformProduct / createProduct / fetchOrders 모두 정상 동작).
+ *   - real: scaffold — authenticate 만 동작. transformProduct / createProduct /
+ *     fetchCategoryTree / fetchOrders / submitTracking 는 spec 미확보로 throw
+ *     MarketError(unknown, 'adapter_spec_pending'). 본격 구현 별도 PR.
  *
- * 본 spec 는 이 비대칭을 R-006 위반이 아닌 의도된 stub 상태로 명시한다.
- * 두 stub 모두 동일 인터페이스 shape 를 유지하는지 정합 검증.
- *
- * Wave 2 본격 구현 시 본 spec 는 다른 4개 spec 와 동일 구조 (StoredCredential /
- * CreateProductResult schema 통과) 로 재작성 필요.
+ * 본 spec 는 §1 static / §2 interface / §4 mock schema 정합은 활성. §3 transformProduct
+ * 외피 정합은 real 가 spec 미확보로 throw 하므로 asymmetric 명시 (mock 만 검증).
+ * §5 (real createProduct 응답 vs mock schema 격차) 는 본격 구현 후 활성.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AuthInput, MarketMapping, Product } from '@/lib/schemas'
+import { describe, expect, it } from 'vitest'
+import {
+  CreateProductResultSchema,
+  MarketPayloadSchema,
+  StoredCredentialSchema,
+  type AuthInput,
+  type MarketMapping,
+  type Product,
+} from '@/lib/schemas'
 import { elevenstDebugAdapter } from '@/lib/markets/debug/ElevenstDebugAdapter'
-import { getMarketAdapter } from '@/lib/markets'
+import { elevenstRealAdapter } from '@/lib/markets/real/11st'
 import { MarketError } from '@/lib/markets/errors'
 
 const SAMPLE_API_KEY_INPUT: AuthInput = {
@@ -24,17 +32,33 @@ const SAMPLE_API_KEY_INPUT: AuthInput = {
   apiKey: 'TEST_API_KEY_' + 'X'.repeat(32),
 }
 
-describe('11st adapter parity (debug ↔ real — degenerate stub)', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
+const SAMPLE_PRODUCT: Product = {
+  id: '00000000-0000-4000-8000-000000000002',
+  sellerId: '00000000-0000-4000-8000-000000000001',
+  name: '테스트',
+  priceKrw: 9_900,
+  stock: 10,
+  images: [{ url: 'https://cdn.example.com/1.jpg', order: 0 }],
+  descriptionHtml: '',
+  shippingFeeKrw: 0,
+}
 
-  it('§1: mock 의 static 정합 (market=11st, credentialKind=api_key)', () => {
+const SAMPLE_MAPPING: MarketMapping = {
+  market: '11st',
+  categoryId: '1001',
+  transformedImageUrls: ['https://cdn.example.com/1.jpg'],
+  extra: {},
+}
+
+describe('11st adapter parity (debug ↔ real)', () => {
+  it('§1: static 정합 — market / credentialKind mock = real', () => {
     expect(elevenstDebugAdapter.market).toBe('11st')
+    expect(elevenstRealAdapter.market).toBe('11st')
     expect(elevenstDebugAdapter.credentialKind).toBe('api_key')
+    expect(elevenstRealAdapter.credentialKind).toBe('api_key')
   })
 
-  it('§2: mock 인터페이스 정합 — 6 메서드 모두 정의 (refreshToken 부재)', () => {
+  it('§2: 인터페이스 정합 — 6 메서드 양쪽 모두 정의 (refreshToken 부재 정합)', () => {
     for (const method of [
       'authenticate',
       'fetchCategoryTree',
@@ -44,57 +68,75 @@ describe('11st adapter parity (debug ↔ real — degenerate stub)', () => {
       'submitTracking',
     ] as const) {
       expect(typeof elevenstDebugAdapter[method]).toBe('function')
+      expect(typeof elevenstRealAdapter[method]).toBe('function')
     }
+    // api_key 영구 키 — refreshToken 양쪽 부재 정합.
     expect(typeof elevenstDebugAdapter.refreshToken).toBe('undefined')
+    expect(typeof elevenstRealAdapter.refreshToken).toBe('undefined')
   })
 
-  it('§3-a: mock 의 6 메서드 모두 MarketError throw (일관 stub 동작)', () => {
-    // 본 stub 들은 Promise 반환 타입이지만 async 키워드가 없어 sync throw 한다.
-    // `.rejects` 대신 thunk + `.toThrow` 패턴으로 양쪽 (sync/async) 모두 호환.
-    const sampleProduct: Product = {
-      id: '00000000-0000-4000-8000-000000000002',
-      sellerId: '00000000-0000-4000-8000-000000000001',
-      name: '테스트',
-      priceKrw: 9_900,
-      stock: 10,
-      images: [{ url: 'https://cdn.example.com/1.jpg', order: 0 }],
-      descriptionHtml: '',
-      shippingFeeKrw: 0,
+  it('§3-mock: mock transformProduct → { market, raw } / MarketPayloadSchema 통과', () => {
+    const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+    expect(() => MarketPayloadSchema.parse(payload)).not.toThrow()
+    expect(payload.market).toBe('11st')
+    expect(payload.raw).toBeTypeOf('object')
+  })
+
+  it('§3-real: real transformProduct 는 spec 미확보로 throw (본격 구현 후 §3 정합 활성)', () => {
+    expect(() =>
+      elevenstRealAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING),
+    ).toThrow(MarketError)
+    try {
+      elevenstRealAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+    } catch (e) {
+      expect(e).toBeInstanceOf(MarketError)
+      expect((e as MarketError).context.marketErrorCode).toBe('adapter_spec_pending')
     }
-    const sampleMapping: MarketMapping = {
-      market: '11st',
-      categoryId: '12345',
-      transformedImageUrls: ['https://cdn.example.com/1.jpg'],
-      extra: {},
+  })
+
+  it('§4-a: mock authenticate(api_key) → StoredCredential schema 통과', async () => {
+    const cred = await elevenstDebugAdapter.authenticate(SAMPLE_API_KEY_INPUT)
+    expect(() => StoredCredentialSchema.parse(cred)).not.toThrow()
+    expect(cred.kind).toBe('api_key')
+  })
+
+  it('§4-b: real authenticate(api_key) → StoredCredential schema 통과 (네트워크 호출 없음)', async () => {
+    const cred = await elevenstRealAdapter.authenticate(SAMPLE_API_KEY_INPUT)
+    expect(() => StoredCredentialSchema.parse(cred)).not.toThrow()
+    expect(cred.kind).toBe('api_key')
+  })
+
+  it('§4-c: 두 어댑터의 authenticate 결과 kind 정합', async () => {
+    const mockCred = await elevenstDebugAdapter.authenticate(SAMPLE_API_KEY_INPUT)
+    const realCred = await elevenstRealAdapter.authenticate(SAMPLE_API_KEY_INPUT)
+    expect(mockCred.kind).toBe(realCred.kind)
+    expect(mockCred.kind).toBe('api_key')
+  })
+
+  it('§4-d: mock createProduct happy → CreateProductResult schema 통과 + market=11st', async () => {
+    const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+    const result = await elevenstDebugAdapter.createProduct(payload)
+    expect(() => CreateProductResultSchema.parse(result)).not.toThrow()
+    expect(result.market).toBe('11st')
+  })
+
+  it('§4-e: real createProduct 는 spec 미확보로 throw (본격 구현 후 §4-e 활성)', async () => {
+    await expect(
+      elevenstRealAdapter.createProduct({ market: '11st', raw: {} }),
+    ).rejects.toBeInstanceOf(MarketError)
+  })
+
+  it('§4-f: real authenticate 입력 kind 불일치 시 validation 에러 (mock 과 동일 시그니처)', async () => {
+    const wrongKind: AuthInput = {
+      kind: 'oauth_code',
+      code: 'irrelevant',
     }
-
-    expect(() =>
-      elevenstDebugAdapter.authenticate(SAMPLE_API_KEY_INPUT),
-    ).toThrow(MarketError)
-    expect(() => elevenstDebugAdapter.fetchCategoryTree()).toThrow(MarketError)
-    expect(() =>
-      elevenstDebugAdapter.transformProduct(sampleProduct, sampleMapping),
-    ).toThrow(MarketError)
-    expect(() =>
-      elevenstDebugAdapter.createProduct({ market: '11st', raw: {} }),
-    ).toThrow(MarketError)
-    expect(() =>
-      elevenstDebugAdapter.fetchOrders({
-        sellerId: '00000000-0000-4000-8000-000000000001',
-        from: '2026-05-20T00:00:00+09:00',
-        to: '2026-05-25T00:00:00+09:00',
-      }),
-    ).toThrow(MarketError)
+    await expect(elevenstRealAdapter.authenticate(wrongKind)).rejects.toThrow()
+    await expect(elevenstDebugAdapter.authenticate(wrongKind)).rejects.toThrow()
   })
 
-  it('§3-b: real 모드 getMarketAdapter("11st") 는 의도된 stub Error throw (markets/index.ts)', async () => {
-    // CI/dev 의 VITE_USE_MOCK='true' 와 무관하게 본 단정이 real 분기 진입 의도를
-    // 격리 검증하도록 vi.stubEnv 로 강제 false. afterEach 에서 복구.
-    vi.stubEnv('VITE_USE_MOCK', 'false')
-    await expect(getMarketAdapter('11st')).rejects.toThrow(
-      /11번가 real 어댑터 클라이언트 미구현/,
-    )
-  })
-
-  it.todo('§5: Wave 2 본격 구현 후 — debug↔real StoredCredential / CreateProductResult schema 격차 비교')
+  // §5 — real 어댑터 본격 구현 후 captured-real fixture 와 mock 응답 schema 격차 비교.
+  // 현 시점: real fetchCategoryTree / transformProduct / createProduct / fetchOrders /
+  // submitTracking 모두 spec 미확보 → it.todo 유지.
+  it.todo('§5: real 어댑터 본격 구현 후 — captured 응답 fixture ↔ mock 응답 schema 격차')
 })

@@ -61,11 +61,11 @@ export function MarketSelectGrid({ accounts, selections, onChange }: MarketSelec
         {(Object.keys(MARKET_CATALOG) as MarketId[]).map((id) => {
           const entry = MARKET_CATALOG[id]
           const account = accountByMarket.get(id)
-          const isComingSoon = entry.status === 'coming_soon'
+          const isComingSoon = (entry.status as string) !== 'ready'
           const isDisabled = isComingSoon || !account
           const checked = isSelected(id)
           const disabledReason = isComingSoon
-            ? '오픈 준비중 (v2)'
+            ? '오픈 준비중'
             : '계정 연결 필요 — 마켓 화면에서 먼저 연결하세요'
 
           const card = (

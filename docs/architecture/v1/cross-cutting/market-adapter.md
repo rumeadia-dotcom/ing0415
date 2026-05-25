@@ -845,7 +845,7 @@ export class MarketError extends Error {
 | 쿠팡 (`coupang`) | `hmac` | `hmac_key` | `https://api-gateway.coupang.com` (HMAC-SHA256 헤더 서명) | 없음 (영구 키) | 불필요 | **v1** |
 | G마켓 (`gmarket`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='G'`) | JWT `iat` 만료 시 어댑터가 매 호출 직전 자체 재생성 | 불필요 | **v1** |
 | 옥션 (`auction`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='A'` — 동일 ESM Single Account API) | 동일 (JWT 자체 재생성) | 불필요 | **v1** |
-| 11번가 (`11st`) | `api_key` | `api_key` | `https://api.11st.co.kr` | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
+| 11번가 (`11st`) | `api_key` | `api_key` | `https://openapi.11st.co.kr/openapi/OpenApiService.tmall` (XML CP949) | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
 
 **확장 정책 (v1 부터 4-way union)**: 본 표의 5 마켓이 4 가지 `AuthInput.kind` 를 모두 커버한다 (oauth_code / hmac_key / esm_jwt / api_key). 신규 인증 방식 추가 시:
 

@@ -24,9 +24,9 @@ import { MarketIdSchema, type MarketId } from '@/lib/schemas/common'
  * 응답은 zod parse → 위반 시 throw (UI 가 error 상태로 표시).
  */
 
-/** v1 정식 마켓 (UI 노출 순서). 11번가는 'oem_준비중' placeholder. */
-const V1_MARKETS: readonly MarketId[] = ['naver', 'coupang', 'gmarket', 'auction']
-const V1_COMING_SOON: readonly MarketId[] = ['11st']
+/** v1 정식 마켓 (UI 노출 순서). 2026-05-25 11번가 scaffold 활성 (#152) — 5마켓 전부 ready. */
+const V1_MARKETS: readonly MarketId[] = ['naver', 'coupang', 'gmarket', 'auction', '11st']
+const V1_COMING_SOON: readonly MarketId[] = []
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary | null> {
   const supabase = getSupabase()

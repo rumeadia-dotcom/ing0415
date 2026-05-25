@@ -46,7 +46,7 @@ export const mockSession = {
   user: mockSellerUser,
 }
 
-// 마켓 계정 4개 (네이버 / 쿠팡 / G마켓 / 옥션 모두 active)
+// 마켓 계정 5개 (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 모두 active — 2026-05-25 5마켓 정식 결정)
 export const mockMarketAccounts = [
   {
     id: '00000000-0000-4000-8000-000000001001',
@@ -93,6 +93,18 @@ export const mockMarketAccounts = [
     status: 'active',
     connected_at: daysAgo(15),
     last_verified_at: minutesAgo(60),
+    last_error_code: null,
+    last_error_at: null,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000001005',
+    seller_id: MOCK_SELLER_ID,
+    market_id: '11st',
+    account_label: '11번가 — 메인',
+    external_account_id: 'mock-11st-seller-005',
+    status: 'active',
+    connected_at: daysAgo(2),
+    last_verified_at: minutesAgo(45),
     last_error_code: null,
     last_error_at: null,
   },
