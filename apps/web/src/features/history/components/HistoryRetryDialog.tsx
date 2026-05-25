@@ -8,6 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui'
 import { useRegistrationRetry } from '@/features/registration/hooks/useRegistrationRetry'
 import { RegistrationApiError } from '@/features/registration/api/registration-api'
@@ -73,15 +74,16 @@ export function HistoryRetryDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={!canTrigger}
-        onClick={() => setOpen(true)}
-      >
-        재시도
-      </Button>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={!canTrigger}
+        >
+          재시도
+        </Button>
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>실패한 마켓 재시도</DialogTitle>
