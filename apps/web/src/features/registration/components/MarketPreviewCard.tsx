@@ -85,15 +85,15 @@ export function MarketPreviewCard({
 
       <dl className="flex flex-wrap gap-6 border-t border-border pt-3">
         {displayPrice != null && (
-          <Stat label="표시가격" value={`₩${displayPrice.toLocaleString()}`} />
+          <Stat label="표시가격" value={`${displayPrice.toLocaleString()}원`} />
         )}
         {estimatedFee != null && (
-          <Stat label="예상 수수료" value={`₩${estimatedFee.toLocaleString()}`} />
+          <Stat label="예상 수수료" value={`${estimatedFee.toLocaleString()}원`} />
         )}
         {netRevenue != null && (
           <Stat
             label="예상 정산"
-            value={`₩${netRevenue.toLocaleString()}`}
+            value={`${netRevenue.toLocaleString()}원`}
             tone="success"
           />
         )}

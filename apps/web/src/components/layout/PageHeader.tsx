@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -22,6 +22,16 @@ export interface PageHeaderProps {
 }
 
 export function PageHeader({ title, subtitle, actions, className }: PageHeaderProps): JSX.Element {
+  // document.title 동기화 — 탭 식별 + 화면 리더 페이지 변경 announcement.
+  // cycle 30: 본 컴포넌트는 모든 메인 페이지의 1st heading 이므로 단일 진입점으로 활용.
+  useEffect(() => {
+    const original = document.title
+    document.title = `${title} · MarketCast`
+    return () => {
+      document.title = original
+    }
+  }, [title])
+
   return (
     <header
       className={cn(
