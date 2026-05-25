@@ -80,6 +80,7 @@ export function ForgotPasswordPage(): JSX.Element {
             <div className="absolute inset-0 rounded-full bg-success-soft" />
             <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-success text-white">
               <svg
+                aria-hidden="true"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -87,7 +88,6 @@ export function ForgotPasswordPage(): JSX.Element {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className="h-8 w-8"
-                aria-hidden="true"
               >
                 <path d="M4 6h16v12H4z" />
                 <path d="m4 6 8 7 8-7" />
