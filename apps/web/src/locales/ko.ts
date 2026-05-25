@@ -43,6 +43,11 @@ export const ko = {
     sellerPlaceholderName: 'konai 셀러',
     sellerPlaceholderEmail: 'seller@konai.com',
   },
+  // cycle 45: 이미지 업로드 클라이언트 사이드 validation 메시지.
+  imageUpload: {
+    invalidMime: 'jpg / png / webp 만 허용됩니다.',
+    fileTooLarge: '10MB 이하만 업로드 가능합니다.',
+  },
   status: {
     pending: '대기',
     running: '진행 중',

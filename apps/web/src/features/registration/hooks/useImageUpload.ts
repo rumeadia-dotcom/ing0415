@@ -8,6 +8,7 @@ import {
   requestUploadUrl,
 } from '../api/image-api'
 import type { ImageMeta } from '@/lib/schemas/registration'
+import { ko } from '@/locales/ko'
 
 interface UploadOneInput {
   productId: string
@@ -26,10 +27,10 @@ interface UploadOneInput {
 export async function uploadOneImage({ productId, file, position, onProgress }: UploadOneInput): Promise<ImageMeta> {
   const allowed = ['image/jpeg', 'image/png', 'image/webp'] as const
   if (!(allowed as readonly string[]).includes(file.type)) {
-    throw new ImageApiError({ code: 'invalid_mime', message: 'jpg / png / webp 만 허용됩니다.' })
+    throw new ImageApiError({ code: 'invalid_mime', message: ko.imageUpload.invalidMime })
   }
   if (file.size > 10 * 1024 * 1024) {
-    throw new ImageApiError({ code: 'file_too_large', message: '10MB 이하만 업로드 가능합니다.' })
+    throw new ImageApiError({ code: 'file_too_large', message: ko.imageUpload.fileTooLarge })
   }
 
   const [hashSha256, dimensions] = await Promise.all([computeSha256Hex(file), readImageDimensions(file)])
