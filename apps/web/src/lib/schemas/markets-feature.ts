@@ -146,31 +146,38 @@ export type ConnectionMethod = z.infer<typeof ConnectionMethodSchema>
 // 마스터: docs/architecture/v1/features/markets.md §5 markets-connect
 // ─────────────────────────────────────────────
 
+// 마켓 연결 폼 공용 한국어 에러 메시지 (zod 기본 영어 노출 차단)
+const labelMsg = { required_error: '계정 라벨을 입력하세요' }
+const labelMin = { message: '계정 라벨을 입력하세요' }
+const labelMax = { message: '40자 이내로 입력하세요' }
+const keyMin = { message: '키를 입력하세요' }
+const keyMax = (n: number) => ({ message: `${n}자 이내로 입력하세요` })
+
 /** 쿠팡 HMAC 키 입력 폼. RHF + zod resolver 직접 사용. */
 export const HmacConnectFormSchema = z.object({
   market: z.literal('coupang'),
-  accountLabel: z.string().min(1).max(40),
-  accessKey: z.string().min(1).max(200),
-  secretKey: z.string().min(1).max(200),
-  vendorId: z.string().min(1).max(40),
+  accountLabel: z.string(labelMsg).min(1, labelMin).max(40, labelMax),
+  accessKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+  secretKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+  vendorId: z.string().min(1, keyMin).max(40, keyMax(40)),
 })
 export type HmacConnectForm = z.infer<typeof HmacConnectFormSchema>
 
 /** G마켓·옥션 ESM JWT 키 입력 폼. site 는 market 으로부터 도출 (UI hidden). */
 export const EsmJwtConnectFormSchema = z.object({
   market: z.enum(['gmarket', 'auction']),
-  accountLabel: z.string().min(1).max(40),
-  masterId: z.string().min(1).max(80),
-  secretKey: z.string().min(1).max(200),
-  sellerId: z.string().min(1).max(80),
+  accountLabel: z.string(labelMsg).min(1, labelMin).max(40, labelMax),
+  masterId: z.string().min(1, keyMin).max(80, keyMax(80)),
+  secretKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+  sellerId: z.string().min(1, keyMin).max(80, keyMax(80)),
 })
 export type EsmJwtConnectForm = z.infer<typeof EsmJwtConnectFormSchema>
 
 /** 11번가 API Key 입력 폼. 영구 키 — refresh 없음. */
 export const ApiKeyConnectFormSchema = z.object({
   market: z.literal('11st'),
-  accountLabel: z.string().min(1).max(40),
-  apiKey: z.string().min(1).max(200),
+  accountLabel: z.string(labelMsg).min(1, labelMin).max(40, labelMax),
+  apiKey: z.string().min(1, keyMin).max(200, keyMax(200)),
 })
 export type ApiKeyConnectForm = z.infer<typeof ApiKeyConnectFormSchema>
 
