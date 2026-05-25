@@ -679,9 +679,11 @@ function SecretField({ id, label, placeholder, register, error }: SecretFieldPro
 }
 
 function SecurityHintLine(): JSX.Element {
+  // SecretField 가 fallback hint 로 ko.markets.form.securityNote 를 이미 노출 —
+  // 폼 footer 는 보강 경고 (securityWarn) 로 중복 방지.
   return (
-    <p className="text-[11.5px] leading-relaxed text-text-tertiary">
-      {ko.markets.form.securityNote}
+    <p className="text-[11.5px] leading-relaxed text-warning-on-soft">
+      {ko.markets.form.securityWarn}
     </p>
   )
 }
