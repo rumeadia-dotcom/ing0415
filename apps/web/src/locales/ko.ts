@@ -354,6 +354,7 @@ export const ko = {
       filterFrom: '시작일',
       filterTo: '종료일',
       filterReset: '필터 초기화',
+      filterResetDisabledHint: '현재 적용된 필터가 없습니다',
       searchPlaceholder: '상품명 · 주문번호 · 수취인 검색',
       tableProduct: '상품',
       tableMarket: '마켓',
