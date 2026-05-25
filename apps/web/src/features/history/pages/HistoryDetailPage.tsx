@@ -6,6 +6,7 @@ import {
   ErrorMessage,
   Skeleton,
 } from '@/components/ui'
+import { useDocumentTitle } from '@/lib/use-document-title'
 import { useHistoryDetail } from '../hooks/useHistoryDetail'
 import { HistoryDetailHeader } from '../components/HistoryDetailHeader'
 import { HistoryErrorTabs } from '../components/HistoryErrorTabs'
@@ -27,6 +28,7 @@ import { HistoryExcludeDialog } from '../components/HistoryExcludeDialog'
 export function HistoryDetailPage(): JSX.Element {
   const { jobId } = useParams<{ jobId: string }>()
   const { data, isLoading, isError, error } = useHistoryDetail(jobId)
+  useDocumentTitle(`잡 ${jobId?.slice(0, 8) ?? '?'} 상세`)
 
   if (!jobId) {
     return (

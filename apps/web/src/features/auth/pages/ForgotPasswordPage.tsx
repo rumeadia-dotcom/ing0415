@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useDocumentTitle } from '@/lib/use-document-title'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -31,6 +32,7 @@ import { studioClass } from '../lib/studio-tokens'
  * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function ForgotPasswordPage(): JSX.Element {
+  useDocumentTitle('비밀번호 찾기')
   const { sendPasswordResetEmail } = useAuth()
   const [submitError, setSubmitError] = useState<MappedAuthError | null>(null)
   const [done, setDone] = useState(false)
