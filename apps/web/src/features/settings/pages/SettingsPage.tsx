@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui'
 import { useAuth, trackAuthEvent } from '@/features/auth'
 import { ko } from '@/locales/ko'
@@ -130,14 +131,37 @@ export function SettingsPage(): JSX.Element {
               <p className="text-sm text-text-secondary">
                 {ko.settings.account.signOutDescription}
               </p>
-              <Button
-                variant="outline"
-                onClick={() => setConfirmOpen(true)}
-                className="min-h-[44px] w-full sm:w-auto sm:shrink-0"
-              >
-                <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-                {ko.settings.account.signOut}
-              </Button>
+              <Dialog open={confirmOpen} onOpenChange={(open) => !submitting && setConfirmOpen(open)}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="min-h-[44px] w-full sm:w-auto sm:shrink-0"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {ko.settings.account.signOut}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{ko.settings.account.signOutConfirmTitle}</DialogTitle>
+                    <DialogDescription>{ko.settings.account.signOutConfirmBody}</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setConfirmOpen(false)}
+                      disabled={submitting}
+                    >
+                      {ko.settings.account.signOutCancel}
+                    </Button>
+                    <Button variant="primary" onClick={handleSignOut} disabled={submitting}>
+                      {submitting
+                        ? ko.settings.account.signOutSubmitting
+                        : ko.settings.account.signOut}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </section>
 
@@ -172,28 +196,6 @@ export function SettingsPage(): JSX.Element {
         </div>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={(open) => !submitting && setConfirmOpen(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{ko.settings.account.signOutConfirmTitle}</DialogTitle>
-            <DialogDescription>{ko.settings.account.signOutConfirmBody}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setConfirmOpen(false)}
-              disabled={submitting}
-            >
-              {ko.settings.account.signOutCancel}
-            </Button>
-            <Button variant="primary" onClick={handleSignOut} disabled={submitting}>
-              {submitting
-                ? ko.settings.account.signOutSubmitting
-                : ko.settings.account.signOut}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
