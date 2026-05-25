@@ -3,7 +3,7 @@ import { MARKET_CATALOG } from '../types'
 import { MarketAccountStatusBadge } from './MarketAccountStatusBadge'
 import { MarketAccountActions } from './MarketAccountActions'
 import { MarketIdentity } from './MarketIdentity'
-import { formatRelativeTime } from '../utils/format-relative-time'
+import { formatRelativeTime } from '@/lib/format-time'
 import type { MarketAccount } from '@/lib/schemas/markets-feature'
 
 const AUTH_LABEL: Record<string, string> = {
