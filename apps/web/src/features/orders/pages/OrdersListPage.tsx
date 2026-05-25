@@ -144,6 +144,11 @@ export function OrdersListPage(): JSX.Element {
             size="md"
             onClick={onResetFilter}
             disabled={isFilterDefault && searchInput === ''}
+            title={
+              isFilterDefault && searchInput === ''
+                ? ko.orders.list.filterResetDisabledHint
+                : undefined
+            }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
             {ko.orders.list.filterReset}
