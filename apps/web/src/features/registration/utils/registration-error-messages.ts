@@ -9,6 +9,7 @@ export type RegistrationErrorCode =
   | 'unauthorized'
   | 'forbidden_product'
   | 'product_not_found'
+  | 'job_not_found'
   | 'market_unavailable'
   // 6.3 start
   | 'job_in_progress'
@@ -27,6 +28,7 @@ const MESSAGE_MAP: Record<RegistrationErrorCode, string> = {
   unauthorized: '다시 로그인해 주세요.',
   forbidden_product: '해당 상품에 접근할 권한이 없습니다.',
   product_not_found: '상품을 찾을 수 없습니다.',
+  job_not_found: '이 등록 잡을 찾을 수 없습니다. URL 이 만료되었거나 잘못된 잡 ID 입니다.',
   market_unavailable: '마켓 서버에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   job_in_progress: '이미 진행 중인 등록이 있습니다. 완료 또는 취소 후 다시 시도해 주세요.',
   not_retryable: '재시도할 수 없는 상태입니다.',
