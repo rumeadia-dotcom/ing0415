@@ -162,7 +162,7 @@ function V2PlaceholderCard(): JSX.Element {
       className="rounded-[14px] border-dashed border-border-strong bg-card-2 opacity-70"
     >
       <CardHeader className="px-4 py-4 pb-2">
-        <CardTitle className="text-[13.5px] font-bold text-dim">
+        <CardTitle as="h2" className="text-[13.5px] font-bold text-dim">
           마켓별 통계 — v2
         </CardTitle>
         <CardDescription className="text-[11.5px] text-faint">
