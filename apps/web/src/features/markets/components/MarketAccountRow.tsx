@@ -10,7 +10,7 @@ const AUTH_LABEL: Record<string, string> = {
   oauth: 'OAuth 2.0',
   hmac: 'HMAC',
   esm_jwt: 'ESM JWT',
-  disabled: 'API Key',
+  api_key: 'API Key',
 }
 
 /**

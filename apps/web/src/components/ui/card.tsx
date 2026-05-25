@@ -35,10 +35,14 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
   },
 )
 
-export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
-  function CardTitle({ className, children, ...props }, ref) {
+type CardTitleProps = HTMLAttributes<HTMLHeadingElement> & {
+  as?: 'h2' | 'h3' | 'h4'
+}
+
+export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
+  function CardTitle({ className, children, as: Tag = 'h3', ...props }, ref) {
     return (
-      <h3
+      <Tag
         ref={ref}
         className={cn(
           'text-[16px] font-bold leading-tight tracking-tight text-ink',
@@ -47,7 +51,7 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
         {...props}
       >
         {children}
-      </h3>
+      </Tag>
     )
   },
 )
