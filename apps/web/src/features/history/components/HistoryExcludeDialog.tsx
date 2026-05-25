@@ -9,6 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui'
 import { useRegistrationStart } from '@/features/registration/hooks/useRegistrationStart'
 import { RegistrationApiError } from '@/features/registration/api/registration-api'
@@ -110,15 +111,16 @@ export function HistoryExcludeDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={!canTrigger}
-        onClick={() => handleOpenChange(true)}
-      >
-        실패 마켓만 재등록
-      </Button>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!canTrigger}
+        >
+          실패 마켓만 재등록
+        </Button>
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>실패 마켓만 재등록</DialogTitle>
