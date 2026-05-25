@@ -73,7 +73,9 @@ export function ShippingPrintPage(): JSX.Element {
     }
     try {
       const url = buildOutSlipPrintPopUrl({ waybillNumbers: waybills })
-      const popup = window.open(url, 'logen-print-pop', 'width=900,height=700')
+      // noopener,noreferrer: 로젠 외부 도메인 팝업이 window.opener 로 본 페이지에 접근하는
+      // reverse tabnabbing 공격 방지 (OWASP A05:2021 — Security Misconfiguration).
+      const popup = window.open(url, 'logen-print-pop', 'width=900,height=700,noopener,noreferrer')
       if (!popup) {
         toast.error('팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.')
       }
