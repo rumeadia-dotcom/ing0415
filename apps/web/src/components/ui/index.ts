@@ -38,6 +38,7 @@ export {
   type AddressSearchInputProps,
 } from './address-search-input'
 export { Toaster } from './toaster'
+export { CopyButton, type CopyButtonProps } from './copy-button'
 export {
   Sheet,
   SheetTrigger,
