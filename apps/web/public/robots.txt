@@ -1,0 +1,20 @@
+# MarketCast — 셀러 전용 SaaS
+# 일반 검색 크롤러는 셀러 페이지를 인덱싱할 필요 없음.
+# 인증 페이지 (login / signup / forgot / reset) 도 검색 결과 노출 부적합.
+# 법적 페이지 (legal/terms / legal/privacy / manual) 만 크롤러 허용 — 외부 사용자가 검색해 도달 가능해야 함.
+
+User-agent: *
+Disallow: /dashboard
+Disallow: /markets
+Disallow: /register
+Disallow: /history
+Disallow: /orders
+Disallow: /shipping
+Disallow: /settings
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+
+Allow: /legal/
+Allow: /manual
