@@ -400,7 +400,13 @@ function EmptyState({
             {ko.orders.list.filterReset}
           </Button>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-4 flex justify-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/markets">{ko.orders.list.emptyAbsoluteCta}</Link>
+          </Button>
+        </div>
+      )}
       <p className="mt-4 text-xs text-text-tertiary">{ko.orders.list.emptySyncHint}</p>
     </section>
   )
