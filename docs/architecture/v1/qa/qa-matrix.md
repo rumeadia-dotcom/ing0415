@@ -275,7 +275,7 @@ PRD §8 (logen_credentials 테이블) + user_flow s9.
 | **마켓 송장 제출 부분 실패** | QA-FAIL-103 | `shipping-dispatch.test.ts` + `ShippingDispatchResultPage.test.tsx` | pending |
 | **자격증명 평문 누출 (로그/Sentry/DB)** | QA-FAIL-201 | `redact-regression.test.ts` + `edge-masking.test.ts` + `naver-edge.test.ts` | pass (단위) — release grep 수동 |
 | **IP 화이트리스트 미등록 (5개 마켓 콘솔)** | QA-FAIL-202 | — | `BLOCKED (자동 불가)` — release 수동 |
-| **debug ↔ real 어댑터 격차** | QA-FAIL-301 | `tests/unit/adapters/<market>/parity.spec.ts` (testing.md §12) | **미커버** — parity.spec.ts 파일 자체 부재 (`testing.md` R-006 위반 가능) |
+| **debug ↔ real 어댑터 격차** | QA-FAIL-301 | `tests/unit/adapters/<market>/parity.spec.ts` (5종, testing.md §12) | **부분 커버** — static/interface/transformProduct 외피·mock schema 정합 4구간 활성. §5 (captured-real-*.json fixture ↔ mock schema 격차 비교) 는 sandbox 접근 (Phase 4-B-1/B-2) 후 `it.todo` 해소 |
 
 ---
 
@@ -285,7 +285,7 @@ PRD §8 (logen_credentials 테이블) + user_flow s9.
 
 1. ~~**RLS-SQL 단위 테스트 전면 부재** (QA-AUTH-006 / QA-HIST-006 / QA-ORD-011 / QA-SHIP-013)~~ → **해소** (CI `pgtap-rls` 잡 추가, `apps/api/supabase/tests/rls-cross-tenant.sql` 102 케이스 + v2 RLS 3종 자동 실행). 후속: v1.4 `order_groups` 등 신규 테이블의 cross-tenant 시나리오 추가 (별도 PR).
 2. **partial / retry / skip-market E2E** (QA-REG-009 / QA-REG-017 / QA-HIST-001 / QA-HIST-002) — `golden-path.md` §9.1~§9.3 권장 spec 3개 미작성. 부분 등록 실패는 실사용에서 가장 흔한 시나리오.
-3. **debug ↔ real parity.spec.ts 부재** (QA-FAIL-301) — `testing.md` R-006 / §12 헌법 위반 가능. 5개 마켓 어댑터 모두 real 코드 존재함에도 parity 단위 테스트 0건.
+3. ~~**debug ↔ real parity.spec.ts 부재** (QA-FAIL-301)~~ → **부분 해소** — 5종 (naver / coupang / gmarket / auction / 11st) parity.spec.ts 활성, static / interface / transformProduct 외피 / mock schema 정합 27건 통과. captured-real fixture ↔ mock schema 격차 비교는 sandbox 접근 후 it.todo 5건 해소.
 4. **이미지 파이프라인 단위 테스트 부재** (QA-REG-006) — `cross-cutting/image-pipeline.md` 의 resize / format 변환 함수가 분리된 단위로 검증되지 않음.
 5. **429 / 5xx 백오프 단위 테스트 부재** (QA-MKT-ERR-002 / QA-FAIL-003 / QA-FAIL-006) — `RegistrationJob` 오케스트레이터의 rate limit 처리.
 
@@ -309,11 +309,12 @@ PRD §8 (logen_credentials 테이블) + user_flow s9.
 
 | 순위 | 클러스터 | 영향 | 추정 작업량 |
 |---|---|---|---|
-| 1 | RLS-SQL 단위 (8 테이블 × 2 셀러 cross-access) | P0 보안 — 셀러 격리 검증 0건 | 1~2 sprint |
-| 2 | partial / retry / skip-market E2E 3종 | P0 사용자 경로 — 가장 흔한 실패 시나리오 | 1 sprint |
-| 3 | parity.spec.ts 5종 (마켓별) | P0 헌법 위반 가능 (R-006) | 1 sprint |
-| 4 | 이미지 파이프라인 단위 | P1 등록 품질 | 0.5 sprint |
-| 5 | 11번가 어댑터 (BLOCKED 해제 후) | P1 v1 범위 충족 | 외부 의존 |
+| ~~1~~ | ~~RLS-SQL 단위 (8 테이블 × 2 셀러 cross-access)~~ | **해소** (PR #140) | — |
+| 1 | partial / retry / skip-market E2E 3종 | P0 사용자 경로 — 가장 흔한 실패 시나리오 | 1 sprint |
+| ~~2~~ | ~~parity.spec.ts 5종 (마켓별)~~ | **부분 해소** — 외피 4구간 활성. captured-real fixture parity 는 sandbox 의존 | — |
+| 2 | 이미지 파이프라인 단위 | P1 등록 품질 | 0.5 sprint |
+| 3 | 11번가 어댑터 (BLOCKED 해제 후) | P1 v1 범위 충족 | 외부 의존 |
+| 4 | captured-real fixture (parity §5 활성) | P1 R-006 헌법 완전 정합 | sandbox 접근 후 0.5 sprint |
 
 ---
 
