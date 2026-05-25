@@ -193,10 +193,8 @@ try {
       await shot(page, 'c3-03-markets-dark')
     } else {
       log('  ⚠ theme 토글 버튼 못찾음 — HTML 직접 검사')
-      // html data-theme 직접 토글
-      await page.evaluate(() => {
-        document.documentElement.setAttribute('data-theme', 'dark')
-      })
+      // html data-theme 직접 토글 (page.evaluate 인자는 browser 컨텍스트)
+      await page.evaluate(`document.documentElement.setAttribute('data-theme', 'dark')`)
       await page.waitForTimeout(500)
       await shot(page, 'c3-01-html-theme-dark')
     }
@@ -210,13 +208,13 @@ try {
   {
     const { context, page } = await newCtx()
     await loginMock(page)
-    for (const [route, name, sel] of [
-      ['shipping/print', 'shipping-print', null],
-      ['shipping/history', 'shipping-history', null],
-      ['orders/list', 'orders-list', null],
-      ['settings/policies', 'settings-policies', null],
-      ['settings/shipping/logen', 'settings-shipping-logen', null],
-      ['settings/shipping/sender', 'settings-shipping-sender', null],
+    for (const [route, name] of [
+      ['shipping/print', 'shipping-print'],
+      ['shipping/history', 'shipping-history'],
+      ['orders/list', 'orders-list'],
+      ['settings/policies', 'settings-policies'],
+      ['settings/shipping/logen', 'settings-shipping-logen'],
+      ['settings/shipping/sender', 'settings-shipping-sender'],
     ]) {
       await page.goto(`${BASE}/${route}`)
       await page.waitForLoadState('networkidle', { timeout: 10000 })
