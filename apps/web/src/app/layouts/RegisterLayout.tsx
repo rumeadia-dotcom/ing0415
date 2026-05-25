@@ -1,6 +1,8 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { REGISTER_STEPS, Stepper, type RegisterStepId } from '@/features/registration/components/Stepper'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { useRegisterFormStore } from '@/features/registration/store/useRegisterFormStore'
+import { useBeforeUnload } from '@/lib/use-before-unload'
 
 /**
  * RegisterLayout — /register/* 공통 셸.
@@ -20,6 +22,13 @@ function deriveStepFromPath(pathname: string): RegisterStepId {
 export function RegisterLayout(): JSX.Element {
   const location = useLocation()
   const current = deriveStepFromPath(location.pathname)
+
+  // cycle 37: store 에 입력 데이터가 있으면 reload / 탭 닫기 시 경고.
+  // step1 / images / selections 중 하나라도 있으면 진행 중 — 데이터 손실 방지.
+  const hasDraft = useRegisterFormStore((s) => {
+    return s.step1 != null || s.images.length > 0 || s.selections.length > 0
+  })
+  useBeforeUnload(hasDraft)
 
   return (
     <div className="mx-auto w-full max-w-[960px]">
