@@ -16,6 +16,7 @@ import { RegistrationApiError } from '@/features/registration/api/registration-a
 import { formatRegistrationError } from '@/features/registration/utils/registration-error-messages'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import type { JobDetail } from '@/lib/schemas/history-filter'
+import { ko } from '@/locales/ko'
 
 interface HistoryExcludeDialogProps {
   jobId: string
@@ -85,7 +86,7 @@ export function HistoryExcludeDialog({
   const handleConfirm = (): void => {
     const targets = Array.from(selected)
     if (targets.length === 0) {
-      toast.error('재등록할 마켓을 1개 이상 선택해야 합니다.')
+      toast.error(ko.commonToasts.selectAtLeastOneMarket)
       return
     }
     start.mutate(

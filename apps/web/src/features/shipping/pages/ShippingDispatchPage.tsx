@@ -39,7 +39,7 @@ export function ShippingDispatchPage(): JSX.Element {
   const handleStart = (): void => {
     if (!data) return
     if (data.printedOrders === 0) {
-      toast.error('제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.')
+      toast.error(ko.commonToasts.noOrdersToDispatch)
       return
     }
     start.mutate(

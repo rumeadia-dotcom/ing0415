@@ -15,6 +15,7 @@ import { RegistrationApiError } from '@/features/registration/api/registration-a
 import { formatRegistrationError } from '@/features/registration/utils/registration-error-messages'
 import { MARKET_CATALOG } from '@/features/markets/types'
 import type { JobDetail } from '@/lib/schemas/history-filter'
+import { ko } from '@/locales/ko'
 
 interface HistoryRetryDialogProps {
   jobId: string
@@ -50,7 +51,7 @@ export function HistoryRetryDialog({
 
   const handleConfirm = (): void => {
     if (retriable.length === 0) {
-      toast.info('재시도 가능한 마켓이 없습니다.')
+      toast.info(ko.commonToasts.noRetryableMarkets)
       setOpen(false)
       return
     }

@@ -8,6 +8,7 @@ import { useShippingJobRetry } from '../hooks/useShippingJobRetry'
 import { ShippingProgressBar } from '../components/ShippingProgressBar'
 import { MarketDispatchRow } from '../components/MarketDispatchRow'
 import { ShippingApiError } from '../api/shipping-api'
+import { ko } from '@/locales/ko'
 
 /**
  * ShippingDispatchResultPage — n54 + n55 (+ n56 부분 재시도) — `/shipping/dispatch/:jobId/result`.
@@ -51,7 +52,7 @@ export function ShippingDispatchResultPage(): JSX.Element {
       .filter((r) => r.status === 'failed')
       .map((r) => r.id)
     if (failedIds.length === 0) {
-      toast.info('재시도 가능한 마켓이 없습니다.')
+      toast.info(ko.commonToasts.noRetryableMarkets)
       return
     }
     retry.mutate(

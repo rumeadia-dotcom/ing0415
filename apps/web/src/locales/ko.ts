@@ -11,6 +11,18 @@ export const ko = {
   app: {
     name: 'MarketCast',
   },
+  // cycle 40: 여러 feature 가 공유하는 toast 문구 — feature scope 에 두기 어색한 generic 메시지.
+  commonToasts: {
+    productSaveFailed: '상품 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    startRegistrationFailed: '등록을 시작할 수 없습니다.',
+    selectAtLeastOneMarket: '재등록할 마켓을 1개 이상 선택해야 합니다.',
+    noRetryableMarkets: '재시도 가능한 마켓이 없습니다.',
+    noRestartableMarkets: '재등록 가능한 마켓이 없습니다.',
+    noWaybillsToPrint: '출력할 운송장이 없습니다.',
+    noOrdersToProcess: '대상 주문이 없습니다.',
+    noOrdersToDispatch: '제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.',
+    popupBlocked: '팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.',
+  },
   nav: {
     main: '메인',
     aux: '보조',
