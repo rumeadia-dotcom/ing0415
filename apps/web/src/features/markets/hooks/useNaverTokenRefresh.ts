@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 import { useAuth } from '@/features/auth'
 import { getSupabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
@@ -36,18 +37,20 @@ interface RefreshArgs {
   credentialId: string
 }
 
-interface RefreshResponse {
-  refreshedCount: number
-  failedCount: number
-  skippedCount: number
-  correlationId: string
-}
+// cycle 41: 외부 (Edge Function) 응답은 zod runtime parse 필수 (CLAUDE.md i18n / 데이터 룰).
+const RefreshResponseSchema = z.object({
+  refreshedCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  correlationId: z.string(),
+})
+type RefreshResponse = z.infer<typeof RefreshResponseSchema>
 
 export async function invokeOnDemandRefresh(
   args: RefreshArgs,
 ): Promise<RefreshResponse> {
   const supabase = getSupabase()
-  const { data, error } = await supabase.functions.invoke<RefreshResponse>(
+  const { data, error } = await supabase.functions.invoke<unknown>(
     'markets-token-refresh',
     {
       body: { mode: 'on_demand', credentialId: args.credentialId },
@@ -65,7 +68,14 @@ export async function invokeOnDemandRefresh(
       message: 'empty refresh response',
     })
   }
-  return data
+  const parsed = RefreshResponseSchema.safeParse(data)
+  if (!parsed.success) {
+    throw new MarketApiInvocationError({
+      code: 'internal',
+      message: `refresh response schema mismatch: ${parsed.error.issues.map((i) => i.path.join('.')).join(', ')}`,
+    })
+  }
+  return parsed.data
 }
 
 /**
