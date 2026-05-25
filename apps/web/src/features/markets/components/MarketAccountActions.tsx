@@ -9,6 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -143,35 +144,35 @@ export function MarketAccountActions({ account }: MarketAccountActionsProps): JS
           <TooltipContent>{tt.alreadyRevoked}</TooltipContent>
         </Tooltip>
       ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setConfirmOpen(true)}
-          className="text-danger hover:bg-danger-soft hover:text-danger"
-        >
-          {tt.disconnect}
-        </Button>
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger hover:bg-danger-soft hover:text-danger"
+            >
+              {tt.disconnect}
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>마켓 연결 해제</DialogTitle>
+              <DialogDescription>
+                <strong>{account.accountLabel}</strong> 연결을 해제하면 이 계정으로 상품을 등록할 수
+                없게 됩니다. 다시 연결하려면 인증 과정을 처음부터 진행해야 합니다.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+                {tt.cancel}
+              </Button>
+              <Button variant="danger" onClick={handleDisconnect} disabled={disconnect.isPending}>
+                {disconnect.isPending ? tt.disconnecting : tt.disconnect}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
-
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>마켓 연결 해제</DialogTitle>
-            <DialogDescription>
-              <strong>{account.accountLabel}</strong> 연결을 해제하면 이 계정으로 상품을 등록할 수
-              없게 됩니다. 다시 연결하려면 인증 과정을 처음부터 진행해야 합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
-              {tt.cancel}
-            </Button>
-            <Button variant="danger" onClick={handleDisconnect} disabled={disconnect.isPending}>
-              {disconnect.isPending ? tt.disconnecting : tt.disconnect}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
