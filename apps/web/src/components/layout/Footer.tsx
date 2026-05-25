@@ -55,7 +55,9 @@ function FooterLink({ to, children }: FooterLinkProps): JSX.Element {
     <Link
       to={to}
       className={cn(
-        'rounded text-text-secondary transition-colors hover:text-text hover:underline',
+        // PRD §5.2 모바일 터치 타겟 — inline-flex 로 44px 높이 보장 (md+ 에서는 자연 height)
+        'inline-flex min-h-[44px] items-center rounded px-1 text-text-secondary transition-colors',
+        'hover:text-text hover:underline md:min-h-0',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
       )}
     >
