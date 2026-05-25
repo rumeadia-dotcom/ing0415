@@ -571,8 +571,14 @@ function makeStorage() {
 // ─── 진입 ───────────────────────────────────────────────────────────────────
 
 export function createMockSupabase(): any {
-  // 부팅 시점에 자동 로그인 상태로 시작 (UI 즉시 진입)
-  currentSession = mockSession
+  // 부팅 시점에 자동 로그인 상태로 시작 (UI 즉시 진입).
+  // cycle 43: VITE_MOCK_AUTO_LOGIN=false 면 anonymous 로 시작 — logout / RequireAuth
+  // 검증, draft persistence 검증 등 명시적 로그인 흐름 테스트 시 사용.
+  const autoLogin =
+    typeof import.meta.env.VITE_MOCK_AUTO_LOGIN === 'string'
+      ? import.meta.env.VITE_MOCK_AUTO_LOGIN !== 'false'
+      : true
+  currentSession = autoLogin ? mockSession : null
 
   return {
     auth: makeAuth(),
