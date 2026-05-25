@@ -299,7 +299,7 @@ function SellerMiniCard(): JSX.Element {
           aria-hidden="true"
           className={cn(
             'grid h-8 w-8 shrink-0 place-items-center rounded-full',
-            'bg-accent-soft text-accent',
+            'bg-accent-soft text-accent-onlight',
             'text-[13px] font-bold',
           )}
         >

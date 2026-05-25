@@ -112,7 +112,7 @@ export function DashboardEmptyState({ variant }: DashboardEmptyStateProps): JSX.
     >
       <div
         aria-hidden
-        className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent"
+        className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent-onlight"
       >
         <PackagePlus className="h-6 w-6" />
       </div>

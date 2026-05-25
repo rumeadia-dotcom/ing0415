@@ -58,7 +58,7 @@ export function Stepper({ current }: StepperProps): JSX.Element {
                 className={cn(
                   'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold',
                   isCurrent && 'border-ink bg-ink text-accent',
-                  isCompleted && 'border-accent bg-accent-soft text-accent',
+                  isCompleted && 'border-accent bg-accent-soft text-accent-onlight',
                   !isCompleted && !isCurrent && 'border-border bg-surface text-text-tertiary',
                 )}
               >

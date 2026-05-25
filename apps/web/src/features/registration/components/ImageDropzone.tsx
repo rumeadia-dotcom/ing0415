@@ -65,7 +65,7 @@ export function ImageDropzone({ onFilesSelected, disabled, remainingSlots }: Ima
     >
       <span
         aria-hidden
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent-onlight"
       >
         <Plus className="h-6 w-6" strokeWidth={1.5} />
       </span>

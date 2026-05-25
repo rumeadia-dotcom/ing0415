@@ -201,10 +201,11 @@ export function OrdersListPage(): JSX.Element {
         <>
           {/* 데스크탑 테이블 */}
           <section className="hidden overflow-hidden rounded-2xl border border-border bg-surface shadow-sm md:block">
+            {/* visual-only header row — semantic 은 <ul>/<li> 가 담당. */}
             <div
               className="grid items-center gap-3 border-b border-border bg-surface-muted px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary"
               style={{ gridTemplateColumns: '6px 110px 1fr 110px 110px 150px 80px' }}
-              role="row"
+              aria-hidden="true"
             >
               <span aria-hidden />
               <span>{ko.orders.list.tableOrderId}</span>
