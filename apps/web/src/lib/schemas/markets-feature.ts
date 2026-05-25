@@ -5,19 +5,19 @@ import { MarketIdSchema } from './common'
  * 마켓 계정 도메인 zod 스키마.
  * 마스터: docs/architecture/v1/features/markets.md §6
  *
- * v1 정식 라인업 (2026-05-19 Wave 1 재결정):
- *   - oauth   = 'naver'             — markets-oauth-start / markets-oauth-callback
- *   - hmac    = 'coupang'           — markets-connect (kind='hmac_key')
- *   - esm_jwt = 'gmarket','auction' — markets-connect (kind='esm_jwt')
- *   - api_key = '11st'              — markets-connect (kind='api_key', 서버 stub. Wave 2 에서 본격)
- *   (2026-05-23 — 5마켓 정식 결정과 11번가 stub 활성화 mirror 갱신)
+ * v1 정식 라인업 (2026-05-25 — 11번가 scaffold 포함):
+ *   - oauth   = 'naver'                       — markets-oauth-start / markets-oauth-callback
+ *   - hmac    = 'coupang'                     — markets-connect (kind='hmac_key')
+ *   - esm_jwt = 'gmarket','auction'           — markets-connect (kind='esm_jwt')
+ *   - api_key = '11st'                        — markets-connect (kind='api_key', spec 미확보로
+ *     real fetchCategoryTree throw — markets-connect 가 11st 만 ping 스킵)
  */
 
 /** OAuth 방식 = 네이버만. markets-oauth-start / callback 의 market enum. */
 const V1OAuthMarketSchema = z.enum(['naver'])
 
-/** Key 직접 입력 방식 = 쿠팡 / G마켓 / 옥션. markets-connect 의 market enum. */
-const V1KeyConnectMarketSchema = z.enum(['coupang', 'gmarket', 'auction'])
+/** Key 직접 입력 방식 = 쿠팡 / G마켓 / 옥션 / 11번가. markets-connect 의 market enum. */
+const V1KeyConnectMarketSchema = z.enum(['coupang', 'gmarket', 'auction', '11st'])
 
 // ─────────────────────────────────────────────
 // MarketAccount (클라이언트 노출 형태)
@@ -136,7 +136,7 @@ export const CONNECTION_METHODS = [
   'oauth',         // 네이버 — markets-oauth-start
   'hmac_form',     // 쿠팡 — markets-connect (HMAC 키 직접 입력)
   'esm_jwt_form',  // G마켓 / 옥션 — markets-connect (ESM JWT 키 직접 입력)
-  'disabled',      // 11번가 — 오픈 준비중
+  'api_key_form',  // 11번가 — markets-connect (API Key 직접 입력, real spec 미확보)
 ] as const
 export const ConnectionMethodSchema = z.enum(CONNECTION_METHODS)
 export type ConnectionMethod = z.infer<typeof ConnectionMethodSchema>
@@ -166,6 +166,14 @@ export const EsmJwtConnectFormSchema = z.object({
 })
 export type EsmJwtConnectForm = z.infer<typeof EsmJwtConnectFormSchema>
 
+/** 11번가 API Key 입력 폼. 영구 키 — refresh 없음. */
+export const ApiKeyConnectFormSchema = z.object({
+  market: z.literal('11st'),
+  accountLabel: z.string().min(1).max(40),
+  apiKey: z.string().min(1).max(200),
+})
+export type ApiKeyConnectForm = z.infer<typeof ApiKeyConnectFormSchema>
+
 /**
  * markets-connect Edge Function Request — 서버 (apps/api/supabase/functions/markets-connect/index.ts)
  * 의 RequestSchema 와 정합. `credentials` 안에 kind 별 union.
@@ -185,12 +193,17 @@ const EsmJwtCredentialSchema = z.object({
   sellerId: z.string().min(1),
   site: z.enum(['G', 'A']),
 })
+const ApiKeyCredentialSchema = z.object({
+  kind: z.literal('api_key'),
+  apiKey: z.string().min(1),
+})
 export const ConnectRequestSchema = z.object({
   marketId: V1KeyConnectMarketSchema,
   accountLabel: z.string().min(1).max(40),
   credentials: z.discriminatedUnion('kind', [
     HmacKeyCredentialSchema,
     EsmJwtCredentialSchema,
+    ApiKeyCredentialSchema,
   ]),
 })
 export type ConnectRequest = z.infer<typeof ConnectRequestSchema>
@@ -198,12 +211,13 @@ export type ConnectRequest = z.infer<typeof ConnectRequestSchema>
 /**
  * 폼 데이터 → markets-connect Edge Function payload.
  *
- *  - 쿠팡: HmacConnectForm  → credentials.kind = 'hmac_key'
- *  - G마켓: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'G'
- *  - 옥션: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'A'
+ *  - 쿠팡: HmacConnectForm   → credentials.kind = 'hmac_key'
+ *  - G마켓: EsmJwtConnectForm  → credentials.kind = 'esm_jwt', site = 'G'
+ *  - 옥션: EsmJwtConnectForm  → credentials.kind = 'esm_jwt', site = 'A'
+ *  - 11번가: ApiKeyConnectForm → credentials.kind = 'api_key'
  */
 export function toConnectRequest(
-  form: HmacConnectForm | EsmJwtConnectForm,
+  form: HmacConnectForm | EsmJwtConnectForm | ApiKeyConnectForm,
 ): ConnectRequest {
   if (form.market === 'coupang') {
     return {
@@ -214,6 +228,16 @@ export function toConnectRequest(
         accessKey: form.accessKey,
         secretKey: form.secretKey,
         vendorId: form.vendorId,
+      },
+    }
+  }
+  if (form.market === '11st') {
+    return {
+      marketId: '11st',
+      accountLabel: form.accountLabel,
+      credentials: {
+        kind: 'api_key',
+        apiKey: form.apiKey,
       },
     }
   }

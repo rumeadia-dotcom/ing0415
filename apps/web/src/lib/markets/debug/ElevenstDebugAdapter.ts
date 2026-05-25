@@ -1,61 +1,20 @@
-import { MarketError } from '../errors'
+import { createMockAdapter } from './createMockAdapter'
 import type { MarketAdapter } from '../types'
-import type {
-  AuthInput,
-  CategoryNode,
-  CreateProductResult,
-  FetchOrdersInput,
-  MarketMapping,
-  MarketOrder,
-  MarketPayload,
-  MarketSubmitTrackingResult,
-  Product,
-  StoredCredential,
-  SubmitTrackingInput,
-} from '@/lib/schemas'
 
 /**
- * 11번가 debug 어댑터 — Phase 4-B-2 Wave 2 본격 구현 대기 중 stub (2026-05-23 갱신).
- * 마스터: docs/architecture/v1/cross-cutting/market-adapter.md §9
+ * 11번가 debug 어댑터.
  *
- * 2026-05-22 5마켓 정식 결정. Lightsail Gateway 고정 IP 도입으로 IP 화이트리스트
- * 정책 해결. 다만 11번가 Open API 정식 spec / endpoint / 응답 schema 확보가
- * 별도 작업 (Phase 4-B-2 Wave 2 후속 PR) — 본 stub 은 그 작업 전까지 5메서드
- * 인터페이스 호환만 보존.
+ * 2026-05-25 — 5마켓 정식 (CLAUDE.md s5) 의 통합 mock 분기로 진입. 다른 4마켓
+ * (naver / coupang / gmarket / auction) 와 동일하게 `createMockAdapter('11st')`
+ * wrapper. credentialKind='api_key' (영구 키) 이라 refreshToken 정의 없음.
  *
- * 서버 측: apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts (PR #111).
- * credentialKind = 'api_key'. 5개 메서드 모두 즉시 throw.
+ * 본 어댑터의 createProduct / fetchOrders 등 mock 응답은 다른 4마켓과 동일한
+ * 정규화된 schema (CreateProductResult / MarketOrder[]) 로 반환 — useMock=true
+ * 셀러 / E2E / 단위 테스트 모두 5마켓 일관 흐름.
+ *
+ * real 어댑터는 `apps/web/src/lib/markets/real/11st/index.ts` (스캐폴드) +
+ * `apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts` (Edge
+ * Function 측) — spec 입수 후 transformProduct / createProduct / fetchCategoryTree
+ * 본체 구현 별도 PR.
  */
-
-const MARKET = '11st' as const
-const STUB_MESSAGE =
-  '11번가 어댑터 stub — 정식 API spec 확보 후 별도 PR (Phase 4-B-2 Wave 2) 에서 본격 구현 예정'
-
-export const elevenstDebugAdapter: MarketAdapter = {
-  market: MARKET,
-  credentialKind: 'api_key',
-  authenticate(_input: AuthInput): Promise<StoredCredential> {
-    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
-  },
-  fetchCategoryTree(): Promise<CategoryNode[]> {
-    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
-  },
-  transformProduct(_product: Product, _mapping: MarketMapping): MarketPayload {
-    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
-  },
-  createProduct(_payload: MarketPayload): Promise<CreateProductResult> {
-    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
-  },
-  fetchOrders(
-    _input: FetchOrdersInput,
-    _credential?: StoredCredential,
-  ): Promise<MarketOrder[]> {
-    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
-  },
-  submitTracking(
-    _input: SubmitTrackingInput,
-    _credential?: StoredCredential,
-  ): Promise<MarketSubmitTrackingResult> {
-    throw new MarketError('validation', STUB_MESSAGE, { market: MARKET })
-  },
-}
+export const elevenstDebugAdapter: MarketAdapter = createMockAdapter('11st')

@@ -120,14 +120,18 @@ function buildHappyCredential(
       })
     }
     case 'api_key': {
-      // 11번가 — Phase 4-B-2 Wave 2 본격 구현 대기 중 stub.
-      // useMock 흐름은 별도 ElevenstDebugAdapter 사용 (markets/index.ts) — 본 분기는
-      // 직접 createMockAdapter('11st') 호출 시 (단위 테스트 등) 만 도달.
-      throw new MarketError(
-        'unknown',
-        `${market}: api_key adapter stub — Phase 4-B-2 Wave 2 본격 구현 예정`,
-        { market },
-      )
+      // 11번가 — 영구 키. AuthInput 의 api_key 입력에서 apiKey 만 추출 → StoredCredential.
+      if (input.kind !== 'api_key') {
+        throw new MarketError(
+          'validation',
+          `${market}: api_key input required (got ${input.kind})`,
+          { market },
+        )
+      }
+      return StoredCredentialSchema.parse({
+        kind: 'api_key',
+        payload: { apiKey: input.apiKey },
+      })
     }
   }
 }

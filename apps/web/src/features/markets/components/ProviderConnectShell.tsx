@@ -62,11 +62,9 @@ export function ProviderConnectShell({
                   {t.form.sectionHint[authMode]}
                 </p>
               </div>
-              {authMode !== 'disabled' && (
-                <span className="hidden text-[11.5px] font-bold text-accent sm:inline">
-                  {t.form.issuanceGuide}
-                </span>
-              )}
+              <span className="hidden text-[11.5px] font-bold text-accent sm:inline">
+                {t.form.issuanceGuide}
+              </span>
             </div>
 
             {form}

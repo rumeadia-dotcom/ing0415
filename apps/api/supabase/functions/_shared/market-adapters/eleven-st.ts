@@ -21,7 +21,8 @@
  *   - 11번가 Open API 공식 문서 + 정식 발급 API Key 확보
  *   - 5메서드 본체 구현 (authenticate ping / fetchCategoryTree / transformProduct /
  *     createProduct)
- *   - 호출 URL = `https://api.11st.co.kr/...` (gateway 화이트리스트 등록 완료)
+ *   - 호출 URL = `https://openapi.11st.co.kr/openapi/OpenApiService.tmall?apiCode=<CODE>&key=<API_KEY>&<params>`
+ *     (Seller API, XML 응답 CP949 인코딩, gateway 화이트리스트 등록 완료)
  *   - 단위 테스트 (인터페이스 정합) + 통합 검증 (IP 등록 + 정식 키 발급 후)
  */
 
@@ -39,8 +40,9 @@ import type { MarketAdapter } from '../market-adapter.ts'
 
 const MARKET = '11st' as const
 
-/** v1 stub — 본격 구현 시 endpoint 확정 */
-export const ELEVEN_ST_API_BASE = 'https://api.11st.co.kr'
+/** 11번가 OpenAPI 정식 endpoint base — 모든 호출이 본 path 를 통과한다.
+ *  apiCode + params 는 query string 으로 전달, XML CP949 응답. */
+export const ELEVEN_ST_API_BASE = 'https://openapi.11st.co.kr/openapi/OpenApiService.tmall'
 
 interface ApiKeyCred {
   apiKey: string

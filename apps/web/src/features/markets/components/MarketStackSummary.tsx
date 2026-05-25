@@ -11,17 +11,15 @@ interface MarketStackSummaryProps {
 
 /**
  * 마켓 계정 페이지 상단 요약 스트립.
- * Studio s5 reference: studio-domains.jsx StudioMarkets — 좌 "N/4" + 가운데 마켓 identity 행 + 우 신규 연결 CTA.
+ * Studio s5 reference: studio-domains.jsx StudioMarkets — 좌 "N/5" + 가운데 마켓 identity 행 + 우 신규 연결 CTA.
  *
- * 활성/만료/오류/v2예정 카운터를 함께 노출하여 한 눈에 상태 파악 가능.
- * - "활성"의 base 는 v1 정식 마켓 4 (네이버/쿠팡/G마켓/옥션). 11번가는 v2 카운트로 분리.
+ * 활성/만료/오류 카운터 노출. v1 정식 = 5 마켓 (naver/coupang/gmarket/auction/11st).
  */
 export function MarketStackSummary({ accounts }: MarketStackSummaryProps): JSX.Element {
   const t = ko.markets.summary
   const READY_MARKETS = MARKET_IDS.filter((id) => MARKET_CATALOG[id].status === 'ready')
-  const COMING_SOON_MARKETS = MARKET_IDS.filter(
-    (id) => MARKET_CATALOG[id].status === 'coming_soon',
-  )
+  // coming_soon 마켓이 다시 추가되면 본 배열도 활성화. 현 시점은 5마켓 전부 ready.
+  const COMING_SOON_MARKETS: typeof MARKET_IDS[number][] = []
 
   const activeMarketIds = new Set<MarketId>(
     accounts.filter((a) => a.status === 'active').map((a) => a.marketId),
@@ -72,16 +70,13 @@ export function MarketStackSummary({ accounts }: MarketStackSummaryProps): JSX.E
         {MARKET_IDS.map((id) => {
           const entry = MARKET_CATALOG[id]
           const isActive = activeMarketIds.has(id)
-          const isComingSoon = entry.status === 'coming_soon'
           return (
             <div
               key={id}
               className={
-                isComingSoon
-                  ? 'flex items-center gap-2 opacity-50'
-                  : isActive
-                    ? 'flex items-center gap-2'
-                    : 'flex items-center gap-2 opacity-60'
+                isActive
+                  ? 'flex items-center gap-2'
+                  : 'flex items-center gap-2 opacity-60'
               }
             >
               <MarketIdentity marketId={id} size="md" />
