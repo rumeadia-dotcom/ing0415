@@ -170,11 +170,78 @@ jobs:
           path: dist
 
   # ──────────────────────────────────────────────────────────────────────────
-  # 2. GitHub Pages 배포
+  # 2. Supabase Vault secret drift 검증
+  #    배경: 마이그 #20260521000010 (pg_cron orders-sync) 가 vault.decrypted_secrets
+  #    의 'supabase_functions_url' / 'service_role_key' 를 사용해 Edge Function
+  #    을 호출한다. PR #140 에서 vault 미등록 환경 (CI/dev) 도 통과 가능하도록
+  #    가드를 `raise exception` → `raise notice + return` 으로 약화했다.
+  #    그 결과 운영 vault drift (시크릿 미등록) 시 마이그/배포는 성공하지만
+  #    cron 잡 실행이 runtime 시점에 silent fail 한다.
+  #
+  #    본 잡은 그 안전망을 복원한다 — 운영 vault 에 두 시크릿이 모두 존재하는지
+  #    Management API SQL endpoint 로 확인한다. 누락 시 deploy 차단.
+  #
+  #    SQL 은 count 만 SELECT — 실제 secret value 노출 0.
+  #    service_role 키를 CI secret 에 저장하지 않는다 (security.md 룰 유지).
+  # ──────────────────────────────────────────────────────────────────────────
+  verify-vault-secrets:
+    name: Verify Supabase Vault Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.REAL_SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Verify required CI secrets present
+        run: |
+          if [[ -z "$SUPABASE_ACCESS_TOKEN" || -z "$SUPABASE_PROJECT_REF" ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN / REAL_SUPABASE_PROJECT_REF 누락 — repo secrets 확인."
+            exit 1
+          fi
+
+      - name: Query vault.decrypted_secrets via Management API
+        run: |
+          # vault.decrypted_secrets 는 supabase 의 system view.
+          # count(*) filter (...) 로 두 이름의 존재만 boolean 으로 환산.
+          # SELECT decrypted_secret 은 절대 하지 않는다 — 실 값 누출 방지.
+          cat > /tmp/query.json <<'JSON'
+          {
+            "query": "select count(*) filter (where name = 'supabase_functions_url') as has_url, count(*) filter (where name = 'service_role_key') as has_key from vault.decrypted_secrets"
+          }
+          JSON
+
+          http_code=$(curl -sS -X POST \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/query.json \
+            -o /tmp/body.json \
+            -w '%{http_code}')
+
+          if [[ "$http_code" != "200" && "$http_code" != "201" ]]; then
+            echo "::error::Management API SQL query 실패 (HTTP $http_code). vault view 미존재 또는 권한 문제일 수 있음."
+            # 응답 body 는 토큰 echo 없음 (API 가 access_token 을 응답에 포함하지 않음) — 진단용 노출.
+            cat /tmp/body.json || true
+            exit 1
+          fi
+
+          has_url=$(jq -r '.[0].has_url // 0' /tmp/body.json)
+          has_key=$(jq -r '.[0].has_key // 0' /tmp/body.json)
+
+          if [[ "$has_url" != "1" || "$has_key" != "1" ]]; then
+            echo "::error::Vault drift 검출 — supabase_functions_url=${has_url} / service_role_key=${has_key} (1=등록됨, 0=누락)."
+            echo "::error::Supabase dashboard → Project Settings → Vault 에서 두 secret 모두 등록 후 재배포 (workflow_dispatch)."
+            exit 1
+          fi
+
+          echo "::notice::Vault secrets OK — supabase_functions_url + service_role_key 모두 등록 확인."
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 3. GitHub Pages 배포
   # ──────────────────────────────────────────────────────────────────────────
   deploy-pages:
     name: Deploy to GitHub Pages
-    needs: build-real
+    needs: [build-real, verify-vault-secrets]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -186,13 +253,13 @@ jobs:
         uses: actions/deploy-pages@v4
 
   # ──────────────────────────────────────────────────────────────────────────
-  # 3. Supabase Edge Functions 배포 (옵션)
+  # 4. Supabase Edge Functions 배포 (옵션)
   #    - apply_db_migrations 입력이 true 일 때만 `supabase db push` 실행.
   #    - 기본은 false. ci-cd.md §7 — drift 검출과 함께 수동 운용 권장.
   # ──────────────────────────────────────────────────────────────────────────
   deploy-edge-functions:
     name: Deploy Supabase Edge Functions
-    needs: build-real
+    needs: [build-real, verify-vault-secrets]
     if: ${{ github.event.inputs.deploy_edge_functions != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -253,7 +320,7 @@ jobs:
           done
 
   # ──────────────────────────────────────────────────────────────────────────
-  # 4. Sentry 배포 알림 (release 가 생성된 경우만)
+  # 5. Sentry 배포 알림 (release 가 생성된 경우만)
   # ──────────────────────────────────────────────────────────────────────────
   notify-sentry:
     name: Finalize Sentry release
