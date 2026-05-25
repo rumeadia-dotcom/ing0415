@@ -2,7 +2,6 @@ import { Outlet } from 'react-router-dom'
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
-import { Toaster } from '@/components/ui'
 import { ko } from '@/locales/ko'
 import { cn } from '@/lib/utils'
 
@@ -67,7 +66,7 @@ export function AppLayout(): JSX.Element {
         </main>
         <Footer />
       </div>
-      <Toaster />
+      {/* Toaster 는 App.tsx 루트에서 단일 인스턴스로 마운트 — sonner 의 aria-live region 중복 방지 */}
     </div>
   )
 }
