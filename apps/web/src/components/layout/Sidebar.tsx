@@ -132,11 +132,14 @@ export function Sidebar({ onNavigate }: SidebarProps): JSX.Element {
         'bg-card',
         'border-r border-border',
         'px-[14px] py-[18px]',
+        // cycle 61: sidebar 가 viewport 보다 길어지면 내부 스크롤. min-h-0 은 flex child overflow 활성.
+        'min-h-0',
       )}
     >
       <BrandSection />
 
-      <div className="mt-2 flex flex-col">
+      {/* cycle 61: NAV_GROUPS 가 viewport 보다 길어지면 자체 스크롤. brand / seller card 는 고정. */}
+      <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-y-auto">
         {NAV_GROUPS.map((group, gi) => (
           <NavSection
             key={group.title ?? `g${gi}`}
