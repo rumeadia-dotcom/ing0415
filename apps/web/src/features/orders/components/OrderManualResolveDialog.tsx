@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
   ErrorMessage,
   Input,
   Label,
@@ -84,19 +85,20 @@ export function OrderManualResolveDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        type="button"
-        variant={canTrigger ? 'danger' : 'outline'}
-        size="md"
-        onClick={() => setOpen(true)}
-        disabled={!canTrigger}
-        aria-disabled={!canTrigger}
-        title={blockingReason ?? undefined}
-        data-testid="order-manual-resolve-trigger"
-        className="w-full"
-      >
-        {ko.orders.detail.manualResolveCta}
-      </Button>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant={canTrigger ? 'danger' : 'outline'}
+          size="md"
+          disabled={!canTrigger}
+          aria-disabled={!canTrigger}
+          title={blockingReason ?? undefined}
+          data-testid="order-manual-resolve-trigger"
+          className="w-full"
+        >
+          {ko.orders.detail.manualResolveCta}
+        </Button>
+      </DialogTrigger>
 
       <DialogContent>
         <DialogHeader>
