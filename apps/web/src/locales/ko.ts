@@ -129,7 +129,7 @@ export const ko = {
     connect: {
       pageTitle: '마켓 연결',
       pageSubtitle:
-        '연결할 마켓을 선택하세요. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션. 11번가는 오픈 준비중.',
+        '연결할 마켓을 선택하세요. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개.',
       breadcrumb: {
         markets: '마켓 계정',
         new: '신규 연결',
@@ -138,10 +138,10 @@ export const ko = {
         oauth: 'OAuth 2.0 · 마켓 로그인 페이지로 이동',
         hmac: 'HMAC · Access / Secret / Vendor ID 입력',
         esm_jwt: 'ESM JWT · Master / Secret / Seller ID 입력',
-        disabled: 'v2 예정 · IP 화이트리스트 해소 후 진입',
+        api_key: 'API Key · 셀러오피스에서 발급한 영구 키 입력',
       },
       cardCta: '연결 시작 →',
-      cardCtaDisabled: 'v2 예정',
+      cardCtaDisabled: '준비중',
       backToList: '마켓 목록으로',
       backToSelect: '마켓 선택으로',
       cancel: '취소',
@@ -152,7 +152,7 @@ export const ko = {
         oauth: 'OAuth 2.0 방식 · 마켓 로그인 페이지에서 동의',
         hmac: 'HMAC 방식 · Wing 셀러 콘솔에서 발급',
         esm_jwt: 'ESM JWT 방식 · ESM Plus 콘솔에서 발급',
-        disabled: '현재 오픈 준비중입니다',
+        api_key: 'API Key 방식 · 11번가 셀러오피스 OPEN API 센터에서 발급',
       },
       issuanceGuide: '발급 가이드 ↗',
       docLinkFallback: 'API 가이드 바로가기 ↗',
@@ -160,6 +160,7 @@ export const ko = {
         naver: '네이버 커머스 API 바로가기 ↗',
         coupang: '쿠팡 Wing API 바로가기 ↗',
         esmplus: 'ESM Plus 콘솔 바로가기 ↗',
+        elevenst: '11번가 OPEN API 센터 바로가기 ↗',
       },
       oauth: {
         guideTitle: '연결 절차 — 네이버 스마트스토어',
@@ -224,9 +225,18 @@ export const ko = {
         '입력값은 pgcrypto 로 암호화되어 저장돼요. 화면에 다시 노출되지 않아요.',
       securityWarn:
         '시크릿 키는 절대 외부에 공유하지 마세요. 분실 시 발급처에서 재발급해야 해요.',
-      disabled: {
-        title: (label: string) => `${label} — 오픈 준비중`,
-        body: 'IP 화이트리스트 정책 해결 후 v2 단계에서 진입합니다. 현재는 네이버 · 쿠팡 · G마켓 · 옥션 4개 마켓만 연결할 수 있습니다.',
+      apiKey: {
+        apiKey: 'API Key',
+        apiKeyPlaceholder: '11번가 셀러오피스에서 발급한 키',
+        guideTitle: '키 발급 절차 — 11번가 OPEN API',
+        guideSteps: [
+          '11번가 셀러오피스(seller.11st.co.kr) 또는 OPEN API 센터(openapi.11st.co.kr)에 판매자 계정으로 로그인합니다',
+          '메인 페이지 하단 [OPEN API] 또는 셀러오피스 [API 발급] 메뉴로 진입합니다',
+          'Seller API 발급 양식에서 IP 화이트리스트에 `43.201.83.78` (MarketCast Lightsail Gateway 고정 IP) 를 등록합니다',
+          '사용 용도에 "11번가 상품 관리 및 주문관리" 를 입력하고 발급 신청합니다',
+          '발급된 영구 API Key 를 안전한 곳에 즉시 복사해 보관합니다 (재확인 불가)',
+          '11번가 정식 상품 등록 API spec 미확보 — 자격증명 저장은 가능하지만 등록·카테고리 조회 본격 동작은 별도 업데이트 예정',
+        ] as const,
       },
     },
     callback: {

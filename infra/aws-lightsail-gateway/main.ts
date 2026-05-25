@@ -23,7 +23,7 @@ const ALLOWED_UPSTREAM_HOSTS = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
   'sa.esmplus.com',
-  'api.11st.co.kr',
+  'openapi.11st.co.kr',
 ]);
 
 const TIMESTAMP_DRIFT_MS = 5 * 60 * 1000;

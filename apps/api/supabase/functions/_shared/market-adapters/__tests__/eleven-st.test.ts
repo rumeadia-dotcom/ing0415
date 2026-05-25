@@ -95,7 +95,7 @@ describe('createElevenStAdapter — stub', () => {
     expect(adapter.refreshToken).toBeUndefined()
   })
 
-  it('ELEVEN_ST_API_BASE 가 https://api.11st.co.kr 로 export (게이트웨이 화이트리스트 정합)', () => {
-    expect(ELEVEN_ST_API_BASE).toBe('https://api.11st.co.kr')
+  it('ELEVEN_ST_API_BASE 가 https://openapi.11st.co.kr/openapi/OpenApiService.tmall 로 export (게이트웨이 화이트리스트 정합)', () => {
+    expect(ELEVEN_ST_API_BASE).toBe('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')
   })
 })
