@@ -210,9 +210,17 @@ export async function fetchJobWithResults(jobId: string): Promise<{ job: Registr
     supabase.from('registration_job_market_results').select('*').eq('job_id', jobId).order('created_at', { ascending: true }),
   ])
 
-  if (jobErr) throw new RegistrationApiError({ code: 'internal', message: jobErr.message }, jobErr)
+  // PGRST116 = "no rows when .single() expected one" + 22P02 = invalid UUID syntax
+  // 둘 다 "이 jobId 는 존재하지 않거나 형식 오류" 의미 → job_not_found 로 매핑.
+  if (jobErr) {
+    const pgCode = (jobErr as { code?: string }).code
+    if (pgCode === 'PGRST116' || pgCode === '22P02') {
+      throw new RegistrationApiError({ code: 'job_not_found', message: 'job not found' }, jobErr)
+    }
+    throw new RegistrationApiError({ code: 'internal', message: jobErr.message }, jobErr)
+  }
   if (resErr) throw new RegistrationApiError({ code: 'internal', message: resErr.message }, resErr)
-  if (!jobData) throw new RegistrationApiError({ code: 'product_not_found', message: 'job not found' })
+  if (!jobData) throw new RegistrationApiError({ code: 'job_not_found', message: 'job not found' })
 
   const job = RegistrationJobSchema.parse({
     id: jobData.id,
