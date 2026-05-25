@@ -66,7 +66,7 @@ try {
   await page.locator('input[type="password"]').first().fill('password123!')
   const submitBtn = page.getByRole('button', { name: /^로그인하기$|^로그인$|이메일로 로그인/ }).first()
   await submitBtn.click()
-  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => { /* navigate timeout OK */ })
   log(`  after click → ${new URL(page.url()).pathname}`)
   await shot(page, '04-after-login')
 
@@ -98,18 +98,12 @@ try {
   log(`  has API Key input: ${has11stForm > 0}`)
   await shot(page, '08-markets-connect-11st')
 
-  // ── s3 — register wizard step 1
-  log('\n## 9. /register (5단계 위저드 — step1 info) — Tiptap first-load retry')
+  // ── s3 — register wizard step 1 (Tiptap)
+  log('\n## 9. /register/info — Tiptap WYSIWYG')
   await page.goto(`${BASE}/register/info`)
   await page.waitForLoadState('networkidle', { timeout: 10000 })
-  let crashed = await page.getByText('예상치 못한 오류').isVisible().catch(() => false)
-  if (crashed) {
-    log('  ⚠ first hit crashed — reload to retry')
-    await page.reload()
-    await page.waitForLoadState('networkidle', { timeout: 10000 })
-    crashed = await page.getByText('예상치 못한 오류').isVisible().catch(() => false)
-    log(`  after reload: ${crashed ? 'STILL CRASHED' : 'OK'}`)
-  }
+  const step1Crashed = await page.getByText('예상치 못한 오류').isVisible().catch(() => false)
+  log(`  crashed: ${step1Crashed}`)
   await shot(page, '09-register-step1-info')
 
   // ── s3 — register step3 markets (선택 그리드 — 5마켓 정합 확인)
@@ -130,13 +124,35 @@ try {
   await page.waitForLoadState('networkidle', { timeout: 10000 })
   await shot(page, '12-settings')
 
-  // ── 법적 페이지 (비인증 접근)
-  log('\n## 13. /legal/terms (비인증)')
-  await page.goto(`${BASE}/legal/terms`)
-  await page.waitForLoadState('networkidle', { timeout: 10000 })
-  await shot(page, '13-legal-terms')
+  // ── register step2 / step4 / connect provider 4종
+  const extra = [
+    ['register/images', '14-register-step2-images'],
+    ['register/preview', '15-register-step4-preview'],
+    ['markets/connect/naver', '16-connect-naver'],
+    ['markets/connect/coupang', '17-connect-coupang'],
+    ['markets/connect/gmarket', '18-connect-gmarket'],
+    ['markets/connect/auction', '19-connect-auction'],
+    ['orders/list', '20-orders-list'],
+    ['shipping/print', '21-shipping-print'],
+    ['shipping/dispatch', '22-shipping-dispatch'],
+    ['shipping/history', '23-shipping-history'],
+    ['settings/policies', '24-settings-policies'],
+    ['settings/shipping/logen', '25-settings-shipping-logen'],
+    ['settings/shipping/sender', '26-settings-shipping-sender'],
+    ['legal/terms', '27-legal-terms'],
+    ['legal/privacy', '28-legal-privacy'],
+    ['manual', '29-manual'],
+  ]
+  for (const [routePath, fileName] of extra) {
+    log(`\n## ${fileName}: /${routePath}`)
+    await page.goto(`${BASE}/${routePath}`)
+    await page.waitForLoadState('networkidle', { timeout: 10000 })
+    const crashed = await page.getByText('예상치 못한 오류').isVisible().catch(() => false)
+    if (crashed) log(`  ❌ ${routePath} 크래시`)
+    await shot(page, fileName)
+  }
 
-  log('\n✅ 모든 페이지 정상 응답')
+  log('\n✅ 모든 페이지 walkthrough 완료')
 } catch (e) {
   log(`\n❌ ERROR: ${e?.message ?? e}`)
   await shot(page, '99-error-state')
