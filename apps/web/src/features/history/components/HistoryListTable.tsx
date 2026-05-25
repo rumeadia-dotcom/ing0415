@@ -86,7 +86,7 @@ export function HistoryListTable({
             <tr>
               <th scope="col" className="w-[3px] p-0" aria-hidden />
               <th scope="col" className="w-[88px] px-3 py-2.5 font-semibold">
-                Job ID
+                잡 ID
               </th>
               <th scope="col" className="px-3 py-2.5 font-semibold">
                 상품명
