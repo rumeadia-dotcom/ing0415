@@ -11,6 +11,18 @@ export const ko = {
   app: {
     name: 'MarketCast',
   },
+  // cycle 40: 여러 feature 가 공유하는 toast 문구 — feature scope 에 두기 어색한 generic 메시지.
+  commonToasts: {
+    productSaveFailed: '상품 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    startRegistrationFailed: '등록을 시작할 수 없습니다.',
+    selectAtLeastOneMarket: '재등록할 마켓을 1개 이상 선택해야 합니다.',
+    noRetryableMarkets: '재시도 가능한 마켓이 없습니다.',
+    noRestartableMarkets: '재등록 가능한 마켓이 없습니다.',
+    noWaybillsToPrint: '출력할 운송장이 없습니다.',
+    noOrdersToProcess: '대상 주문이 없습니다.',
+    noOrdersToDispatch: '제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.',
+    popupBlocked: '팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.',
+  },
   nav: {
     main: '메인',
     aux: '보조',
@@ -42,6 +54,11 @@ export const ko = {
     primaryNavLabel: '주요 메뉴',
     sellerPlaceholderName: 'konai 셀러',
     sellerPlaceholderEmail: 'seller@konai.com',
+  },
+  // cycle 45: 이미지 업로드 클라이언트 사이드 validation 메시지.
+  imageUpload: {
+    invalidMime: 'jpg / png / webp 만 허용됩니다.',
+    fileTooLarge: '10MB 이하만 업로드 가능합니다.',
   },
   status: {
     pending: '대기',
@@ -354,6 +371,7 @@ export const ko = {
       filterFrom: '시작일',
       filterTo: '종료일',
       filterReset: '필터 초기화',
+      filterResetDisabledHint: '현재 적용된 필터가 없습니다',
       searchPlaceholder: '상품명 · 주문번호 · 수취인 검색',
       tableProduct: '상품',
       tableMarket: '마켓',
@@ -369,6 +387,7 @@ export const ko = {
         '필터를 넓혀보세요. 마켓 / 상태 / 검색어를 조정하면 더 많은 주문이 표시됩니다.',
       emptyAbsoluteHint:
         '주문 동기화는 10분 주기로 자동 실행돼요. 들어오면 이 화면에서 바로 확인할 수 있습니다.',
+      emptyAbsoluteCta: '마켓 연결 확인',
       emptySyncHint:
         '팁: 주문 동기화는 10분 주기로 자동 실행됩니다. 최근 동기화 시각은 화면 상단에서 확인할 수 있어요.',
       errorLoad: '주문 목록을 불러오지 못했습니다',

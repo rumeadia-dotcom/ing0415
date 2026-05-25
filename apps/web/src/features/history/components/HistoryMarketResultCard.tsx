@@ -114,7 +114,8 @@ export function HistoryMarketResultCard({
               rel="noreferrer noopener"
               className="text-sm font-medium text-success-on-soft hover:underline focus-visible:underline focus-visible:outline-none"
             >
-              외부 상품 보기 ↗
+              외부 상품 보기 <span aria-hidden>↗</span>
+              <span className="sr-only">(새 창에서 열림)</span>
             </a>
             {result.externalProductId ? (
               <span className="font-mono text-[11px] text-text-tertiary">

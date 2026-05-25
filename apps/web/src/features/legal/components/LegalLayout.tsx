@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { ko } from '@/locales/ko'
+import { useDocumentTitle } from '@/lib/use-document-title'
 
 /**
  * LegalLayout — 약관 / 개인정보처리방침 / 매뉴얼 공통 레이아웃.
@@ -41,6 +42,7 @@ export function LegalLayout({
   sections,
   meta,
 }: LegalLayoutProps): JSX.Element {
+  useDocumentTitle(title)
   const mainRef = useRef<HTMLElement>(null)
 
   // 해시 진입(예: /legal/terms#purpose) 시 해당 섹션으로 스크롤 + 포커스

@@ -17,6 +17,7 @@ import { MarketPreviewCard } from '../components/MarketPreviewCard'
 import { RegistrationApiError } from '../api/registration-api'
 import { formatRegistrationError } from '../utils/registration-error-messages'
 import type { MarketId } from '@/features/markets/types'
+import { ko } from '@/locales/ko'
 
 /**
  * StepPreviewPage — n20 등록 미리보기 (4/5). Studio 룩.
@@ -74,7 +75,7 @@ export function StepPreviewPage(): JSX.Element {
               description: f.correlationId ? `요청 ID: ${f.correlationId}` : undefined,
             })
           } else {
-            toast.error('등록을 시작할 수 없습니다.')
+            toast.error(ko.commonToasts.startRegistrationFailed)
           }
         },
       },

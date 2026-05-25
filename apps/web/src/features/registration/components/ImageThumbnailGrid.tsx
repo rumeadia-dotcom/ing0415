@@ -75,15 +75,17 @@ export function ImageThumbnailGrid({ images, onSetMain, onRemove, onMove }: Imag
                 <span className="font-mono text-[10px] text-text-tertiary">
                   #{idx + 1}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onRemove(img.id)}
                   aria-label="삭제"
-                  className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-danger hover:text-danger-on-soft"
+                  className="ml-auto h-6 gap-1 px-1.5 text-[11px] font-semibold text-danger hover:bg-danger-soft hover:text-danger"
                 >
                   <Trash2 className="h-3 w-3" aria-hidden />
                   삭제
-                </button>
+                </Button>
               </div>
             </div>
           </li>

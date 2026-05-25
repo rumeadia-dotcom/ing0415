@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Upload } from 'lucide-react'
@@ -44,6 +44,14 @@ export function StepImagesPage(): JSX.Element {
   const setImages = useRegisterFormStore((s) => s.setImages)
   const [uploading, setUploading] = useState<UploadingItem[]>([])
   const [pageError, setPageError] = useState<string | null>(null)
+  // unmount 후 진행 중인 setTimeout 의 setState 호출 차단 (memory leak warning 방지).
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   // productId 없으면 Step 1 으로 회귀
   useEffect(() => {
@@ -91,7 +99,9 @@ export function StepImagesPage(): JSX.Element {
           toast.error(`${file.name} 업로드 실패: ${msg}`)
         } finally {
           setTimeout(() => {
-            setUploading((prev) => prev.filter((u) => u.id !== item.id))
+            if (mountedRef.current) {
+              setUploading((prev) => prev.filter((u) => u.id !== item.id))
+            }
           }, 1500)
         }
       }),

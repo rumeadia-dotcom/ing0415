@@ -144,6 +144,11 @@ export function OrdersListPage(): JSX.Element {
             size="md"
             onClick={onResetFilter}
             disabled={isFilterDefault && searchInput === ''}
+            title={
+              isFilterDefault && searchInput === ''
+                ? ko.orders.list.filterResetDisabledHint
+                : undefined
+            }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
             {ko.orders.list.filterReset}
@@ -400,7 +405,13 @@ function EmptyState({
             {ko.orders.list.filterReset}
           </Button>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-4 flex justify-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/markets">{ko.orders.list.emptyAbsoluteCta}</Link>
+          </Button>
+        </div>
+      )}
       <p className="mt-4 text-xs text-text-tertiary">{ko.orders.list.emptySyncHint}</p>
     </section>
   )
