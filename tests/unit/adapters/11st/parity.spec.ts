@@ -13,7 +13,7 @@
  * CreateProductResult schema 통과) 로 재작성 필요.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthInput, MarketMapping, Product } from '@/lib/schemas'
 import { elevenstDebugAdapter } from '@/lib/markets/debug/ElevenstDebugAdapter'
 import { getMarketAdapter } from '@/lib/markets'
@@ -25,6 +25,10 @@ const SAMPLE_API_KEY_INPUT: AuthInput = {
 }
 
 describe('11st adapter parity (debug ↔ real — degenerate stub)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('§1: mock 의 static 정합 (market=11st, credentialKind=api_key)', () => {
     expect(elevenstDebugAdapter.market).toBe('11st')
     expect(elevenstDebugAdapter.credentialKind).toBe('api_key')
@@ -84,8 +88,9 @@ describe('11st adapter parity (debug ↔ real — degenerate stub)', () => {
   })
 
   it('§3-b: real 모드 getMarketAdapter("11st") 는 의도된 stub Error throw (markets/index.ts)', async () => {
-    // vitest 환경에서는 VITE_USE_MOCK 가 미설정 → markets/index.ts 의 real 분기로 진입.
-    // real 분기의 case '11st' 는 명시적 Error throw — 본 단정이 그 의도를 고정한다.
+    // CI/dev 의 VITE_USE_MOCK='true' 와 무관하게 본 단정이 real 분기 진입 의도를
+    // 격리 검증하도록 vi.stubEnv 로 강제 false. afterEach 에서 복구.
+    vi.stubEnv('VITE_USE_MOCK', 'false')
     await expect(getMarketAdapter('11st')).rejects.toThrow(
       /11번가 real 어댑터 클라이언트 미구현/,
     )
