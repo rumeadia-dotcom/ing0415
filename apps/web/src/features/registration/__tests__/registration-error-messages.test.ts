@@ -12,6 +12,7 @@ describe('formatRegistrationError', () => {
     'unauthorized',
     'forbidden_product',
     'product_not_found',
+    'job_not_found',
     'market_unavailable',
     'job_in_progress',
     'not_retryable',
