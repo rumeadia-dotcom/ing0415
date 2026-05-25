@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import {
   Button,
   ErrorMessage,
@@ -128,12 +128,28 @@ export function OrdersListPage(): JSX.Element {
             <label htmlFor="orders-search" className="sr-only">
               {ko.orders.list.searchPlaceholder}
             </label>
-            <Input
-              id="orders-search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={ko.orders.list.searchPlaceholder}
-            />
+            <div className="relative">
+              <Input
+                id="orders-search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={ko.orders.list.searchPlaceholder}
+                className={searchInput.length > 0 ? 'pr-9' : undefined}
+              />
+              {searchInput.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('')
+                    setParam('q', null)
+                  }}
+                  aria-label="검색어 지우기"
+                  className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-text-tertiary hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
+            </div>
           </div>
           <Button type="submit" variant="outline" size="md">
             검색
