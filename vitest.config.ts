@@ -34,6 +34,7 @@ export default defineConfig({
       'apps/web/src/**/*.test.tsx',
       'apps/web/src/**/*.spec.ts',
       'tests/unit/**/*.test.ts',
+      'tests/unit/**/*.spec.ts',
       'tests/integration/**/*.test.ts',
       // Edge Function 의 pure 헬퍼 (Deno specifier 없음) 단위·통합 테스트.
       'apps/api/supabase/functions/**/__tests__/*.test.ts',
