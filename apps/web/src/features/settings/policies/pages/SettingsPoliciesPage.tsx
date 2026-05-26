@@ -485,6 +485,8 @@ function PolicyFormDialog({
               type="text"
               autoComplete="off"
               placeholder={t.dialog.namePlaceholder}
+              aria-invalid={form.formState.errors.name ? 'true' : 'false'}
+              aria-describedby={form.formState.errors.name ? 'policy-name-error' : undefined}
               {...form.register('name')}
             />
           </FormField>
@@ -541,6 +543,8 @@ function PolicyFormDialog({
                 step={1}
                 placeholder={t.dialog.feePlaceholder}
                 className="font-mono"
+                aria-invalid={form.formState.errors.fee ? 'true' : 'false'}
+                aria-describedby={form.formState.errors.fee ? 'policy-fee-error' : undefined}
                 {...form.register('fee', { valueAsNumber: true })}
               />
             </FormField>
@@ -559,6 +563,8 @@ function PolicyFormDialog({
                 step={1}
                 placeholder={t.dialog.etaDaysPlaceholder}
                 className="font-mono"
+                aria-invalid={form.formState.errors.etaDays ? 'true' : 'false'}
+                aria-describedby={form.formState.errors.etaDays ? 'policy-eta-error' : undefined}
                 {...form.register('etaDays', { valueAsNumber: true })}
               />
             </FormField>
@@ -749,7 +755,11 @@ function FormField({
       </Label>
       {children}
       {error && (
-        <p role="alert" className="text-[12px] font-medium text-danger">
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="text-[12px] font-medium text-danger"
+        >
           {error}
         </p>
       )}
