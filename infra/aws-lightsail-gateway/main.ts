@@ -35,6 +35,8 @@ const LEVEL_RANK: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, er
 function log(level: LogLevel, fields: Record<string, unknown>, msg: string): void {
   if (LEVEL_RANK[level] < LEVEL_RANK[LOG_LEVEL]) return;
   const line = { ts: new Date().toISOString(), level, msg, ...redact(fields) };
+  // Gateway backend logger — console 직접 호출 (cycle 55 no-console 룰 예외)
+  // eslint-disable-next-line no-console
   console.log(JSON.stringify(line));
 }
 
