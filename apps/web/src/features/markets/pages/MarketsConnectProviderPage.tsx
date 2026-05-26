@@ -621,7 +621,11 @@ function FieldShell({ id, label, hint, required, error, children }: FieldShellPr
       {children}
       {hint && !error && <p className="text-[11.5px] text-text-tertiary">{hint}</p>}
       {error && (
-        <p role="alert" className="text-[11.5px] font-medium text-danger-on-soft">
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="text-[11.5px] font-medium text-danger-on-soft"
+        >
           {error}
         </p>
       )}
@@ -652,7 +656,8 @@ function SecretField({ id, label, placeholder, register, error }: SecretFieldPro
           type={reveal ? 'text' : 'password'}
           autoComplete="off"
           {...(placeholder ? { placeholder } : {})}
-          aria-invalid={error ? true : undefined}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={error ? `${id}-error` : undefined}
           className={cn('font-mono pr-16 tracking-wide')}
           {...register}
         />
@@ -668,7 +673,11 @@ function SecretField({ id, label, placeholder, register, error }: SecretFieldPro
         </button>
       </div>
       {error ? (
-        <p role="alert" className="text-[11.5px] font-medium text-danger-on-soft">
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="text-[11.5px] font-medium text-danger-on-soft"
+        >
           {error}
         </p>
       ) : (

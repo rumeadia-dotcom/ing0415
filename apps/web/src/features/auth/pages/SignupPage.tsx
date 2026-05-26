@@ -122,6 +122,7 @@ export function SignupPage(): JSX.Element {
               autoComplete="name"
               placeholder={ko.auth.signup.displayNamePlaceholder}
               aria-invalid={errors.displayName ? 'true' : 'false'}
+              aria-describedby={errors.displayName ? 'signup-name-error' : undefined}
               className={studioClass.input}
               {...register('displayName')}
             />
@@ -138,6 +139,7 @@ export function SignupPage(): JSX.Element {
               autoComplete="email"
               placeholder={ko.auth.login.emailPlaceholder}
               aria-invalid={errors.email ? 'true' : 'false'}
+              aria-describedby={errors.email ? 'signup-email-error' : undefined}
               className={studioClass.input}
               {...register('email')}
             />
@@ -154,6 +156,7 @@ export function SignupPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.password ? 'true' : 'false'}
+              aria-describedby={errors.password ? 'signup-password-error' : undefined}
               className={studioClass.input}
               {...register('password')}
             />
@@ -170,6 +173,9 @@ export function SignupPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.passwordConfirm ? 'true' : 'false'}
+              aria-describedby={
+                errors.passwordConfirm ? 'signup-password-confirm-error' : undefined
+              }
               className={studioClass.input}
               {...register('passwordConfirm')}
             />
@@ -181,12 +187,13 @@ export function SignupPage(): JSX.Element {
                 type="checkbox"
                 className="mt-0.5 h-4 w-4 rounded border-border-strong accent-ink"
                 aria-invalid={errors.termsAgreed ? 'true' : 'false'}
+                aria-describedby={errors.termsAgreed ? 'signup-terms-error' : undefined}
                 {...register('termsAgreed')}
               />
               <span>{ko.auth.signup.termsRequired}</span>
             </label>
             {errors.termsAgreed ? (
-              <p role="alert" className={studioClass.helperError}>
+              <p id="signup-terms-error" role="alert" className={studioClass.helperError}>
                 {errors.termsAgreed.message}
               </p>
             ) : null}
@@ -252,7 +259,7 @@ function FieldRow({
       {children}
       {hint ? <p className={studioClass.helperHint}>{hint}</p> : null}
       {error ? (
-        <p role="alert" className={studioClass.helperError}>
+        <p id={`${id}-error`} role="alert" className={studioClass.helperError}>
           {error}
         </p>
       ) : null}
