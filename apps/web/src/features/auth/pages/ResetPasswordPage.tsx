@@ -147,6 +147,7 @@ export function ResetPasswordPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.password ? 'true' : 'false'}
+              aria-describedby={errors.password ? 'reset-password-error' : undefined}
               className={studioClass.input}
               {...register('password')}
             />
@@ -171,7 +172,7 @@ export function ResetPasswordPage(): JSX.Element {
               </div>
             ) : null}
             {errors.password ? (
-              <p role="alert" className={studioClass.helperError}>
+              <p id="reset-password-error" role="alert" className={studioClass.helperError}>
                 {errors.password.message}
               </p>
             ) : null}
@@ -189,11 +190,14 @@ export function ResetPasswordPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.passwordConfirm ? 'true' : 'false'}
+              aria-describedby={
+                errors.passwordConfirm ? 'reset-password-confirm-error' : undefined
+              }
               className={studioClass.input}
               {...register('passwordConfirm')}
             />
             {errors.passwordConfirm ? (
-              <p role="alert" className={studioClass.helperError}>
+              <p id="reset-password-confirm-error" role="alert" className={studioClass.helperError}>
                 {errors.passwordConfirm.message}
               </p>
             ) : null}
