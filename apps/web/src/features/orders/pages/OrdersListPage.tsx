@@ -38,6 +38,23 @@ import { MarketBadge } from '../components/MarketBadge'
 export function OrdersListPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState<string>(searchParams.get('q') ?? '')
+  const searchRef = useRef<HTMLInputElement | null>(null)
+
+  // cycle 60: '/' 단축키로 검색 input 포커스. textarea / input 안에서는 비활성.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName.toLowerCase()
+      const editable = target?.isContentEditable
+      if (tag === 'input' || tag === 'textarea' || editable) return
+      e.preventDefault()
+      searchRef.current?.focus()
+      searchRef.current?.select()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // 필터 (URL 단방향 source)
   const filter = useMemo<OrdersFilter>(() => {
@@ -130,10 +147,11 @@ export function OrdersListPage(): JSX.Element {
             </label>
             <div className="relative">
               <Input
+                ref={searchRef}
                 id="orders-search"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={ko.orders.list.searchPlaceholder}
+                placeholder={`${ko.orders.list.searchPlaceholder}  (/)`}
                 className={searchInput.length > 0 ? 'pr-9' : undefined}
               />
               {searchInput.length > 0 ? (
