@@ -119,7 +119,14 @@ export function StepInfoPage(): JSX.Element {
               hint="100자 이내"
               error={form.formState.errors.name?.message}
             >
-              <Input id="info-name" type="text" autoComplete="off" {...form.register('name')} />
+              <Input
+                id="info-name"
+                type="text"
+                autoComplete="off"
+                aria-invalid={form.formState.errors.name ? 'true' : 'false'}
+                aria-describedby={form.formState.errors.name ? 'info-name-error' : undefined}
+                {...form.register('name')}
+              />
               {watchedName.length >= 2 && dup.data?.duplicate && (
                 <p role="alert" className="text-xs font-medium text-warning-on-soft">
                   동일 상품명의 미완료 상품이 이미 있습니다. 이력에서 확인하세요.
@@ -141,6 +148,8 @@ export function StepInfoPage(): JSX.Element {
                   inputMode="numeric"
                   min={100}
                   className="font-mono"
+                  aria-invalid={form.formState.errors.price ? 'true' : 'false'}
+                  aria-describedby={form.formState.errors.price ? 'info-price-error' : undefined}
                   {...form.register('price', { valueAsNumber: true })}
                 />
               </Field>
@@ -156,6 +165,10 @@ export function StepInfoPage(): JSX.Element {
                   inputMode="numeric"
                   min={0}
                   className="font-mono"
+                  aria-invalid={form.formState.errors.originalPrice ? 'true' : 'false'}
+                  aria-describedby={
+                    form.formState.errors.originalPrice ? 'info-original-error' : undefined
+                  }
                   {...form.register('originalPrice', {
                     setValueAs: (v) => (v === '' || v == null ? null : Number(v)),
                   })}
@@ -174,6 +187,8 @@ export function StepInfoPage(): JSX.Element {
                   id="info-brand"
                   type="text"
                   placeholder="예) konai"
+                  aria-invalid={form.formState.errors.brand ? 'true' : 'false'}
+                  aria-describedby={form.formState.errors.brand ? 'info-brand-error' : undefined}
                   {...form.register('brand', { setValueAs: (v) => (v === '' ? null : v) })}
                 />
               </Field>
@@ -186,6 +201,10 @@ export function StepInfoPage(): JSX.Element {
                   id="info-manufacturer"
                   type="text"
                   placeholder="예) konai 코리아"
+                  aria-invalid={form.formState.errors.manufacturer ? 'true' : 'false'}
+                  aria-describedby={
+                    form.formState.errors.manufacturer ? 'info-manufacturer-error' : undefined
+                  }
                   {...form.register('manufacturer', { setValueAs: (v) => (v === '' ? null : v) })}
                 />
               </Field>
@@ -202,6 +221,10 @@ export function StepInfoPage(): JSX.Element {
                 id="info-base-category"
                 type="text"
                 placeholder='예) "가전 > 주방가전"'
+                aria-invalid={form.formState.errors.baseCategoryId ? 'true' : 'false'}
+                aria-describedby={
+                  form.formState.errors.baseCategoryId ? 'info-base-category-error' : undefined
+                }
                 {...form.register('baseCategoryId')}
               />
               <p className="text-xs text-text-tertiary">
@@ -224,6 +247,10 @@ export function StepInfoPage(): JSX.Element {
                   <select
                     id="info-shipping"
                     className="flex h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-invalid={form.formState.errors.shippingPolicyId ? 'true' : 'false'}
+                    aria-describedby={
+                      form.formState.errors.shippingPolicyId ? 'info-shipping-error' : undefined
+                    }
                     {...form.register('shippingPolicyId')}
                     defaultValue={initialStep1?.shippingPolicyId ?? ''}
                   >
@@ -415,7 +442,11 @@ function Field({ id, label, hint, required, error, children }: FieldProps): JSX.
       </div>
       {children}
       {error && (
-        <p role="alert" className="text-xs font-medium text-danger-on-soft">
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="text-xs font-medium text-danger-on-soft"
+        >
           {error}
         </p>
       )}
