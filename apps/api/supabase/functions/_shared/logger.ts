@@ -75,6 +75,8 @@ function emit(
     // Deno: 표준에러로 출력하면 Supabase 로그 콘솔에서 별도 색상 표시
     console.error(line)
   } else {
+    // Edge Function backend logger — console 직접 호출 (cycle 55 no-console 룰 예외)
+    // eslint-disable-next-line no-console
     console.log(line)
   }
 }
