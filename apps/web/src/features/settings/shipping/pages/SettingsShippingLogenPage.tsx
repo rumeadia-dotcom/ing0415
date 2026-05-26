@@ -182,11 +182,12 @@ export function SettingsShippingLogenPage(): JSX.Element {
                 type="text"
                 autoComplete="off"
                 placeholder={t.userIdPlaceholder}
-                aria-invalid={form.formState.errors.userId ? true : undefined}
+                aria-invalid={form.formState.errors.userId ? 'true' : 'false'}
+                aria-describedby={form.formState.errors.userId ? 'logen-userId-error' : undefined}
                 {...form.register('userId')}
               />
               {form.formState.errors.userId && (
-                <p role="alert" className="text-xs text-danger-on-soft">
+                <p id="logen-userId-error" role="alert" className="text-xs text-danger-on-soft">
                   {form.formState.errors.userId.message}
                 </p>
               )}
@@ -199,11 +200,12 @@ export function SettingsShippingLogenPage(): JSX.Element {
                 type="text"
                 autoComplete="off"
                 placeholder={t.custCdPlaceholder}
-                aria-invalid={form.formState.errors.custCd ? true : undefined}
+                aria-invalid={form.formState.errors.custCd ? 'true' : 'false'}
+                aria-describedby={form.formState.errors.custCd ? 'logen-custCd-error' : undefined}
                 {...form.register('custCd')}
               />
               {form.formState.errors.custCd && (
-                <p role="alert" className="text-xs text-danger-on-soft">
+                <p id="logen-custCd-error" role="alert" className="text-xs text-danger-on-soft">
                   {form.formState.errors.custCd.message}
                 </p>
               )}

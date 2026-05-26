@@ -171,7 +171,10 @@ export function SettingsShippingSenderPage(): JSX.Element {
                 <select
                   id="sender-fareTy"
                   className="h-9 rounded-md border border-border bg-surface px-3 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                  aria-invalid={form.formState.errors.fareTy ? true : undefined}
+                  aria-invalid={form.formState.errors.fareTy ? 'true' : 'false'}
+                  aria-describedby={
+                    form.formState.errors.fareTy ? 'sender-fareTy-error' : undefined
+                  }
                   {...form.register('fareTy')}
                 >
                   <option value="C">C — 선불 (계약)</option>
@@ -180,7 +183,7 @@ export function SettingsShippingSenderPage(): JSX.Element {
                 </select>
                 <p className="text-xs text-text-tertiary">{t.fareTyHelp}</p>
                 {form.formState.errors.fareTy && (
-                  <p role="alert" className="text-xs text-danger-on-soft">
+                  <p id="sender-fareTy-error" role="alert" className="text-xs text-danger-on-soft">
                     {form.formState.errors.fareTy.message}
                   </p>
                 )}
@@ -193,12 +196,15 @@ export function SettingsShippingSenderPage(): JSX.Element {
                   type="number"
                   inputMode="numeric"
                   placeholder={t.dlvFarePlaceholder}
-                  aria-invalid={form.formState.errors.dlvFare ? true : undefined}
+                  aria-invalid={form.formState.errors.dlvFare ? 'true' : 'false'}
+                  aria-describedby={
+                    form.formState.errors.dlvFare ? 'sender-dlvFare-error' : undefined
+                  }
                   {...form.register('dlvFare', { valueAsNumber: true })}
                 />
                 <p className="text-xs text-text-tertiary">{t.dlvFareHelp}</p>
                 {form.formState.errors.dlvFare && (
-                  <p role="alert" className="text-xs text-danger-on-soft">
+                  <p id="sender-dlvFare-error" role="alert" className="text-xs text-danger-on-soft">
                     {form.formState.errors.dlvFare.message}
                   </p>
                 )}
@@ -259,11 +265,12 @@ function Field({
         autoComplete="off"
         {...(placeholder ? { placeholder } : {})}
         {...(inputMode ? { inputMode } : {})}
-        aria-invalid={error ? true : undefined}
+        aria-invalid={error ? 'true' : 'false'}
+        aria-describedby={error ? `${id}-error` : undefined}
         {...register}
       />
       {error && (
-        <p role="alert" className="text-xs text-danger-on-soft">
+        <p id={`${id}-error`} role="alert" className="text-xs text-danger-on-soft">
           {error}
         </p>
       )}
