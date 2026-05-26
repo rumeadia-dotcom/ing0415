@@ -39,6 +39,7 @@ export {
 } from './address-search-input'
 export { Toaster } from './toaster'
 export { CopyButton, type CopyButtonProps } from './copy-button'
+export { RelativeTime, type RelativeTimeProps } from './relative-time'
 export {
   Sheet,
   SheetTrigger,

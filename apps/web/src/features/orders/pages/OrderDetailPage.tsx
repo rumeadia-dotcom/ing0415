@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Button, CopyButton, ErrorMessage, Skeleton } from '@/components/ui'
+import { Button, CopyButton, ErrorMessage, RelativeTime, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { ko } from '@/locales/ko'
 import { useOrderDetail } from '../hooks/useOrderDetail'
@@ -9,7 +9,6 @@ import { OrderStatusTimeline } from '../components/OrderStatusTimeline'
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { MarketBadge } from '../components/MarketBadge'
 import { OrderManualResolveDialog } from '../components/OrderManualResolveDialog'
-import { formatRelativeTime } from '@/lib/format-time'
 import type { MarketDispatchStatus } from '@/lib/schemas/orders'
 
 /**
@@ -150,7 +149,7 @@ export function OrderDetailPage(): JSX.Element {
                 </span>
               </KV>
               <KV label={ko.orders.detail.labelOrderedAt}>
-                {formatRelativeTime(order.orderedAt)}
+                <RelativeTime iso={order.orderedAt} />
               </KV>
               <KV label={ko.orders.detail.labelProduct}>
                 <span className="font-semibold">{order.productName}</span>

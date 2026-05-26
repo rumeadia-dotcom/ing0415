@@ -22,6 +22,20 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
 }
 
 /**
+ * ISO → KST 절대 시각 ("2026-05-25 14:32"). cycle 59 — tooltip / title 용.
+ */
+export function formatAbsoluteKst(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${hh}:${mm}`
+}
+
+/**
  * 초 단위 → 한국어 듀레이션 ("28초", "1분 32초").
  */
 export function formatDurationSec(sec: number): string {

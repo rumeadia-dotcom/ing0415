@@ -5,6 +5,7 @@ import {
   Button,
   ErrorMessage,
   Input,
+  RelativeTime,
   Skeleton,
 } from '@/components/ui'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -20,7 +21,6 @@ import { ko } from '@/locales/ko'
 import { useOrders } from '../hooks/useOrders'
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { MarketBadge } from '../components/MarketBadge'
-import { formatRelativeTime } from '@/lib/format-time'
 
 /**
  * OrdersListPage — n48 (/orders/list).
@@ -280,9 +280,10 @@ export function OrdersListPage(): JSX.Element {
                     >
                       {o.waybillNumber ?? '—'}
                     </span>
-                    <span className="text-right font-mono text-[11.5px] text-text-tertiary">
-                      {formatRelativeTime(o.orderedAt)}
-                    </span>
+                    <RelativeTime
+                      iso={o.orderedAt}
+                      className="text-right font-mono text-[11.5px] text-text-tertiary"
+                    />
                   </Link>
                 </li>
               ))}
@@ -314,9 +315,10 @@ export function OrdersListPage(): JSX.Element {
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <MarketBadge marketId={o.marketId} />
-                    <span className="font-mono text-[11.5px] text-text-tertiary">
-                      {formatRelativeTime(o.orderedAt)}
-                    </span>
+                    <RelativeTime
+                      iso={o.orderedAt}
+                      className="font-mono text-[11.5px] text-text-tertiary"
+                    />
                   </div>
                   {o.waybillNumber ? (
                     <div className="mt-2 font-mono text-[11.5px] text-text">
