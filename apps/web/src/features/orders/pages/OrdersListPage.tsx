@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import {
   Button,
   ErrorMessage,
   Input,
+  RelativeTime,
   Skeleton,
 } from '@/components/ui'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -20,7 +21,6 @@ import { ko } from '@/locales/ko'
 import { useOrders } from '../hooks/useOrders'
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { MarketBadge } from '../components/MarketBadge'
-import { formatRelativeTime } from '@/lib/format-time'
 
 /**
  * OrdersListPage — n48 (/orders/list).
@@ -38,6 +38,23 @@ import { formatRelativeTime } from '@/lib/format-time'
 export function OrdersListPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchInput, setSearchInput] = useState<string>(searchParams.get('q') ?? '')
+  const searchRef = useRef<HTMLInputElement | null>(null)
+
+  // cycle 60: '/' 단축키로 검색 input 포커스. textarea / input 안에서는 비활성.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName.toLowerCase()
+      const editable = target?.isContentEditable
+      if (tag === 'input' || tag === 'textarea' || editable) return
+      e.preventDefault()
+      searchRef.current?.focus()
+      searchRef.current?.select()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // 필터 (URL 단방향 source)
   const filter = useMemo<OrdersFilter>(() => {
@@ -128,12 +145,29 @@ export function OrdersListPage(): JSX.Element {
             <label htmlFor="orders-search" className="sr-only">
               {ko.orders.list.searchPlaceholder}
             </label>
-            <Input
-              id="orders-search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={ko.orders.list.searchPlaceholder}
-            />
+            <div className="relative">
+              <Input
+                ref={searchRef}
+                id="orders-search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={`${ko.orders.list.searchPlaceholder}  (/)`}
+                className={searchInput.length > 0 ? 'pr-9' : undefined}
+              />
+              {searchInput.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('')
+                    setParam('q', null)
+                  }}
+                  aria-label="검색어 지우기"
+                  className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-text-tertiary hover:bg-surface-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
+            </div>
           </div>
           <Button type="submit" variant="outline" size="md">
             검색
@@ -264,9 +298,10 @@ export function OrdersListPage(): JSX.Element {
                     >
                       {o.waybillNumber ?? '—'}
                     </span>
-                    <span className="text-right font-mono text-[11.5px] text-text-tertiary">
-                      {formatRelativeTime(o.orderedAt)}
-                    </span>
+                    <RelativeTime
+                      iso={o.orderedAt}
+                      className="text-right font-mono text-[11.5px] text-text-tertiary"
+                    />
                   </Link>
                 </li>
               ))}
@@ -298,9 +333,10 @@ export function OrdersListPage(): JSX.Element {
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <MarketBadge marketId={o.marketId} />
-                    <span className="font-mono text-[11.5px] text-text-tertiary">
-                      {formatRelativeTime(o.orderedAt)}
-                    </span>
+                    <RelativeTime
+                      iso={o.orderedAt}
+                      className="font-mono text-[11.5px] text-text-tertiary"
+                    />
                   </div>
                   {o.waybillNumber ? (
                     <div className="mt-2 font-mono text-[11.5px] text-text">

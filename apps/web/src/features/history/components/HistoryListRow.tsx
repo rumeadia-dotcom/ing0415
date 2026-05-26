@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui'
-import { formatRelativeTime } from '@/lib/format-time'
+import { RelativeTime } from '@/components/ui'
 import type { JobSummary } from '@/lib/schemas/history-filter'
 import type { MarketId } from '@/lib/schemas/common'
 import { MarketDotStack } from '@/features/dashboard/components/MarketDotStack'
@@ -65,7 +65,6 @@ export function HistoryListRow({ job, variant }: HistoryListRowProps): JSX.Eleme
     (m) => m.marketStatus === 'failed' || m.marketStatus === 'failed_final',
   ).length
   const totalCount = job.marketSummary.length
-  const time = formatRelativeTime(job.createdAt)
   const detailHref = `/history/${job.id}`
   const shortId = `#${job.id.slice(0, 8).toUpperCase()}`
 
@@ -116,7 +115,7 @@ export function HistoryListRow({ job, variant }: HistoryListRowProps): JSX.Eleme
           </Badge>
         </td>
         <td className="px-3 py-3.5 align-middle text-right text-xs text-text-tertiary tabular-nums">
-          <span className="font-mono">{time}</span>
+          <RelativeTime iso={job.createdAt} className="font-mono" />
         </td>
         <td className="px-3 py-3.5 align-middle text-right text-xs text-text-tertiary">
           {job.retryCount > 0 ? (
@@ -170,7 +169,7 @@ export function HistoryListRow({ job, variant }: HistoryListRowProps): JSX.Eleme
                 {successCount}/{totalCount} 성공
               </span>
             </div>
-            <span className="font-mono text-xs text-text-tertiary">{time}</span>
+            <RelativeTime iso={job.createdAt} className="font-mono text-xs text-text-tertiary" />
           </div>
         </div>
       </div>
