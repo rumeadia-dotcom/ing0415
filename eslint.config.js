@@ -51,6 +51,9 @@ export default tseslint.config(
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
+      // cycle 55: console.* 직접 호출 금지 — logger / Sentry 통해 송출 (PII 마스킹 일관성)
+      // 예외: console.warn / console.error 는 마지막 safety net 으로 허용
+      'no-console': ['error', { allow: ['warn', 'error', 'info'] }],
       // 의도된 미사용 인자는 `_` prefix 로 표기 (인터페이스 구현체에서 자주 발생)
       '@typescript-eslint/no-unused-vars': [
         'error',
