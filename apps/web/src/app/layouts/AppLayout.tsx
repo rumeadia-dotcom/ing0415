@@ -47,7 +47,7 @@ export function AppLayout(): JSX.Element {
       >
         {ko.legal.common.skipToContent}
       </a>
-      <aside className="hidden shrink-0 md:block">
+      <aside className="hidden shrink-0 md:sticky md:top-0 md:block md:h-screen">
         <Sidebar />
       </aside>
       <div className="flex min-h-screen min-w-0 flex-col">
