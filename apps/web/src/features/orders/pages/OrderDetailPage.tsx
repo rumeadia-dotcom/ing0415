@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Button, ErrorMessage, Skeleton } from '@/components/ui'
+import { Button, CopyButton, ErrorMessage, RelativeTime, Skeleton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { ko } from '@/locales/ko'
 import { useOrderDetail } from '../hooks/useOrderDetail'
@@ -9,7 +9,6 @@ import { OrderStatusTimeline } from '../components/OrderStatusTimeline'
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { MarketBadge } from '../components/MarketBadge'
 import { OrderManualResolveDialog } from '../components/OrderManualResolveDialog'
-import { formatRelativeTime } from '@/lib/format-time'
 import type { MarketDispatchStatus } from '@/lib/schemas/orders'
 
 /**
@@ -144,10 +143,13 @@ export function OrderDetailPage(): JSX.Element {
             </div>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <KV label={ko.orders.detail.labelExternalOrderId}>
-                <span className="font-mono">{order.externalOrderId}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-mono">{order.externalOrderId}</span>
+                  <CopyButton value={order.externalOrderId} label="주문번호" />
+                </span>
               </KV>
               <KV label={ko.orders.detail.labelOrderedAt}>
-                {formatRelativeTime(order.orderedAt)}
+                <RelativeTime iso={order.orderedAt} />
               </KV>
               <KV label={ko.orders.detail.labelProduct}>
                 <span className="font-semibold">{order.productName}</span>
@@ -171,7 +173,10 @@ export function OrderDetailPage(): JSX.Element {
               <KV label={ko.orders.detail.labelAddress}>{order.shippingAddressMasked}</KV>
               <KV label={ko.orders.detail.labelWaybill}>
                 {order.waybillNumber ? (
-                  <span className="font-mono tracking-wide">{order.waybillNumber}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="font-mono tracking-wide">{order.waybillNumber}</span>
+                    <CopyButton value={order.waybillNumber} label="운송장번호" />
+                  </span>
                 ) : (
                   <span className="text-text-tertiary">{ko.orders.detail.noWaybill}</span>
                 )}

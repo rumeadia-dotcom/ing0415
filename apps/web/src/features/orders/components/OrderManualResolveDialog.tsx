@@ -122,12 +122,17 @@ export function OrderManualResolveDialog({
               id="manual-waybill"
               autoComplete="off"
               placeholder={ko.orders.manualResolve.waybillPlaceholder}
-              aria-invalid={errors.waybillNumber ? true : undefined}
+              aria-invalid={errors.waybillNumber ? 'true' : 'false'}
+              aria-describedby={errors.waybillNumber ? 'manual-waybill-error' : undefined}
               className="font-mono tracking-wide"
               {...register('waybillNumber')}
             />
             {errors.waybillNumber ? (
-              <p className="text-xs font-semibold text-danger" role="alert">
+              <p
+                id="manual-waybill-error"
+                className="text-xs font-semibold text-danger"
+                role="alert"
+              >
                 {errors.waybillNumber.message}
               </p>
             ) : null}
