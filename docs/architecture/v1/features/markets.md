@@ -551,6 +551,8 @@ export const Response200 = z.object({
 
 **근거**: `fetchCategoryTree` 는 비교적 가벼운 GET 이며 어댑터 5메서드에 이미 포함 — 별도 메서드 신설 회피. 마켓별 quirk 로 부적합 시 Phase 2 에 별도 verify 메서드 검토 (§14 O-4).
 
+> **핑 깊이 제약 (2026-05-27 hotfix)**: 핑 용도의 `fetchCategoryTree` 는 **루트 1회 호출**(maxDepth=1)이어야 한다. 카테고리 트리 전체를 깊이 재귀하면 마켓당 수백~수천 호출로 게이트웨이가 폭주/타임아웃한다. 쿠팡 어댑터가 이 규칙으로 구현됨(`coupang.ts` `CATEGORY_PING_MAX_DEPTH=1`). 또한 쿠팡 카테고리 경로는 `…/api/v1/marketplace/meta/display-categories/{code}` (루트 `0`) 이다 — 이전 `categorization/…` 오타로 404 → `category_ping_failed` 운영 사고 (correlationId 58f3ca64).
+
 ---
 
 ## 6. 클라이언트 zod 스키마 (`apps/web/src/lib/schemas/markets.ts`)
