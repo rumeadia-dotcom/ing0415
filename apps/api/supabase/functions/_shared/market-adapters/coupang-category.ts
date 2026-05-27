@@ -45,6 +45,49 @@ export interface RawCoupangCategory {
   }[]
 }
 
+/**
+ * Wing OpenAPI 카테고리 응답을 RawCoupangCategory 로 관대하게 매핑.
+ *
+ * 연결 검증 핑은 "HTTP 200 = 자격증명 OK" 만 확인하면 되고 (반환 트리는 미사용),
+ * 응답 본문 형태에 의존하면 스키마 불일치로 오탐(server)이 난다. 따라서 throw 없이
+ * 알 수 있는 필드만 best-effort 로 추출하고, 모르면 fallbackCode 로 최소 노드 반환.
+ *
+ * 표준 필드(data.categoryId / displayCategoryName / isLeafCategory / subCategories)를
+ * 우선 읽되, 형태가 달라도 절대 throw 하지 않는다.
+ */
+export function coerceCoupangCategory(
+  raw: unknown,
+  fallbackCode: number,
+): RawCoupangCategory {
+  const data =
+    raw && typeof raw === 'object' && 'data' in raw
+      ? (raw as { data?: unknown }).data
+      : undefined
+  const d = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+
+  const categoryId = typeof d.categoryId === 'number' ? d.categoryId : fallbackCode
+  const displayCategoryName =
+    typeof d.displayCategoryName === 'string' ? d.displayCategoryName : ''
+  const isLeafCategory = typeof d.isLeafCategory === 'boolean' ? d.isLeafCategory : true
+
+  const subs = Array.isArray(d.subCategories) ? d.subCategories : []
+  const subCategories = subs.flatMap((s) => {
+    if (!s || typeof s !== 'object') return []
+    const o = s as Record<string, unknown>
+    if (typeof o.categoryId !== 'number') return []
+    return [
+      {
+        categoryId: o.categoryId,
+        displayCategoryName:
+          typeof o.displayCategoryName === 'string' ? o.displayCategoryName : '',
+        isLeafCategory: typeof o.isLeafCategory === 'boolean' ? o.isLeafCategory : true,
+      },
+    ]
+  })
+
+  return { categoryId, displayCategoryName, isLeafCategory, subCategories }
+}
+
 /** HTTP 상태 → MarketError code 매핑. */
 export function coupangHttpStatusToMarketError(
   status: number,

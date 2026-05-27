@@ -46,6 +46,7 @@ import { buildCoupangSignature } from './coupang-hmac.ts'
 import {
   buildCategoryTree,
   buildDisplayCategoryPath,
+  coerceCoupangCategory,
   coupangHttpStatusToMarketError,
   ROOT_DISPLAY_CATEGORY_CODE,
   type RawCoupangCategory,
@@ -71,28 +72,6 @@ const logger = createLogger('market-adapter:coupang')
 // ─────────────────────────────────────────────
 // Wing OpenAPI 응답 zod 스키마
 // ─────────────────────────────────────────────
-
-const CoupangCategoryResponseSchema = z.object({
-  code: z.string(),
-  message: z.string().optional(),
-  data: z
-    .object({
-      categoryId: z.number(),
-      displayCategoryName: z.string(),
-      isLeafCategory: z.boolean(),
-      subCategories: z
-        .array(
-          z.object({
-            categoryId: z.number(),
-            displayCategoryName: z.string(),
-            isLeafCategory: z.boolean(),
-          }),
-        )
-        .optional()
-        .default([]),
-    })
-    .optional(),
-})
 
 const CoupangCreateProductResponseSchema = z.object({
   code: z.string(),
@@ -208,29 +187,10 @@ async function fetchRawCoupangCategory(
     throw coupangHttpStatusToMarketError(response.status, text, correlationId)
   }
 
-  const parsed = CoupangCategoryResponseSchema.safeParse(await response.json())
-  if (!parsed.success) {
-    throw new MarketError('server', '쿠팡 카테고리 응답 파싱 실패', {
-      market: MARKET,
-      cause: parsed.error,
-    })
-  }
-
-  const data = parsed.data.data
-  if (!data) {
-    throw new MarketError('server', '쿠팡 카테고리 데이터 없음', {
-      market: MARKET,
-      marketErrorCode: parsed.data.code,
-      marketErrorMessage: parsed.data.message,
-    })
-  }
-
-  return {
-    categoryId: data.categoryId,
-    displayCategoryName: data.displayCategoryName,
-    isLeafCategory: data.isLeafCategory,
-    subCategories: data.subCategories ?? [],
-  }
+  // HTTP 200 = 자격증명 OK. 본문 형태는 throw 사유가 아니다 (핑은 반환 트리 미사용).
+  // 응답 스키마가 어긋나도 coerceCoupangCategory 가 fallback 노드를 반환해 핑이 통과한다.
+  const raw = await response.json().catch(() => ({}))
+  return coerceCoupangCategory(raw, code)
 }
 
 // ─────────────────────────────────────────────
