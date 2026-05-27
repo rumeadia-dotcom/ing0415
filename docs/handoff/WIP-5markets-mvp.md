@@ -1,14 +1,14 @@
-# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결 hotfix 3건 운영 배포 직후)
+# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결 hotfix 4건 운영 배포 직후)
 
-**develop HEAD**: 백머지 (main #227 → develop) — chore/backmerge-ping-lenient
-**main HEAD**: `<#227 squash>` — fix: 쿠팡 연결 핑 응답 파싱 완화 (#227)
-**테스트**: 912 passed / 31 todo (94 files, coupang-category +15 / coupang-hmac +3 / client KAT +2. 1 sanitize-parity env issue — CI 통과)
-**최근 운영 배포**: 쿠팡 핑완화 hotfix #227 (2026-05-27 08:0x UTC) — deploy.yml 5/5 success (Edge Functions 재배포)
-**최근 develop 머지**: 백머지 (#227)
+**develop HEAD**: 백머지 (main #229 → develop) — chore/backmerge-vault
+**main HEAD**: `<#229 squash>` — fix: 자격증명 RPC search_path 에 extensions 추가 (#229)
+**테스트**: 912 passed / 31 todo (94 files. 1 sanitize-parity env issue — CI 통과)
+**최근 운영 배포**: 쿠팡 vault hotfix #229 (2026-05-27 08:2x UTC) — deploy.yml 5/5 success + **apply_db_migrations=true (마이그 20260527000001 real 적용)**
+**최근 develop 머지**: 백머지 (#229)
 
-## 2026-05-27 세션 결과 (쿠팡 연결 운영 hotfix 3건 — chain 진단)
+## 2026-05-27 세션 결과 (쿠팡 연결 운영 hotfix 4건 — chain 진단)
 
-쿠팡 마켓 연결 흐름의 **연쇄 결함 3개**를 chain 진단으로 순차 해소. 각 fix 가 다음 layer 를 드러냄 (404→401→500). 셋 다 "real 쿠팡 API 로 검증된 적 없던" 코드 + "자기 복사본만 검사하는 약한 테스트"가 가린 케이스.
+쿠팡 마켓 연결 흐름의 **연쇄 결함 4개**를 chain 진단으로 순차 해소. 각 fix 가 다음 layer 를 드러냄 (**404→401→500→42883**). 넷 다 "real 쿠팡/Supabase 로 검증된 적 없던" 코드 + "자기 복사본만 검사 / 로컬에선 재현 안 되는 약한 테스트"가 가린 케이스.
 
 > **교훈**: 마켓 어댑터 real 경로(경로 상수 / HMAC 서명 / 응답 스키마)는 sandbox/실 API 1회 검증 없이 머지하면 안 됨. 단위 테스트가 인라인 복사본을 검사하면 false-confidence (5xx `as never`, HMAC `\n`, strict 스키마 모두 통과했었음). 실모듈 직접 테스트 + KAT 로 가드.
 
@@ -28,9 +28,16 @@
 - 2탄 후 401 사라짐(인증 통과) → reason=`server` 재시도. correlationId `0965ac1a`.
 - `fetchCategoryTree` 가 응답을 strict zod 로 파싱하다 실패 → server. **markets-connect 는 핑 반환값 미사용** → "HTTP 200 = 자격증명 OK" 로 완화. `coerceCoupangCategory` 관대 매핑(throw 없음), non-2xx 만 분류 유지.
 
-> ⚠ **격리 hotfix** — 셋 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
-> ⚠ **3탄 배포 후에도 막히면 남은 원인** = 진짜 쿠팡 5xx(일시 장애, 재시도) 또는 키 오류 / 쿠팡 Wing IP 화이트리스트 `43.201.83.78` 미등록. (게이트웨이 401 B 는 1탄의 쿠팡 404 도달 증거로 배제.)
-> ⚠ **후속**: UI 카테고리 트리(registration s3)용 쿠팡 응답 **실제 필드명 미검증** — 핑은 통과하나 트리 파싱은 별도 확인 필요. `coupang-edge.test.ts` 인라인 재구현도 실모듈 테스트로 흡수 검토.
+### 4탄 #229 — 자격증명 RPC search_path (`vault_unavailable` / pgcrypto 42883)
+- 3탄 후 핑 통과 → storeCredential 단계 `fn_encrypt_and_store_credential` 이 42883(undefined_function). correlationId `39cffee6`.
+- Supabase 클라우드는 pgcrypto 를 `extensions` 스키마에 설치하는데, 자격증명 RPC 가 `search_path = public, pg_temp` (extensions 누락) → bare `pgp_sym_encrypt/decrypt` 미해결. 로컬/pgTAP 은 pgcrypto 가 public 이라 통과.
+- 마이그 `20260527000001`: RPC 4개(market 2 + logen 2) search_path 에 `extensions` 추가 (ALTER FUNCTION). `apply_db_migrations=true` 로 real 적용.
+- markets-connect vault `catch{}` 무음 → err 로깅 보강.
+
+> ⚠ **격리 hotfix** — 넷 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
+> ⚠ **4탄 배포 후에도 막히면 남은 원인** = 진짜 쿠팡 5xx(일시) 또는 키 오류 / 쿠팡 Wing IP 화이트리스트 `43.201.83.78` 미등록.
+> ⚠ **dev 미적용**: 마이그 `20260527000001` 은 real 만 적용됨 → dev `db:push:dev` 이월 목록에 추가.
+> ⚠ **후속**: UI 카테고리 트리(s3) 쿠팡 응답 실제 필드명 미검증 / `coupang-edge.test.ts` 인라인 재구현 흡수 / RPC search_path 회귀 가드 pgTAP(proconfig에 extensions 포함 검사).
 
 ## 스택 한눈에
 
