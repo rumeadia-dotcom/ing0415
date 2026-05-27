@@ -1,0 +1,28 @@
+# systemd unit — MCP hosting docker-compose 스택.
+# 위치: /etc/systemd/system/mcp-hosting.service (setup.sh 가 복사).
+# 설계: docs/architecture/v1/cross-cutting/mcp-hosting.md §9.1
+#
+# gateway(market-gateway.service, Deno simple)와 독립 유닛. 부팅 시 compose 자동 기동.
+# User=mcp 는 docker 그룹 소속이어야 compose 가 docker 소켓에 접근 가능 (setup.sh 가 usermod -aG docker mcp).
+#   → 이 계정은 오케스트레이션용. 컨테이너 자체는 uid 10001 비-root + docker.sock 미마운트.
+
+[Unit]
+Description=MCP hosting docker-compose stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/mcp-hosting
+# --env-file: /etc/mcp-hosting/env 의 KEY=VALUE 로 compose environment ${VAR} 치환.
+ExecStart=/usr/bin/docker compose --env-file /etc/mcp-hosting/env up -d
+ExecStop=/usr/bin/docker compose --env-file /etc/mcp-hosting/env down
+ExecReload=/usr/bin/docker compose --env-file /etc/mcp-hosting/env up -d
+User=mcp
+Group=mcp
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
