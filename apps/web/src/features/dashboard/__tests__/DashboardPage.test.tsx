@@ -64,6 +64,7 @@ const MARKET_ORDERS_OK: MarketOrdersSummary = {
   markets: [
     {
       marketId: 'naver',
+      connected: true,
       newOrdersCount: 5,
       todayTotalCount: 12,
       lastSyncedAt: '2026-05-21T09:00:00+09:00',
@@ -72,6 +73,7 @@ const MARKET_ORDERS_OK: MarketOrdersSummary = {
     },
     {
       marketId: 'coupang',
+      connected: true,
       newOrdersCount: 0,
       todayTotalCount: 3,
       lastSyncedAt: '2026-05-21T08:30:00+09:00',
@@ -80,6 +82,7 @@ const MARKET_ORDERS_OK: MarketOrdersSummary = {
     },
     {
       marketId: 'gmarket',
+      connected: true,
       newOrdersCount: 2,
       todayTotalCount: 4,
       lastSyncedAt: '2026-05-21T07:00:00+09:00',
@@ -88,24 +91,60 @@ const MARKET_ORDERS_OK: MarketOrdersSummary = {
     },
     {
       marketId: 'auction',
+      connected: true,
       newOrdersCount: 0,
       todayTotalCount: 0,
       lastSyncedAt: null,
       syncStatus: 'error',
       syncError: 'TOKEN_EXPIRED',
     },
+    {
+      marketId: '11st',
+      connected: true,
+      newOrdersCount: 1,
+      todayTotalCount: 2,
+      lastSyncedAt: '2026-05-21T06:00:00+09:00',
+      syncStatus: 'idle',
+      syncError: null,
+    },
   ],
-  comingSoon: ['11st'],
+  comingSoon: [],
+}
+
+// 일부 마켓만 연동된 상태 — naver 연동(주문 있음), gmarket 미연동.
+const MARKET_ORDERS_MIXED: MarketOrdersSummary = {
+  markets: [
+    {
+      marketId: 'naver',
+      connected: true,
+      newOrdersCount: 5,
+      todayTotalCount: 12,
+      lastSyncedAt: '2026-05-21T09:00:00+09:00',
+      syncStatus: 'idle',
+      syncError: null,
+    },
+    {
+      marketId: 'gmarket',
+      connected: false,
+      newOrdersCount: 0,
+      todayTotalCount: 0,
+      lastSyncedAt: null,
+      syncStatus: 'idle',
+      syncError: null,
+    },
+  ],
+  comingSoon: [],
 }
 
 const MARKET_ORDERS_EMPTY: MarketOrdersSummary = {
   markets: [
-    { marketId: 'naver', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
-    { marketId: 'coupang', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
-    { marketId: 'gmarket', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
-    { marketId: 'auction', newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'naver', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'coupang', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'gmarket', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: 'auction', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: '11st', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
   ],
-  comingSoon: ['11st'],
+  comingSoon: [],
 }
 
 describe('DashboardPage', () => {
@@ -135,10 +174,36 @@ describe('DashboardPage', () => {
     expect(screen.getByText('마켓별 주문 현황')).toBeInTheDocument()
     // 네이버 신규 5
     expect(screen.getByText('네이버 스마트스토어')).toBeInTheDocument()
+    // 11번가도 다른 마켓과 동등하게 활성 주문 행으로 렌더 (오픈 준비중 placeholder 아님)
+    expect(
+      screen.getByRole('link', { name: /11번가 신규 1건/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('오픈 준비중')).not.toBeInTheDocument()
     // 옥션은 syncStatus error → /markets 로 이동하는 카드 링크
     expect(
       screen.getByRole('link', { name: /옥션 연결 오류, 재인증 페이지로 이동/ }),
     ).toBeInTheDocument()
+  })
+
+  it('미연동 마켓은 비활성 행(미연동 배지 + 연결하기 링크)으로 렌더되고 주문 목록 이동 링크가 없다', () => {
+    mockSummary.mockReturnValue({ isLoading: false, isError: false, data: SUMMARY_OK })
+    mockMarketOrders.mockReturnValue({ isLoading: false, isError: false, data: MARKET_ORDERS_MIXED })
+    mockHealth.mockReturnValue({ isLoading: false, isError: false, data: HEALTH_OK })
+
+    renderPage()
+
+    // 연동된 naver 는 주문 목록으로 이동하는 카드 링크
+    expect(
+      screen.getByRole('link', { name: /네이버 스마트스토어 신규 5건/ }),
+    ).toBeInTheDocument()
+
+    // 미연동 gmarket 은 비활성 행 — 미연동 배지 + /markets 연결 유도, 주문 목록 링크 없음
+    expect(screen.getByText('미연동')).toBeInTheDocument()
+    const connectLink = screen.getByRole('link', { name: /G마켓 연결하기/ })
+    expect(connectLink).toHaveAttribute('href', '/markets')
+    expect(
+      screen.queryByRole('link', { name: /G마켓 신규/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('empty no-markets: 연결 마켓 0건 → onboarding hero (2-step checklist)', () => {

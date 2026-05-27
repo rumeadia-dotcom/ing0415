@@ -18,10 +18,10 @@
  *   - withRetry 는 server / rate_limit / network 만. validation / unauthorized 즉시 실패.
  *   - ownership 검증 (JWT seller_id) + duplicate_label 체크.
  *
- * 11번가 주의 (2026-05-25 scaffold):
- *   - real 어댑터의 fetchCategoryTree 가 spec 미확보로 throw —
- *     category_ping 단계에서 adapter_spec_pending 으로 사용자에게 명확히 안내.
- *   - 본격 구현 (별도 PR) 시 본 함수는 변경 없음 — 어댑터만 spec 입수 후 활성.
+ * 11번가:
+ *   - 다른 비-OAuth 마켓(coupang/gmarket/auction)과 동일하게 fully active —
+ *     real 어댑터는 11번가 Open API (XML OpenAPI, gateway 경유) 를 호출한다.
+ *   - authenticate + fetchCategoryTree 핑 모두 동일 경로로 처리. 특별 분기 없음.
  */
 
 import { z } from 'npm:zod@3.23.8'
@@ -224,40 +224,32 @@ export default Deno.serve(
 
     // 2) fetchCategoryTree 핑
     //
-    // 11번가 (api_key) 의 real 어댑터는 spec 미확보로 fetchCategoryTree 가 명시적 throw
-    // (MarketError(unknown, 'adapter_spec_pending')). 본 단계를 스킵하면 자격증명만 저장.
-    // 본격 구현 시 본 스킵 분기 제거 (스킵 분기가 살아있는 동안은 키 형식만 검증, 실제
-    // 권한 검증은 후속 호출 시점에 일어남 — 사용자 경험상 active 표시 후 첫 카테고리 조회
-    // 실패 시 needs_reauth 로 자동 전이).
-    const skipCategoryPing = market === '11st'
-    if (!skipCategoryPing) {
-      try {
-        await withRetry(() => adapter.fetchCategoryTree(), {
-          market,
-          correlationId,
-          logger,
-        })
-      } catch (e) {
-        const reason = marketReason(e)
-        await auditFail('category_ping', reason)
-        const details = { stage: 'category_ping', market, reason }
-        if (reason === 'rate_limit') throw HttpErrors.rateLimit()
-        if (reason === 'unauthorized') {
-          throw HttpErrors.badRequest('credentials_unauthorized', 'market rejected credentials', details)
-        }
-        if (reason === 'validation') {
-          throw HttpErrors.internal('category_ping_failed', 'market returned invalid response', details)
-        }
-        if (reason === 'network') {
-          throw HttpErrors.internal('market_network', 'market network error', details)
-        }
-        if (reason === 'server') {
-          throw HttpErrors.internal('market_server', 'market server error', details)
-        }
-        throw HttpErrors.internal('category_ping_failed', `category ping failed (${reason})`, details)
+    // 모든 비-OAuth 마켓(coupang/gmarket/auction/11st)에 동일 적용 — authenticate 만으로는
+    // 키 형식만 검증되므로, 실제 권한이 살아있는지 카테고리 트리 1회 조회로 확인한다.
+    try {
+      await withRetry(() => adapter.fetchCategoryTree(), {
+        market,
+        correlationId,
+        logger,
+      })
+    } catch (e) {
+      const reason = marketReason(e)
+      await auditFail('category_ping', reason)
+      const details = { stage: 'category_ping', market, reason }
+      if (reason === 'rate_limit') throw HttpErrors.rateLimit()
+      if (reason === 'unauthorized') {
+        throw HttpErrors.badRequest('credentials_unauthorized', 'market rejected credentials', details)
       }
-    } else {
-      logger.info({ market, correlationId }, '⇢ skipCategoryPing (11번가 spec 미확보)')
+      if (reason === 'validation') {
+        throw HttpErrors.internal('category_ping_failed', 'market returned invalid response', details)
+      }
+      if (reason === 'network') {
+        throw HttpErrors.internal('market_network', 'market network error', details)
+      }
+      if (reason === 'server') {
+        throw HttpErrors.internal('market_server', 'market server error', details)
+      }
+      throw HttpErrors.internal('category_ping_failed', `category ping failed (${reason})`, details)
     }
 
     // 3) storeCredential (jsonb 통합 저장)

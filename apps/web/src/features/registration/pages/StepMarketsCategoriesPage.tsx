@@ -20,7 +20,7 @@ import type { MarketId } from '@/features/markets/types'
  * StepMarketsCategoriesPage — n17 + n19 통합 (3/5). Studio 룩.
  * 마스터: docs/architecture/v1/features/registration.md §10.5
  *
- * - v1 활성 4 + 11번가(v2 예정) 중 active 계정 보유 마켓만 체크박스 활성.
+ * - v1 활성 5마켓 (naver/coupang/gmarket/auction/11st) 중 active 계정 보유 마켓만 체크박스 활성.
  * - 선택된 마켓 각각에 카테고리 매핑 row 표시.
  * - Step3Schema 통과 시 다음 활성.
  */

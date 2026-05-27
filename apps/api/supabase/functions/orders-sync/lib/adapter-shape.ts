@@ -1,101 +1,62 @@
 /**
- * orders-sync 자체 어댑터 시그니처 — PR4 `market-orders.ts` 와 1:1 정합.
+ * orders-sync 어댑터 시그니처 — `_shared/market-orders.ts` 단일 출처 재export.
  *
  * 마스터:
- *   - apps/web/src/lib/schemas/market-orders.ts (PR4, 단일 출처)
+ *   - apps/api/supabase/functions/_shared/market-orders.ts (Deno 단일 출처)
+ *   - apps/web/src/lib/schemas/market-orders.ts (프론트엔드 미러)
  *   - docs/spec/PRD.md §6.1 (주문 자동 수집)
- *   - docs/spec/PRD.md §8 (orders 테이블 스키마)
- *
- * 본 파일은 Vite/Node ESM ↔ Deno 호환성 문제로 PR4 의 zod 스키마를 직접 import 하지
- * 않고 미러로 재선언한다. 변경 시 PR4 의 `market-orders.ts` 와 동시 갱신.
  *
  * 강제:
- *   - MarketAdapter 5메서드 인터페이스는 건드리지 않는다 (cross-cutting/market-adapter.md §2.1).
- *   - fetchOrders 는 별개 OrderSyncAdapter 확장 — 어댑터 본체에 동적 부착.
- *   - 마켓 raw status (한글 '결제완료/배송대기') 는 어댑터 내부에서 정규화 enum 으로 변환됨.
- *     본 PR 의 orders-sync 는 정규화된 enum (`new_pay` 등) 만 다룬다.
+ *   - 주문 zod 스키마는 `_shared/market-orders.ts` 한 곳에서만 정의. 본 파일은 재export +
+ *     orders-sync 고유 상수/인터페이스만 둔다 (중복 재선언 금지).
+ *   - 마켓 raw status (한글 '결제완료/배송대기' / 코드 '101' 등) 는 어댑터 내부에서 정규화
+ *     enum (`new_pay` 등) 으로 변환됨. orders-sync 는 정규화 enum 만 다룬다.
  */
 
-import { z } from 'npm:zod@3.23.8'
-import {
-  IsoDateTimeOffsetSchema,
-  MarketIdSchema,
-  UuidSchema,
+export {
+  MarketOrderStatusSchema,
+  FetchOrdersInputSchema,
+  MarketOrderSchema,
+  type MarketOrderStatus,
+  type FetchOrdersInput,
+  type MarketOrder,
 } from '../../_shared/index.ts'
 
-// ─────────────────────────────────────────────
-// MarketOrderStatus — PR4 정규화 enum
-// ─────────────────────────────────────────────
-export const MarketOrderStatusSchema = z.enum([
-  'new_pay',
-  'dispatched',
-  'delivering',
-  'delivered',
-  'cancelled',
-  'returned',
-  'unknown',
-])
-export type MarketOrderStatus = z.infer<typeof MarketOrderStatusSchema>
-
-// ─────────────────────────────────────────────
-// FetchOrdersInput — PR4 시그니처
-// ─────────────────────────────────────────────
-export const FetchOrdersInputSchema = z.object({
-  sellerId: UuidSchema,
-  since: IsoDateTimeOffsetSchema.optional(),
-  until: IsoDateTimeOffsetSchema.optional(),
-  statuses: z.array(MarketOrderStatusSchema).optional(),
-})
-export type FetchOrdersInput = z.infer<typeof FetchOrdersInputSchema>
-
-// ─────────────────────────────────────────────
-// MarketOrder — PR4 와 1:1 매핑 (PRD §4 컬럼 정합)
-//
-// 어댑터가 반환한 PII (buyerName / receiverName / receiverAddress / receiverPhone) 는
-// 로그에 절대 직접 출력 금지. logger 의 maskRecord 가 키 이름 기반 마스킹.
-// ─────────────────────────────────────────────
-export const MarketOrderSchema = z.object({
-  externalOrderId: z.string().min(1),
-  buyerName: z.string().min(1),
-  receiverName: z.string().min(1),
-  receiverAddress: z.string().min(1),
-  receiverPhone: z.string().min(1),
-  productName: z.string().min(1),
-  quantity: z.number().int().positive(),
-  orderAmount: z.number().int().nonnegative(),
-  status: MarketOrderStatusSchema,
-  paidAt: IsoDateTimeOffsetSchema,
-  market: MarketIdSchema,
-})
-export type MarketOrder = z.infer<typeof MarketOrderSchema>
+import type {
+  FetchOrdersInput,
+  MarketOrder,
+  MarketOrderStatus,
+  StoredCredential,
+} from '../../_shared/index.ts'
 
 /**
  * 폴링 시 어댑터에 요청할 정규화 status 목록.
  *
- * PRD §2.1 "결제완료/배송대기 주문만 수집" — 어댑터 정규화 단계에서 두 raw 상태가
- * 모두 `new_pay` 로 매핑된다 (네이버 NEW_PAY_WAITING / 쿠팡 ACCEPT 등). 본 PR 은
- * `new_pay` 1종만 폴링 대상.
- *
- * (배송대기 별도 enum 필요 시 PR4 의 MarketOrderStatusSchema 에 추가 후 본 배열 갱신.)
+ * PRD §6.1 "결제완료/배송대기 주문만 수집" — 어댑터 정규화 단계에서 raw 상태가 `new_pay`
+ * 로 매핑된다 (네이버 NEW_PAY_WAITING / 쿠팡 ACCEPT / 11번가 '101' 등).
  */
 export const ORDER_SYNC_TARGET_STATUSES: readonly MarketOrderStatus[] = [
   'new_pay',
 ]
 
 /**
- * OrderSyncAdapter — v2 fetchOrders 확장.
+ * OrderSyncAdapter — fetchOrders 확장.
  *
- * MarketAdapter 5메서드는 그대로 두고 별개 인터페이스로 분리. PR4 머지 시 본 인터페이스를
- * `_shared/market-adapter.ts` 의 정식 정의로 흡수.
+ * MarketAdapter 의 optional `fetchOrders?` 가 정식 정의. 본 인터페이스는 orders-sync 가
+ * 런타임 shape 체크 후 좁히는 용도.
+ *
+ * hydrate 는 fetchOrders 호출 전 저장 자격증명으로 어댑터 in-memory cred 를 복원하기 위해
+ * 필요 (registration-market-worker process.ts 미러). real 모드(getMarketAdapter) 어댑터는
+ * 항상 구현하나, 테스트 mock 어댑터는 resolveAdapter 주입 경로에서 hydrate 가 호출되지
+ * 않으므로 optional 로 둔다.
  */
 export interface OrderSyncAdapter {
   fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]>
+  hydrate?(stored: StoredCredential): void
 }
 
-/** runtime shape check — PR4 머지 전 안전망. */
-export function hasFetchOrders(
-  adapter: unknown,
-): adapter is OrderSyncAdapter {
+/** runtime shape check — fetchOrders 미구현 마켓 스킵 안전망. */
+export function hasFetchOrders(adapter: unknown): adapter is OrderSyncAdapter {
   return (
     typeof adapter === 'object' &&
     adapter !== null &&

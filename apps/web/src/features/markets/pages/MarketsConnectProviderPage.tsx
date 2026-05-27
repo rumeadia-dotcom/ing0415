@@ -41,7 +41,7 @@ import { ProviderGuideCard, ProviderSecurityNote } from '../components/ProviderG
  *  - coupang → HMAC 폼 (Vendor / Access / Secret + Reveal toggle) + 발급가이드 aside
  *  - gmarket → ESM JWT 폼 (Master / Secret / Seller) + ESM 가이드 aside (site=G)
  *  - auction → ESM JWT 폼 (Master / Secret / Seller) + ESM 가이드 aside (site=A)
- *  - 11st    → disabled 안내 (가이드 aside 없음)
+ *  - 11st    → API Key 폼 (apiKey 단일 영구 키) + OPEN API 발급가이드 aside
  */
 function isMarketId(value: string | undefined): value is MarketId {
   return typeof value === 'string' && (MARKET_IDS as readonly string[]).includes(value)

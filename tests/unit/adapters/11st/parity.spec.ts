@@ -2,16 +2,15 @@
  * 11번가 어댑터 debug ↔ real parity.
  * 마스터: docs/architecture/v1/testing.md §12 / qa-matrix.md QA-FAIL-301.
  *
- * 11번가 = API Key (영구). refreshToken 없음. 2026-05-25 scaffold 후:
- *   - mock: createMockAdapter('11st') — 다른 4마켓과 동일 분기 (authenticate /
- *     fetchCategoryTree / transformProduct / createProduct / fetchOrders 모두 정상 동작).
- *   - real: scaffold — authenticate 만 동작. transformProduct / createProduct /
- *     fetchCategoryTree / fetchOrders / submitTracking 는 spec 미확보로 throw
- *     MarketError(unknown, 'adapter_spec_pending'). 본격 구현 별도 PR.
+ * 11번가 = API Key (영구). refreshToken 없음. v1 정식 구현 완료 후:
+ *   - mock: createMockAdapter('11st') — 다른 4마켓과 동일 분기.
+ *   - real: 본격 구현 (11번가 Open API, XML/EUC-KR, 게이트웨이 경유). authenticate /
+ *     fetchCategoryTree / transformProduct / createProduct / fetchOrders / submitTracking
+ *     모두 동작. transformProduct 는 순수(네트워크 없음), 나머지는 cred 가드 + fetch.
  *
- * 본 spec 는 §1 static / §2 interface / §4 mock schema 정합은 활성. §3 transformProduct
- * 외피 정합은 real 가 spec 미확보로 throw 하므로 asymmetric 명시 (mock 만 검증).
- * §5 (real createProduct 응답 vs mock schema 격차) 는 본격 구현 후 활성.
+ * 본 spec 는 §1 static / §2 interface / §3 transformProduct 외피 정합 / §4 authenticate·
+ * createProduct 에러 분류 계약을 검증한다 (mock = real). 실 HTTP 응답 fixture 격차(§5)는
+ * 셀러 발급 키 통합 검증에서 (개발자포털 IP 화이트리스트).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -82,16 +81,11 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(payload.raw).toBeTypeOf('object')
   })
 
-  it('§3-real: real transformProduct 는 spec 미확보로 throw (본격 구현 후 §3 정합 활성)', () => {
-    expect(() =>
-      elevenstRealAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING),
-    ).toThrow(MarketError)
-    try {
-      elevenstRealAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
-    } catch (e) {
-      expect(e).toBeInstanceOf(MarketError)
-      expect((e as MarketError).context.marketErrorCode).toBe('adapter_spec_pending')
-    }
+  it('§3-real: real transformProduct → { market, raw } / MarketPayloadSchema 통과 (mock 과 동일 외피)', () => {
+    const payload = elevenstRealAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+    expect(() => MarketPayloadSchema.parse(payload)).not.toThrow()
+    expect(payload.market).toBe('11st')
+    expect(payload.raw).toBeTypeOf('object')
   })
 
   it('§4-a: mock authenticate(api_key) → StoredCredential schema 통과', async () => {
@@ -120,10 +114,20 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(result.market).toBe('11st')
   })
 
-  it('§4-e: real createProduct 는 spec 미확보로 throw (본격 구현 후 §4-e 활성)', async () => {
-    await expect(
-      elevenstRealAdapter.createProduct({ market: '11st', raw: {} }),
-    ).rejects.toBeInstanceOf(MarketError)
+  it('§4-e: real createProduct — 네트워크 실패 시 MarketError 분류 (에러 계약, fetch stub)', async () => {
+    await elevenstRealAdapter.authenticate(SAMPLE_API_KEY_INPUT)
+    const origFetch = globalThis.fetch
+    globalThis.fetch = (async () => {
+      throw new Error('network down (test stub)')
+    }) as typeof fetch
+    try {
+      const payload = elevenstRealAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+      await expect(elevenstRealAdapter.createProduct(payload)).rejects.toBeInstanceOf(
+        MarketError,
+      )
+    } finally {
+      globalThis.fetch = origFetch
+    }
   })
 
   it('§4-f: real authenticate 입력 kind 불일치 시 validation 에러 (mock 과 동일 시그니처)', async () => {
@@ -135,8 +139,7 @@ describe('11st adapter parity (debug ↔ real)', () => {
     await expect(elevenstDebugAdapter.authenticate(wrongKind)).rejects.toThrow()
   })
 
-  // §5 — real 어댑터 본격 구현 후 captured-real fixture 와 mock 응답 schema 격차 비교.
-  // 현 시점: real fetchCategoryTree / transformProduct / createProduct / fetchOrders /
-  // submitTracking 모두 spec 미확보 → it.todo 유지.
-  it.todo('§5: real 어댑터 본격 구현 후 — captured 응답 fixture ↔ mock 응답 schema 격차')
+  // §5 — 셀러 발급 키로 캡처한 실 11번가 XML 응답 fixture ↔ mock 응답 schema 격차 비교.
+  // 실 키 + Lightsail Gateway 통합 검증 단계에서 fixture 확보 후 활성.
+  it.todo('§5: captured 실 11번가 XML 응답 fixture ↔ mock 응답 schema 격차')
 })

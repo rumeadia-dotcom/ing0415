@@ -42,7 +42,17 @@ import type {
   StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
+import {
+  FetchOrdersInputSchema,
+  type FetchOrdersInput,
+  type MarketOrder,
+} from '../market-orders.ts'
 import { buildCoupangSignature } from './coupang-hmac.ts'
+import {
+  buildCoupangOrdersPath,
+  CoupangOrderListResponseSchema,
+  mapCoupangOrders,
+} from './coupang-orders.ts'
 import {
   buildCategoryTree,
   buildDisplayCategoryPath,
@@ -389,6 +399,63 @@ export function createCoupangAdapter(): MarketAdapter {
         status: 'succeeded',
         warnings: [],
       } as CreateProductResult
+    },
+
+    // ───────────────────────────────────────────
+    // fetchOrders — GET ordersheets?status=ACCEPT (v2 orders)
+    // ───────────────────────────────────────────
+    async fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]> {
+      const parsedInput = FetchOrdersInputSchema.safeParse(input)
+      if (!parsedInput.success) {
+        throw new MarketError(
+          'validation',
+          `쿠팡 fetchOrders 입력 형식 오류 — ${parsedInput.error.message}`,
+          { market: MARKET, cause: parsedInput.error },
+        )
+      }
+
+      const { accessKey, secretKey, vendorId } = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+
+      // query string 을 path 에 포함 — Deno 측 buildCoupangSignature 가 query 까지 서명.
+      const path = buildCoupangOrdersPath(
+        vendorId,
+        parsedInput.data.since,
+        parsedInput.data.until,
+      )
+
+      const response = await coupangFetch({
+        method: 'GET',
+        path,
+        accessKey,
+        secretKey,
+        correlationId,
+      })
+
+      const text = await response.text()
+      if (!response.ok) {
+        throw coupangHttpStatusToMarketError(response.status, text, correlationId)
+      }
+
+      let json: unknown
+      try {
+        json = JSON.parse(text)
+      } catch {
+        throw new MarketError('server', '쿠팡 주문 응답 JSON 파싱 실패', {
+          market: MARKET,
+          status: response.status,
+        })
+      }
+
+      const parsed = CoupangOrderListResponseSchema.safeParse(json)
+      if (!parsed.success) {
+        throw new MarketError('server', '쿠팡 주문 응답 스키마 불일치', {
+          market: MARKET,
+          cause: parsed.error,
+        })
+      }
+
+      return mapCoupangOrders(parsed.data.data ?? [])
     },
   }
 }

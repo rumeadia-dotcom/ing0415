@@ -42,7 +42,7 @@ export type MarketCredentialKind = z.infer<typeof MarketCredentialKindSchema>
 //  - oauth_code: 네이버 스마트스토어 (`type=SELF` Authorization Code)
 //  - hmac_key:   쿠팡 윙 OpenAPI (VENDOR_ID + ACCESS_KEY + SECRET_KEY)
 //  - esm_jwt:    G마켓·옥션 ESM 2.0 (masterId + secretKey + sellerId + site)
-//  - api_key:    11번가 (API Key 단일. IP 화이트리스트 미해결로 v2 — 인터페이스 호환 보존용)
+//  - api_key:    11번가 (셀러오피스 OPEN API 센터 발급 API Key 단일 영구 키. v1 정식)
 // ─────────────────────────────────────────────
 export const OAuthCodeAuthInputSchema = z.object({
   kind: z.literal('oauth_code'),

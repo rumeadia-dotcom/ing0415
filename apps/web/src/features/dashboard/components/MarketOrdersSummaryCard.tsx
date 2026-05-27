@@ -30,7 +30,7 @@ interface MarketOrdersSummaryCardProps {
  * Studio 룩:
  *   - 헤더: H2 14 ink + sub 11.5 faint
  *   - body: 마켓 row 세로 stack (logo + 마켓명 + 신규/오늘 mini stats + sync badge)
- *   - 하단: 11번가 placeholder (오픈 준비중)
+ *   - 하단: comingSoon 마켓 placeholder (현재 5마켓 전부 ready 라 빈 배열 — 행 미노출)
  *   - 우상단: "전체 보기" → /orders
  */
 export function MarketOrdersSummaryCard({

@@ -8,10 +8,10 @@ import { MarketIdentity } from '../components/MarketIdentity'
 /**
  * MarketsConnectPage — n36 진입 (마켓 선택 → 4-way 인증 분기).
  *
- * Studio s5 reference: 5마켓 카드 그리드 (m1-m5) + per-market 인증방식 힌트 + ready CTA / v2 disabled.
+ * Studio s5 reference: 5마켓 카드 그리드 (m1-m5) + per-market 인증방식 힌트 + ready CTA.
  *
- *  - v1 활성 4개 (naver / coupang / gmarket / auction) — clickable Link card
- *  - 11번가 = status='coming_soon' = disabled (v2 예정)
+ *  - v1 활성 5개 (naver / coupang / gmarket / auction / 11st) — clickable Link card
+ *  - 11번가 = status='ready' = API Key 폼으로 연결
  */
 export function MarketsConnectPage(): JSX.Element {
   const t = ko.markets.connect

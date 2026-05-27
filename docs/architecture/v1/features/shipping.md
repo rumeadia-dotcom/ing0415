@@ -258,7 +258,7 @@ const ShippingDispatchJobResponse = z.object({
 | S-001 | logen-register-shipment | getSlipNo 응답 slipNo 개수와 orderIds 개수 일치 |
 | S-002 | logen-register-shipment | registerOrderData 부분 실패 시 성공 건만 logen_registered |
 | S-003 | logen-register-shipment | 3 재시도 후 최종 실패 → logen_failed + Realtime 갱신 |
-| S-004 | shipping-dispatch-job | 4 마켓 fan-out 중 1 마켓 실패 → partial |
+| S-004 | shipping-dispatch-job | 5 마켓 fan-out 중 1 마켓 실패 → partial |
 | S-005 | shipping-dispatch-job | excludeMarkets 적용 시 해당 마켓 결과 없음 |
 | S-006 | shipping-dispatch-job | parent_job_id 연결 (재시도 잡) |
 | S-007 | n52 | outSlipPrintPop URL 만료 시 재요청 |
