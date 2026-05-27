@@ -37,7 +37,7 @@ import type { MarketAdapter } from '../types'
  *   - 네이버 (kind='oauth') → AuthInput.kind='oauth_code' 만 수용. StoredCredential.kind='oauth' 반환.
  *   - 쿠팡 (kind='hmac')   → AuthInput.kind='hmac_key'.  StoredCredential.kind='hmac'.
  *   - G마켓·옥션 (kind='esm_jwt') → AuthInput.kind='esm_jwt'. StoredCredential.kind='esm_jwt'.
- *   - 11번가 (kind='api_key') → 본 mock 은 즉시 throw (오픈 준비중).
+ *   - 11번가 (kind='api_key') → AuthInput.kind='api_key' 수용. StoredCredential.kind='api_key' 반환 (다른 4마켓과 동등).
  *
  *   refreshToken 은 'oauth' 어댑터에만 정의.
  */

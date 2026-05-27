@@ -98,8 +98,17 @@ const MARKET_ORDERS_OK: MarketOrdersSummary = {
       syncStatus: 'error',
       syncError: 'TOKEN_EXPIRED',
     },
+    {
+      marketId: '11st',
+      connected: true,
+      newOrdersCount: 1,
+      todayTotalCount: 2,
+      lastSyncedAt: '2026-05-21T06:00:00+09:00',
+      syncStatus: 'idle',
+      syncError: null,
+    },
   ],
-  comingSoon: ['11st'],
+  comingSoon: [],
 }
 
 // 일부 마켓만 연동된 상태 — naver 연동(주문 있음), gmarket 미연동.
@@ -133,8 +142,9 @@ const MARKET_ORDERS_EMPTY: MarketOrdersSummary = {
     { marketId: 'coupang', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
     { marketId: 'gmarket', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
     { marketId: 'auction', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
+    { marketId: '11st', connected: false, newOrdersCount: 0, todayTotalCount: 0, lastSyncedAt: null, syncStatus: 'idle', syncError: null },
   ],
-  comingSoon: ['11st'],
+  comingSoon: [],
 }
 
 describe('DashboardPage', () => {
@@ -164,6 +174,11 @@ describe('DashboardPage', () => {
     expect(screen.getByText('마켓별 주문 현황')).toBeInTheDocument()
     // 네이버 신규 5
     expect(screen.getByText('네이버 스마트스토어')).toBeInTheDocument()
+    // 11번가도 다른 마켓과 동등하게 활성 주문 행으로 렌더 (오픈 준비중 placeholder 아님)
+    expect(
+      screen.getByRole('link', { name: /11번가 신규 1건/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('오픈 준비중')).not.toBeInTheDocument()
     // 옥션은 syncStatus error → /markets 로 이동하는 카드 링크
     expect(
       screen.getByRole('link', { name: /옥션 연결 오류, 재인증 페이지로 이동/ }),

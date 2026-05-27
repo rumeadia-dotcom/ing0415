@@ -26,6 +26,17 @@ vi.mock('@/features/markets/hooks/useMarketAccounts', () => ({
         lastErrorCode: null,
         lastErrorAt: null,
       },
+      {
+        id: '00000000-0000-0000-0000-000000000aa5',
+        marketId: '11st',
+        accountLabel: '11번가 메인',
+        externalAccountId: null,
+        status: 'active',
+        connectedAt: '2026-05-20T00:00:00.000+09:00',
+        lastVerifiedAt: null,
+        lastErrorCode: null,
+        lastErrorAt: null,
+      },
     ],
   }),
 }))
@@ -97,10 +108,16 @@ describe('StepMarketsCategoriesPage', () => {
     await screen.findByText('step-preview')
   })
 
-  it('11번가는 disabled (오픈 준비중)', () => {
+  it('11번가도 active 계정이 있으면 선택 가능 (다른 4마켓과 동등)', async () => {
+    const user = userEvent.setup()
     useRegisterFormStore.getState().setProductId(PRODUCT_ID)
     renderPage()
     const cb = screen.getByRole('checkbox', { name: /11번가 선택/ })
-    expect(cb).toBeDisabled()
+    // 더 이상 disabled 아님 — 선택 가능
+    expect(cb).toBeEnabled()
+    await user.click(cb)
+    expect(cb).toBeChecked()
+    // 선택 시 11번가 카테고리 매핑 카드가 노출됨
+    expect(await screen.findByLabelText(/11번가 카테고리 선택/)).toBeInTheDocument()
   })
 })

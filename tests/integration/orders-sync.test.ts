@@ -55,10 +55,10 @@ describe('orders-sync: Edge Function 산출물', () => {
     expect(src).toMatch(/syncOrders/)
   })
 
-  it('sync.ts 가 24h 윈도우 + 4 마켓 한정 + try/catch per market 패턴', () => {
+  it('sync.ts 가 24h 윈도우 + 5 마켓(11번가 포함) + try/catch per market 패턴', () => {
     const src = read(path.join(FUNC_DIR, 'lib/sync.ts'))
     expect(src).toMatch(/ORDER_SYNC_WINDOW_HOURS\s*=\s*24/)
-    expect(src).toMatch(/'naver'.*'coupang'.*'gmarket'.*'auction'/s)
+    expect(src).toMatch(/'naver'.*'coupang'.*'gmarket'.*'auction'.*'11st'/s)
     // 한 마켓 실패가 다른 마켓 진행 안 막음 → continue 분기.
     expect(src).toMatch(/continue/)
     // PR4 fetchOrders 시그니처 — sellerId + statuses 배열.
@@ -69,28 +69,33 @@ describe('orders-sync: Edge Function 산출물', () => {
     expect(src).not.toMatch(/'배송대기'/)
   })
 
-  it('adapter-shape.ts 가 PR4 시그니처와 1:1 매핑', () => {
+  it('주문 타입 단일 소스(_shared/market-orders.ts) + adapter-shape contract 정합', () => {
+    // 주문 zod 스키마는 _shared/market-orders.ts 단일 출처. adapter-shape.ts 는 재export.
+    const types = read(
+      path.join(ROOT, 'apps/api/supabase/functions/_shared/market-orders.ts'),
+    )
+    // 정규화 status enum 7종 (MarketOrderStatusSchema).
+    expect(types).toMatch(/'new_pay'/)
+    expect(types).toMatch(/'dispatched'/)
+    expect(types).toMatch(/'delivering'/)
+    expect(types).toMatch(/'delivered'/)
+    expect(types).toMatch(/'cancelled'/)
+    expect(types).toMatch(/'returned'/)
+    expect(types).toMatch(/'unknown'/)
+    // MarketOrder 필드 (PRD §6 매핑).
+    expect(types).toMatch(/buyerName/)
+    expect(types).toMatch(/receiverName/)
+    expect(types).toMatch(/receiverAddress/)
+    expect(types).toMatch(/receiverPhone/)
+    expect(types).toMatch(/productName/)
+    expect(types).toMatch(/quantity/)
+    expect(types).toMatch(/orderAmount/)
+    expect(types).toMatch(/paidAt/)
+
+    // adapter-shape.ts 는 단일 소스를 재export + orders-sync 고유 contract 보유.
     const src = read(path.join(FUNC_DIR, 'lib/adapter-shape.ts'))
-    // 정규화 status enum 7종 (PR4 MarketOrderStatusSchema).
-    expect(src).toMatch(/'new_pay'/)
-    expect(src).toMatch(/'dispatched'/)
-    expect(src).toMatch(/'delivering'/)
-    expect(src).toMatch(/'delivered'/)
-    expect(src).toMatch(/'cancelled'/)
-    expect(src).toMatch(/'returned'/)
-    expect(src).toMatch(/'unknown'/)
-    // MarketOrder 필드 (PR4 = PRD §4 매핑).
-    expect(src).toMatch(/buyerName/)
-    expect(src).toMatch(/receiverName/)
-    expect(src).toMatch(/receiverAddress/)
-    expect(src).toMatch(/receiverPhone/)
-    expect(src).toMatch(/productName/)
-    expect(src).toMatch(/quantity/)
-    expect(src).toMatch(/orderAmount/)
-    expect(src).toMatch(/paidAt/)
-    // 폴링 대상 = new_pay (결제완료/배송대기 흡수).
+    expect(src).toMatch(/market-orders|_shared\/index/)
     expect(src).toMatch(/ORDER_SYNC_TARGET_STATUSES/)
-    // 어댑터 contract.
     expect(src).toMatch(/fetchOrders\s*\(/)
     expect(src).toMatch(/hasFetchOrders/)
     expect(src).toMatch(/OrderSyncAdapter/)

@@ -88,7 +88,7 @@
     --market-coupang: 0.6 0.21 22; /* m2 red-pink */
     --market-gmarket: 0.58 0.14 175; /* m3 teal-leaning green */
     --market-auction: 0.62 0.19 38; /* m4 orange-red */
-    --market-eleventh: 0.6 0.22 0; /* m5 magenta-red (v2) */
+    --market-eleventh: 0.6 0.22 0; /* m5 magenta-red (#FF0038) */
 
     /* radius — Studio scale 4/8/10/12/14/16/999 */
     --radius-sm: 4px;

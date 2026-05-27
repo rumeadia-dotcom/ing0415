@@ -20,11 +20,11 @@ const BRAND_COLOR: Record<MarketId, string> = {
 }
 
 /**
- * Step 3 — 5 마켓 카드 그리드 (v1 활성 4 + 11번가 v2 예정). Studio 룩.
+ * Step 3 — 5 마켓 카드 그리드 (naver / coupang / gmarket / auction / 11st 전부 v1 활성). Studio 룩.
  * 마스터: docs/architecture/v1/features/registration.md §10.5
  *
  * - 연결되지 않은 (account 없음) 마켓 = disabled + tooltip 안내.
- * - 11번가 = '준비 중 · v2' pill + 항상 disabled.
+ * - 5마켓 모두 status='ready' — 계정만 연결되면 선택 가능.
  * - 선택된 카드는 ink ring + accent-soft 배경.
  */
 export function MarketSelectGrid({ accounts, selections, onChange }: MarketSelectGridProps): JSX.Element {
@@ -35,7 +35,6 @@ export function MarketSelectGrid({ accounts, selections, onChange }: MarketSelec
   const isSelected = (marketId: MarketId) => selections.some((s) => s.marketId === marketId)
 
   const toggle = (marketId: MarketId): void => {
-    if (marketId === '11st') return
     const account = accountByMarket.get(marketId)
     if (!account) return
     if (isSelected(marketId)) {
