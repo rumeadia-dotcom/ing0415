@@ -275,7 +275,12 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.101.0
+        env:
+          # setup-cli 의 GitHub 릴리즈 API 조회를 인증 → rate limit 회피 (unauth 60/hr → auth 1000/hr).
+          # 'version: latest' 가 unauth "resolve latest release" 호출로 rate-limit 실패하던 것을 정정:
+          #   (1) 버전 핀(2.101.0)으로 'latest' 해석 제거, (2) 토큰으로 태그 asset 조회까지 인증.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify required secrets present
         run: |
