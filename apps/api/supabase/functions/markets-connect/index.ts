@@ -32,6 +32,7 @@ import {
   getMarketAdapter,
   getServiceClient,
   getUserClient,
+  HttpError,
   HttpErrors,
   MarketError,
   ok,
@@ -274,7 +275,19 @@ export default Deno.serve(
         logger,
       })
       credentialId = res.credentialId
-    } catch {
+    } catch (e) {
+      // 무음 금지 — vault 실패의 실제 원인(코드/메시지)을 남겨 진단 가능하게.
+      logger.error(
+        {
+          market,
+          stage: 'vault',
+          errName: e instanceof Error ? e.name : typeof e,
+          errCode: e instanceof HttpError ? e.code : undefined,
+          errMessage: e instanceof Error ? e.message : String(e),
+          correlationId,
+        },
+        'storeCredential failed',
+      )
       await auditFail('vault', 'vault_unavailable')
       throw HttpErrors.internal('vault_unavailable', 'credential vault unavailable')
     }
