@@ -79,6 +79,9 @@ export const ko = {
   marketStatus: {
     ready: '연결 가능',
     coming_soon: '오픈 준비중',
+    not_connected: '미연동',
+    notConnectedHint: '아직 연결되지 않았습니다',
+    connect: '연결하기',
   },
   markets: {
     page: {

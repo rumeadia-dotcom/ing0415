@@ -95,14 +95,15 @@
 ```ts
 {
   markets: [
-    { marketId: 'naver' | 'coupang' | 'gmarket' | 'auction',
+    { marketId: 'naver' | 'coupang' | 'gmarket' | 'auction' | '11st',
+      connected: boolean,                // market_accounts 행 존재 여부. false = 미연동 → 비활성 row
       newOrdersCount: number,            // 처리 대기 (status='new' OR 발송준비)
       todayTotalCount: number,           // 오늘 들어온 총 주문
       lastSyncedAt: string | null,       // ISO 시각
       syncStatus: 'idle' | 'syncing' | 'error',
       syncError: string | null }
   ],
-  comingSoon: ['11st']                   // v1 placeholder 마켓
+  comingSoon: []                         // v1 placeholder 마켓 (현재 5마켓 전부 ready)
 }
 ```
 
@@ -114,7 +115,7 @@
 |---|---|---|---|---|---|
 | `SummaryCard` x4 | `Skeleton h-8 w-20` | 큰 숫자 + 보조 hint | "불러오기 실패" 단문 | "—" 회색 | 카드 4개 동시 표기 (4상태 일치) |
 | `MarketOrdersSummaryCard` | 4 카드 스켈레톤 grid | 4 마켓 카드 + 11번가 placeholder | 컨테이너 단문 에러 (role=alert) | "주문이 아직 없어요" 안내 + 마켓 연결 0건이면 `/markets` 링크 우선 | "전체 보기" → `/orders` 링크는 항상 노출 |
-| `MarketOrderItemCard` (마켓당) | 카드 스켈레톤 | 카운트 + 동기화 뱃지 | 카드 영역만 단문 에러 (다른 마켓 카드에 영향 없음) | `newOrdersCount=0 && todayTotalCount=0` 시 "신규 없음" 회색 표시 | `syncStatus='error'` 시 붉은 뱃지 + 재인증 유도 (`/markets`) |
+| `MarketOrderItemCard` (마켓당) | 카드 스켈레톤 | 카운트 + 동기화 뱃지 | 카드 영역만 단문 에러 (다른 마켓 카드에 영향 없음) | `newOrdersCount=0 && todayTotalCount=0` 시 "신규 없음" 회색 표시 | `connected=false` 시 비활성(dim) row + "미연동" 뱃지 + "연결하기 →" (`/markets`, 주문 목록 click-through 없음). `syncStatus='error'` 시 붉은 뱃지 + 재인증 유도 (`/markets`) |
 | `MarketHealthCard` | 2줄 스켈레톤 | 정상/만료/오류 3분할 dl + 경고 영역 | 단문 에러 (role=alert) | "아직 연결된 마켓이 없어요" + `/markets` 링크 | 만료·오류 ≥1 시 경고, 0 시 "모두 정상" 표시 |
 | `DashboardEmptyState` | — | hero CTA 카드 | — | — | (a) 연결 마켓 0건 → "먼저 마켓 연결하기" 강조 / (b) 마켓 ≥1 이지만 주문 0건 + 잡 0건 → "첫 상품을 등록해 보세요" |
 

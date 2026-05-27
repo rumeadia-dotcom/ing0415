@@ -277,11 +277,12 @@ export async function fetchMarketOrdersSummary(): Promise<MarketOrdersSummary>;
 |---|---|---|---|
 | 1 | `orders_with_dispatch_summary` view (s7 정의, security_invoker) | `.from('orders_with_dispatch_summary').select('by_market').maybeSingle()` | `by_market` jsonb 배열 → 마켓별 `newOrdersCount` map |
 | 2 | `orders` 테이블 | `.from('orders').select('market_id').gte('collected_at', startOfTodayKstIso())` | 오늘 0시(KST) 이후 마켓별 row 카운트 → `todayTotalCount` map |
-| 3 | `market_accounts` 테이블 | `.from('market_accounts').select('market_id, status, last_verified_at, last_error_code')` | 마켓별 `syncStatus` / `lastSyncedAt` / `syncError` map |
-| 4 | (메모리 합성) | `V1_MARKETS = ['naver','coupang','gmarket','auction']` 순회 | `MarketOrderItem` 4개 + `comingSoon: ['11st']` |
+| 3 | `market_accounts` 테이블 | `.from('market_accounts').select('market_id, status, last_verified_at, last_error_code')` | 마켓별 `syncStatus` / `lastSyncedAt` / `syncError` map + 행 존재 여부 → `connected` |
+| 4 | (메모리 합성) | `V1_MARKETS` 순회 | `MarketOrderItem` (마켓당 1개) + `comingSoon` |
 
 **한 마켓 ↔ 여러 계정 합산 규칙:**
 
+- `connected`: 해당 마켓의 `market_accounts` 행이 1개 이상 존재하면 `true`. 셀러가 아직 연동하지 않은 마켓은 `false` (status=expired/revoked/error 는 *연동됨 + 재인증 필요* 이므로 `connected:true` + `syncStatus:'error'`). `connected:false` 행은 위젯에서 비활성(dim) row + "연결하기" 유도로 렌더 (주문 목록 click-through 없음).
 - `syncStatus`: 더 심각한 상태 우선 (`error > expired > revoked > active`). 코드상 `account.status === 'active'` → `'idle'`, 그 외 → `'error'`.
 - `lastSyncedAt`: 같은 syncStatus 안에서는 MAX (가장 최근). 심각도 다르면 더 심각한 쪽의 timestamp 채택.
 
@@ -361,6 +362,7 @@ export type MarketOrderSyncStatus = z.infer<typeof MarketOrderSyncStatusSchema>;
 
 export const MarketOrderItemSchema = z.object({
   marketId: MarketIdSchema,
+  connected: z.boolean(), // market_accounts 행 존재 여부. false = 미연동 → 위젯 비활성 row
   newOrdersCount: z.number().int().nonnegative(),
   todayTotalCount: z.number().int().nonnegative(),
   lastSyncedAt: z.string().datetime({ offset: true }).nullable(),
