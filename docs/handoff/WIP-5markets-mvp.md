@@ -1,14 +1,16 @@
-# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결 hotfix 2건 운영 배포 직후)
+# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결 hotfix 3건 운영 배포 직후)
 
-**develop HEAD**: 백머지 (main #225 → develop) — chore/backmerge-hmac
-**main HEAD**: `a83d5af` — fix: 쿠팡 HMAC 서명 메시지 형식 정정 (#225)
-**테스트**: 909 passed / 31 todo (94 files, +12 coupang-category +3 coupang-hmac +2 client KAT. 1 sanitize-parity env issue — CI 통과)
-**최근 운영 배포**: 쿠팡 HMAC hotfix #225 (2026-05-27 07:50 UTC) — deploy.yml 5/5 success (Edge Functions 재배포)
-**최근 develop 머지**: 백머지 (#225)
+**develop HEAD**: 백머지 (main #227 → develop) — chore/backmerge-ping-lenient
+**main HEAD**: `<#227 squash>` — fix: 쿠팡 연결 핑 응답 파싱 완화 (#227)
+**테스트**: 912 passed / 31 todo (94 files, coupang-category +15 / coupang-hmac +3 / client KAT +2. 1 sanitize-parity env issue — CI 통과)
+**최근 운영 배포**: 쿠팡 핑완화 hotfix #227 (2026-05-27 08:0x UTC) — deploy.yml 5/5 success (Edge Functions 재배포)
+**최근 develop 머지**: 백머지 (#227)
 
-## 2026-05-27 세션 결과 (쿠팡 연결 운영 hotfix 2건)
+## 2026-05-27 세션 결과 (쿠팡 연결 운영 hotfix 3건 — chain 진단)
 
-쿠팡 마켓 연결 흐름의 **연쇄 결함 2개**를 chain 진단으로 순차 해소. 둘 다 "real 쿠팡 API 로 검증된 적 없던" 코드 + "자기 복사본만 검사하는 약한 테스트"가 가린 케이스.
+쿠팡 마켓 연결 흐름의 **연쇄 결함 3개**를 chain 진단으로 순차 해소. 각 fix 가 다음 layer 를 드러냄 (404→401→500). 셋 다 "real 쿠팡 API 로 검증된 적 없던" 코드 + "자기 복사본만 검사하는 약한 테스트"가 가린 케이스.
+
+> **교훈**: 마켓 어댑터 real 경로(경로 상수 / HMAC 서명 / 응답 스키마)는 sandbox/실 API 1회 검증 없이 머지하면 안 됨. 단위 테스트가 인라인 복사본을 검사하면 false-confidence (5xx `as never`, HMAC `\n`, strict 스키마 모두 통과했었음). 실모듈 직접 테스트 + KAT 로 가드.
 
 ### 1탄 #223 — 카테고리 경로/루트 (`category_ping_failed`)
 - correlationId `58f3ca64`, Edge 로그 `category ping failed (unknown)`, 796ms (즉시 404).
@@ -22,8 +24,13 @@
 - 서명 메시지 `datetime\nMETHOD\npath\n` (개행) → 공식 스펙 `datetime+method+path+query` **무개행** 연결 + query('?' 분리). 서버 + 클라이언트 미러 둘 다.
 - KAT(node crypto 정답 대조) 추가 — 기존 10 테스트는 구조만 봐 형식 오류 못 잡음.
 
-> ⚠ **격리 hotfix** — 둘 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
-> ⚠ **남은 가능성 C**: 2탄 배포 후에도 401 이면 = 키 오류 또는 쿠팡 Wing IP 화이트리스트 `43.201.83.78` 미등록. (게이트웨이 401 B 는 1탄의 쿠팡 404 도달 증거로 배제.)
+### 3탄 #227 — 핑 응답 파싱 완화 (`market_server`)
+- 2탄 후 401 사라짐(인증 통과) → reason=`server` 재시도. correlationId `0965ac1a`.
+- `fetchCategoryTree` 가 응답을 strict zod 로 파싱하다 실패 → server. **markets-connect 는 핑 반환값 미사용** → "HTTP 200 = 자격증명 OK" 로 완화. `coerceCoupangCategory` 관대 매핑(throw 없음), non-2xx 만 분류 유지.
+
+> ⚠ **격리 hotfix** — 셋 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
+> ⚠ **3탄 배포 후에도 막히면 남은 원인** = 진짜 쿠팡 5xx(일시 장애, 재시도) 또는 키 오류 / 쿠팡 Wing IP 화이트리스트 `43.201.83.78` 미등록. (게이트웨이 401 B 는 1탄의 쿠팡 404 도달 증거로 배제.)
+> ⚠ **후속**: UI 카테고리 트리(registration s3)용 쿠팡 응답 **실제 필드명 미검증** — 핑은 통과하나 트리 파싱은 별도 확인 필요. `coupang-edge.test.ts` 인라인 재구현도 실모듈 테스트로 흡수 검토.
 
 ## 스택 한눈에
 
