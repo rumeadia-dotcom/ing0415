@@ -332,6 +332,31 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       } as StoredCredential
     },
 
+    // ───────────────────────────────────────────
+    // hydrate — 저장 자격증명으로 cred 복원 (API 호출 없음)
+    // ───────────────────────────────────────────
+    hydrate(stored: StoredCredential): void {
+      if (stored.kind !== 'esm_jwt') {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}): esm_jwt 자격증명 필요 (받은 kind: ${stored.kind})`,
+          { market },
+        )
+      }
+      const p = stored.payload as {
+        masterId?: string
+        secretKey?: string
+        sellerId?: string
+      }
+      if (!p.masterId || !p.secretKey || !p.sellerId) {
+        throw new MarketError('validation', `ESM(${market}): 저장 자격증명 누락`, {
+          market,
+        })
+      }
+      // site 는 어댑터에 고정 — 저장값 대신 어댑터 site 사용.
+      cred = { masterId: p.masterId, secretKey: p.secretKey, sellerId: p.sellerId, site }
+    },
+
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const c = getCredOrThrow()
       const correlationId = generateCorrelationId()

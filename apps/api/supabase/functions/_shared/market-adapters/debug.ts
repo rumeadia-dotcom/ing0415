@@ -184,6 +184,11 @@ export function createMockAdapter(
       return buildHappyCredential(market, credentialKind, input)
     },
 
+    // mock 은 cred 게이트 없음 — hydrate 는 사실상 no-op (인터페이스 충족).
+    hydrate(stored: StoredCredential): void {
+      void stored
+    },
+
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const s = resolveS()
       if (s === '5xx') throw new MarketError('server', 'mock 5xx', { market })
