@@ -1,26 +1,29 @@
-# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 카테고리 hotfix 운영 배포 직후)
+# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결 hotfix 2건 운영 배포 직후)
 
-**develop HEAD**: 백머지 (main #223 → develop) — chore/backmerge-coupang-hotfix
-**main HEAD**: `ef62303` — fix: 쿠팡 카테고리 조회 경로·루트 코드 수정 + 연결 핑 깊이 제한 (#223)
-**테스트**: 906 passed / 31 todo (93 files, +12 coupang-category. 1 sanitize-parity Deno-import env issue — CI 통과)
-**최근 운영 배포**: 쿠팡 hotfix #223 (2026-05-27 07:37 UTC) — deploy.yml 5/5 success (Edge Functions 재배포 포함)
-**최근 develop 머지**: 백머지 (#223)
+**develop HEAD**: 백머지 (main #225 → develop) — chore/backmerge-hmac
+**main HEAD**: `a83d5af` — fix: 쿠팡 HMAC 서명 메시지 형식 정정 (#225)
+**테스트**: 909 passed / 31 todo (94 files, +12 coupang-category +3 coupang-hmac +2 client KAT. 1 sanitize-parity env issue — CI 통과)
+**최근 운영 배포**: 쿠팡 HMAC hotfix #225 (2026-05-27 07:50 UTC) — deploy.yml 5/5 success (Edge Functions 재배포)
+**최근 develop 머지**: 백머지 (#225)
 
-## 2026-05-27 세션 결과 (쿠팡 카테고리 운영 hotfix)
+## 2026-05-27 세션 결과 (쿠팡 연결 운영 hotfix 2건)
 
-운영 사고: 쿠팡 마켓 연결 시 `category_ping_failed` ("자격증명은 확인되었지만 카테고리 조회에 실패") 로 연결 차단. correlationId `58f3ca64` → Edge 로그 `category ping failed (unknown)`, latency 796ms.
+쿠팡 마켓 연결 흐름의 **연쇄 결함 2개**를 chain 진단으로 순차 해소. 둘 다 "real 쿠팡 API 로 검증된 적 없던" 코드 + "자기 복사본만 검사하는 약한 테스트"가 가린 케이스.
 
-**근본 원인**: 쿠팡 카테고리 API 경로가 `…/api/v1/`**`categorization`**`/display-categories/{id}` 로 작성됨. 실제 스펙은 `…/api/v1/`**`marketplace/meta`**`/display-categories/{code}` (루트 `0`). 존재하지 않는 경로 → 쿠팡 404 → 어댑터 fallback `unknown` → `category_ping_failed`. 쿠팡 공식 문서로 경로/루트 검증.
+### 1탄 #223 — 카테고리 경로/루트 (`category_ping_failed`)
+- correlationId `58f3ca64`, Edge 로그 `category ping failed (unknown)`, 796ms (즉시 404).
+- 경로 `…/api/v1/`**`categorization`**`/…` → `…/api/v1/`**`marketplace/meta`**`/display-categories/{code}` (루트 `1`→`0`). 쿠팡 공식 문서 검증.
+- 핑 `fetchCategoryTree` maxDepth=1 (트리 전체 재귀 → 폭주/타임아웃 방지).
+- 5xx code `as never` 문자열 → `'server'`. audit insert error 미검사 → 로깅.
+- 순수 로직 `coupang-category.ts` 분리 + vitest 12 (실코드 회귀 가드).
 
-| 변경 | 비고 |
-|---|---|
-| 경로 `categorization/` → `marketplace/meta/`, 루트 `1` → `0` | 사고 직접 해결 |
-| 핑 `fetchCategoryTree` maxDepth=1 (루트 1회) | 이전엔 트리 전체 depth3 순차 재귀 → 게이트웨이 폭주/타임아웃 위험 |
-| 5xx code `as never` 문자열 → `'server'` | 분류·재시도 정상화 |
-| 순수 로직 `coupang-category.ts` 분리 + vitest 12 테스트 | **실코드** 직접 회귀 가드 |
-| `markets-connect` audit insert error 미검사 수정 | 무음 실패 → 로깅 (이전 audit 0건 추적 불가 원인) |
+### 2탄 #225 — HMAC 서명 형식 (`credentials_unauthorized`)
+- 1탄 후 호출이 쿠팡 도달(HTTP 400 / 3.5s) → 쿠팡 401. correlationId `fb9e719d`.
+- 서명 메시지 `datetime\nMETHOD\npath\n` (개행) → 공식 스펙 `datetime+method+path+query` **무개행** 연결 + query('?' 분리). 서버 + 클라이언트 미러 둘 다.
+- KAT(node crypto 정답 대조) 추가 — 기존 10 테스트는 구조만 봐 형식 오류 못 잡음.
 
-> ⚠ **격리 hotfix** — main 기준 분기 (develop 누적 미반영). 수정 파일 3개가 main↔develop 동일이라 cherry-pick 충돌 0.
+> ⚠ **격리 hotfix** — 둘 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
+> ⚠ **남은 가능성 C**: 2탄 배포 후에도 401 이면 = 키 오류 또는 쿠팡 Wing IP 화이트리스트 `43.201.83.78` 미등록. (게이트웨이 401 B 는 1탄의 쿠팡 404 도달 증거로 배제.)
 
 ## 스택 한눈에
 

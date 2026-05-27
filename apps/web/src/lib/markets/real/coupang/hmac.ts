@@ -5,8 +5,8 @@
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (쿠팡 HMAC)
  *   - WIP-5markets-mvp.md C-2
  *
- * 서명 방식 (Wing OpenAPI 공식 문서):
- *   message   = datetime + "\n" + method + "\n" + path + "\n"
+ * 서명 방식 (Wing OpenAPI 공식 — "Creating HMAC Signature"):
+ *   message   = datetime + method + path + query   (무개행 연결, query 없으면 "")
  *   signature = HMAC-SHA256(secretKey, message) → hex lowercase
  *   Authorization: "CEA algorithm=HmacSHA256, access-key={accessKey},
  *                   signed-date={datetime}, signature={signature}"
@@ -79,8 +79,12 @@ export async function buildCoupangSignature(
   // 메서드는 대문자로 정규화
   const upperMethod = method.toUpperCase()
 
-  // message = datetime + "\n" + METHOD + "\n" + path + "\n"
-  const message = `${datetime}\n${upperMethod}\n${path}\n`
+  // Coupang 공식 스펙: message = datetime + method + path + query (무개행 연결).
+  // path 에 query 가 붙어 오면 '?' 를 떼고 path / query 로 분리해 연결한다.
+  const qIdx = path.indexOf('?')
+  const pathOnly = qIdx === -1 ? path : path.slice(0, qIdx)
+  const query = qIdx === -1 ? '' : path.slice(qIdx + 1)
+  const message = `${datetime}${upperMethod}${pathOnly}${query}`
 
   // Web Crypto HMAC-SHA256
   const encoder = new TextEncoder()
