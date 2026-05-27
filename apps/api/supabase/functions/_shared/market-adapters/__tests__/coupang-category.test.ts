@@ -3,6 +3,7 @@ import { MarketError } from '../../errors'
 import {
   buildDisplayCategoryPath,
   buildCategoryTree,
+  coerceCoupangCategory,
   coupangHttpStatusToMarketError,
   COUPANG_DISPLAY_CATEGORY_BASE_PATH,
   ROOT_DISPLAY_CATEGORY_CODE,
@@ -70,6 +71,41 @@ describe('coupangHttpStatusToMarketError', () => {
 
   it('그 외(404 등) → unknown', () => {
     expect(coupangHttpStatusToMarketError(404, '', 'c').code).toBe('unknown')
+  })
+})
+
+describe('coerceCoupangCategory — 관대한 매핑 (핑은 200 이면 성공)', () => {
+  it('표준 응답(data.categoryId/displayCategoryName/...)을 그대로 추출', () => {
+    const node = coerceCoupangCategory(
+      {
+        code: '200',
+        data: {
+          categoryId: 56137,
+          displayCategoryName: '식품',
+          isLeafCategory: false,
+          subCategories: [
+            { categoryId: 1, displayCategoryName: 'a', isLeafCategory: true },
+          ],
+        },
+      },
+      0,
+    )
+    expect(node.categoryId).toBe(56137)
+    expect(node.displayCategoryName).toBe('식품')
+    expect(node.subCategories).toHaveLength(1)
+  })
+
+  it('예상치 못한 응답 형태여도 throw 없이 fallback 노드 반환 (핑 통과)', () => {
+    // 필드명이 다르거나 data 가 배열/누락이어도 안전.
+    const node = coerceCoupangCategory({ code: 200, result: [{ foo: 'bar' }] }, 0)
+    expect(node.categoryId).toBe(0) // fallbackCode
+    expect(Array.isArray(node.subCategories)).toBe(true)
+  })
+
+  it('data 가 null/누락이어도 fallback', () => {
+    const node = coerceCoupangCategory({ code: 'OK' }, 7)
+    expect(node.categoryId).toBe(7)
+    expect(node.subCategories).toEqual([])
   })
 })
 
