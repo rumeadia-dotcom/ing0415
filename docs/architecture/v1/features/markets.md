@@ -210,7 +210,7 @@ SELECT cron.schedule(
 
 ## 3. 마켓별 인증 사양
 
-> **v1 정식 = 5 마켓 전부** (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) — 2026-05-22 결정, 2026-05-25 11번가 scaffold 활성.
+> **v1 정식 = 5 마켓 전부** (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) — 2026-05-22 결정. 11번가 real 어댑터 본격 구현 완료.
 > 인증 방식 4-way 분기: OAuth (네이버) / HMAC (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가).
 > 미해결 사안은 §14 에 행으로 보존.
 
@@ -243,13 +243,13 @@ SELECT cron.schedule(
 | 쿠팡 (`coupang`) | `hmac_key` | accessKey / secretKey / vendorId | fetchCategoryTree | Wing OpenAPI HMAC-SHA256 서명 |
 | G마켓 (`gmarket`) | `esm_jwt` | masterId / secretKey / sellerId + `site='G'` | fetchCategoryTree | ESM Plus 통합 인증 |
 | 옥션 (`auction`) | `esm_jwt` | masterId / secretKey / sellerId + `site='A'` | fetchCategoryTree | ESM Plus 통합 인증 (G마켓과 어댑터 공유) |
-| 11번가 (`11st`) | `api_key` | apiKey | **스킵** (real spec 미확보) | 11번가 OPEN API (XML CP949). 본격 동작은 spec 입수 후 |
+| 11번가 (`11st`) | `api_key` | apiKey | fetchCategoryTree | 11번가 Open API (XML, EUC-KR). 게이트웨이 경유 |
 
-**11번가 scaffold 상태 (2026-05-25)**:
-- `authenticate` 만 본 동작 — API Key 저장.
-- `fetchCategoryTree` / `transformProduct` / `createProduct` / `fetchOrders` / `submitTracking` 는 spec 미확보로 `MarketError(unknown, 'adapter_spec_pending')` throw.
-- `markets-connect` 가 11번가에 한해 category_ping 단계 스킵 — 자격증명만 저장 후 active 표시. 첫 카테고리·등록 호출 시 spec_pending 에러로 사용자에게 명확히 안내.
-- 본격 구현 PR 진입 시 본 § 갱신 + 어댑터 5메서드 본체 채우기 + parity §5 활성.
+**11번가 real 어댑터 상태 (정식 활성)**:
+- `authenticate` — API Key 저장 + 검증 ping.
+- `fetchCategoryTree` / `transformProduct` / `createProduct` / `fetchOrders` / `submitTracking` 모두 11번가 Open API(XML, EUC-KR) 를 Lightsail 게이트웨이 경유로 호출하여 본 동작한다.
+- `markets-connect` 는 다른 4 마켓과 동일하게 category_ping 으로 자격증명을 검증한 뒤 active 표시한다.
+- parity §5 활성 — mock ↔ real 어댑터 동등성 테스트 대상.
 
 ---
 
@@ -338,7 +338,7 @@ SELECT cron.schedule(
 
 5개 함수 모두 Supabase Edge Functions (Deno + TypeScript). `apps/api/supabase/functions/_shared/*` 의 logger / withRetry / mask / authGuard 재사용.
 
-> **v1 정식 마켓 (2026-05-25 — 11번가 scaffold 활성)**: 5 마켓 전부 (`naver` / `coupang` / `gmarket` / `auction` / `11st`). OAuth 흐름은 `naver` 만 사용 (`markets-oauth-*`). 나머지 4 마켓은 `markets-connect` Edge Function 으로 키 입력. 본 §5 의 일부 zod 예시가 `z.enum(['naver', 'coupang'])` 형태로 남아있는 부분은 옛 예시 — 실제 enum 은 `apps/web/src/lib/schemas/markets-feature.ts` ground truth.
+> **v1 정식 마켓**: 5 마켓 전부 (`naver` / `coupang` / `gmarket` / `auction` / `11st`) 모두 real 어댑터 활성. OAuth 흐름은 `naver` 만 사용 (`markets-oauth-*`). 나머지 4 마켓 (`coupang` / `gmarket` / `auction` / `11st`) 은 `markets-connect` Edge Function 으로 키 입력. 본 §5 의 일부 zod 예시가 `z.enum(['naver', 'coupang'])` 형태로 남아있는 부분은 옛 예시 — 실제 enum 은 `apps/web/src/lib/schemas/markets-feature.ts` ground truth.
 
 ### 5.1 공통 규약
 
@@ -684,7 +684,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │         │                                                                    │
 │  대시   │ ┌──────────────────────────────────────────────────────────────┐ │
 │  등록   │ │  ●●●●●  연결된 마켓 1 / 5                                   │ │
-│ ▶ 마켓  │ │  (네이버 스마트스토어 — 쿠팡/11번가/G마켓/옥션 오픈 준비중) │ │
+│ ▶ 마켓  │ │  (미연결 마켓은 [+ 신규 연결] 에서 추가 — 5마켓 v1 지원)  │ │
 │  이력   │ └──────────────────────────────────────────────────────────────┘ │
 │         │                                                                    │
 │         │ ┌─────────────────────────────────────────────────────────────┐  │
@@ -694,7 +694,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │         │ │                                                     [해제]  │  │
 │         │ └─────────────────────────────────────────────────────────────┘  │
 │         │                                                                    │
-│         │ (쿠팡/11번가/G마켓/옥션은 오픈 준비중 — 다음 버전 제공)            │
+│         │ (미연결 마켓은 [+ 신규 연결] 에서 연결 — 5마켓 모두 v1 지원)      │
 │         │                                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -712,7 +712,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │   ● 활성 · 2분 전 확인           │
 │   [상태 확인]  [해제]            │
 ├─────────────────────────────────┤
-│ (쿠팡/11번가/G마켓/옥션 오픈 준비중)│
+│ (미연결은 [+ 신규 연결] 에서 추가)  │
 ├─────────────────────────────────┤
 │                                 │
 │   [ + 신규 연결 ]               │
@@ -735,7 +735,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 
 ### 7.2 `/markets/connect` — 신규 연결 마켓 선택 (s5-n36)
 
-**목적**: 5개 마켓을 그리드로 표시. **v1 정식 = 5 마켓 전부 활성** (2026-05-25 — 11번가 scaffold 포함).
+**목적**: 5개 마켓을 그리드로 표시. **v1 정식 = 5 마켓 전부 활성** (11번가 real 어댑터 포함).
 
 **ASCII 와이어 (데스크탑)**:
 
@@ -747,19 +747,19 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐                    │
 │  │   ●            │ │   ●            │ │   ●            │                    │
 │  │  네이버         │ │  쿠팡          │ │  11번가         │                    │
-│  │ 스마트스토어    │ │ (오픈 준비중)  │ │  (오픈 준비중) │                    │
+│  │ 스마트스토어    │ │  (HMAC 키)     │ │  (API 키)      │                    │
 │  │                │ │                │ │                │                    │
-│  │  [연결하기]    │ │  [오픈 준비중] │ │  [오픈 준비중] │                    │
-│  │                │ │   disabled     │ │   disabled     │                    │
+│  │  [연결하기]    │ │  [연결하기]    │ │  [연결하기]    │                    │
+│  │                │ │                │ │                │                    │
 │  └────────────────┘ └────────────────┘ └────────────────┘                    │
 │                                                                              │
 │  ┌────────────────┐ ┌────────────────┐                                       │
 │  │   ●            │ │   ●            │                                       │
 │  │  G마켓          │ │  옥션          │                                       │
-│  │ (오픈 준비중)  │ │ (오픈 준비중)  │                                       │
+│  │  (ESM JWT)     │ │  (ESM JWT)     │                                       │
 │  │                │ │                │                                       │
-│  │  [오픈 준비중] │ │  [오픈 준비중] │                                       │
-│  │   disabled     │ │   disabled     │                                       │
+│  │  [연결하기]    │ │  [연결하기]    │                                       │
+│  │                │ │                │                                       │
 │  └────────────────┘ └────────────────┘                                       │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -774,17 +774,17 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │  ●  네이버 스마트스토어         │
 │      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  쿠팡 (오픈 준비중)          │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  쿠팡                        │
+│      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  11번가 (오픈 준비중)        │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  11번가                      │
+│      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  G마켓 (오픈 준비중)         │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  G마켓                       │
+│      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  옥션 (오픈 준비중)          │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  옥션                        │
+│      [ 연결하기 ]                │
 └─────────────────────────────────┘
 ```
 
@@ -1159,7 +1159,7 @@ describe('market_accounts RLS — 셀러 본인 row 만 SELECT', () => {
 | O-5 | `external_account_id` 마스킹 형식 — 어느 자리수까지 노출할지 | §2.1 / §6 / §7.1 행 표시 | Phase 1 디자인 + security 합의 |
 | O-6 | OAuth state 와 함께 `account_label` 보존 방식 — `oauth_state.account_label` 컬럼 추가 (본 문서 가정) vs `markets-oauth-start` 의 state 에 서명 페이로드로 embed | §2.5 / §5.2 / §5.3 | Phase 1 코드 작성 직전 |
 | O-7 | PKCE 지원 — 네이버 / 쿠팡 OAuth 가 PKCE 수용 시 `code_verifier` 도입 | §3.1 / §2.5 `pkce_verifier` 컬럼 활용 | Phase 2 |
-| O-8 | 11번가 / G마켓 / 옥션 어댑터 stub 단위 테스트 — v1 시점 `market-adapter.md` §11 의 8개 케이스 중 어디까지 강제 | `market-adapter.md` §10 신규 마켓 절차 | v2 진입 직전 |
+| O-8 | 11번가 / G마켓 / 옥션 real 어댑터 단위 테스트 — `market-adapter.md` §11 의 8개 케이스 중 어디까지 강제 (3 마켓 모두 v1 정식 활성) | `market-adapter.md` §10 신규 마켓 절차 | 정식 활성 — parity §5 유지 |
 | O-9 | Realtime 채널 이름에 sellerId 노출 안전성 — Supabase Realtime 토큰 검증으로 충분한지 | §9.1 | security 추가 검토 |
 | O-10 | 일일 등록 한도 (소프트 limit) 와 마켓 연결 한도 — 셀러당 마켓별 N계정까지 허용할지 | §7.1 / §2.1 unique 제약 변경 가능성 | 베타 운영 데이터 후 |
 

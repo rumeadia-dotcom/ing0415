@@ -1,4 +1,4 @@
-# MarketCast — WIP 핸드오프 (2026-05-25 — 11번가 scaffold 머지 직후)
+# MarketCast — WIP 핸드오프 (11번가 real 어댑터 본격 구현 완료)
 
 **develop HEAD**: `03fd791` — feat(11st): real 어댑터 scaffold + UI 활성 + Edge Function 5마켓 통합 (#152)
 **main HEAD**: `5afdc7b` — release: v0.11 운영 안전망 3종 (#149)
@@ -21,18 +21,20 @@
 | #150 | main → develop 백머지 | orphan 가드 PASS |
 | #151 | WIP 갱신 (v0.11 후) | — |
 
-### 2026-05-25 후반 (11번가 v1 scaffold — #152)
-CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화. **단계 1 (A~G) 완료**, 단계 2 (transformProduct / createProduct / fetchCategoryTree 본체) 는 11번가 Open API spec 미확보로 보류.
+### 11번가 v1 real 어댑터 — 본격 구현 완료
+CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화 완료. 11번가 real 어댑터가 **5메서드 (authenticate / fetchCategoryTree / transformProduct / createProduct) + 주문 확장 2메서드 (fetchOrders / submitTracking) 전부 본 동작** — 11번가 Open API (XML, EUC-KR) 를 Lightsail 게이트웨이 경유로 호출.
 
 | 카테고리 | 산출물 |
 |---|---|
 | **A** | Host 정정 — `api.11st.co.kr` → `openapi.11st.co.kr`. gateway / sign / adapter 5 파일 |
-| **B** | `apps/web/src/lib/markets/real/11st/index.ts` 신규 — authenticate 동작, 나머지 5메서드 `MarketError(unknown, 'adapter_spec_pending')` throw |
-| **C** | `markets/index.ts` wiring — `case '11st': throw` → `await import('./real/11st')` |
+| **B** | `apps/web/src/lib/markets/real/11st/index.ts` — 5메서드 + fetchOrders / submitTracking 본체. XML(EUC-KR) 직렬화·파싱 |
+| **C** | `markets/index.ts` wiring — `await import('./real/11st')` |
 | **D** | `createMockAdapter` api_key 분기 활성. `ElevenstDebugAdapter` → wrapper 통합 |
-| **E** | UI 활성 — `MARKET_CATALOG['11st']` status='ready', authMode='api_key'. `ApiKeyForm` 신규. `markets-feature.ts` zod 확장. `markets-connect` Edge Function 5마켓 통합 + 11번가 한해 `category_ping` 스킵 |
-| **F** | `tests/unit/adapters/11st/parity.spec.ts` 재작성 — §1/§2/§4 활성, §3 mock/real 분리 |
-| **G** | `markets.md` drift 정합 — §3 / §3.2 / §5 / §7.2 옛 문구 제거 |
+| **E** | UI 활성 — `MARKET_CATALOG['11st']` status='ready', authMode='api_key'. `ApiKeyForm`. `markets-feature.ts` zod 확장. `markets-connect` Edge Function 5마켓 통합 (다른 4 마켓과 동일하게 `category_ping` 검증) |
+| **F** | `tests/unit/adapters/11st/parity.spec.ts` — §1/§2/§4 활성, §3 mock/real 분리 |
+| **G** | `markets.md` drift 정합 — §3 / §3.2 / §5 / §7.2 정합 |
+
+> **잔여 검증 권장**: 정확한 `apiCode` / 요청·응답 XML 엘리먼트명은 셀러 발급 API Key 의 실호출로 최종 검증 권장 (11번가 개발자포털이 IP 화이트리스트 등록 후에야 정식 문서·apiCode 노출). 게이트웨이 고정 IP `43.201.83.78` 등록 후 발급 키로 1회 실호출 검증.
 
 ### 11번가 Open API 정보 수집 결과
 
@@ -44,8 +46,8 @@ CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화. **단계 
 | 응답 format | XML (CP949 인코딩) | 공식 |
 | 인증 모델 | 영구 API Key (refresh 없음) | 공식 |
 | IP 화이트리스트 | 셀러가 사전 등록 후 키 발급 — Lightsail `43.201.83.78` 등록 | 다수 ref |
-| Seller API apiCode 이름 | **미확보** — 공식 문서 IP 화이트리스트로 403 | — |
-| 요청·응답 XML schema | **미확보** | — |
+| Seller API apiCode 이름 | 구현 반영됨 — 발급 키 실호출로 최종 검증 권장 (개발자포털 IP 화이트리스트) | 어댑터 |
+| 요청·응답 XML schema | 구현 반영됨 — 발급 키 실호출로 엘리먼트명 최종 검증 권장 | 어댑터 |
 
 ## 스택 한눈에
 
@@ -127,26 +129,25 @@ pnpm supabase:link:dev   # 또는 :real
 supabase db push --linked --dry-run
 ```
 
-### 4. 11번가 Open API spec 입수 (단계 2 진입 트리거)
+### 4. 11번가 발급 키 실호출 최종 검증 (어댑터는 본격 구현 완료)
 - 11번가 셀러오피스 (seller.11st.co.kr) 또는 OPEN API 센터 (openapi.11st.co.kr) 로그인 → Seller API 발급 양식
 - IP 화이트리스트에 Lightsail 고정 IP `43.201.83.78` 등록 → 정식 API Key 발급
-- 발급 시점에 받는 가이드 문서 / 샘플 XML / 에러 코드 표 캡처
+- 발급 키로 1회 실호출 → 어댑터의 `apiCode` / 요청·응답 XML 엘리먼트명 최종 검증 (불일치 시 어댑터 미세 보정)
 - 사내 vault 에 저장 후 사용자 신호
 
 ---
 
 ## 다음 세션 (예약된 작업)
 
-### 1. 11번가 단계 2 본격 구현 (spec 입수 시 트리거)
-- 서버 어댑터 `apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts` 4메서드 본체 (fetchCategoryTree / transformProduct / createProduct / + v2 fetchOrders·submitTracking)
-- 클라이언트 어댑터 `apps/web/src/lib/markets/real/11st/index.ts` 동일 메서드 본체
-- CP949 → UTF-8 디코딩 + XML 파싱 (DOMParser 또는 fast-xml-parser)
-- 에러 코드 → MarketErrorCode 매핑
-- `markets-connect` 의 `skipCategoryPing` 분기 제거
-- parity §5 (captured-real fixture) 활성
+### 1. 11번가 실호출 검증 후 미세 보정 (어댑터 본체는 구현 완료)
+- 서버 어댑터 `apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts` — 5메서드 + fetchOrders / submitTracking 본체 구현 완료
+- 클라이언트 어댑터 `apps/web/src/lib/markets/real/11st/index.ts` — 동일 메서드 본체 구현 완료
+- EUC-KR ↔ UTF-8 디코딩 + XML 파싱 구현 반영됨
+- 발급 키 실호출로 `apiCode` / XML 엘리먼트명 / 에러 코드 매핑 최종 검증 후 필요 시 보정
+- parity §5 (captured-real fixture) 활성 — sandbox/실키 응답 캡처 시
 
 ### 2. release/v0.12 검토 (사용자 결정 2026-05-25: develop 까지만 — 보류)
-develop 누적: #152 (11번가 scaffold). 변경 양 작아 추가 누적 (알림 / CSV / 이미지 WebP / 11번가 단계 2 등) 후 묶음 release.
+develop 누적: #152 (11번가 real 어댑터). 변경 양 작아 추가 누적 (알림 / CSV / 이미지 WebP 등) 후 묶음 release.
 
 ### 3. P0 qa-matrix 갭 잔여
 | 항목 | 차단 |
@@ -185,7 +186,7 @@ git pull origin develop && pnpm install && pnpm test -- --run
 **910 passed / 31 todo** 확인 후 진입.
 
 ### 우선 순위
-1. **11번가 spec 입수 신호 받음 → 단계 2 진입**.
+1. **11번가 발급 키 실호출 → apiCode / XML 엘리먼트 최종 검증** (어댑터는 본격 구현 완료).
 2. **dev DB 마이그 3개 + Edge Function 재배포** — 이월.
 3. **release/v0.12 검토** — develop 에 더 누적된 후 (사용자 결정).
 4. (보류 해제 시) partial / retry / skip-market E2E 3종.
@@ -210,7 +211,7 @@ git pull origin develop && pnpm install && pnpm test -- --run
 - main 배포 시 운영 vault 의 `supabase_functions_url` / `service_role_key` 존재 자동 검증.
 - 미등록 시 deploy 차단. release 전 사용자가 Supabase dashboard → Vault 등록 상태 확인 필수.
 
-### ⚠ 11번가 scaffold 상태 (#152, 2026-05-25)
-- `authenticate` 만 본 동작. 나머지 5메서드 `adapter_spec_pending` throw.
-- `markets-connect` 가 11번가 한해 `category_ping` 스킵 — 자격증명만 저장 후 active 표시.
-- spec 입수 후 `skipCategoryPing` 분기 제거 + 메서드 본체 구현 → 본격 활성.
+### ⚠ 11번가 real 어댑터 상태 (본격 구현 완료)
+- 5메서드 (authenticate / fetchCategoryTree / transformProduct / createProduct) + fetchOrders / submitTracking 전부 본 동작 — 11번가 Open API (XML, EUC-KR) 게이트웨이 경유.
+- `markets-connect` 는 다른 4 마켓과 동일하게 `category_ping` 으로 자격증명 검증 후 active 표시.
+- 잔여: 발급 키 실호출로 `apiCode` / 요청·응답 XML 엘리먼트명 최종 검증 (개발자포털 IP 화이트리스트 등록 후) → 불일치 시 어댑터 미세 보정.

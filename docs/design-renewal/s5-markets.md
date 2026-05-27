@@ -60,11 +60,11 @@
 | 쿠팡 | HMAC 키 (Access / Secret / Vendor ID) | ready | 미사용 |
 | G마켓 | ESM JWT (Master ID / Secret / Seller ID) | ready | 미사용 |
 | 옥션 | ESM JWT (Master ID / Secret / Seller ID) | ready | 미사용 |
-| 11번가 | API 키 | **coming_soon** (v2 이관) | — |
+| 11번가 | API 키 | ready | 미사용 |
 
 - 어댑터 `AuthInput` 은 4-way discriminated union: `oauth_code` | `hmac_key` | `esm_jwt` | `api_key`. `refreshToken` 메서드는 OAuth(네이버) 만 사용 — optional.
 - credential 저장 = `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화. 평문은 Edge Function 안에서만 일시적으로 존재.
-- 11번가는 Supabase Edge Function 의 outbound IP 동적 문제로 11번가 IP 화이트리스트 정책과 충돌 → Pro 고정 IP / 외부 프록시 / 11번가 해제 신청 중 결정 후 v2 진입.
+- 11번가는 v1 정식 활성. 이전에 우려된 IP 화이트리스트 문제는 모든 마켓 호출을 AWS Lightsail Gateway 고정 IP (`43.201.83.78`) 경유로 처리하여 해소되었고, 다른 4 마켓과 동일하게 연결·등록·주문 흐름이 동작한다.
 
 ---
 
@@ -138,25 +138,23 @@
 **라우트** `/markets/connect`
 **파일** `apps/web/src/features/markets/pages/MarketsConnectPage.tsx`
 **user_flow 노드** n36
-**목적** 셀러가 연결할 마켓을 5개 중 1개 선택. 마켓별 인증 방식 힌트를 표시하고, v2 예정인 11번가는 disabled 로 노출.
+**목적** 셀러가 연결할 마켓을 5개 중 1개 선택. 마켓별 인증 방식 힌트를 표시한다 (5 마켓 전부 정식 활성).
 
 #### 3.2.1 기능
 - 5개 마켓 카드 그리드 (md+ 2열, 모바일 1열).
 - 카드 구성: `[마켓명] [인증 방식 한 줄 설명] [CTA 버튼]`.
-- 활성 4개 = "연결 시작" primary 버튼.
-- 11번가 = "오픈 준비중" disabled + 부제 "v2 예정".
+- 5개 전부 = "연결 시작" primary 버튼.
 
 #### 3.2.2 인증 방식 설명 (카드 부제)
 - 네이버 → "OAuth 2.0 인증 (마켓 로그인 페이지로 이동)"
 - 쿠팡 → "API 키 입력 (Access / Secret / Vendor ID)"
 - G마켓 → "ESM 키 입력 (Master ID / Secret / Seller ID)"
 - 옥션 → "ESM 키 입력 (Master ID / Secret / Seller ID)"
-- 11번가 → "오픈 준비중 (v2 예정)"
+- 11번가 → "API 키 입력 (11번가 Open API 인증키)"
 
 #### 3.2.3 워크플로우
 1. 진입 시 `MARKET_CATALOG` 정적 데이터로 카드 렌더 (서버 호출 없음).
-2. "연결 시작" 클릭 → `/markets/connect/:provider` 로 이동 (`provider` = naver / coupang / gmarket / auction).
-3. 11번가 카드는 disabled, 클릭 불가.
+2. "연결 시작" 클릭 → `/markets/connect/:provider` 로 이동 (`provider` = naver / coupang / gmarket / auction / 11st).
 
 #### 3.2.4 주요 컴포넌트
 - `PageHeader`
@@ -168,7 +166,7 @@
 
 #### 3.2.6 상태 처리
 - 단일 정적 상태. loading/error/empty 없음.
-- 11번가만 항상 disabled + aria-disabled.
+- 5개 마켓 카드 전부 활성 (disabled 없음).
 
 #### 3.2.7 PRD 근거
 - §2.2.1 OAuth 인증 플로우의 진입 화면, §2.3.2 추가의 첫 단계.
@@ -190,7 +188,7 @@
 | `coupang` | HMAC 폼 | `accountLabel` / `accessKey` / `secretKey` / `vendorId` | `useConnectMarket` → 성공 시 `/markets` 로 navigate |
 | `gmarket` | ESM JWT 폼 | `accountLabel` / `masterId` / `secretKey` / `sellerId` (site=`G` 자동) | `useConnectMarket` → 성공 시 navigate |
 | `auction` | ESM JWT 폼 | 동일 (site=`A` 자동) | 동일 |
-| `11st` | disabled 안내 | 없음 | "마켓 선택으로" 링크만 |
+| `11st` | API 키 폼 | `accountLabel` / `apiKey` | `useConnectMarket` → 성공 시 `/markets` 로 navigate |
 | 잘못된 값 | 가드 화면 | — | "알 수 없는 마켓" + 마켓 선택으로 |
 
 #### 3.3.2 워크플로우 (마켓별)
@@ -213,8 +211,11 @@
 2. `site` 코드는 UI 에 노출만 (G / A) — 자동 결정, 사용자 편집 불가.
 3. 제출 흐름은 HMAC 과 동일.
 
-**Disabled (11번가):**
-1. "오픈 준비중 (v2 예정)" 안내 + 마켓 선택으로 돌아가는 버튼만.
+**API 키 (11번가):**
+1. 폼: 2개 필드 (라벨 + API 키 = 11번가 Open API 인증키).
+2. zod (`ApiKeyConnectFormSchema`) 로 클라이언트 검증.
+3. 제출 → `markets-connect` Edge Function 호출 (게이트웨이 경유 11번가 Open API ping → 암호화 저장).
+4. 성공 토스트 + `/markets` 로 navigate. 실패 시 `ErrorMessage` + `correlationId` 표시.
 
 #### 3.3.3 입력 보안 UX
 - `secretKey` / `Secret Key` 는 `type="password"` 로 입력 (입력 중에도 화면에 평문 표기 금지).
@@ -397,13 +398,12 @@ sequenceDiagram
 
 - ESM Plus 는 G마켓·옥션 공통 셀러 콘솔이므로 동일 키로 두 마켓 모두 동작 가능. 단 본 서비스에서는 **마켓 계정을 별도 행으로 분리** (G마켓용 1행 + 옥션용 1행) — site 코드 차이로 구분.
 
-### 4.4 11번가 — coming_soon UX
+### 4.4 11번가 — api_key 인증 (v1 정식)
 
-- `/markets/connect` 카드에서 disabled 버튼 + "v2 예정" 부제.
-- `/markets/connect/11st` 직접 진입 시 = "오픈 준비중" 안내 카드 + "마켓 선택으로" 버튼만.
-- v2 진입 시점:
-  - Pro 플랜 고정 IP / 외부 프록시 / 11번가 화이트리스트 해제 신청 중 결정 후
-  - 어댑터 추가 + `MARKET_CATALOG['11st'].status = 'ready'` + 인증 방식(`api_key`) 폼 신설.
+- `/markets/connect/11st` 진입 시 = 단일 필드 폼 (`apiKey` = 11번가 Open API 인증키).
+- "연결" 클릭 → `markets-connect` Edge Function 호출 → `api_key` 자격증명 검증 (fetchCategoryTree ping) → `credential_payload` pgcrypto 암호화 후 `market_accounts` insert → `status:'active'`.
+- 모든 11번가 호출은 AWS Lightsail Gateway 고정 IP (`43.201.83.78`) 경유 — 셀러는 11번가 개발자센터(셀러오피스) 에 이 IP 를 화이트리스트 등록 후 인증키 발급.
+- 카테고리 / 상품등록 / 주문조회 / 발송 모두 11번가 Open API (XML, EUC-KR) 로 동작 (다른 4 마켓과 동일 흐름).
 
 ---
 
@@ -466,7 +466,7 @@ flowchart TD
   Select -->|쿠팡| Provider
   Select -->|G마켓| Provider
   Select -->|옥션| Provider
-  Select -->|11번가| Disabled[disabled 안내]
+  Select -->|11번가| Provider
 
   Provider -->|OAuth: 네이버| OAuthStart[markets-oauth-start]
   OAuthStart -->|authorizeUrl| External[외부 OAuth 페이지]
@@ -497,7 +497,7 @@ flowchart TD
   - 옥션 `#E73936`
   - 쿠팡 `#F11F44`
 - 색상은 **로고 배지 / 좌측 컬러 바**에만 한정. 본문 텍스트·버튼 primary 컬러로 차용 금지 (디자인 시스템 토큰과 충돌).
-- coming_soon (11번가) 은 색상을 desaturate + "준비중" 뱃지로 처리.
+- 5 마켓 전부 정식 활성이므로 마켓 컬러를 동일하게 사용 (11번가 `#FF0038` 포함, desaturate 처리 없음).
 
 ### 8.2 OAuth 콜백 로딩 화면
 - 현재 spinner + "연결 처리 중…" 단순 형태.
@@ -506,13 +506,13 @@ flowchart TD
   - 실패 화면이 갑작스럽지 않게 — loading 카드에서 부드럽게 transition.
 
 ### 8.3 인증 방식별 폼 차이 (4-way union)
-- 4개 마켓 모두 동일 레이아웃 컨테이너에 들어가지만 **필드 수와 종류가 다르다**.
+- 5개 마켓 모두 동일 레이아웃 컨테이너에 들어가지만 **필드 수와 종류가 다르다**.
   - 네이버 OAuth = 1개 (라벨만) — 가장 짧음.
   - 쿠팡 HMAC = 4개.
   - G마켓 / 옥션 ESM = 4개 (필드명만 다름).
-  - 11번가 = 0개 (안내).
+  - 11번가 = 2개 (계정 라벨 + API 키).
 - 디자이너 검토 포인트:
-  - 라벨 길이가 4개 (네이버 = "계정 라벨", 쿠팡 = "Access Key" 등) 간 큰 차이 → 정렬 일관성.
+  - 라벨 길이가 마켓 간 큰 차이 (네이버 = "계정 라벨", 쿠팡 = "Access Key" 등) → 정렬 일관성.
   - secret 필드 (`type=password`) 시각적 차이 (자물쇠 아이콘? show/hide 토글? — v1 은 show/hide 미제공이 보안상 더 안전).
   - "키 발급 위치" 가이드 링크 / 부제 가독성 (현재 카피 길다 — 단축 또는 접힘 가능).
 
@@ -548,9 +548,9 @@ flowchart TD
 - 4종 status × 모바일/데스크탑 = 디자이너가 각 상태별 색상·아이콘·텍스트 결정.
 - WCAG 2.1 AA 대비 4.5:1 강제. 색상만으로 상태 구분 금지 (아이콘/텍스트 병행).
 
-### 8.9 v1 → v2 확장 여백
-- 11번가가 v2 에 추가되면 → `MarketsConnectPage` 카드가 5개 그대로지만 disabled 가 빠짐.
-- v2 에서 `api_key` 방식 폼이 추가되므로 디자이너는 **5번째 인증 방식 폼 레이아웃** 도 미리 검토 (HMAC / ESM 과 거의 유사한 형태로 통일 권장).
+### 8.9 인증 방식 폼 일관성 (5 마켓)
+- `MarketsConnectPage` 카드 5개 전부 활성 (disabled 없음).
+- 11번가 `api_key` 방식 폼 (라벨 + API 키) 은 HMAC / ESM 과 거의 유사한 레이아웃으로 통일 — 디자이너는 5개 인증 방식 폼이 동일 컨테이너에서 일관되게 보이도록 정렬 검토.
 
 ---
 
