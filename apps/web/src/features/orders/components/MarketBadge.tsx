@@ -14,7 +14,7 @@ const DOT_CLASS: Record<MarketId, string> = {
   coupang: 'bg-market-coupang',
   gmarket: 'bg-market-gmarket',
   auction: 'bg-market-auction',
-  '11st': 'bg-market-naver', // v1 미진입. fallback.
+  '11st': 'bg-market-eleventh',
 }
 
 interface MarketBadgeProps {

@@ -1,42 +1,40 @@
 /**
- * 11번가 Open API real 어댑터 (프론트엔드 / Vite 환경) — **scaffold**.
+ * 11번가 Open API real 어댑터 (프론트엔드 / Vite 환경).
  *
  * 마스터:
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (5마켓 매트릭스)
  *   - docs/architecture/v1/features/markets.md §3 (활성 마켓)
- *   - apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts (Edge Function 측)
+ *   - apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts (Edge Function 측 — 본 어댑터는 그 포트, 매핑 로직 동일)
  *
  * 인증 방식: API Key (credential kind = 'api_key').
- *   - refreshToken 없음 (영구 키).
- *   - authenticate = 자격증명 검증 후 StoredCredential 저장 (API 호출 없이).
+ *   - refreshToken 없음 (영구 키 — 인터페이스 optional 준수, 정의 생략).
+ *   - authenticate = 입력 API Key 를 StoredCredential 로 저장 (네트워크 없음).
+ *   - 모든 호출은 key querystring + `openapikey` 헤더 둘 다 부여.
  *
- * API 기반:
+ * API 기반 (v1 정식 — 5마켓 전부 동작):
  *   - ELEVEN_ST_API_BASE = https://openapi.11st.co.kr/openapi/OpenApiService.tmall
- *   - 호출 형식: ?key=<API_KEY>&apiCode=<CODE>&<params> (또는 `openapikey` 헤더)
- *   - 응답 format: XML (CP949 인코딩)
- *   - 모든 호출은 AWS Lightsail Market Gateway 경유 (고정 IP 등록 필수)
+ *   - 카테고리 / 상품등록 / 주문조회 / 발송처리 = apiCode 분기 (map.ts 상수)
+ *   - 응답 XML(EUC-KR/CP949) → euc-kr 디코딩 후 DOMParser 파싱 → map.ts 매핑.
  *
- * **현재 상태 (scaffold, 2026-05-25)**:
- *   - authenticate 만 동작 (자격증명 검증 + 저장. 네트워크 호출 없음).
- *   - 5메서드 인터페이스 정합 — `getMarketAdapter('11st')` 에서 throw 하지 않음.
- *   - fetchCategoryTree / transformProduct / createProduct 는 spec 부족으로
- *     명시적 MarketError throw → markets-connect 의 category_ping_failed
- *     단계에서 "11번가 어댑터는 정식 API 문서 확보 후 활성화" 안내 표시.
+ * 보안 강제:
+ *   - apiKey 절대 로그 금지 (querystring 포함 URL 도 로그 금지). PII 직접 로그 금지.
+ *   - correlationId 를 모든 외부 호출 헤더에 부여.
  *
- * **본격 구현 (별도 PR, spec 입수 후)**:
- *   - 11번가 Seller API 의 정확한 apiCode 이름 확보 (상품 등록 / 수정 / 카테고리 /
- *     주문 / 송장)
- *   - 요청 query string + 응답 XML root element 매핑
- *   - CP949 → UTF-8 디코딩 + XML 파싱 (DOMParser 또는 fast-xml-parser)
- *   - 에러 코드 → MarketErrorCode 매핑
- *   - 단위 테스트 (fetch mock) + 통합 검증 (실 키 + Lightsail Gateway 경유)
+ * 매핑 로직(상태/카테고리/상품/주문/발송)은 전부 ./map (순수) 으로 위임 — Edge Function 측
+ * eleven-st-map.ts 와 동일 코드라 mock↔real / FE↔BE parity 가 유지된다.
  */
 
 import { MarketError } from '../../errors'
 import type { MarketAdapter } from '../../types'
 import {
   ApiKeyAuthInputSchema,
+  CategoryNodeSchema,
+  CreateProductResultSchema,
+  FetchOrdersInputSchema,
+  MarketOrderSchema,
+  MarketSubmitTrackingResultSchema,
   StoredCredentialSchema,
+  SubmitTrackingInputSchema,
   type AuthInput,
   type CategoryNode,
   type CreateProductResult,
@@ -49,28 +47,201 @@ import {
   type StoredCredential,
   type SubmitTrackingInput,
 } from '@/lib/schemas'
+import {
+  ELEVEN_ST_API_BASE,
+  ELEVEN_ST_API_CODES,
+  buildElevenStProductRaw,
+  buildElevenStProductXml,
+  buildElevenStShipmentXml,
+  extractElevenStProductNo,
+  isElevenStShipmentOk,
+  mapElevenStCategories,
+  mapElevenStOrders,
+  toElevenStDate,
+  xmlDocToObject,
+} from './map'
+
+export { ELEVEN_ST_API_BASE } from './map'
 
 const MARKET = '11st' as const
+const DEFAULT_TIMEOUT_MS = 15_000
+const CATEGORY_TIMEOUT_MS = 10_000
 
-/** 11번가 OpenAPI 정식 endpoint base — gateway 화이트리스트 정합. */
-export const ELEVEN_ST_API_BASE =
-  'https://openapi.11st.co.kr/openapi/OpenApiService.tmall'
+// ─────────────────────────────────────────────
+// EUC-KR 디코딩 + XML 파싱 (브라우저/jsdom API)
+// ─────────────────────────────────────────────
 
-/** 본 어댑터의 5메서드 중 spec 미확보 부분이 throw 하는 표준 에러. */
-function specPendingError(method: string): MarketError {
-  return new MarketError(
-    'unknown',
-    `11번가 어댑터 ${method} — 정식 API spec 확보 후 별도 PR 에서 구현 예정 (markets.md §3 / WIP §1)`,
-    { market: MARKET, marketErrorCode: 'adapter_spec_pending' },
-  )
+/** 11번가 응답 바이트(EUC-KR/CP949) → UTF-8 문자열. EUC-KR 디코더 미지원 환경은 utf-8 fallback. */
+function decodeElevenStBody(buf: ArrayBuffer): string {
+  try {
+    return new TextDecoder('euc-kr').decode(buf)
+  } catch {
+    return new TextDecoder('utf-8').decode(buf)
+  }
 }
+
+/** XML 텍스트 → fast-xml-parser 호환 plain object (map.ts 매핑 입력). */
+function parseElevenStXml(text: string): Record<string, unknown> {
+  try {
+    const doc = new DOMParser().parseFromString(text, 'application/xml')
+    return xmlDocToObject(doc)
+  } catch (e) {
+    throw new MarketError('server', '11번가 XML 응답 파싱 실패', {
+      market: MARKET,
+      cause: e,
+    })
+  }
+}
+
+// ─────────────────────────────────────────────
+// fetch wrapper
+// ─────────────────────────────────────────────
 
 interface ApiKeyCred {
   apiKey: string
 }
 
+interface ElevenStResponse {
+  status: number
+  ok: boolean
+  text: string
+}
+
+function httpStatusToMarketError(
+  status: number,
+  correlationId: string,
+): MarketError {
+  if (status === 401 || status === 403) {
+    return new MarketError('unauthorized', `11번가 인증 실패 (${status})`, {
+      market: MARKET,
+      status,
+      marketErrorCode: String(status),
+    })
+  }
+  if (status === 429) {
+    return new MarketError('rate_limit', '11번가 API rate limit', {
+      market: MARKET,
+      status,
+      retryAfterMs: 5_000,
+      marketErrorCode: 'rate_limit',
+    })
+  }
+  if (status >= 500) {
+    return new MarketError('server', `11번가 서버 오류 (${status})`, {
+      market: MARKET,
+      status,
+      marketErrorCode: String(status),
+    })
+  }
+  if (status === 400 || status === 422) {
+    return new MarketError('validation', `11번가 요청 검증 실패 (${status})`, {
+      market: MARKET,
+      status,
+      marketErrorCode: String(status),
+    })
+  }
+  return new MarketError(
+    'unknown',
+    `11번가 API 오류 (${status}) correlationId=${correlationId}`,
+    { market: MARKET, status },
+  )
+}
+
+/** 11번가 OpenAPI fetch — apiCode + key querystring + openapikey 헤더 + EUC-KR 디코딩. */
+async function elevenStFetch(opts: {
+  apiCode: string
+  apiKey: string
+  method: 'GET' | 'POST' | 'PUT'
+  params?: Record<string, string>
+  body?: string
+  correlationId: string
+  timeoutMs?: number
+}): Promise<ElevenStResponse> {
+  const { apiCode, apiKey, method, params, body, correlationId, timeoutMs = DEFAULT_TIMEOUT_MS } =
+    opts
+
+  const qs = new URLSearchParams({ apiCode, key: apiKey, ...(params ?? {}) })
+  const url = `${ELEVEN_ST_API_BASE}?${qs.toString()}`
+
+  const controller = new AbortController()
+  const timerId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/xml;charset=EUC-KR',
+        openapikey: apiKey,
+        'X-Correlation-Id': correlationId,
+      },
+      body: body !== undefined ? body : null,
+      signal: controller.signal,
+    })
+    const buf = await response.arrayBuffer()
+    const text = decodeElevenStBody(buf)
+    return { status: response.status, ok: response.ok, text }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new MarketError('network', '11번가 API 요청 timeout', {
+        market: MARKET,
+        cause: err,
+        marketErrorCode: 'timeout',
+      })
+    }
+    throw new MarketError('network', '11번가 API 네트워크 오류', {
+      market: MARKET,
+      cause: err,
+    })
+  } finally {
+    clearTimeout(timerId)
+  }
+}
+
+// ─────────────────────────────────────────────
+// credential 추출 (명시 인자 우선, 인스턴스 cred fallback)
+// ─────────────────────────────────────────────
+
+function extractApiKeyCred(
+  credential: StoredCredential | undefined,
+  instance: ApiKeyCred | null,
+): ApiKeyCred {
+  if (credential) {
+    if (credential.kind !== 'api_key') {
+      throw new MarketError(
+        'unauthorized',
+        `11번가: api_key 자격증명 필요 (받은 kind: ${credential.kind})`,
+        { market: MARKET },
+      )
+    }
+    return { apiKey: credential.payload.apiKey }
+  }
+  if (instance) return instance
+  throw new MarketError(
+    'unauthorized',
+    '11번가 어댑터: authenticate 를 먼저 호출하거나 credential 인자를 전달해주세요',
+    { market: MARKET },
+  )
+}
+
+// ─────────────────────────────────────────────
+// 어댑터 구현
+// ─────────────────────────────────────────────
+
 function createElevenStRealAdapter(): MarketAdapter {
   let cred: ApiKeyCred | null = null
+
+  function getCredOrThrow(): ApiKeyCred {
+    if (!cred) {
+      throw new MarketError(
+        'unauthorized',
+        '11번가 어댑터: authenticate 를 먼저 호출해주세요',
+        { market: MARKET },
+      )
+    }
+    return cred
+  }
 
   return {
     market: MARKET,
@@ -106,46 +277,177 @@ function createElevenStRealAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
-    // refreshToken 없음 (영구 키) — 인터페이스 optional 준수
+    // refreshToken 없음 (영구 키) — 인터페이스 optional 준수, 정의 생략.
     // ───────────────────────────────────────────
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — spec 미확보 (Seller API 카테고리 apiCode 확인 필요)
+    // fetchCategoryTree — 연결 검증 ping 겸용 (HTTP 200 = 자격증명 OK)
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      void cred
-      throw specPendingError('fetchCategoryTree')
+      const { apiKey } = getCredOrThrow()
+      const correlationId = crypto.randomUUID()
+      const res = await elevenStFetch({
+        apiCode: ELEVEN_ST_API_CODES.category,
+        apiKey,
+        method: 'GET',
+        params: { dispCtgrNo: '0' },
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, correlationId)
+      }
+      return mapElevenStCategories(parseElevenStXml(res.text)).map((node) =>
+        CategoryNodeSchema.parse(node),
+      )
     },
 
     // ───────────────────────────────────────────
-    // transformProduct — spec 미확보 (상품 등록 XML payload schema 필요)
+    // transformProduct — 순수 함수. Date.now / Math.random 금지.
     // ───────────────────────────────────────────
-    transformProduct(_product: Product, _mapping: MarketMapping): MarketPayload {
-      throw specPendingError('transformProduct')
+    transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
+      if (mapping.market !== MARKET) {
+        throw new MarketError(
+          'validation',
+          `11번가: mapping.market 불일치 (${mapping.market})`,
+          { market: MARKET },
+        )
+      }
+      return { market: MARKET, raw: buildElevenStProductRaw(product, mapping) }
     },
 
     // ───────────────────────────────────────────
-    // createProduct — spec 미확보 (apiCode + endpoint 확정 후)
+    // createProduct — ProductRegister POST
     // ───────────────────────────────────────────
-    async createProduct(_payload: MarketPayload): Promise<CreateProductResult> {
-      throw specPendingError('createProduct')
+    async createProduct(payload: MarketPayload): Promise<CreateProductResult> {
+      const { apiKey } = getCredOrThrow()
+      const correlationId = crypto.randomUUID()
+      if (payload.market !== MARKET) {
+        throw new MarketError('validation', `잘못된 payload.market: ${payload.market}`, {
+          market: MARKET,
+        })
+      }
+
+      const body = buildElevenStProductXml(payload.raw as Record<string, unknown>)
+      const res = await elevenStFetch({
+        apiCode: ELEVEN_ST_API_CODES.productCreate,
+        apiKey,
+        method: 'POST',
+        body,
+        correlationId,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, correlationId)
+      }
+
+      const { productNo, resultCode, resultText } = extractElevenStProductNo(
+        parseElevenStXml(res.text),
+      )
+      if (!productNo) {
+        throw new MarketError(
+          'server',
+          `11번가 상품 등록 실패: ${resultText || resultCode || '상품번호 미반환'}`,
+          {
+            market: MARKET,
+            ...(resultCode ? { marketErrorCode: resultCode } : {}),
+            ...(resultText ? { marketErrorMessage: resultText } : {}),
+          },
+        )
+      }
+      return CreateProductResultSchema.parse({
+        market: MARKET,
+        externalId: productNo,
+        productUrl: `https://www.11st.co.kr/products/${productNo}`,
+        status: 'succeeded',
+        warnings: [],
+      })
     },
 
     // ───────────────────────────────────────────
-    // v2 Extension — fetchOrders / submitTracking (spec 미확보)
+    // fetchOrders — GetOrderList (결제완료/배송대기 = ordStat 101)
     // ───────────────────────────────────────────
     async fetchOrders(
-      _input: FetchOrdersInput,
-      _credential?: StoredCredential,
+      input: FetchOrdersInput,
+      credential?: StoredCredential,
     ): Promise<MarketOrder[]> {
-      throw specPendingError('fetchOrders')
+      const parsedInput = FetchOrdersInputSchema.safeParse(input)
+      if (!parsedInput.success) {
+        throw new MarketError(
+          'validation',
+          `11번가 fetchOrders 입력 형식 오류 — ${parsedInput.error.message}`,
+          { market: MARKET, cause: parsedInput.error },
+        )
+      }
+      const { apiKey } = extractApiKeyCred(credential, cred)
+      const correlationId = crypto.randomUUID()
+
+      const params: Record<string, string> = { ordStat: '101' }
+      if (parsedInput.data.since) params.startDate = toElevenStDate(parsedInput.data.since)
+      if (parsedInput.data.until) params.endDate = toElevenStDate(parsedInput.data.until)
+
+      const res = await elevenStFetch({
+        apiCode: ELEVEN_ST_API_CODES.orderList,
+        apiKey,
+        method: 'GET',
+        params,
+        correlationId,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, correlationId)
+      }
+      return mapElevenStOrders(parseElevenStXml(res.text)).map((o) =>
+        MarketOrderSchema.parse(o),
+      )
     },
 
+    // ───────────────────────────────────────────
+    // submitTracking — SendGoods (송장 등록).
+    // 마켓 정상 거부 → ok=false 반환. 네트워크/인증/5xx → MarketError throw.
+    // ───────────────────────────────────────────
     async submitTracking(
-      _input: SubmitTrackingInput,
-      _credential?: StoredCredential,
+      input: SubmitTrackingInput,
+      credential?: StoredCredential,
     ): Promise<MarketSubmitTrackingResult> {
-      throw specPendingError('submitTracking')
+      const parsedInput = SubmitTrackingInputSchema.safeParse(input)
+      if (!parsedInput.success) {
+        throw new MarketError(
+          'validation',
+          `11번가 submitTracking 입력 형식 오류 — ${parsedInput.error.message}`,
+          { market: MARKET, cause: parsedInput.error },
+        )
+      }
+      const { apiKey } = extractApiKeyCred(credential, cred)
+      const correlationId = crypto.randomUUID()
+
+      const { externalOrderId, waybillNumber, carrierCode } = parsedInput.data
+      const body = buildElevenStShipmentXml({
+        ordPrdSeq: externalOrderId,
+        carrierCode,
+        invoiceNumber: waybillNumber,
+      })
+      const res = await elevenStFetch({
+        apiCode: ELEVEN_ST_API_CODES.shipment,
+        apiKey,
+        method: 'PUT',
+        params: { ordPrdSeq: externalOrderId },
+        body,
+        correlationId,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, correlationId)
+      }
+      const result = isElevenStShipmentOk(parseElevenStXml(res.text))
+      if (!result.ok) {
+        return MarketSubmitTrackingResultSchema.parse({
+          ok: false,
+          errorCode: result.code || 'shipment_rejected',
+          errorMessage: result.message || result.code || '11번가 발송 처리 실패',
+        })
+      }
+      return MarketSubmitTrackingResultSchema.parse({
+        ok: true,
+        dispatchId: externalOrderId,
+      })
     },
   }
 }

@@ -71,7 +71,9 @@ export interface SubmitTrackingOutput {
 | 쿠팡 | `GET /v2/.../ordersheets?status=ACCEPT` | HMAC-SHA256 | `ACCEPT` (결제완료/배송대기) | `nextToken` | 분당 60 req (vendor 별) |
 | G마켓 | ESM `getOrderList(site='G', orderStatusType='PAID')` | ESM API Key | `PAID` 만 필터 | offset / limit | 1 분당 30 req |
 | 옥션 | ESM `getOrderList(site='A', orderStatusType='PAID')` | ESM API Key | 동일 | 동일 | 동일 |
+| 11번가 | Open API `GetOrderList` (apiCode, `ordStat=101`) | api_key (XML / EUC-KR) | `ordStat=101` (배송준비) | 페이지 파라미터 | 게이트웨이 경유 |
 
+- 모든 11번가 호출은 AWS Lightsail Gateway 고정 IP 경유 (XML 요청·응답, EUC-KR 인코딩). 응답 XML → `NormalizedOrder` 변환은 어댑터 내부에서 처리.
 - 마켓 응답 → `NormalizedOrder` 변환은 어댑터 내부 책임. zod 로 검증 후 반환.
 - 한 호출이 마켓별 페이지 1회. cursor 가 있으면 다음 폴링 사이클까지 보존 (또는 같은 사이클 내 페이지 끝까지 진행 — 운영 데이터로 정책 결정).
 
@@ -83,6 +85,7 @@ export interface SubmitTrackingOutput {
 | 쿠팡 | `PUT /v2/.../orders/{externalOrderId}/shipments` | HMAC-SHA256 | deliveryCompanyCode='LOGEN', invoiceNumber | HTTP 200 + code=200 |
 | G마켓 | ESM `setShipInfo(site='G')` | ESM API Key | orderNo, sendDate, deliveryCompanyCode='LOGEN', invoiceNo | resultCode='0' |
 | 옥션 | ESM `setShipInfo(site='A')` | ESM API Key | 동일 | 동일 |
+| 11번가 | Open API `SendGoods` | api_key (XML / EUC-KR) | ordNo, dlvNo (송장번호), dlvEtprsCd='LOGEN' | HTTP 200 + resultCode 성공 |
 
 - 모든 마켓 `carrierCode='LOGEN'` 고정 (v1 출시 범위). 다중 택배사는 후속.
 - 마켓별 carrierCode 코드값 (네이버: "LOGEN" / 쿠팡: "LOGEN_KOREA" 등) 의 정확한 식별자는 PR4 구현 시 마켓 문서에서 확정.
@@ -115,7 +118,7 @@ logger.error({ market: 'naver', method: 'submitTracking', err: maskError(e) }, '
 
 | ID | 영역 | 케이스 |
 |---|---|---|
-| MA2-001 | fetchOrders | 4 마켓 각각 mock 응답 → `NormalizedOrder` 정확 변환 (4 × 1 케이스) |
+| MA2-001 | fetchOrders | 5 마켓 각각 mock 응답 → `NormalizedOrder` 정확 변환 (5 × 1 케이스, 11번가 XML 포함) |
 | MA2-002 | fetchOrders | 빈 응답 → orders=[] |
 | MA2-003 | fetchOrders | 마켓 401 → reauth_required 시그널 (Edge Function 측에서 처리) |
 | MA2-004 | submitTracking | 성공 응답 → ok=true |

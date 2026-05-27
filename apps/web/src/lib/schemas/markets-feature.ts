@@ -5,12 +5,12 @@ import { MarketIdSchema } from './common'
  * 마켓 계정 도메인 zod 스키마.
  * 마스터: docs/architecture/v1/features/markets.md §6
  *
- * v1 정식 라인업 (2026-05-25 — 11번가 scaffold 포함):
+ * v1 정식 라인업 (5마켓 전부 real 어댑터 동작):
  *   - oauth   = 'naver'                       — markets-oauth-start / markets-oauth-callback
  *   - hmac    = 'coupang'                     — markets-connect (kind='hmac_key')
  *   - esm_jwt = 'gmarket','auction'           — markets-connect (kind='esm_jwt')
- *   - api_key = '11st'                        — markets-connect (kind='api_key', spec 미확보로
- *     real fetchCategoryTree throw — markets-connect 가 11st 만 ping 스킵)
+ *   - api_key = '11st'                        — markets-connect (kind='api_key'). 11번가 Open
+ *     API 카테고리 ping 포함 다른 마켓과 동일 흐름.
  */
 
 /** OAuth 방식 = 네이버만. markets-oauth-start / callback 의 market enum. */
@@ -136,7 +136,7 @@ export const CONNECTION_METHODS = [
   'oauth',         // 네이버 — markets-oauth-start
   'hmac_form',     // 쿠팡 — markets-connect (HMAC 키 직접 입력)
   'esm_jwt_form',  // G마켓 / 옥션 — markets-connect (ESM JWT 키 직접 입력)
-  'api_key_form',  // 11번가 — markets-connect (API Key 직접 입력, real spec 미확보)
+  'api_key_form',  // 11번가 — markets-connect (API Key 직접 입력)
 ] as const
 export const ConnectionMethodSchema = z.enum(CONNECTION_METHODS)
 export type ConnectionMethod = z.infer<typeof ConnectionMethodSchema>

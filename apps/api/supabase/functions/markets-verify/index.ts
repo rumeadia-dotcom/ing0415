@@ -13,7 +13,8 @@
  *   - rate_limit / server / network → status='error' + last_error_code.
  *
  * 강제 (Wave 2 갱신):
- *   - 5개 마켓 모두 처리. 11번가는 getMarketAdapter 가 즉시 throw → catch 후 error 상태.
+ *   - 5개 마켓 모두 동일 처리 (naver/coupang/gmarket/auction/11st). 11번가도 real
+ *     어댑터가 정상 구성되어 fetchCategoryTree 핑을 동일하게 수행한다.
  *   - ownership 검증 필수. 결과 응답에 fetchCategoryTree 데이터 노출 금지 (단순 ping).
  */
 
@@ -152,7 +153,8 @@ export default Deno.serve(
     try {
       adapter = getMarketAdapter(marketId)
     } catch (e) {
-      // 11번가 등 v1 미사용 — error 상태로 기록.
+      // 방어적 처리 — 어댑터 구성이 예기치 않게 실패하면(예: 미래에 추가된 마켓이
+      // 아직 등록되지 않은 경우) verify 전체를 깨뜨리지 않고 error 상태로 기록한다.
       const nowIso = new Date().toISOString()
       const reason = (e instanceof Error ? e.message : 'adapter_unavailable')
         .slice(0, 120)

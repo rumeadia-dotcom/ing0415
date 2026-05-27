@@ -1,11 +1,12 @@
 # orders-sync
 
-v2 배송(로젠) 자동화의 첫 단계 — 4 마켓의 신규 주문을 폴링해 `orders` 테이블에 적재한다.
+v2 배송(로젠) 자동화의 첫 단계 — 5 마켓 (naver / coupang / gmarket / auction / 11st) 의 신규 주문을 폴링해 `orders` 테이블에 적재한다.
 
 ## 책임 범위 (PR5)
 
-1. POST `{ sellerId? }` → 활성 셀러의 활성 market_accounts (4 마켓) 조회.
+1. POST `{ sellerId? }` → 활성 셀러의 활성 market_accounts (5 마켓: naver / coupang / gmarket / auction / 11st) 조회.
 2. 각 어댑터의 `fetchOrders({ sellerId, since, statuses: ['new_pay'] })` 호출 (지난 24h).
+   - **11번가**: Open API `GetOrderList` (apiCode, `ordStat=101` 배송준비) 를 게이트웨이 경유 XML(EUC-KR) 로 호출 후 어댑터가 정규화.
 3. `orders` 테이블 upsert — PRD §4 컬럼 (`buyer_name`, `receiver_name`, `receiver_address`,
    `receiver_phone`, `product_name`, `quantity`, `order_amount`, `status='collected'`,
    `collected_at`). UNIQUE `(market_id, external_order_id, seller_id)` on conflict do nothing.
@@ -85,7 +86,7 @@ deno test --allow-env --allow-read \
   apps/api/supabase/functions/orders-sync/__tests__/
 ```
 
-- mock 어댑터 4종 inject → orders insert + 중복 방지 + 한 마켓 실패 격리 + non-new_pay 필터.
+- mock 어댑터 5종 inject → orders insert + 중복 방지 + 한 마켓 실패 격리 + non-new_pay 필터.
 
 ## OUT OF SCOPE
 

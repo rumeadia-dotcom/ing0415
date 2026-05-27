@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { AlertCircle, ChevronRight, Loader2 } from 'lucide-react'
 import { ko } from '@/locales/ko'
+import type { MarketId } from '@/lib/schemas/common'
 import type { MarketOrderItem } from '@/lib/schemas/dashboard-summary'
 import { MarketLogo } from './MarketLogo'
 
@@ -21,6 +22,12 @@ interface MarketOrderItemCardProps {
  */
 export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Element {
   const marketLabel = ko.market[item.marketId]
+
+  // 미연동 마켓 (market_accounts 행 없음) — 비활성 행 + 연결 유도. 주문 목록 click-through 없음.
+  if (!item.connected) {
+    return <DisconnectedMarketRow marketId={item.marketId} marketLabel={marketLabel} />
+  }
+
   const hasNew = item.newOrdersCount > 0
   const isError = item.syncStatus === 'error'
   const isSyncing = item.syncStatus === 'syncing'
@@ -97,6 +104,48 @@ export function MarketOrderItemCard({ item }: MarketOrderItemCardProps): JSX.Ele
         ].join(' ')}
       />
     </Link>
+  )
+}
+
+/**
+ * 미연동 마켓 row — 셀러가 아직 계정을 연결하지 않은 마켓.
+ * 비활성(dim) 스타일 + "미연동" 배지. 행 자체는 주문 목록으로 이동하지 않고,
+ * 우측 "연결하기 →" 링크로만 /markets 진입을 유도한다 (s2-dashboard.md §3.4).
+ */
+function DisconnectedMarketRow({
+  marketId,
+  marketLabel,
+}: {
+  marketId: MarketId
+  marketLabel: string
+}): JSX.Element {
+  return (
+    <div
+      data-market={marketId}
+      data-connected="false"
+      aria-label={`${marketLabel} ${ko.marketStatus.not_connected}`}
+      className="flex items-center gap-3 rounded-[10px] border border-dashed border-border-strong bg-card-2 px-3 py-3"
+    >
+      <span className="opacity-50">
+        <MarketLogo id={marketId} size="md" label={marketLabel} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[13.5px] font-semibold text-dim">{marketLabel}</span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-faint">
+            {ko.marketStatus.not_connected}
+          </span>
+        </div>
+        <div className="mt-0.5 text-[11.5px] text-faint">{ko.marketStatus.notConnectedHint}</div>
+      </div>
+      <Link
+        to="/markets"
+        aria-label={`${marketLabel} ${ko.marketStatus.connect}`}
+        className="shrink-0 rounded-[8px] px-2.5 py-1 text-[11.5px] font-semibold text-accent transition-colors hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+      >
+        {ko.marketStatus.connect} →
+      </Link>
+    </div>
   )
 }
 

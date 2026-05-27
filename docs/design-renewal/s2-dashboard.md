@@ -47,7 +47,7 @@
 ### 3.2 기능
 
 1. **KPI 요약** — 4개 숫자 카드 (오늘 등록 / 진행 중 / 7일 성공률 / 평균 소요 7일). 등록 도메인 KPI 유지 — 등록은 1회성이지만 "오늘 얼마나 진행됐는지" 직관 지표로 가치 있음.
-2. **마켓별 주문 현황** — v1 정식 4마켓 (네이버 / 쿠팡 / G마켓 / 옥션) 각각 카드 표시. **11번가는 'coming_soon' placeholder** (CLAUDE.md MVP v1 결정).
+2. **마켓별 주문 현황** — v1 정식 5마켓 (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) 각각 카드 표시 (CLAUDE.md MVP v1 결정 — 5 마켓 전부 정식 활성).
    - 카드 내용: 마켓 색상 도트 + 마켓명 + **신규 주문 카운트(처리 대기)** + **오늘 주문 총합** + 마지막 동기화 시각 + 동기화 상태 뱃지 (정상 / 동기화 중 / 오류).
    - 카드 클릭 → `/orders/list?market=<marketId>` 필터 적용 진입.
    - "전체 보기" → `/orders`.
@@ -74,7 +74,7 @@
 | `DashboardPage` | `pages/DashboardPage.tsx` | 라우트 컨테이너. 3개 hook 호출 + 레이아웃 조립. | 빈 상태 / 일반 상태 |
 | `PageHeader` | `components/layout/PageHeader.tsx` | 공통 페이지 헤더 (제목 + 부제 + 우측 액션 슬롯) | — |
 | `SummaryCard` | `components/SummaryCard.tsx` | KPI 단일 카드 (label / value / hint / icon) | loading / data / error / empty |
-| `MarketOrdersSummaryCard` | `components/MarketOrdersSummaryCard.tsx` | **(신규)** 마켓별 주문 현황 컨테이너 (Card + grid). 4 마켓 카드 + 11번가 placeholder + "전체 보기" 링크. | loading / data / error / empty |
+| `MarketOrdersSummaryCard` | `components/MarketOrdersSummaryCard.tsx` | **(신규)** 마켓별 주문 현황 컨테이너 (Card + grid). 5 마켓 카드 (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) + "전체 보기" 링크. | loading / data / error / empty |
 | `MarketOrderItemCard` | `components/MarketOrderItemCard.tsx` | **(신규)** 단일 마켓 주문 카드 (색상 도트 + 마켓명 + 신규 주문 카운트 + 오늘 총합 + 동기화 상태 뱃지 + 마지막 sync 시각). 카드 클릭 → `/orders/list?market=<id>` | loading / data / error / empty (해당 마켓 0건) |
 | `MarketHealthCard` | `components/MarketHealthCard.tsx` | 마켓 연결 상태 (정상·만료·오류 dl). 경고 시 `/markets` 링크 | loading / data / error + 내부 0건 분기 |
 | `MarketDotStack` | `components/MarketDotStack.tsx` | 마켓 5개 색상 도트 (활성 마켓 강조) | — |
@@ -95,14 +95,15 @@
 ```ts
 {
   markets: [
-    { marketId: 'naver' | 'coupang' | 'gmarket' | 'auction',
+    { marketId: 'naver' | 'coupang' | 'gmarket' | 'auction' | '11st',
+      connected: boolean,                // market_accounts 행 존재 여부. false = 미연동 → 비활성 row
       newOrdersCount: number,            // 처리 대기 (status='new' OR 발송준비)
       todayTotalCount: number,           // 오늘 들어온 총 주문
       lastSyncedAt: string | null,       // ISO 시각
       syncStatus: 'idle' | 'syncing' | 'error',
       syncError: string | null }
   ],
-  comingSoon: ['11st']                   // v1 placeholder 마켓
+  comingSoon: []                         // v1 placeholder 마켓 (현재 5마켓 전부 ready)
 }
 ```
 
@@ -113,8 +114,8 @@
 | 위젯 | loading | data | error | empty | 비고 |
 |---|---|---|---|---|---|
 | `SummaryCard` x4 | `Skeleton h-8 w-20` | 큰 숫자 + 보조 hint | "불러오기 실패" 단문 | "—" 회색 | 카드 4개 동시 표기 (4상태 일치) |
-| `MarketOrdersSummaryCard` | 4 카드 스켈레톤 grid | 4 마켓 카드 + 11번가 placeholder | 컨테이너 단문 에러 (role=alert) | "주문이 아직 없어요" 안내 + 마켓 연결 0건이면 `/markets` 링크 우선 | "전체 보기" → `/orders` 링크는 항상 노출 |
-| `MarketOrderItemCard` (마켓당) | 카드 스켈레톤 | 카운트 + 동기화 뱃지 | 카드 영역만 단문 에러 (다른 마켓 카드에 영향 없음) | `newOrdersCount=0 && todayTotalCount=0` 시 "신규 없음" 회색 표시 | `syncStatus='error'` 시 붉은 뱃지 + 재인증 유도 (`/markets`) |
+| `MarketOrdersSummaryCard` | 5 카드 스켈레톤 grid | 5 마켓 카드 (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) | 컨테이너 단문 에러 (role=alert) | "주문이 아직 없어요" 안내 + 마켓 연결 0건이면 `/markets` 링크 우선 | "전체 보기" → `/orders` 링크는 항상 노출 |
+| `MarketOrderItemCard` (마켓당) | 카드 스켈레톤 | 카운트 + 동기화 뱃지 | 카드 영역만 단문 에러 (다른 마켓 카드에 영향 없음) | `newOrdersCount=0 && todayTotalCount=0` 시 "신규 없음" 회색 표시 | `connected=false` 시 비활성(dim) row + "미연동" 뱃지 + "연결하기 →" (`/markets`, 주문 목록 click-through 없음). `syncStatus='error'` 시 붉은 뱃지 + 재인증 유도 (`/markets`) |
 | `MarketHealthCard` | 2줄 스켈레톤 | 정상/만료/오류 3분할 dl + 경고 영역 | 단문 에러 (role=alert) | "아직 연결된 마켓이 없어요" + `/markets` 링크 | 만료·오류 ≥1 시 경고, 0 시 "모두 정상" 표시 |
 | `DashboardEmptyState` | — | hero CTA 카드 | — | — | (a) 연결 마켓 0건 → "먼저 마켓 연결하기" 강조 / (b) 마켓 ≥1 이지만 주문 0건 + 잡 0건 → "첫 상품을 등록해 보세요" |
 
@@ -131,9 +132,9 @@
 
 | 브레이크포인트 | 레이아웃 |
 |---|---|
-| ~767px (mobile) | KPI 4카드 = 2×2 grid (`grid-cols-2`). 본문 = 1컬럼 세로 스택 (마켓 주문 현황 → 마켓 헬스 → v2 placeholder). 마켓 주문 카드 = 2×2 grid (네이버/쿠팡/G마켓/옥션) + 11번가 placeholder 하단 1행. 헤더 CTA 풀폭. 사이드바는 햄버거(Sheet 드로어). |
-| 768~1199px (tablet) | KPI 4카드 = 4×1. 본문 = 1컬럼 유지 (lg 미만 단일 컬럼). 마켓 주문 카드 = 4×1 grid (마켓별 4카드 가로). |
-| 1200px+ (desktop) | KPI 4카드 = `lg:grid-cols-4`. 본문 = `lg:grid-cols-3` 2:1 split (좌 = 마켓 주문 현황 col-span-2 = 2×2 grid 4 마켓 + 하단 11번가 placeholder, 우 = 마켓 헬스 + v2 placeholder 세로 스택). 컨테이너 max-w 1200px 중앙 정렬. |
+| ~767px (mobile) | KPI 4카드 = 2×2 grid (`grid-cols-2`). 본문 = 1컬럼 세로 스택 (마켓 주문 현황 → 마켓 헬스 → v2 placeholder). 마켓 주문 카드 = 2열 grid (네이버/쿠팡/G마켓/옥션/11번가 5카드, 마지막 행 1개). 헤더 CTA 풀폭. 사이드바는 햄버거(Sheet 드로어). |
+| 768~1199px (tablet) | KPI 4카드 = 4×1. 본문 = 1컬럼 유지 (lg 미만 단일 컬럼). 마켓 주문 카드 = grid (마켓별 5카드 가로 wrap). |
+| 1200px+ (desktop) | KPI 4카드 = `lg:grid-cols-4`. 본문 = `lg:grid-cols-3` 2:1 split (좌 = 마켓 주문 현황 col-span-2 = 5 마켓 카드 grid, 우 = 마켓 헬스 + v2 placeholder 세로 스택). 컨테이너 max-w 1200px 중앙 정렬. |
 
 터치 타겟 ≥ 44×44px 유지 (PRD §5.2): 마켓 카드 클릭 영역 전체 = `min-h-[88px]` 권장, 헤더 CTA / 빈상태 CTA = `size="lg"`.
 
@@ -147,8 +148,7 @@
 | 2 | 진행 중 KPI | 상단 2/4 | `rpc_get_dashboard_summary.jobs_in_progress_count` | Realtime + 30s stale | 없음 | n10 |
 | 3 | 7일 성공률 KPI | 상단 3/4 | `jobs_7d_succeeded / jobs_7d_count` (클라이언트 계산) | Realtime + 30s stale | 없음 | n10 |
 | 4 | 평균 소요 7일 KPI | 상단 4/4 | `avg_duration_sec_7d` (`formatDurationSec`) | Realtime + 30s stale | 없음 | n10 |
-| 5 | **마켓별 주문 현황** | 좌측 본문 (2/3) | `fetchMarketOrdersSummary()` 클라이언트 합성 (4 마켓: 네이버/쿠팡/G마켓/옥션) | Realtime (orders + market_accounts) + 15s stale | 마켓 카드 → `/orders/list?market=<id>` (n13) / "전체 보기" → `/orders` | n12 / n13 |
-| 5a | 11번가 placeholder | 5번 내부 하단 | — (정적, `comingSoon` 배열) | — | 없음 (dimmed) | n12 (v2 본 구현) |
+| 5 | **마켓별 주문 현황** | 좌측 본문 (2/3) | `fetchMarketOrdersSummary()` 클라이언트 합성 (5 마켓: 네이버/쿠팡/G마켓/옥션/11번가) | Realtime (orders + market_accounts) + 15s stale | 마켓 카드 → `/orders/list?market=<id>` (n13) / "전체 보기" → `/orders` | n12 / n13 |
 | 6 | 마켓 연결 상태 | 우측 상단 (1/3) | `market_accounts.status` SELECT | Realtime (UPDATE) + 60s stale | 경고 박스 / 0건 → `/markets` | n11 (대체) |
 | 7 | 마켓별 통계 v2 (placeholder) | 우측 하단 (1/3) | — (정적) | — | — | n11 (v2 본 구현) |
 | 8 | 빈 상태 hero | 본문 전체 (조건부) | 마켓 0건 OR (마켓 ≥1 + 주문 0건 + 잡 0건) | — | (a) 마켓 0건 → `/markets` 강조, (b) 주문/잡 0건 → `/register` 강조 | — |
@@ -181,7 +181,7 @@
                           │     ├─ 쿠팡 카드   ─▶ /orders/list?market=coupang
                           │     ├─ G마켓 카드  ─▶ /orders/list?market=gmarket
                           │     ├─ 옥션 카드   ─▶ /orders/list?market=auction
-                          │     ├─ 11번가 placeholder (dimmed)
+                          │     ├─ 11번가 카드 ─▶ /orders/list?market=11st
                           │     └─ "전체 보기" ─▶ /orders                    (s7)
                           ├─ <MarketHealthCard>            (우 상단, 1/3)
                           │     ├─ 0건 ─▶ /markets (연결 유도)
@@ -203,8 +203,8 @@
 
 ### 6.1 위젯 그리드 반응형
 
-- **데스크탑 2/3 + 1/3 split** 이 유지 구조. 좌측 본문 = 마켓별 주문 현황 (2×2 grid 4 카드 + 11번가 placeholder), 우측 보조 = 마켓 헬스 + v2 placeholder.
-- 마켓 카드 4개는 데스크탑에서 2×2 / 모바일에서도 2×2 유지 (마켓이 4개 고정이라 그리드 변화 없음). 11번가 placeholder 는 항상 4 카드 아래 별도 1행.
+- **데스크탑 2/3 + 1/3 split** 이 유지 구조. 좌측 본문 = 마켓별 주문 현황 (5 마켓 카드 grid), 우측 보조 = 마켓 헬스 + v2 placeholder.
+- 마켓 카드 5개 (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) 는 데스크탑·모바일 모두 2열 grid 로 wrap (마지막 행 1개). 5 마켓 전부 정식 활성 카드.
 - 모바일에서는 우측 보조 위젯이 하단으로 내려가는 순서가 자연스러움.
 - 마켓 카드 자체의 **시각 hierarchy**: ① 마켓 색상 도트 + 마켓명 → ② 신규 주문 카운트 (큰 숫자) → ③ 오늘 총합 (보조 숫자) → ④ 마지막 sync 시각 + 상태 뱃지 (작은 글자). 디자이너가 순서를 흔들면 "지금 처리할 일" 인지가 흐려짐 → 신규 카운트가 가장 큰 시각 weight.
 - v2 placeholder 카드는 우측 하단에 차트 자리 표시 유지.
@@ -220,7 +220,7 @@
 | 마켓 ≥1 + 주문 0건 + 잡 ≥1 | — | (빈 상태 hero 표시 안 함) | — | — |
 
 - KPI 4카드는 빈 상태에서도 유지 (PRD §4.1 "한눈에 확인" 가치).
-- 마켓 주문 카드 컨테이너는 빈 상태에서도 **placeholder 4 카드** 표시 (회색 + "주문 대기" 문구) — 진입 후 처음 주문이 들어올 때까지의 기대치를 시각적으로 학습시킴.
+- 마켓 주문 카드 컨테이너는 빈 상태에서도 **placeholder 5 카드** 표시 (회색 + "주문 대기" 문구) — 진입 후 처음 주문이 들어올 때까지의 기대치를 시각적으로 학습시킴.
 
 ### 6.3 오버뷰 vs 상세 동선
 
@@ -256,13 +256,13 @@
 - 마켓 카드 좌측 색상 도트는 **CLAUDE.md "프로토타입 (legacy v0)" 의 마켓 색상 표준** 준수:
   - 네이버 `#03C75A` / 11번가 `#FF0038` / G마켓 `#00B147` / 옥션 `#E73936` / 쿠팡 `#F11F44`.
 - 디자이너가 마켓 카드 배경색에 마켓 컬러를 옅게 깔자고 제안할 수 있으나, 5개 마켓 동시 노출 시 색 충돌 → **도트와 카드 좌측 보더만 컬러, 배경은 중성색** 권장.
-- 11번가 placeholder 는 마켓 컬러 사용 금지 (회색 + "오픈 준비중" 뱃지).
+- 11번가 카드는 다른 4 마켓과 동일하게 마켓 컬러 (`#FF0038`) 를 사용한다.
 
 ### 6.9 s7 OrdersDashboardPage 와의 경계
 
 - s7 도메인에는 별도의 **`OrdersDashboardPage` (라우트: `/orders` index)** 가 존재 — 주문 도메인의 자세한 대시보드. s2 의 "마켓별 주문 현황" 위젯은 더 압축된 형태 (마켓별 카드만).
 - 디자이너에게 두 화면의 정보 밀도 차이 명확히 전달 필요:
-  - **s2 위젯** = "지금 마켓별로 처리할 일이 얼마나 있나" 4 카드 + 동기화 상태.
+  - **s2 위젯** = "지금 마켓별로 처리할 일이 얼마나 있나" 5 카드 + 동기화 상태.
   - **s7 OrdersDashboardPage** = 주문 도메인의 KPI / 차트 / 기간별 트렌드 (s7-orders.md 참조).
 - s2 위젯의 "전체 보기" 링크 destination: `/orders` (= s7 OrdersDashboardPage). 마켓 카드 클릭 destination: `/orders/list?market=<id>` (= OrdersListPage 필터 적용).
 

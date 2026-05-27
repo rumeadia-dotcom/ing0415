@@ -5,15 +5,14 @@ import type { MarketAdapter } from './types'
  * 마켓 어댑터 단일 진입.
  * 마스터: docs/architecture/v1/cross-cutting/market-adapter.md §4.1
  *
- * v1 정식 라인업 (2026-05-22 5마켓 확장 결정, 2026-05-25 11번가 real scaffold 포함):
+ * v1 정식 라인업 (2026-05-22 5마켓 확장 결정 — real 어댑터까지 전부 동작):
  *   - naver   (oauth)   : 활성. useMock=true → mock, useMock=false → real.
  *   - coupang (hmac)    : 활성. useMock=true → mock, useMock=false → real (gateway 경유).
  *   - gmarket (esm_jwt) : 활성. useMock=true → mock, useMock=false → real (gateway 경유).
  *   - auction (esm_jwt) : 활성. useMock=true → mock, useMock=false → real (gateway 경유).
- *   - 11st    (api_key) : 활성. useMock=true → mock, useMock=false → real scaffold.
- *     authenticate 만 동작 (자격증명 검증·저장). transformProduct / createProduct /
- *     fetchCategoryTree / fetchOrders / submitTracking 는 spec 미확보로 명시적
- *     MarketError(unknown, 'adapter_spec_pending') throw — 본격 구현 별도 PR.
+ *   - 11st    (api_key) : 활성. useMock=true → mock, useMock=false → real.
+ *     authenticate / fetchCategoryTree / transformProduct / createProduct / fetchOrders /
+ *     submitTracking 전부 동작 (11번가 Open API, XML/EUC-KR, gateway 경유).
  *
  * `authenticate` 의 input 은 4-way AuthInput discriminated union — 마켓별 kind 분기.
  *

@@ -11,14 +11,18 @@ import {
   mapElevenStOrders,
   normalizeElevenStStatus,
   toElevenStDate,
-} from '../eleven-st-map'
+  xmlDocToObject,
+} from '../map'
 
 /**
- * 11번가 어댑터 순수 매핑 로직 단위 테스트.
+ * 11번가 어댑터 순수 매핑 로직 단위 테스트 (프론트엔드 포트).
  *
- * 어댑터 본체(eleven-st.ts)는 Deno 전용 import(npm:fast-xml-parser / gatewayFetch) 라
- * Vitest 가 직접 import 불가 → fetch/XML파싱 후의 순수 매핑(eleven-st-map.ts)만 검증.
- * 실 HTTP 호출 경로는 Deno 통합 검증(실 키 + Lightsail Gateway)에서.
+ * Edge Function 측 __tests__/eleven-st.test.ts 와 동일 시나리오 — map.ts 가
+ * eleven-st-map.ts 의 정확한 포트임을 보장해 FE↔BE parity 유지.
+ *
+ * 어댑터 본체(index.ts)는 fetch / DOMParser / EUC-KR 디코딩 등 런타임 의존이 있어
+ * 본 테스트는 fetch/XML파싱 후의 순수 매핑(map.ts)만 검증한다. xmlDocToObject 는
+ * jsdom DOMParser 로 별도 커버.
  *
  * R-001: 성공 + 실패/엣지 시나리오 동반.
  */
@@ -29,10 +33,10 @@ describe('eleven-st-map — 상수', () => {
     )
   })
   it('apiCode 4종 정의', () => {
-    expect(ELEVEN_ST_API_CODES.category).toBeTruthy()
-    expect(ELEVEN_ST_API_CODES.productCreate).toBeTruthy()
-    expect(ELEVEN_ST_API_CODES.orderList).toBeTruthy()
-    expect(ELEVEN_ST_API_CODES.shipment).toBeTruthy()
+    expect(ELEVEN_ST_API_CODES.category).toBe('ProductCategoryInfo')
+    expect(ELEVEN_ST_API_CODES.productCreate).toBe('ProductRegister')
+    expect(ELEVEN_ST_API_CODES.orderList).toBe('GetOrderList')
+    expect(ELEVEN_ST_API_CODES.shipment).toBe('SendGoods')
   })
 })
 
@@ -43,14 +47,20 @@ describe('normalizeElevenStStatus', () => {
   })
   it('발송/배송/완료/취소/반품 코드 매핑', () => {
     expect(normalizeElevenStStatus('201')).toBe('dispatched')
+    expect(normalizeElevenStStatus('203')).toBe('dispatched')
     expect(normalizeElevenStStatus('202')).toBe('delivering')
     expect(normalizeElevenStStatus('301')).toBe('delivered')
+    expect(normalizeElevenStStatus('302')).toBe('delivered')
     expect(normalizeElevenStStatus('401')).toBe('cancelled')
     expect(normalizeElevenStStatus('502')).toBe('returned')
   })
   it('한글 라벨 보조 매핑', () => {
     expect(normalizeElevenStStatus('결제완료')).toBe('new_pay')
+    expect(normalizeElevenStStatus('발송처리')).toBe('dispatched')
     expect(normalizeElevenStStatus('배송중')).toBe('delivering')
+    expect(normalizeElevenStStatus('배송완료')).toBe('delivered')
+    expect(normalizeElevenStStatus('취소완료')).toBe('cancelled')
+    expect(normalizeElevenStStatus('반품완료')).toBe('returned')
   })
   it('매핑 안 되는 raw → unknown (실패 시나리오)', () => {
     expect(normalizeElevenStStatus('ZZZ')).toBe('unknown')
@@ -138,8 +148,19 @@ describe('mapElevenStCategories', () => {
     expect(cats[0]).toMatchObject({ id: '100', name: '패션', leaf: false, depth: 1 })
     expect(cats[1]).toMatchObject({ id: '101', name: '셔츠', leaf: true })
   })
+  it('단일 카테고리(객체) → 1건', () => {
+    const cats = mapElevenStCategories({
+      Categorys: { Category: { CategoryCode: '5', CategoryName: '전자', IsLeaf: '1' } },
+    })
+    expect(cats).toHaveLength(1)
+    expect(cats[0]).toMatchObject({ id: '5', name: '전자', leaf: true })
+  })
   it('빈 응답 → 빈 배열 (엣지)', () => {
     expect(mapElevenStCategories({})).toEqual([])
+  })
+  it('id/name 누락 → 안전 기본값 (엣지)', () => {
+    const cats = mapElevenStCategories({ Categorys: { Category: { IsLeaf: 'N' } } })
+    expect(cats[0]).toMatchObject({ id: 'unknown', name: '미분류', leaf: false })
   })
 })
 
@@ -199,6 +220,7 @@ describe('상품 등록 빌드/응답', () => {
 describe('발송 처리', () => {
   it('isElevenStShipmentOk — 성공 코드(200/0/빈값) → ok', () => {
     expect(isElevenStShipmentOk({ Result: { result_code: '200' } }).ok).toBe(true)
+    expect(isElevenStShipmentOk({ Result: { result_code: '0' } }).ok).toBe(true)
     expect(isElevenStShipmentOk({}).ok).toBe(true)
   })
   it('isElevenStShipmentOk — 에러 코드 → ok=false + 메시지', () => {
@@ -216,5 +238,54 @@ describe('toElevenStDate', () => {
   })
   it('잘못된 입력 → 빈 문자열 (엣지)', () => {
     expect(toElevenStDate('not-a-date')).toBe('')
+  })
+})
+
+describe('xmlDocToObject — DOMParser 결과 → fast-xml-parser 호환 객체', () => {
+  function parse(xml: string): Record<string, unknown> {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml')
+    return xmlDocToObject(doc)
+  }
+
+  it('중첩 + 형제 반복 → 배열, leaf 숫자 파싱 → mapElevenStOrders 호환', () => {
+    const xml = `<?xml version="1.0" encoding="EUC-KR"?>
+      <Orders>
+        <Order>
+          <OrdNo>A100</OrdNo>
+          <OrdQty>2</OrdQty>
+          <OrdAmt>25000</OrdAmt>
+          <OrdStat>101</OrdStat>
+        </Order>
+        <Order>
+          <OrdNo>B200</OrdNo>
+          <OrdStat>301</OrdStat>
+        </Order>
+      </Orders>`
+    const obj = parse(xml)
+    const orders = mapElevenStOrders(obj)
+    expect(orders.map((o) => o.externalOrderId)).toEqual(['A100', 'B200'])
+    expect(orders.map((o) => o.status)).toEqual(['new_pay', 'delivered'])
+    expect(orders[0]?.quantity).toBe(2)
+    expect(orders[0]?.orderAmount).toBe(25000)
+  })
+
+  it('단일 Order 엘리먼트 → 객체 (배열 아님), mapElevenStOrders 1건', () => {
+    const xml = `<Orders><Order><OrdNo>SOLO</OrdNo><OrdStat>202</OrdStat></Order></Orders>`
+    const orders = mapElevenStOrders(parse(xml))
+    expect(orders).toHaveLength(1)
+    expect(orders[0]?.externalOrderId).toBe('SOLO')
+    expect(orders[0]?.status).toBe('delivering')
+  })
+
+  it('상품 등록 응답 XML → extractElevenStProductNo 성공', () => {
+    const xml = `<Product><result_code>200</result_code><ProductNo>987654</ProductNo></Product>`
+    const r = extractElevenStProductNo(parse(xml))
+    expect(r.productNo).toBe('987654')
+    expect(r.resultCode).toBe('200')
+  })
+
+  it('잘못된 XML → 빈 객체 (실패 시나리오)', () => {
+    const obj = parse('<<not valid>>')
+    expect(mapElevenStOrders(obj)).toEqual([])
   })
 })

@@ -39,7 +39,13 @@ import type {
   StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
+import {
+  FetchOrdersInputSchema,
+  type FetchOrdersInput,
+  type MarketOrder,
+} from '../market-orders.ts'
 import { buildEsmJwt } from './esm-jwt.ts'
+import { EsmOrderListResponseSchema, mapEsmOrders } from './esm-orders.ts'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -477,6 +483,65 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
         status: 'succeeded',
         warnings: [],
       } as CreateProductResult
+    },
+
+    // ───────────────────────────────────────────
+    // fetchOrders — ESM getOrderList (site 분기, v2 orders)
+    // ───────────────────────────────────────────
+    async fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]> {
+      const parsedInput = FetchOrdersInputSchema.safeParse(input)
+      if (!parsedInput.success) {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}) fetchOrders 입력 형식 오류 — ${parsedInput.error.message}`,
+          { market, cause: parsedInput.error },
+        )
+      }
+
+      const c = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+
+      const query: Record<string, string> = {
+        site,
+        sellerId: c.sellerId,
+      }
+      if (parsedInput.data.since) query.from = parsedInput.data.since
+      if (parsedInput.data.until) query.to = parsedInput.data.until
+
+      const response = await esmFetch({
+        market,
+        method: 'GET',
+        path: '/order',
+        query,
+        cred: c,
+        correlationId,
+        logger,
+      })
+
+      const text = await response.text()
+      if (!response.ok) {
+        throw httpStatusToMarketError(market, response.status, text, correlationId)
+      }
+
+      let json: unknown
+      try {
+        json = JSON.parse(text)
+      } catch {
+        throw new MarketError('server', 'ESM 주문 응답 JSON 파싱 실패', {
+          market,
+          status: response.status,
+        })
+      }
+
+      const parsed = EsmOrderListResponseSchema.safeParse(json)
+      if (!parsed.success) {
+        throw new MarketError('server', 'ESM 주문 응답 스키마 불일치', {
+          market,
+          cause: parsed.error,
+        })
+      }
+
+      return mapEsmOrders(parsed.data.data?.orders ?? [], market)
     },
   }
 }
