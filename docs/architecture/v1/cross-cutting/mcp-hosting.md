@@ -608,6 +608,8 @@ WantedBy=multi-user.target
 
 ## 10. Claude Code `.mcp.json` 연결 예시
 
+> **클라이언트 범위 (2026-05-28 확정)**: v1 은 **데스크톱(Claude Code CLI / 데스크톱 앱 / IDE)** 전용. `.mcp.json` 은 파일+OS 환경변수 기반이라 데스크톱에서만 동작한다. **모바일 Claude 클라이언트는 보류** — claude.ai 커넥터는 통상 OAuth 핸드셰이크를 기대하나 본 설계는 Bearer 라(§D-3, OAuth 는 §12 v2) 모바일 등록이 막힌다. 모바일이 필수가 되면 (a) auth-proxy 에 OAuth 계층 추가 또는 (b) 별도 인스턴스에서 server-side Claude Code(+SSH) 트랙으로 재논의 (§12).
+>
 > `.mcp.json` 에는 **MCP 게이트웨이 Bearer 토큰만** 둔다. DB/Sentry/GitHub 토큰은 인스턴스 컨테이너 env 에만 존재(클라이언트로 내려가지 않음).
 
 ```jsonc
@@ -663,6 +665,7 @@ WantedBy=multi-user.target
 - MCP 서버 다중 인스턴스/HA — 단일 개발자용, SPOF 허용.
 - 공식 Supabase MCP(PAT) 채택 — 가드레일상 채택 안 함 (§2.1).
 - OAuth/OIDC 기반 MCP 인증(MCP Authorization spec) — 단일 사용자라 Bearer 로 충분. 다중 사용자 도입 시 재논의.
+- **모바일 Claude 클라이언트 — v1 보류** (2026-05-28). 데스크톱 `.mcp.json`(Bearer) 전용. 모바일은 claude.ai 커넥터(OAuth 의존)거나 server-side Claude Code(+SSH, 별도 인스턴스 권장 — MCP 는 화이트리스트 IP 불요) 트랙이 필요 → 필수 시 별도 설계.
 - Terraform/IaC — 인스턴스 1대 + compose 1스택, 수동 운영.
 
 ---
@@ -682,6 +685,7 @@ WantedBy=multi-user.target
 
 ## 14. 변경 이력
 
+- 2026-05-28 — Phase 2·3 구현 (`infra/mcp-hosting/`). 클라이언트 = **데스크톱 `.mcp.json`(Bearer) 전용** 확정, 모바일 보류 (§10/§12). 구현 중 설계 정정 2건: (1) compose 비밀 주입을 `env_file` → **`--env-file` 치환**으로 교정 (`${DATABASE_URI_*}` 가 env_file 에서 치환되지 않는 compose 사양 때문 — 그대로면 postgres-mcp 기동 실패). (2) §5.1 의 `revoke ... on schema auth/storage` 제거 — 해당 스키마는 `postgres` 소유가 아니라 명시 revoke 시 에러 → GRANT 미부여(기본 차단)로 동일 효과.
 - 2026-05-27 — v1 도입. 기존 Lightsail gateway 에 MCP 스택 추가 호스팅 설계(Phase 1 문서). 도메인 = sslip.io 서브도메인(`mcp.43-201-83-78.sslip.io`) 확정. real DB = 전용 뷰 스키마 `mcp_ro` deny-by-default + MCP 전용 제한 role(`mcp_ro_real`/`mcp_ro_dev`) 확정. 인스턴스 2GB 상향 권고.
 
 ---
