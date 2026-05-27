@@ -1,10 +1,25 @@
-# MarketCast — WIP 핸드오프 (11번가 real 어댑터 본격 구현 완료)
+# MarketCast — WIP 핸드오프 (v0.15 운영 배포 완료 — 11번가 v1 정식 + 5마켓 주문 수집)
 
-**develop HEAD**: `03fd791` — feat(11st): real 어댑터 scaffold + UI 활성 + Edge Function 5마켓 통합 (#152)
-**main HEAD**: `5afdc7b` — release: v0.11 운영 안전망 3종 (#149)
-**테스트**: 910 passed / 31 todo (91 files / 1 skipped)
-**최근 운영 배포**: v0.11 (2026-05-25)
-**최근 develop 머지**: PR #152 (11번가 scaffold)
+**develop HEAD**: `99a99dc` — chore: main → develop 백머지 (v0.15) (#235)
+**main HEAD**: `b1d0f96` — release: v0.15 — 11번가 v1 정식 활성 + 5마켓 주문 자동 수집 (#234)
+**테스트**: 984 passed / 31 todo (95 files / 1 skipped)
+**최근 운영 배포**: v0.15 (2026-05-27) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
+**최근 develop 머지**: PR #235 (v0.15 백머지)
+
+## 2026-05-27 세션 결과 (release v0.15 — 11번가 v1 정식 + 5마켓 주문 수집)
+
+11번가가 v1 정식 5마켓인데 코드·주석·문서가 stub/제외/"v2 예정"으로 drift돼 있던 것을 전수 정합하고, 미구현분을 실구현 후 운영 배포.
+
+| PR | 내용 | 영향 |
+|---|---|---|
+| #233 | feat(11st) — 11번가 real 어댑터(카테고리/상품등록/주문조회/발송, XML·EUC-KR, 게이트웨이) + coupang/gmarket/auction `fetchOrders` Deno 포팅 + `orders-sync` 5마켓 배선(credential hydrate) + 게이트 해제 + UI/문서 16종 v1 정식 정합 | feature → develop |
+| #234 | release/v0.15 → main | deploy.yml 트리거 (GitHub Pages + Edge Functions 재배포). DB 마이그·시크릿 변경 0 |
+| #235 | main → develop 백머지 | orphan 가드 PASS, content parity 확인 |
+
+- **순수 매핑 분리**: `eleven-st-map.ts`(Deno) / `real/11st/map.ts`(FE) — npm/Deno specifier 없는 순수 함수로 Vitest 검증(11번가 21건 + parity).
+- **naver**: 주문수집 fetchOrders 미구현(Wave 5) → `hasFetchOrders` graceful skip. 11번가는 정상 폴링.
+- **잔여 검증 권장**: 11번가 `apiCode`/XML 엘리먼트는 개발자포털 IP 화이트리스트(403)로 미검증 best-effort. `eleven-st-map.ts` 상수 격리 — 셀러 발급 키로 게이트웨이 고정 IP(`43.201.83.78`) 경유 1회 실호출 검증 권장. 마켓별 try/catch 격리로 11번가 실패가 타 마켓 차단 안 함.
+- **운영 확인 필요**: deploy.yml 4잡(Build real / Deploy Pages / Deploy Edge Functions / Finalize Sentry) 성공 여부는 Actions 탭에서 확인.
 
 ## 2026-05-25 세션 결과 (release v0.11 + 11번가 scaffold)
 
