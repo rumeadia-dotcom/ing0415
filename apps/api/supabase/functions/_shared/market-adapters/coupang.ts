@@ -11,7 +11,7 @@
  *
  * API 기반:
  *   - COUPANG_API_BASE = https://api-gateway.coupang.com
- *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/categorization/display-categories/{id}
+ *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/marketplace/meta/display-categories/{code} (루트=0)
  *   - 상품 생성: POST /v2/providers/seller_api/apis/api/v1/marketplace/seller-products
  *
  * 에러 매핑:
@@ -43,6 +43,13 @@ import type {
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
 import { buildCoupangSignature } from './coupang-hmac.ts'
+import {
+  buildCategoryTree,
+  buildDisplayCategoryPath,
+  coupangHttpStatusToMarketError,
+  ROOT_DISPLAY_CATEGORY_CODE,
+  type RawCoupangCategory,
+} from './coupang-category.ts'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -53,6 +60,11 @@ const MARKET = 'coupang' as const
 const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
 const PRODUCT_NAME_MAX_LENGTH = 50
+/**
+ * 연결 검증 핑의 카테고리 트리 최대 깊이. 1 = 루트 1회 호출만.
+ * 깊게 두면 쿠팡 전체 카테고리를 순차 조회해 게이트웨이가 폭주/타임아웃한다.
+ */
+const CATEGORY_PING_MAX_DEPTH = 1
 
 const logger = createLogger('market-adapter:coupang')
 
@@ -93,68 +105,9 @@ const CoupangCreateProductResponseSchema = z.object({
     .optional(),
 })
 
-// CategoryNode 재귀 스키마 (Deno 측 수동 정의)
-interface CategoryNode {
-  id: string
-  name: string
-  depth: number
-  leaf: boolean
-  parentId: string | null
-  children: CategoryNode[]
-}
-
 // ─────────────────────────────────────────────
 // 내부 유틸리티
 // ─────────────────────────────────────────────
-
-/** HTTP 상태 → MarketError code 매핑. */
-function httpStatusToMarketError(
-  status: number,
-  message: string,
-  correlationId: string,
-): MarketError {
-  if (status === 401 || status === 403) {
-    return new MarketError('unauthorized', `쿠팡 인증 실패 (${status})`, {
-      market: MARKET,
-      status,
-      marketErrorMessage: message,
-      marketErrorCode: String(status),
-    })
-  }
-  if (status === 400 || status === 422) {
-    return new MarketError(
-      'validation',
-      `쿠팡 요청 검증 실패 (${status}): ${message}`,
-      {
-        market: MARKET,
-        status,
-        marketErrorMessage: message,
-        marketErrorCode: String(status),
-      },
-    )
-  }
-  if (status === 429) {
-    return new MarketError('rate_limit', '쿠팡 API rate limit 초과', {
-      market: MARKET,
-      status,
-      retryAfterMs: 5_000,
-      marketErrorCode: 'rate_limit',
-    })
-  }
-  if (status >= 500) {
-    return new MarketError(`쿠팡 서버 오류 (${status})` as never, `쿠팡 서버 오류 (${status})`, {
-      market: MARKET,
-      status,
-      marketErrorMessage: message,
-      marketErrorCode: String(status),
-    })
-  }
-  return new MarketError(
-    'unknown',
-    `쿠팡 API 오류 (${status}) correlationId=${correlationId}`,
-    { market: MARKET, status, marketErrorMessage: message },
-  )
-}
 
 /** Wing OpenAPI fetch wrapper — HMAC 서명 + timeout + 로깅. */
 async function coupangFetch(opts: {
@@ -231,18 +184,19 @@ async function coupangFetch(opts: {
   }
 }
 
-/** 카테고리 단건 fetch + depth 3까지 재귀. */
-async function fetchCategoryNode(
-  categoryId: number,
-  depth: number,
+/**
+ * displayCategoryCode 1건을 조회해 RawCoupangCategory 로 파싱.
+ * 트리 순회 / 깊이 제한은 coupang-category.ts 의 buildCategoryTree 가 담당.
+ */
+async function fetchRawCoupangCategory(
+  code: number,
   accessKey: string,
   secretKey: string,
   correlationId: string,
-): Promise<CategoryNode> {
-  const path = `/v2/providers/seller_api/apis/api/v1/categorization/display-categories/${categoryId}`
+): Promise<RawCoupangCategory> {
   const response = await coupangFetch({
     method: 'GET',
-    path,
+    path: buildDisplayCategoryPath(code),
     accessKey,
     secretKey,
     correlationId,
@@ -251,11 +205,10 @@ async function fetchCategoryNode(
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
-    throw httpStatusToMarketError(response.status, text, correlationId)
+    throw coupangHttpStatusToMarketError(response.status, text, correlationId)
   }
 
-  const raw = await response.json()
-  const parsed = CoupangCategoryResponseSchema.safeParse(raw)
+  const parsed = CoupangCategoryResponseSchema.safeParse(await response.json())
   if (!parsed.success) {
     throw new MarketError('server', '쿠팡 카테고리 응답 파싱 실패', {
       market: MARKET,
@@ -272,29 +225,11 @@ async function fetchCategoryNode(
     })
   }
 
-  const isLeaf = data.isLeafCategory || depth >= 3
-  const children: CategoryNode[] = []
-
-  if (!isLeaf && data.subCategories && data.subCategories.length > 0) {
-    for (const sub of data.subCategories) {
-      const child = await fetchCategoryNode(
-        sub.categoryId,
-        depth + 1,
-        accessKey,
-        secretKey,
-        correlationId,
-      )
-      children.push(child)
-    }
-  }
-
   return {
-    id: String(data.categoryId),
-    name: data.displayCategoryName,
-    depth,
-    leaf: isLeaf,
-    parentId: depth === 1 ? null : String(categoryId),
-    children,
+    categoryId: data.categoryId,
+    displayCategoryName: data.displayCategoryName,
+    isLeafCategory: data.isLeafCategory,
+    subCategories: data.subCategories ?? [],
   }
 }
 
@@ -361,7 +296,13 @@ export function createCoupangAdapter(): MarketAdapter {
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const { accessKey, secretKey } = getCredOrThrow()
       const correlationId = generateCorrelationId()
-      const rootNode = await fetchCategoryNode(1, 1, accessKey, secretKey, correlationId)
+      const rootNode = await buildCategoryTree(
+        (code) => fetchRawCoupangCategory(code, accessKey, secretKey, correlationId),
+        ROOT_DISPLAY_CATEGORY_CODE,
+        1,
+        CATEGORY_PING_MAX_DEPTH,
+        null,
+      )
       return [rootNode]
     },
 
@@ -419,7 +360,7 @@ export function createCoupangAdapter(): MarketAdapter {
       const text = await response.text()
 
       if (!response.ok) {
-        throw httpStatusToMarketError(response.status, text, correlationId)
+        throw coupangHttpStatusToMarketError(response.status, text, correlationId)
       }
 
       let json: unknown
