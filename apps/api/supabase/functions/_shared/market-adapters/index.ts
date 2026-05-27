@@ -10,7 +10,7 @@
  *   - coupang (hmac)    : 활성. debug = mock, real = 본격 구현 + gateway 경유 (Phase 4-A)
  *   - gmarket (esm_jwt) : 활성. debug = mock, real = 본격 구현 + gateway 경유 (Phase 4-A)
  *   - auction (esm_jwt) : 활성. debug = mock, real = 본격 구현 + gateway 경유 (Phase 4-A)
- *   - 11st    (api_key) : 활성. debug = mock, real = **stub** — 정식 API spec 확보 후 별도 PR (Phase 4-B-2)
+ *   - 11st    (api_key) : 활성. debug = mock, real = 본격 구현 (11번가 Open API, XML CP949, gateway 경유) — 다른 4마켓과 동일
  *
  * 강제:
  *   - 본 함수 외 위치에서 `isDebug` 로 어댑터 본체 분기 금지. 발견 시 PR 차단.

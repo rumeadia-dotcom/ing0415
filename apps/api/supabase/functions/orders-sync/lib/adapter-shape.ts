@@ -22,7 +22,12 @@ export {
   type MarketOrder,
 } from '../../_shared/index.ts'
 
-import type { FetchOrdersInput, MarketOrder, MarketOrderStatus } from '../../_shared/index.ts'
+import type {
+  FetchOrdersInput,
+  MarketOrder,
+  MarketOrderStatus,
+  StoredCredential,
+} from '../../_shared/index.ts'
 
 /**
  * 폴링 시 어댑터에 요청할 정규화 status 목록.
@@ -39,9 +44,15 @@ export const ORDER_SYNC_TARGET_STATUSES: readonly MarketOrderStatus[] = [
  *
  * MarketAdapter 의 optional `fetchOrders?` 가 정식 정의. 본 인터페이스는 orders-sync 가
  * 런타임 shape 체크 후 좁히는 용도.
+ *
+ * hydrate 는 fetchOrders 호출 전 저장 자격증명으로 어댑터 in-memory cred 를 복원하기 위해
+ * 필요 (registration-market-worker process.ts 미러). real 모드(getMarketAdapter) 어댑터는
+ * 항상 구현하나, 테스트 mock 어댑터는 resolveAdapter 주입 경로에서 hydrate 가 호출되지
+ * 않으므로 optional 로 둔다.
  */
 export interface OrderSyncAdapter {
   fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]>
+  hydrate?(stored: StoredCredential): void
 }
 
 /** runtime shape check — fetchOrders 미구현 마켓 스킵 안전망. */

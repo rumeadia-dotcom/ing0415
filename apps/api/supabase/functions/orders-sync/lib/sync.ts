@@ -7,8 +7,8 @@
  *   - orders upsert / logen invoke 콜백 (DI).
  *
  * 책임:
- *   1) 활성 market_accounts (status='active') 로드 — 4 마켓 한정 (11번가 제외).
- *   2) credential 복호화 → adapter.fetchOrders 호출 (24h 윈도우, 결제완료).
+ *   1) 활성 market_accounts (status='active') 로드 — 5 마켓 (naver/coupang/gmarket/auction/11st).
+ *   2) credential 복호화 → adapter.hydrate → adapter.fetchOrders 호출 (24h 윈도우, 결제완료).
  *   3) orders upsert (중복 방지) → 새로 들어온 orders.id 수집.
  *   4) 신규 orders → logen-register-shipment 위임 invoke (fire-and-forget).
  *   5) collected / perMarket / errors 집계 반환.
@@ -16,7 +16,9 @@
  * 강제:
  *   - 한 마켓 실패가 다른 마켓 진행을 막지 않는다 (try/catch per market).
  *   - 평문 토큰·PII 로그 금지.
- *   - 11번가 (api_key) 는 v1 미사용 — fetch 호출 전 차단.
+ *   - 5마켓 전부 폴링 대상. naver 만 fetchOrders 미구현(Wave 5 보강 대기)이라 hasFetchOrders
+ *     런타임 가드로 graceful skip (차단 아님). 어댑터에 fetchOrders 가 추가되면 자동 포함.
+ *     11번가는 v1 정식 구현 완료 → 정상 폴링.
  */
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4'
@@ -26,6 +28,7 @@ import {
   MarketError,
   type Logger,
   type MarketId,
+  type StoredCredential,
 } from '../../_shared/index.ts'
 import {
   hasFetchOrders,
@@ -47,11 +50,19 @@ export const ORDER_SYNC_WINDOW_HOURS = 24
  * `ORDER_SYNC_TARGET_STATUSES` 배열에 추가만 하면 됨.
  */
 export { ORDER_SYNC_TARGET_STATUSES } from './adapter-shape.ts'
+/**
+ * 폴링 대상 마켓. 5 마켓 전부 (11번가는 v1 정식).
+ *
+ * coupang / gmarket / auction / 11번가는 fetchOrders 구현 완료 → 정상 폴링. naver 만
+ * 어댑터 미구현(Wave 5)이라 fetchForAccount 의 hasFetchOrders 가드에서 graceful 스킵된다
+ * (차단·제외 아님). naver 어댑터에 fetchOrders 가 추가되면 별도 변경 없이 자동 폴링.
+ */
 const ORDER_SYNC_MARKETS: readonly MarketId[] = [
   'naver',
   'coupang',
   'gmarket',
   'auction',
+  '11st',
 ]
 
 export interface MarketAccountRow {
@@ -151,24 +162,27 @@ async function fetchForAccount(
     : (getMarketAdapter(account.marketId) as unknown as OrderSyncAdapter | null)
 
   if (!adapter || !hasFetchOrders(adapter)) {
+    // fetchOrders 미구현 어댑터(현재 naver 만 — Wave 5 보강 대기)는 graceful 스킵 — 다른
+    // 마켓 폴링은 계속. 해당 어댑터에 fetchOrders 가 추가되면 자동으로 폴링 대상에 포함된다.
+    // 11번가는 v1 정식 구현 완료 → 정상 폴링.
     log.warn(
       { reason: 'adapter_no_fetch_orders' },
-      '← orders-sync skip: adapter without fetchOrders (PR4 가 머지되어야 함)',
+      '← orders-sync skip: adapter without fetchOrders (graceful)',
     )
     return {
       orders: [],
       errorCode: 'adapter_no_fetch_orders',
-      errorMessage: 'adapter does not implement fetchOrders (waiting on PR4)',
+      errorMessage: 'adapter does not implement fetchOrders',
     }
   }
 
   // credential 복호화 — real 모드에서만 의미. test 는 mock adapter 가 자체 처리.
-  // PR4 의 fetchOrders 는 credential 을 직접 받지 않음 (sellerId 만). 어댑터는 자체 컨텍스트에서
-  // 토큰을 읽도록 설계 (어댑터 인스턴스 생성 시 주입 또는 sellerId → credential 조회).
-  // 본 PR 은 real 모드에서 credential 존재 검증만 수행 (load 실패 시 skip).
+  // fetchOrders 는 credential 을 직접 받지 않으므로 (sellerId 만), 호출 전 adapter.hydrate
+  // 로 어댑터 in-memory cred 를 복원해야 한다 (registration-market-worker process.ts 미러).
   if (!deps.resolveAdapter) {
+    let decrypted
     try {
-      await loadCredential({
+      decrypted = await loadCredential({
         credentialId: account.credentialId,
         correlationId: deps.correlationId,
         logger: log,
@@ -180,6 +194,23 @@ async function fetchForAccount(
         orders: [],
         errorCode: code,
         errorMessage: 'credential decrypt failed',
+      }
+    }
+
+    // 저장 자격증명으로 어댑터 hydrate (authenticate 미경유 경로 — fetchOrders 전 필수).
+    // real 모드 어댑터(getMarketAdapter)는 항상 hydrate 를 구현 (MarketAdapter 필수 메서드).
+    try {
+      adapter.hydrate?.({
+        kind: decrypted.credentialKind,
+        payload: decrypted.payload,
+      } as StoredCredential)
+    } catch (e) {
+      const code = e instanceof MarketError ? e.code : 'credential_hydrate_failed'
+      log.error({ errorCode: code }, '← credential hydrate failed')
+      return {
+        orders: [],
+        errorCode: code,
+        errorMessage: 'credential hydrate failed',
       }
     }
   }
