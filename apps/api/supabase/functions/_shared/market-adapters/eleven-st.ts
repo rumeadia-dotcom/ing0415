@@ -84,6 +84,26 @@ export function createElevenStAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
+    // hydrate — 저장 자격증명으로 cred 복원 (API 호출 없음)
+    // ───────────────────────────────────────────
+    hydrate(stored: StoredCredential): void {
+      if (stored.kind !== 'api_key') {
+        throw new MarketError(
+          'validation',
+          `11번가: api_key 자격증명 필요 (받은 kind: ${stored.kind})`,
+          { market: MARKET },
+        )
+      }
+      const p = stored.payload as { apiKey?: string }
+      if (!p.apiKey) {
+        throw new MarketError('validation', '11번가: 저장 자격증명에 apiKey 누락', {
+          market: MARKET,
+        })
+      }
+      cred = { apiKey: p.apiKey }
+    },
+
+    // ───────────────────────────────────────────
     // refreshToken — 영구 키라 미사용
     // ───────────────────────────────────────────
     // (인터페이스 optional. 본 stub 에서는 정의 자체 생략 — MarketAdapter optional)

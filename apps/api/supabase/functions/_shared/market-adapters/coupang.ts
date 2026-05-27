@@ -251,6 +251,30 @@ export function createCoupangAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
+    // hydrate — 저장 자격증명으로 cred 복원 (API 호출 없음)
+    // ───────────────────────────────────────────
+    hydrate(stored: StoredCredential): void {
+      if (stored.kind !== 'hmac') {
+        throw new MarketError(
+          'validation',
+          `쿠팡: hmac 자격증명 필요 (받은 kind: ${stored.kind})`,
+          { market: MARKET },
+        )
+      }
+      const p = stored.payload as {
+        accessKey?: string
+        secretKey?: string
+        vendorId?: string
+      }
+      if (!p.accessKey || !p.secretKey || !p.vendorId) {
+        throw new MarketError('validation', '쿠팡: 저장 자격증명 누락', {
+          market: MARKET,
+        })
+      }
+      cred = { accessKey: p.accessKey, secretKey: p.secretKey, vendorId: p.vendorId }
+    },
+
+    // ───────────────────────────────────────────
     // fetchCategoryTree
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
