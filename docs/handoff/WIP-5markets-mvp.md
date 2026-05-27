@@ -1,26 +1,26 @@
-# MarketCast — WIP 핸드오프 (2026-05-26 — v0.14 운영 배포 직후)
+# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 카테고리 hotfix 운영 배포 직후)
 
-**develop HEAD**: `46f1120` — chore: main → develop 백머지 (v0.14) (#221)
-**main HEAD**: `7ea4fab` — release: v0.14 — hookify 플러그인 활성화 (#220)
-**테스트**: 894 passed / 31 todo (92 files, 1 sanitize-parity Deno-import env issue — CI 통과)
-**최근 운영 배포**: v0.14 (2026-05-26 01:37 UTC) — deploy.yml 5/5 success
-**최근 develop 머지**: PR #221 (백머지 v0.14)
+**develop HEAD**: 백머지 (main #223 → develop) — chore/backmerge-coupang-hotfix
+**main HEAD**: `ef62303` — fix: 쿠팡 카테고리 조회 경로·루트 코드 수정 + 연결 핑 깊이 제한 (#223)
+**테스트**: 906 passed / 31 todo (93 files, +12 coupang-category. 1 sanitize-parity Deno-import env issue — CI 통과)
+**최근 운영 배포**: 쿠팡 hotfix #223 (2026-05-27 07:37 UTC) — deploy.yml 5/5 success (Edge Functions 재배포 포함)
+**최근 develop 머지**: 백머지 (#223)
 
-## 2026-05-26 세션 결과 (v0.12 / v0.13 / v0.14 3 릴리즈)
+## 2026-05-27 세션 결과 (쿠팡 카테고리 운영 hotfix)
 
-세 번의 운영 배포가 누적된 mock walkthrough cycle + tooling 업데이트.
+운영 사고: 쿠팡 마켓 연결 시 `category_ping_failed` ("자격증명은 확인되었지만 카테고리 조회에 실패") 로 연결 차단. correlationId `58f3ca64` → Edge 로그 `category ping failed (unknown)`, latency 796ms.
 
-| Release | 내용 | PR |
-|---|---|---|
-| **v0.12** | mock walkthrough cycle 16-49 batch (a11y / i18n / UI consistency) | #202 |
-| **v0.13** | mock walkthrough cycle 50-61 batch (form a11y + Dialog focus trap + no-console) | #217 |
-| **v0.14** | `.claude/settings.json` — hookify 플러그인 활성화 (대화 분석 hook) | #220 |
+**근본 원인**: 쿠팡 카테고리 API 경로가 `…/api/v1/`**`categorization`**`/display-categories/{id}` 로 작성됨. 실제 스펙은 `…/api/v1/`**`marketplace/meta`**`/display-categories/{code}` (루트 `0`). 존재하지 않는 경로 → 쿠팡 404 → 어댑터 fallback `unknown` → `category_ping_failed`. 쿠팡 공식 문서로 경로/루트 검증.
 
-### v0.14 상세 (방금 배포)
+| 변경 | 비고 |
+|---|---|
+| 경로 `categorization/` → `marketplace/meta/`, 루트 `1` → `0` | 사고 직접 해결 |
+| 핑 `fetchCategoryTree` maxDepth=1 (루트 1회) | 이전엔 트리 전체 depth3 순차 재귀 → 게이트웨이 폭주/타임아웃 위험 |
+| 5xx code `as never` 문자열 → `'server'` | 분류·재시도 정상화 |
+| 순수 로직 `coupang-category.ts` 분리 + vitest 12 테스트 | **실코드** 직접 회귀 가드 |
+| `markets-connect` audit insert error 미검사 수정 | 무음 실패 → 로깅 (이전 audit 0건 추적 불가 원인) |
 
-- **변경 영향**: 산출물 코드 변경 0. `.claude/` tooling 만. GitHub Pages 재배포는 형식적.
-- **deploy.yml**: Verify Vault / Build real / Pages / Edge Functions / Sentry — 5/5 success (1m40s).
-- **백머지**: PR #221 squash, orphan 0건.
+> ⚠ **격리 hotfix** — main 기준 분기 (develop 누적 미반영). 수정 파일 3개가 main↔develop 동일이라 cherry-pick 충돌 0.
 
 ## 스택 한눈에
 
@@ -70,64 +70,57 @@ Seller ─┬─ Order ── order_group_id → OrderGroup (1박스=1송장, Ph
 | v0.11 | 운영 안전망 3종 (ruleset / verify-vault / parity) | #142~#151 |
 | 11번가 v1 scaffold | 단계 1 (A~G) — authenticate 만 동작, 5메서드 spec_pending | #152 |
 | v0.12 / v0.13 | mock cycle 16-49 / 50-61 batch (a11y + UI 정합) | #202 / #217 |
-| **v0.14** | **hookify 플러그인 tooling** | **#220** |
+| v0.14 | hookify 플러그인 tooling | #220 |
+| **쿠팡 hotfix** | **카테고리 경로/루트 수정 + 핑 깊이 제한 + audit 관찰성** | **#223** |
 
 ## 운영 현황
 
 - **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/`
-- **최근 deploy run**: `26427360122` (v0.14, 2026-05-26 01:37 UTC, success).
-- **real Supabase** (`lfrnythcujxdhehvkmtg`): v0.10.1 마이그 + Vault 2 secret 적용. v0.11~v0.14 에서 마이그 추가 없음.
+- **최근 deploy run**: `26497646002` (쿠팡 hotfix #223, 2026-05-27 07:37 UTC, success). Edge Functions 재배포 완료 → `markets-connect` + 쿠팡 어댑터 최신.
+- **real Supabase** (`lfrnythcujxdhehvkmtg`): v0.10.1 마이그 + Vault 2 secret 적용. 이후 마이그 추가 없음 (hotfix 도 마이그 0).
 - **dev Supabase** (`eqoywqoalwkwbrdsulfl`): **v0.10.1 마이그 3개 미적용** ⚠ (이월)
 
 ---
 
 ## ⚠ 즉시 필요한 운영 액션 (사용자 작업)
 
-### 1. dev DB 마이그 3개 적용 (이월 — 3 릴리즈 누적)
+### 1. 쿠팡 재연결 검증 (hotfix 직후 — 미완)
+- 운영 UI 에서 쿠팡 마켓 **재연결** → `category_ping` 성공 → `active` 확인.
+- 실패 시 Edge 로그 `markets-connect` 의 `← market response (gateway)` `{ status, kind }` 확인 (경로 수정 후에도 4xx 면 자격증명/IP 화이트리스트 문제).
+
+### 2. dev DB 마이그 3개 적용 (이월 — 3+ 릴리즈 누적)
 ```bash
 pnpm supabase:link:dev
 pnpm db:push:dev
 ```
-대상:
-- `20260523000003_order_groups.sql`
-- `20260524000001_rpc_fn_prefix_fix.sql`
-- `20260524000002_registration_job_state_machine.sql`
+대상: `20260523000003_order_groups.sql` / `20260524000001_rpc_fn_prefix_fix.sql` / `20260524000002_registration_job_state_machine.sql`
 
-### 2. dev Edge Function 재배포 (이월)
+### 3. dev Edge Function 재배포 (이월)
 ```bash
 pnpm functions:deploy:dev
 ```
 
-### 3. 마이그 immutability 검증 (다음 release 전)
-```bash
-pnpm supabase:link:dev   # 또는 :real
-supabase db push --linked --dry-run
-```
-
 ### 4. 11번가 Open API spec 입수 (단계 2 진입 트리거)
-- 11번가 셀러오피스 (seller.11st.co.kr) 또는 OPEN API 센터 (openapi.11st.co.kr) 로그인 → Seller API 발급 양식
-- IP 화이트리스트에 Lightsail 고정 IP `43.201.83.78` 등록 → 정식 API Key 발급
-- 가이드 문서 / 샘플 XML / 에러 코드 표 캡처 후 사내 vault 저장
+- 11번가 OPEN API 센터 (openapi.11st.co.kr) → Seller API 발급. IP 화이트리스트 `43.201.83.78` 등록 → API Key 발급. 가이드/샘플 XML/에러 코드 캡처.
 
 ---
 
-## 다음 세션 (예약된 작업)
+## 남은 작업 / 후속 정합
 
-### 1. 11번가 단계 2 본격 구현 (spec 입수 시 트리거)
-- 서버 어댑터 `apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts` 4메서드 본체
-- 클라이언트 어댑터 `apps/web/src/lib/markets/real/11st/index.ts` 동일 메서드 본체
-- CP949 → UTF-8 디코딩 + XML 파싱 (fast-xml-parser)
-- 에러 코드 → MarketErrorCode 매핑
-- `markets-connect` 의 `skipCategoryPing` 분기 제거
-- parity §5 (captured-real fixture) 활성
+### 1. 쿠팡 hotfix 후속
+- **`coupang-edge.test.ts` 인라인 재구현 정리** — 이 테스트는 실코드 복사본을 테스트해 5xx `as never` 버그를 못 잡았음(이번 사고의 숨은 배경). `coupang-category.ts` 실모듈 테스트로 흡수 검토.
+- **registration UI 카테고리 트리** — 핑만 maxDepth=1 로 고침. UI 의 `fetchCategoryTree` 전체 트리 eager 로딩은 여전히 비현실적(수백~수천 호출). lazy/페이지네이션 설계 필요 (OQ-13 / markets.md O-4).
 
-### 2. P0 qa-matrix 갭 잔여
+### 2. 11번가 단계 2 (spec 입수 시 트리거)
+- 서버/클라 어댑터 4메서드 본체 + CP949→UTF-8 + XML 파싱 + 에러 매핑 + `skipCategoryPing` 제거 + parity §5 활성.
+
+### 3. P0 qa-matrix 갭
 | 항목 | 차단 |
 |---|---|
-| **partial / retry / skip-market E2E 3종** | 셀러 시드 + 어댑터 시뮬레이션 |
-| **captured-real fixture (parity §5)** | sandbox 마켓 API 접근 |
+| partial / retry / skip-market E2E 3종 | 셀러 시드 + 어댑터 시뮬레이션 |
+| captured-real fixture (parity §5) | sandbox 마켓 API 접근 |
 
-### 3. 미진입 v1 스코프
+### 4. 미진입 v1 스코프
 | PRD § | 항목 |
 |---|---|
 | §1.4.3 + §2.3.4 | 알림 도메인 |
@@ -136,9 +129,8 @@ supabase db push --linked --dry-run
 | §4.2.x / §4.4.2 | 오류 통계 차트 |
 | §5.4.1 | 이미지 WebP |
 
-### 4. sanitize-parity 로컬 테스트 실패 (낮은 우선순위)
-- `tests/unit/security/sanitize-parity.test.ts` 가 `npm:isomorphic-dompurify@2.20.0` (Deno-style import) 를 직접 import → Vitest 가 Node 환경에서 resolve 불가.
-- CI 는 통과 (다른 환경/제외 룰). 로컬 신뢰성 향상을 위해 vite alias 또는 test exclude 추가 검토.
+### 5. sanitize-parity 로컬 실패 (낮은 우선순위)
+- `tests/unit/security/sanitize-parity.test.ts` 가 `npm:isomorphic-dompurify@2.20.0` (Deno import) 직접 import → Vitest Node resolve 불가. CI 통과. vite alias 또는 exclude 검토.
 
 ---
 
@@ -159,42 +151,40 @@ supabase db push --linked --dry-run
 git pull origin develop && pnpm install && pnpm test
 ```
 
-**894 passed / 31 todo** 확인 후 진입 (sanitize-parity 1 file 알려진 환경 이슈).
+**906 passed / 31 todo** 확인 후 진입 (sanitize-parity 1 file 알려진 환경 이슈).
 
 ### 우선 순위
-1. **11번가 spec 입수 신호 받음 → 단계 2 진입**.
-2. **dev DB 마이그 3개 + Edge Function 재배포** — 3 릴리즈 이월, 더 미루지 말 것.
-3. **mock cycle 누적 → release/v0.15** — develop 에 추가 누적 후.
-4. (보류 해제 시) partial / retry / skip-market E2E 3종.
+1. **쿠팡 재연결 검증** — hotfix 배포됨, 운영에서 실제 연결 성공 확인 (운영 액션 #1).
+2. **dev DB 마이그 3개 + Edge Function 재배포** — 3+ 릴리즈 이월.
+3. **11번가 spec 입수 신호 → 단계 2 진입**.
+4. mock cycle 누적 → release/v0.15.
 
 ---
 
 ## 룰 강제 메모 (사고 회수 발 / 관찰된 패턴)
 
+### ⚠ 운영 사고 진단 — chain 전체 1회 점검 (CLAUDE.md §Rules, 쿠팡 사고 재확인)
+- generic 에러/5xx 진단 시 한 단계씩 금지. throw 지점 → 직렬화 → 클라 parse → schema → UI 매핑 → 인프라 6단계를 한 번에 grep+Read.
+- 쿠팡 사고: 어댑터가 요청 correlationId 와 다른 자체 ID 사용 → 게이트웨이 로그를 요청 ID 로 grep 불가. Edge Function 로그(같은 실행 스트림)가 ground truth.
+
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
-- 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
-- Agent isolation: "worktree" default base = main — prompt 에서 `git fetch origin develop && git checkout -B feature/X origin/develop` 강제.
+- 새 feature/* 는 **반드시 `develop` 에서 분기**. Agent worktree default base = main 주의.
+- 운영 hotfix 는 main 기준 격리 분기 권장 (develop 누적 미반영, blast radius 최소).
 
-### ⚠ PR strict mode "behind" 패턴 (v0.11 / 11번가 #152 사례)
-- ruleset 의 `strict_required_status_checks_policy: true` 가 PR 브랜치에 develop HEAD lineage 포함 강제.
-- 동일 시점에 다른 PR 이 develop 에 머지되면 본 PR 이 "behind" 로 분류 — auto-merge 발동 안 함.
-- 해소: `mcp__github__update_pull_request_branch` 또는 GitHub UI 의 "Update branch" → CI 재실행.
+### ⚠ PR strict mode "behind" 패턴
+- ruleset `strict_required_status_checks_policy: true` → 동시 머지 시 "behind" 분류, auto-merge 미발동. 해소: "Update branch" → CI 재실행.
 
-### ⚠ release PR 충돌 흔한 패턴 (v0.11 사례)
-- release/* → main PR 생성 시 `docs/handoff/WIP-*.md` 와 `docs/architecture/v1/qa/qa-matrix.md` 가 자주 충돌.
-- 해소: `git checkout --ours <file>` 로 develop 측 (최신) 채택.
+### ⚠ release/백머지 PR 충돌 흔한 패턴
+- `docs/handoff/WIP-*.md` / `qa-matrix.md` 자주 충돌. 해소: `git checkout --ours <file>` (develop 측 최신 채택).
 
-### ⚠ ruleset 사고 복원 절차 (`.github/rulesets/README.md`)
-- develop branch protection rule 이 또 실수로 날아가면 `.github/rulesets/develop.json` 을 GitHub UI 의 `Settings → Rules → Rulesets → Import a ruleset` 로 1분 복원.
+### ⚠ ruleset 사고 복원 (`.github/rulesets/README.md`)
+- develop protection 유실 시 `.github/rulesets/develop.json` 을 GitHub UI Import 로 1분 복원.
 
-### ⚠ verify-vault-secrets 게이트 (#143, v0.11 부터 작동)
-- main 배포 시 운영 vault 의 `supabase_functions_url` / `service_role_key` 존재 자동 검증.
-- 미등록 시 deploy 차단.
+### ⚠ verify-vault-secrets 게이트 (#143, v0.11~)
+- main 배포 시 운영 vault `supabase_functions_url` / `service_role_key` 자동 검증. 미등록 시 deploy 차단.
 
-### ⚠ 11번가 scaffold 상태 (#152, 2026-05-25)
-- `authenticate` 만 본 동작. 나머지 5메서드 `adapter_spec_pending` throw.
-- `markets-connect` 가 11번가 한해 `category_ping` 스킵 — 자격증명만 저장 후 active 표시.
-- spec 입수 후 `skipCategoryPing` 분기 제거 + 메서드 본체 구현 → 본격 활성.
+### ⚠ 11번가 scaffold 상태 (#152)
+- `authenticate` 만 동작. 5메서드 `adapter_spec_pending`. `markets-connect` 가 11번가 한해 `category_ping` 스킵. spec 입수 후 `skipCategoryPing` 제거.
 
 ### Claude attribution 금지 (전역 룰)
 - 커밋 메시지에 `Co-Authored-By: Claude ...` / `🤖 Generated with Claude Code` 등 절대 포함 X.

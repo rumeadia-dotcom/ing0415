@@ -142,6 +142,31 @@ export default Deno.serve(
       logger,
     })
 
+    // market_account_audit insert + 실패 시 로깅.
+    // (2026-05-27) 이전엔 error 미검사로 audit insert 가 조용히 실패해도 무음이었음 →
+    // 운영 사고 진단 시 correlation_id 로 row 가 0건이라 추적 불가. 이제 실패를 관찰 가능.
+    const insertAccountAudit = async (
+      row: Record<string, unknown>,
+      context: string,
+    ): Promise<void> => {
+      const { error: aErr } = await supabase
+        .from('market_account_audit')
+        .insert(row)
+      if (aErr) {
+        logger.error(
+          {
+            context,
+            pgCode: aErr.code,
+            pgMessage: aErr.message,
+            pgDetails: aErr.details,
+            pgHint: aErr.hint,
+            correlationId,
+          },
+          'market_account_audit insert failed',
+        )
+      }
+    }
+
     const auditFail = async (stage: string, reason: string): Promise<void> => {
       await appendAudit({
         category: 'markets',
@@ -151,14 +176,17 @@ export default Deno.serve(
         correlationId,
         logger,
       })
-      await supabase.from('market_account_audit').insert({
-        account_id: null,
-        seller_id: sellerId,
-        market_id: market,
-        event: 'connect_failed',
-        correlation_id: correlationId,
-        error_code: reason,
-      })
+      await insertAccountAudit(
+        {
+          account_id: null,
+          seller_id: sellerId,
+          market_id: market,
+          event: 'connect_failed',
+          correlation_id: correlationId,
+          error_code: reason,
+        },
+        `auditFail:${stage}`,
+      )
     }
     const marketReason = (e: unknown): string =>
       e instanceof MarketError ? e.code : 'unknown'
@@ -278,13 +306,16 @@ export default Deno.serve(
     }
 
     // 5) audit
-    await supabase.from('market_account_audit').insert({
-      account_id: account.id,
-      seller_id: sellerId,
-      market_id: market,
-      event: 'connect_succeeded',
-      correlation_id: correlationId,
-    })
+    await insertAccountAudit(
+      {
+        account_id: account.id,
+        seller_id: sellerId,
+        market_id: market,
+        event: 'connect_succeeded',
+        correlation_id: correlationId,
+      },
+      'connect_succeeded',
+    )
     await appendAudit({
       category: 'markets',
       event: 'market_connect_success',
