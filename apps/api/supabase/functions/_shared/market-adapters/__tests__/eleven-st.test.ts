@@ -90,6 +90,25 @@ describe('createElevenStAdapter — stub', () => {
     })
   })
 
+  it('hydrate(api_key StoredCredential) — 저장 자격증명으로 cred 세팅 (throw 없음)', () => {
+    const adapter = createElevenStAdapter()
+    expect(() =>
+      adapter.hydrate({
+        kind: 'api_key',
+        payload: { apiKey: 'stored-11st-key' },
+        expiresAt: null,
+      }),
+    ).not.toThrow()
+  })
+
+  it('hydrate kind 불일치 (hmac) → validation throw', () => {
+    const adapter = createElevenStAdapter()
+    expect(() =>
+      // @ts-expect-error 잘못된 kind 주입 테스트
+      adapter.hydrate({ kind: 'hmac', payload: { accessKey: 'a', secretKey: 's', vendorId: 'v' } }),
+    ).toThrow(MarketError)
+  })
+
   it('refreshToken 인터페이스 — 영구 키라 undefined (인터페이스 optional 준수)', () => {
     const adapter = createElevenStAdapter()
     expect(adapter.refreshToken).toBeUndefined()

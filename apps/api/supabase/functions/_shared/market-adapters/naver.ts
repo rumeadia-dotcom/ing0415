@@ -53,6 +53,11 @@ export function createNaverAdapter(): MarketAdapter {
       throw new MarketError('unknown', NOT_IMPL, { market: MARKET })
     },
 
+    // 네이버 real 어댑터는 전체 stub — 저장 토큰 주입은 Wave 5 본구현 시.
+    hydrate(stored: StoredCredential): void {
+      void stored
+    },
+
     refreshToken(_refresh: string): Promise<TokenSet> {
       throw new MarketError('unknown', NOT_IMPL, { market: MARKET })
     },

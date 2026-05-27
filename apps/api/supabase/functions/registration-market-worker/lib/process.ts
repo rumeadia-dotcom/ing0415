@@ -15,6 +15,7 @@ import {
   withRetry,
   type Logger,
   type MarketId,
+  type StoredCredential,
 } from '../../_shared/index.ts'
 import {
   loadCredentialId,
@@ -103,6 +104,12 @@ export async function processMarket(
       })
     }
   }
+
+  // 저장 자격증명으로 어댑터 hydrate (authenticate 미경유 경로 — createProduct 전 필수).
+  adapter.hydrate({
+    kind: cred.credentialKind,
+    payload: cred.payload,
+  } as StoredCredential)
 
   const payload = adapter.transformProduct(product, mapping)
   const result = await withRetry(
