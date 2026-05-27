@@ -48,6 +48,22 @@ export {
 } from './retry.ts'
 export type { MarketAdapter } from './market-adapter.ts'
 export {
+  MarketOrderStatusSchema,
+  FetchOrdersInputSchema,
+  MarketOrderSchema,
+  SubmitTrackingInputSchema,
+  MarketSubmitTrackingResultSchema,
+  TrackingCarrierCodeSchema,
+  TRACKING_CARRIER_CODES,
+  normalizeIsoOffset,
+  type MarketOrderStatus,
+  type FetchOrdersInput,
+  type MarketOrder,
+  type SubmitTrackingInput,
+  type MarketSubmitTrackingResult,
+  type TrackingCarrierCode,
+} from './market-orders.ts'
+export {
   getMarketAdapter,
   type GetAdapterOptions,
   type MockScenario,
