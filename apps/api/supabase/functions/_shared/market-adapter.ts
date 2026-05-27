@@ -49,6 +49,13 @@ export interface MarketAdapter {
   readonly credentialKind: MarketCredentialKind
 
   authenticate(input: AuthInput): Promise<StoredCredential>
+  /**
+   * 저장된(복호화된) 자격증명으로 어댑터 in-memory cred 를 복원한다.
+   * authenticate(최초 인증/교환)와 분리 — verify / registration 처럼 이미 저장된
+   * 자격증명을 쓰는 경로는 fetchCategoryTree / createProduct 호출 전에 hydrate 를
+   * 먼저 호출해야 한다. 외부 API 호출 없음. kind 불일치 시 MarketError('validation').
+   */
+  hydrate(stored: StoredCredential): void
   refreshToken?(refresh: string): Promise<TokenSet>
   fetchCategoryTree(): Promise<CategoryNode[]>
   transformProduct(product: Product, mapping: MarketMapping): MarketPayload

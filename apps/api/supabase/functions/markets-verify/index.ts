@@ -31,7 +31,11 @@ import {
   storeCredential,
   withRequest,
 } from '../_shared/index.ts'
-import type { DecryptedCredential, MarketId } from '../_shared/index.ts'
+import type {
+  DecryptedCredential,
+  MarketId,
+  StoredCredential,
+} from '../_shared/index.ts'
 
 const RequestSchema = z.object({
   accountId: z.string().uuid(),
@@ -184,6 +188,13 @@ export default Deno.serve(
     }
 
     try {
+      // 저장 자격증명으로 어댑터 hydrate (authenticate 미경유 경로 — 필수).
+      // 누락 시 fetchCategoryTree 가 'authenticate 먼저' unauthorized 를 던져
+      // 멀쩡한 연결이 revoked 처리됨 (2026-05-27 사고).
+      adapter.hydrate({
+        kind: decrypted.credentialKind,
+        payload: decrypted.payload,
+      } as StoredCredential)
       await adapter.fetchCategoryTree()
     } catch (e) {
       if (e instanceof MarketError && e.code === 'unauthorized') {

@@ -1,14 +1,14 @@
-# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결 hotfix 4건 운영 배포 직후)
+# MarketCast — WIP 핸드오프 (2026-05-27 — 쿠팡 연결/검증 hotfix 5건 운영 배포 직후)
 
-**develop HEAD**: 백머지 (main #229 → develop) — chore/backmerge-vault
-**main HEAD**: `<#229 squash>` — fix: 자격증명 RPC search_path 에 extensions 추가 (#229)
-**테스트**: 912 passed / 31 todo (94 files. 1 sanitize-parity env issue — CI 통과)
-**최근 운영 배포**: 쿠팡 vault hotfix #229 (2026-05-27 08:2x UTC) — deploy.yml 5/5 success + **apply_db_migrations=true (마이그 20260527000001 real 적용)**
-**최근 develop 머지**: 백머지 (#229)
+**develop HEAD**: 백머지 (main #231 → develop) — chore/backmerge-hydrate
+**main HEAD**: `<#231 squash>` — fix: 어댑터 hydrate 추가 (상태확인 연결 끊김) (#231)
+**테스트**: ~914 passed / 31 todo (94 files, eleven-st +2 hydrate. 1 sanitize-parity env issue — CI 통과)
+**최근 운영 배포**: 어댑터 hydrate hotfix #231 (2026-05-27 08:4x UTC) — deploy.yml 5/5 success (Edge Functions 재배포)
+**최근 develop 머지**: 백머지 (#231)
 
-## 2026-05-27 세션 결과 (쿠팡 연결 운영 hotfix 4건 — chain 진단)
+## 2026-05-27 세션 결과 (쿠팡 연결/검증 운영 hotfix 5건 — chain 진단)
 
-쿠팡 마켓 연결 흐름의 **연쇄 결함 4개**를 chain 진단으로 순차 해소. 각 fix 가 다음 layer 를 드러냄 (**404→401→500→42883**). 넷 다 "real 쿠팡/Supabase 로 검증된 적 없던" 코드 + "자기 복사본만 검사 / 로컬에선 재현 안 되는 약한 테스트"가 가린 케이스.
+쿠팡 마켓 연결·검증 흐름의 **연쇄 결함 5개**를 chain 진단으로 순차 해소. 각 fix 가 다음 layer 를 드러냄 (**404→401→500→42883→상태확인 끊김**). 전부 "real 쿠팡/Supabase 로 검증된 적 없던" 코드 + "자기 복사본만 검사 / 로컬·mock 에선 재현 안 되는 약한 테스트"가 가린 케이스. **연결 성공 확인됨(쿠팡 active).**
 
 > **교훈**: 마켓 어댑터 real 경로(경로 상수 / HMAC 서명 / 응답 스키마)는 sandbox/실 API 1회 검증 없이 머지하면 안 됨. 단위 테스트가 인라인 복사본을 검사하면 false-confidence (5xx `as never`, HMAC `\n`, strict 스키마 모두 통과했었음). 실모듈 직접 테스트 + KAT 로 가드.
 
@@ -32,9 +32,14 @@
 - 3탄 후 핑 통과 → storeCredential 단계 `fn_encrypt_and_store_credential` 이 42883(undefined_function). correlationId `39cffee6`.
 - Supabase 클라우드는 pgcrypto 를 `extensions` 스키마에 설치하는데, 자격증명 RPC 가 `search_path = public, pg_temp` (extensions 누락) → bare `pgp_sym_encrypt/decrypt` 미해결. 로컬/pgTAP 은 pgcrypto 가 public 이라 통과.
 - 마이그 `20260527000001`: RPC 4개(market 2 + logen 2) search_path 에 `extensions` 추가 (ALTER FUNCTION). `apply_db_migrations=true` 로 real 적용.
-- markets-connect vault `catch{}` 무음 → err 로깅 보강.
+- markets-connect vault `catch{}` 무음 → err 로깅 보강. → **연결 성공(active) 확인됨.**
 
-> ⚠ **격리 hotfix** — 넷 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
+### 5탄 #231 — 어댑터 hydrate (상태확인/등록 시 연결 끊김)
+- 마켓 계정 "상태 확인"(markets-verify) 클릭 시 멀쩡한 연결이 `revoked` 처리.
+- `getMarketAdapter` 는 빈 어댑터 생성, real 어댑터는 authenticate 가 cred 세팅해야 동작. verify 는 `loadCredential`만 하고 authenticate 미호출 → `fetchCategoryTree` 가 `getCredOrThrow()` unauthorized → hmac 즉시 revoked. registration `createProduct` 도 동일.
+- `MarketAdapter.hydrate(stored)` 추가 (authenticate 와 분리, API 없음). coupang/esm/eleven-st 구현, naver(stub)/mock no-op. markets-verify + registration-market-worker 가 ping/createProduct 전 hydrate 호출. mock(dev) cred 게이트 없어 real 첫 검증에서만 발현.
+
+> ⚠ **격리 hotfix** — 다섯 다 main 기준 분기 (develop 누적 미반영, blast radius 최소).
 > ⚠ **4탄 배포 후에도 막히면 남은 원인** = 진짜 쿠팡 5xx(일시) 또는 키 오류 / 쿠팡 Wing IP 화이트리스트 `43.201.83.78` 미등록.
 > ⚠ **dev 미적용**: 마이그 `20260527000001` 은 real 만 적용됨 → dev `db:push:dev` 이월 목록에 추가.
 > ⚠ **후속**: UI 카테고리 트리(s3) 쿠팡 응답 실제 필드명 미검증 / `coupang-edge.test.ts` 인라인 재구현 흡수 / RPC search_path 회귀 가드 pgTAP(proconfig에 extensions 포함 검사).
