@@ -29,6 +29,38 @@
 
 **재발 방지 룰**: 인스턴스의 "고정 IP" 라 부르는 값이 콘솔 **최상위 Networking → Static IPs** 목록에 실제 객체로 존재하는지 명시 검증 후에만 "Static" 으로 기록할 것. 신규 인스턴스 생성 시 즉시 Static IP attach (snapshot-restore 시에도 동일).
 
+## 2026-05-28 세션 결과 #2 (쿠팡 OpenAPI 인덱싱 + 어댑터 drift 발견)
+
+쿠팡 Open API 공식 docs (`developers.coupangcorp.com/hc/ko`, Zendesk Help Center 기반) 99 article 11 섹션 전체를 영구 산출물로 박은 뒤, 우리 쿠팡 어댑터 코드의 path 와 비교 → **drift 3건 + 미구현 endpoint 다수** 발견.
+
+**산출물 (신규)**:
+- `docs/handoff/coupang-api-index.md` — 전체 인덱스 (섹션별 article 링크)
+- `docs/architecture/v1/features/coupang-api/<section>/*.md` — 99 article 마크다운 변환본 (메타 헤더 + body)
+- `.claude/skills/market-api-docs-import/` — 본 작업을 재현하는 스킬 (Zendesk Help Center → md 변환). 추후 11번가/네이버/G마켓 docs 도 동일 패턴이면 이 스킬로 import.
+
+**Drift (운영 영향 가능)**:
+
+| # | 우리 코드 | 공식 문서 | 영향 |
+|---|---|---|---|
+| 1 | `seller_api/.../categorization/display-categories/{id}` (`apps/web/src/lib/markets/real/coupang/index.ts:214`) | `seller_api/.../marketplace/meta/display-categories/{code}` (article "카테고리 조회") | 🔴 `categorization` prefix 가 공식 article 에 없음. 실제 호출 시 404 가능 — 운영 로그 확인 필요 |
+| 2 | `openapi/apis/api/v4/vendors/{vendorId}/ordersheets` (`coupang-orders.ts:114`, `coupang/orders.ts:278`) | `openapi/apis/api/v5/vendors/{vendorId}/ordersheets` (article "발주서 목록 조회 일단위/분단위") | 🟡 v4 → v5 마이그레이션 미적용. v4 동작 중일 수 있으나 deprecation 위험 |
+| 3 | `openapi/apis/api/v4/vendors/{vendorId}/orders/{externalOrderId}/ordersheets/shipments` (`coupang/orders.ts:378`) | `openapi/apis/api/v4/vendors/{vendorId}/orders/invoices` (article "송장업로드 처리") | 🔴 path 구조 자체 불일치. 실제 호출 시 404/400 가능. 운영 송장 업로드 미사용 상태라 잠재 |
+
+**미구현 endpoint (article 존재, 코드 없음 — 향후 백로그)**:
+- 출고지 생성/수정/조회 (셀러 onboarding 핵심)
+- 반품지 생성/수정/조회
+- 상품 수정 (가격/재고/상태)
+- 상품 조회, 상품 목록 페이징 조회
+- 상품 삭제
+- 배송 상태 전이 (상품준비중 / 이미출고 / 출고중지완료)
+- 반품/취소 요청 목록 조회
+- 카테고리 추천
+
+**다음 액션**:
+- drift #1 / #3 — 운영 호출 로그 (Sentry MCP `mcp__sentry__search_issues`) 로 실제 실패 사례 확인. 실패 발견 시 hotfix 우선순위.
+- drift #2 — v5 가 v4 와 호환되지 않으면 별도 마이그레이션 PR (response shape 변화 확인 필요).
+- 미구현 endpoint — v2 로드맵 정리 시 우선순위 결정.
+
 ## 2026-05-27 세션 결과 (release v0.15 — 11번가 v1 정식 + 5마켓 주문 수집)
 
 11번가가 v1 정식 5마켓인데 코드·주석·문서가 stub/제외/"v2 예정"으로 drift돼 있던 것을 전수 정합하고, 미구현분을 실구현 후 운영 배포.
