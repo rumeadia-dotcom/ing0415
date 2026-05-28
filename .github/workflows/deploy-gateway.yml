@@ -16,8 +16,8 @@ name: Deploy Market Gateway
 #
 # 필요한 Secrets (Settings → Secrets and variables → Actions):
 #   LIGHTSAIL_SSH_KEY        — .pem 파일 전체 내용 (-----BEGIN ... -----END ... 포함)
-#   LIGHTSAIL_HOST           — Static IP (예: 43.201.83.78)
-#   GATEWAY_DOMAIN           — sslip.io 도메인 (예: 43-201-83-78.sslip.io)
+#   LIGHTSAIL_HOST           — Static IP (예: 3.36.239.243)
+#   GATEWAY_DOMAIN           — sslip.io 도메인 (예: 3-36-239-243.sslip.io)
 #   OPS_EMAIL                — Let's Encrypt 알림 받을 이메일
 #   SUPABASE_ACCESS_TOKEN    — Supabase Personal Access Token (https://supabase.com/dashboard/account/tokens)
 #   DEV_SUPABASE_PROJECT_REF — eqoywqoalwkwbrdsulfl

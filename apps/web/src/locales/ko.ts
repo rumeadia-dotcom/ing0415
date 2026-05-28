@@ -252,7 +252,7 @@ export const ko = {
         guideSteps: [
           '11번가 셀러오피스(seller.11st.co.kr) 또는 OPEN API 센터(openapi.11st.co.kr)에 판매자 계정으로 로그인합니다',
           '메인 페이지 하단 [OPEN API] 또는 셀러오피스 [API 발급] 메뉴로 진입합니다',
-          'Seller API 발급 양식에서 IP 화이트리스트에 `43.201.83.78` (MarketCast Lightsail Gateway 고정 IP) 를 등록합니다',
+          'Seller API 발급 양식에서 IP 화이트리스트에 `3.36.239.243` (MarketCast Lightsail Gateway 고정 IP) 를 등록합니다',
           '사용 용도에 "11번가 상품 관리 및 주문관리" 를 입력하고 발급 신청합니다',
           '발급된 영구 API Key 를 안전한 곳에 즉시 복사해 보관합니다 (재확인 불가)',
           '입력한 API Key 로 11번가 계정이 연결되며, 다른 마켓과 동일하게 상품 등록 대상으로 선택할 수 있습니다',

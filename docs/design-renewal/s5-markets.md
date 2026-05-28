@@ -64,7 +64,7 @@
 
 - 어댑터 `AuthInput` 은 4-way discriminated union: `oauth_code` | `hmac_key` | `esm_jwt` | `api_key`. `refreshToken` 메서드는 OAuth(네이버) 만 사용 — optional.
 - credential 저장 = `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화. 평문은 Edge Function 안에서만 일시적으로 존재.
-- 11번가는 v1 정식 활성. 이전에 우려된 IP 화이트리스트 문제는 모든 마켓 호출을 AWS Lightsail Gateway 고정 IP (`43.201.83.78`) 경유로 처리하여 해소되었고, 다른 4 마켓과 동일하게 연결·등록·주문 흐름이 동작한다.
+- 11번가는 v1 정식 활성. 이전에 우려된 IP 화이트리스트 문제는 모든 마켓 호출을 AWS Lightsail Gateway 고정 IP (`3.36.239.243`) 경유로 처리하여 해소되었고, 다른 4 마켓과 동일하게 연결·등록·주문 흐름이 동작한다.
 
 ---
 
@@ -402,7 +402,7 @@ sequenceDiagram
 
 - `/markets/connect/11st` 진입 시 = 단일 필드 폼 (`apiKey` = 11번가 Open API 인증키).
 - "연결" 클릭 → `markets-connect` Edge Function 호출 → `api_key` 자격증명 검증 (fetchCategoryTree ping) → `credential_payload` pgcrypto 암호화 후 `market_accounts` insert → `status:'active'`.
-- 모든 11번가 호출은 AWS Lightsail Gateway 고정 IP (`43.201.83.78`) 경유 — 셀러는 11번가 개발자센터(셀러오피스) 에 이 IP 를 화이트리스트 등록 후 인증키 발급.
+- 모든 11번가 호출은 AWS Lightsail Gateway 고정 IP (`3.36.239.243`) 경유 — 셀러는 11번가 개발자센터(셀러오피스) 에 이 IP 를 화이트리스트 등록 후 인증키 발급.
 - 카테고리 / 상품등록 / 주문조회 / 발송 모두 11번가 Open API (XML, EUC-KR) 로 동작 (다른 4 마켓과 동일 흐름).
 
 ---
