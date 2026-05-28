@@ -9,7 +9,9 @@
  *   - PRD.md §6.1 (주문 자동 수집)
  *
  * 엔드포인트:
- *   - GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/ordersheets?status=ACCEPT&createdAtFrom=..&createdAtTo=..
+ *   - GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/ordersheets?status=ACCEPT&createdAtFrom=..&createdAtTo=..
+ *     (v4 → v5 마이그레이션 — 응답이 nested orderer/receiver/Money 객체 형태로 변경됨;
+ *      v4 flat shape 도 fallback 으로 수용)
  *
  * 본 파일은 외부 호출 없는 순수 헬퍼만 둔다 (zod 스키마 / status 정규화 / 매핑 / path 빌더).
  * 실 HTTP 호출은 coupang.ts 의 coupangFetch (HMAC 서명 + gateway) 가 담당.
@@ -34,15 +36,46 @@ const MARKET = 'coupang' as const
 // Wing OpenAPI 주문 조회 응답 스키마
 // ─────────────────────────────────────────────
 
+/**
+ * 쿠팡 Money 객체 — v5 부터 가격 필드가 { currencyCode, units, nanos } nested 로 변경.
+ * v4 의 scalar number 도 fallback (mapCoupangOrders 의 moneyToKrw 가 처리).
+ */
+const CoupangMoneySchema = z.object({
+  currencyCode: z.string().optional().default('KRW'),
+  units: z.number().optional().default(0),
+  nanos: z.number().optional().default(0),
+})
+
 const CoupangOrderItemEntrySchema = z.object({
   vendorItemName: z.string().optional().default(''),
+  vendorItemId: z.number().optional(),
   shippingCount: z.number().int().nonnegative().optional().default(1),
-  orderPrice: z.number().int().nonnegative().optional().default(0),
+  // v5: Money / v4: scalar number — union 으로 둘 다 수용.
+  orderPrice: z.union([CoupangMoneySchema, z.number()]).optional(),
+})
+
+const CoupangOrdererSchema = z.object({
+  name: z.string().optional().default(''),
+  safeNumber: z.string().optional().default(''),
+  ordererNumber: z.string().nullable().optional(),
+})
+
+const CoupangReceiverSchema = z.object({
+  name: z.string().optional().default(''),
+  safeNumber: z.string().optional().default(''),
+  receiverNumber: z.string().nullable().optional(),
+  addr1: z.string().optional().default(''),
+  addr2: z.string().optional().default(''),
 })
 
 const CoupangOrderEntrySchema = z.object({
   shipmentBoxId: z.union([z.string(), z.number()]),
   orderId: z.union([z.string(), z.number()]).optional(),
+  // v5 nested
+  orderer: CoupangOrdererSchema.optional(),
+  receiver: CoupangReceiverSchema.optional(),
+  paidAt: z.string().optional(),
+  // v4 flat (하위호환)
   ordererName: z.string().optional().default(''),
   receiverName: z.string().optional().default(''),
   receiverAddr1: z.string().optional().default(''),
@@ -57,7 +90,20 @@ export const CoupangOrderListResponseSchema = z.object({
   code: z.union([z.string(), z.number()]).optional(),
   message: z.string().optional(),
   data: z.array(CoupangOrderEntrySchema).optional(),
+  nextToken: z.string().optional(),
 })
+
+/**
+ * v5 Money 또는 v4 scalar 를 KRW 정수로 정규화.
+ */
+function moneyToKrw(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'units' in value) {
+    const units = (value as { units?: number }).units
+    return typeof units === 'number' ? units : 0
+  }
+  return 0
+}
 
 export type CoupangOrderListResponse = z.infer<typeof CoupangOrderListResponseSchema>
 type CoupangOrderEntry = z.infer<typeof CoupangOrderEntrySchema>
@@ -111,7 +157,7 @@ export function buildCoupangOrdersPath(
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&')
 
-  return `/v2/providers/openapi/apis/api/v4/vendors/${encodeURIComponent(
+  return `/v2/providers/openapi/apis/api/v5/vendors/${encodeURIComponent(
     vendorId,
   )}/ordersheets?${queryString}`
 }
@@ -124,24 +170,36 @@ export function mapCoupangOrders(
   items: CoupangOrderEntry[],
 ): MarketOrder[] {
   return items.map((item) => {
-    const addr = [item.receiverAddr1, item.receiverAddr2]
-      .filter((s) => s.length > 0)
+    // v5 nested orderer/receiver 우선, 없으면 v4 flat 필드 fallback.
+    const ordererName = item.orderer?.name ?? item.ordererName
+    const receiverName = item.receiver?.name ?? item.receiverName
+    const receiverAddr1 = item.receiver?.addr1 ?? item.receiverAddr1
+    const receiverAddr2 = item.receiver?.addr2 ?? item.receiverAddr2
+    const receiverPhone =
+      item.receiver?.safeNumber ||
+      item.receiver?.receiverNumber ||
+      item.receiverPhoneNumber
+    const paidAtRaw = item.paidAt ?? item.orderedAt
+
+    const addr = [receiverAddr1, receiverAddr2]
+      .filter((s): s is string => typeof s === 'string' && s.length > 0)
       .join(' ')
     const first = item.orderItems[0]
     const totalAmount = item.orderItems.reduce(
-      (sum, entry) => sum + entry.orderPrice * entry.shippingCount,
+      (sum, entry) => sum + moneyToKrw(entry.orderPrice) * entry.shippingCount,
       0,
     )
 
     const order: MarketOrder = {
       market: MARKET,
       externalOrderId: String(item.shipmentBoxId),
-      buyerName: item.ordererName.length > 0 ? item.ordererName : '미상',
-      receiverName: item.receiverName.length > 0 ? item.receiverName : '미상',
+      buyerName: ordererName && ordererName.length > 0 ? ordererName : '미상',
+      receiverName:
+        receiverName && receiverName.length > 0 ? receiverName : '미상',
       receiverAddress: addr.length > 0 ? addr : '주소 없음',
       receiverPhone:
-        item.receiverPhoneNumber.length > 0
-          ? item.receiverPhoneNumber
+        receiverPhone && receiverPhone.length > 0
+          ? receiverPhone
           : '연락처 없음',
       productName:
         first && first.vendorItemName.length > 0
@@ -150,7 +208,7 @@ export function mapCoupangOrders(
       quantity: first ? first.shippingCount : 1,
       orderAmount: totalAmount,
       status: normalizeCoupangStatus(item.status),
-      paidAt: normalizeIsoOffset(item.orderedAt),
+      paidAt: normalizeIsoOffset(paidAtRaw),
     }
     return MarketOrderSchema.parse(order)
   })
