@@ -6,6 +6,29 @@
 **최근 운영 배포**: v0.15 (2026-05-27) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
 **최근 develop 머지**: PR #235 (v0.15 백머지)
 
+## 2026-05-28 세션 결과 (운영 사고 + Gateway IP 마이그레이션)
+
+**증상**: #240(MCP 호스팅 도입) 배포 후 게이트웨이 다운 — 외부 https://43-201-83-78.sslip.io/healthz 무응답. 게이트웨이는 5개 마켓 모든 outbound 의 단일 경유점이라 실 마켓 호출 전면 차단.
+
+**근본 원인**: 512MB nano 인스턴스에 docker + headless chromium(playwright MCP) 스택이 자동기동 → **OOM-lock**. 커널은 살아 80/443 SYN 받지만 Caddy 가 응답 못 함, sshd 도 응답 못 해 브라우저 SSH UPSTREAM_ERROR 515. `mcp-hosting.md §9.2` 가 명시 경고한 시나리오.
+
+**복구 중 추가 발견**: 게이트웨이의 "고정 IP `43.201.83.78`" 가 **정식 Lightsail Static IP 가 아니라 인스턴스 기본(동적) 공인 IP** 였음. Lightsail 콘솔 최상위 Networking → Static IPs 목록에 부재. Stop → IP release → 회수 불가. 설계문서(`market-gateway.md §2`)가 "Static IP" 로 잘못 기록돼 있던 latent 버그.
+
+**조치**:
+1. 스냅샷 → 2GB plan ($10) 신규 인스턴스 생성, **정식 Static IP `3.36.239.243` 할당** (재발 방지).
+2. 박스 `/etc/caddy/Caddyfile`·`/etc/caddy/mcp.caddy` 도메인 → `3-36-239-243.sslip.io` 치환, `systemctl reload caddy` (Let's Encrypt 새 인증서 자동 발급).
+3. Edge Function 시크릿 `MARKET_GATEWAY_BASE_URL` / `MARKET_GATEWAY_URL` dev+real 모두 신규 도메인으로 갱신.
+4. GitHub Actions secrets `LIGHTSAIL_HOST` / `GATEWAY_DOMAIN` 갱신 — 다음 게이트웨이 deploy 가 구 IP 로 SSH 시도 차단.
+5. 앱 사용자 노출 IP (`apps/web/src/locales/ko.ts:255` 셀러 안내) + `CLAUDE.md` 온보딩 전제 + infra/handoff/마스터 설계문서 IP 참조 일괄 갱신.
+6. `systemctl disable mcp-hosting` 으로 부팅 자동기동 차단 — 재활성화는 mem_limit 강제 + playwright on-demand 정책 확정 후.
+
+**잔여 사용자 액션** (이게 끝나야 실 마켓 호출 성공):
+- 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리(G·옥션) / 11번가 셀러오피스 화이트리스트 IP 를 `43.201.83.78` → **`3.36.239.243`** 으로 재등록. 마켓에 따라 키 재발급 필요 시 앱에서 자격증명 재입력.
+- 마켓 1건 실호출 검증 후 구 인스턴스 + 구 스냅샷 정리.
+- MCP 재활성화 정책 확정 (옵션: 2GB 에서 mem_limit + 평시 playwright stop, 또는 1GB+온디맨드).
+
+**재발 방지 룰**: 인스턴스의 "고정 IP" 라 부르는 값이 콘솔 **최상위 Networking → Static IPs** 목록에 실제 객체로 존재하는지 명시 검증 후에만 "Static" 으로 기록할 것. 신규 인스턴스 생성 시 즉시 Static IP attach (snapshot-restore 시에도 동일).
+
 ## 2026-05-27 세션 결과 (release v0.15 — 11번가 v1 정식 + 5마켓 주문 수집)
 
 11번가가 v1 정식 5마켓인데 코드·주석·문서가 stub/제외/"v2 예정"으로 drift돼 있던 것을 전수 정합하고, 미구현분을 실구현 후 운영 배포.
@@ -18,7 +41,7 @@
 
 - **순수 매핑 분리**: `eleven-st-map.ts`(Deno) / `real/11st/map.ts`(FE) — npm/Deno specifier 없는 순수 함수로 Vitest 검증(11번가 21건 + parity).
 - **naver**: 주문수집 fetchOrders 미구현(Wave 5) → `hasFetchOrders` graceful skip. 11번가는 정상 폴링.
-- **잔여 검증 권장**: 11번가 `apiCode`/XML 엘리먼트는 개발자포털 IP 화이트리스트(403)로 미검증 best-effort. `eleven-st-map.ts` 상수 격리 — 셀러 발급 키로 게이트웨이 고정 IP(`43.201.83.78`) 경유 1회 실호출 검증 권장. 마켓별 try/catch 격리로 11번가 실패가 타 마켓 차단 안 함.
+- **잔여 검증 권장**: 11번가 `apiCode`/XML 엘리먼트는 개발자포털 IP 화이트리스트(403)로 미검증 best-effort. `eleven-st-map.ts` 상수 격리 — 셀러 발급 키로 게이트웨이 고정 IP(`3.36.239.243`) 경유 1회 실호출 검증 권장. 마켓별 try/catch 격리로 11번가 실패가 타 마켓 차단 안 함.
 - **운영 확인 필요**: deploy.yml 4잡(Build real / Deploy Pages / Deploy Edge Functions / Finalize Sentry) 성공 여부는 Actions 탭에서 확인.
 
 ## 2026-05-25 세션 결과 (release v0.11 + 11번가 scaffold)
@@ -49,7 +72,7 @@ CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화 완료. 11
 | **F** | `tests/unit/adapters/11st/parity.spec.ts` — §1/§2/§4 활성, §3 mock/real 분리 |
 | **G** | `markets.md` drift 정합 — §3 / §3.2 / §5 / §7.2 정합 |
 
-> **잔여 검증 권장**: 정확한 `apiCode` / 요청·응답 XML 엘리먼트명은 셀러 발급 API Key 의 실호출로 최종 검증 권장 (11번가 개발자포털이 IP 화이트리스트 등록 후에야 정식 문서·apiCode 노출). 게이트웨이 고정 IP `43.201.83.78` 등록 후 발급 키로 1회 실호출 검증.
+> **잔여 검증 권장**: 정확한 `apiCode` / 요청·응답 XML 엘리먼트명은 셀러 발급 API Key 의 실호출로 최종 검증 권장 (11번가 개발자포털이 IP 화이트리스트 등록 후에야 정식 문서·apiCode 노출). 게이트웨이 고정 IP `3.36.239.243` 등록 후 발급 키로 1회 실호출 검증.
 
 ### 11번가 Open API 정보 수집 결과
 
@@ -60,7 +83,7 @@ CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화 완료. 11
 | 호출 형식 | `?key=<API_KEY>&apiCode=<CODE>&<params>` 또는 `openapikey` 헤더 | 블로그 |
 | 응답 format | XML (CP949 인코딩) | 공식 |
 | 인증 모델 | 영구 API Key (refresh 없음) | 공식 |
-| IP 화이트리스트 | 셀러가 사전 등록 후 키 발급 — Lightsail `43.201.83.78` 등록 | 다수 ref |
+| IP 화이트리스트 | 셀러가 사전 등록 후 키 발급 — Lightsail `3.36.239.243` 등록 | 다수 ref |
 | Seller API apiCode 이름 | 구현 반영됨 — 발급 키 실호출로 최종 검증 권장 (개발자포털 IP 화이트리스트) | 어댑터 |
 | 요청·응답 XML schema | 구현 반영됨 — 발급 키 실호출로 엘리먼트명 최종 검증 권장 | 어댑터 |
 
@@ -70,7 +93,7 @@ CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화 완료. 11
 프론트:  React 18 + Vite + TS strict + shadcn + Tailwind + TanStack Query + RHF + zod
          + Tiptap (WYSIWYG) + Daum Postcode SDK + DOMPurify (client) + isomorphic-dompurify (server)
 백엔드:  Supabase (Postgres + RLS + Auth + Storage + Realtime + Edge Functions Deno + pg_cron + Vault)
-         + AWS Lightsail Market Gateway (서울, 43.201.83.78, HMAC + 호스트 화이트리스트)
+         + AWS Lightsail Market Gateway (서울, 3.36.239.243, HMAC + 호스트 화이트리스트)
 호스팅:  GitHub Pages (정적 SPA + 404.html fallback) + Supabase Cloud
 모니터링: Sentry (PII 마스킹 강제)
 CI/CD:   GitHub Actions (PR 8잡 + main 분리, auto-merge 활성)
@@ -146,7 +169,7 @@ supabase db push --linked --dry-run
 
 ### 4. 11번가 발급 키 실호출 최종 검증 (어댑터는 본격 구현 완료)
 - 11번가 셀러오피스 (seller.11st.co.kr) 또는 OPEN API 센터 (openapi.11st.co.kr) 로그인 → Seller API 발급 양식
-- IP 화이트리스트에 Lightsail 고정 IP `43.201.83.78` 등록 → 정식 API Key 발급
+- IP 화이트리스트에 Lightsail 고정 IP `3.36.239.243` 등록 → 정식 API Key 발급
 - 발급 키로 1회 실호출 → 어댑터의 `apiCode` / 요청·응답 XML 엘리먼트명 최종 검증 (불일치 시 어댑터 미세 보정)
 - 사내 vault 에 저장 후 사용자 신호
 

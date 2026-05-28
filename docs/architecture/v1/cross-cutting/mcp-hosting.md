@@ -4,11 +4,11 @@
 >
 > **분류**: 개발 인프라 (chore). 제품 기능 아님 — release 흐름(`develop → release/* → main`)과 섞지 않는다. 작업 브랜치 `chore/mcp-hosting`.
 >
-> **목적**: 기존 AWS Lightsail **Market Gateway** 인스턴스(서울 `ap-northeast-2`, 고정 IP `43.201.83.78`)에 개발용 **원격 MCP 서버 묶음**을 추가 호스팅한다. 단일 개발자(멀티 디바이스)가 회사/집/모바일(LTE)에서 Claude Code 로 접속해 dev/real Supabase 데이터·브라우저 자동화·Sentry·GitHub 를 MCP 로 조회한다.
+> **목적**: 기존 AWS Lightsail **Market Gateway** 인스턴스(서울 `ap-northeast-2`, 고정 IP `3.36.239.243`)에 개발용 **원격 MCP 서버 묶음**을 추가 호스팅한다. 단일 개발자(멀티 디바이스)가 회사/집/모바일(LTE)에서 Claude Code 로 접속해 dev/real Supabase 데이터·브라우저 자동화·Sentry·GitHub 를 MCP 로 조회한다.
 >
 > **절대 제약 (먼저 읽을 것)**:
 > 1. 기존 gateway systemd Deno 서비스(`market-gateway.service`)와 그 비밀(`/etc/market-gateway/env`, `MARKET_GATEWAY_SECRET`, 마켓 자격증명)은 **절대 건드리지 않는다**. MCP 가 침해돼도 gateway 비밀은 안전해야 한다.
-> 2. 고정 IP `43.201.83.78` 은 **절대 변경/release 금지** (5개 마켓 셀러 콘솔 화이트리스트 — `market-gateway.md §2`). MCP 추가가 IP/네트워크 구성을 건드리지 않는다.
+> 2. 고정 IP `3.36.239.243` 은 **절대 변경/release 금지** (5개 마켓 셀러 콘솔 화이트리스트 — `market-gateway.md §2`). MCP 추가가 IP/네트워크 구성을 건드리지 않는다.
 > 3. **real DB 변조 0**. real 접근은 read-only 강제 + PII·자격증명 절대 미노출.
 
 ---
@@ -20,25 +20,25 @@
 | D-1 | 인스턴스 | 기존 gateway Lightsail **재사용** | IP 화이트리스트 자산 재활용. 신규 인스턴스 = 신규 IP = 화이트리스트 재등록 부담 |
 | D-2 | 프로세스 격리 | MCP 는 **docker-compose** 단일 스택, gateway 와 파일·프로세스·uid 분리 | gateway 비밀 격리 (§7) |
 | D-3 | 인증 | **강한 Bearer(256-bit) + HTTPS(Caddy 자동 TLS)** 단일화. 엔드포인트별 별도 토큰 + 즉시 rotation | 멀티 디바이스(가변 IP) → IP allowlist 불가 (§6) |
-| D-4 | 도메인 | **sslip.io 서브도메인** `mcp.43-201-83-78.sslip.io` | 기존 gateway 와 동일 방식. 도메인 구매·DNS 0. IP 영구 고정이라 sslip.io 단점 무의미 (§3) |
+| D-4 | 도메인 | **sslip.io 서브도메인** `mcp.3-36-239-243.sslip.io` | 기존 gateway 와 동일 방식. 도메인 구매·DNS 0. IP 영구 고정이라 sslip.io 단점 무의미 (§3) |
 | D-5 | real DB 접근 | **전용 뷰 스키마 `mcp_ro` deny-by-default** + MCP 전용 제한 Postgres role | base table·PII·자격증명 원천 차단. drift 시에도 PII 유출 0 (§4, §5) |
 | D-6 | transport | **Streamable HTTP**. stdio-only MCP 는 supergateway 로 HTTP 래핑 | MCP 현행 표준 |
 | D-7 | 보안그룹 inbound | **변경 없음** (443 이미 개방 · 22 기존 유지 · 80 ACME 유지). 신규 포트 0 | MCP 는 기존 443 vhost 위에 올라탐 (§6.1) |
-| D-8 | 인스턴스 사양 | **2GB plan($10/월)로 상향 권고** (headless chromium + docker 오버헤드). static IP 보존 resize | 512MB 에선 gateway OOM 위험 (§9.2) |
+| D-8 | 인스턴스 사양 | **2GB plan($10/월) — 적용 완료** (3.36.239.243, headless chromium + docker 오버헤드 흡수) | 2026-05-28 사고 후 마이그레이션 완료 (§14). 1GB 이하 다운사이즈 시 gateway OOM 위험 (§9.2) |
 
 ---
 
 ## 1. 아키텍처
 
 ```
-                                    ┌──────────────────────────── AWS Lightsail (Seoul, 고정 IP 43.201.83.78) ────────────────────────────┐
+                                    ┌──────────────────────────── AWS Lightsail (Seoul, 고정 IP 3.36.239.243) ────────────────────────────┐
                                     │                                                                                                       │
   멀티 디바이스                      │   :443 (이미 개방)                                                                                    │
   (회사/집/모바일 LTE)               │   ┌──────────────────────── Caddy v2 (호스트 systemd, 자동 TLS) ───────────────────────┐               │
   ─ Claude Code ─┐                  │   │                                                                                     │               │
-                 │   HTTPS          │   │  vhost A: 43-201-83-78.sslip.io  ──▶ 127.0.0.1:8787  (기존 gateway Deno — 무수정)    │               │
+                 │   HTTPS          │   │  vhost A: 3-36-239-243.sslip.io  ──▶ 127.0.0.1:8787  (기존 gateway Deno — 무수정)    │               │
    Bearer 토큰   ├──────────────────┼──▶│                                                                                     │               │
-   (엔드포인트별) │                  │   │  vhost B: mcp.43-201-83-78.sslip.io ──▶ 127.0.0.1:9000 (MCP auth-proxy)              │               │
+   (엔드포인트별) │                  │   │  vhost B: mcp.3-36-239-243.sslip.io ──▶ 127.0.0.1:9000 (MCP auth-proxy)              │               │
                  │                  │   └─────────────────────────────────────────────────┬───────────────────────────────┘               │
                  │                  │                                                       │ (호스트 loopback)                              │
                  │                  │   ┌──────────────────── docker-compose 스택 (uid 10001, /opt/mcp-hosting) ──────────────┼─────────┐    │
@@ -69,7 +69,7 @@
 
 ### 1.1 흐름 요약
 
-1. Claude Code → `https://mcp.43-201-83-78.sslip.io/<endpoint>` (엔드포인트별 Bearer).
+1. Claude Code → `https://mcp.3-36-239-243.sslip.io/<endpoint>` (엔드포인트별 Bearer).
 2. Caddy(호스트, 443) 가 TLS 종단 후 `mcp.` Host 만 `127.0.0.1:9000`(auth-proxy)로 reverse-proxy. gateway vhost 는 별도 site 블록 — 무수정.
 3. auth-proxy(컨테이너) 가 (a) path → 엔드포인트 식별 (b) Bearer 상수시간 검증 (c) `/supabase-real` 은 audit 로그 1줄 적재 (d) 내부망의 해당 MCP 컨테이너로 스트리밍 프록시.
 4. MCP 컨테이너는 **호스트에 포트를 열지 않는다** (auth-proxy 만 `127.0.0.1:9000` 노출). 외부 진입점은 Caddy 443 단 하나.
@@ -118,18 +118,18 @@
 
 ## 3. 도메인 결정 — sslip.io 서브도메인 (확정)
 
-**채택: `mcp.43-201-83-78.sslip.io`**
+**채택: `mcp.3-36-239-243.sslip.io`**
 
 | 후보 | 내용 | trade-off | 판정 |
 |---|---|---|---|
-| **sslip.io 서브도메인 (채택)** | `mcp.43-201-83-78.sslip.io` → 43.201.83.78 자동 매핑 | + 도메인 구매·DNS 패널 0 + 기존 gateway(`43-201-83-78.sslip.io`)와 동일 방식 + Caddy Let's Encrypt 자동 발급. − 서드파티 DNS 의존 / "전문" 도메인 아님 | ✅ |
-| 신규 실 서브도메인 A레코드 | 보유 도메인 `mcp.<domain>` A → 43.201.83.78 | + 안정·자기 통제. − 도메인 보유 + DNS 관리 필요. **IP 영구 고정이라 안정성 이점 사실상 0** | 보류 |
+| **sslip.io 서브도메인 (채택)** | `mcp.3-36-239-243.sslip.io` → 3.36.239.243 자동 매핑 | + 도메인 구매·DNS 패널 0 + 기존 gateway(`3-36-239-243.sslip.io`)와 동일 방식 + Caddy Let's Encrypt 자동 발급. − 서드파티 DNS 의존 / "전문" 도메인 아님 | ✅ |
+| 신규 실 서브도메인 A레코드 | 보유 도메인 `mcp.<domain>` A → 3.36.239.243 | + 안정·자기 통제. − 도메인 보유 + DNS 관리 필요. **IP 영구 고정이라 안정성 이점 사실상 0** | 보류 |
 
 **근거**:
 - 기존 gateway 가 이미 sslip.io 로 운영 중(`market-gateway.md §2 / §10`) → 동일 패턴 재사용이 운영 단순.
 - sslip.io 의 통상 단점("IP 바뀌면 도메인도 바뀜")은 **본 IP 가 5개 마켓 화이트리스트로 영구 고정**(절대 변경 금지)이라 해당 없음.
 - gateway 와 **다른 Host**(`mcp.` 접두) 라서 Caddy site 블록이 깔끔히 분리 → gateway 블록 무수정 보장.
-- Let's Encrypt: sslip.io 는 Public Suffix List 등재 → `mcp.43-201-83-78.sslip.io` 가 독립 rate-limit 버킷. gateway 의 `43-201-83-78.sslip.io` 와 별개 인증서로 충돌 없음.
+- Let's Encrypt: sslip.io 는 Public Suffix List 등재 → `mcp.3-36-239-243.sslip.io` 가 독립 rate-limit 버킷. gateway 의 `3-36-239-243.sslip.io` 와 별개 인증서로 충돌 없음.
 
 > 운영 도메인을 추후 보유하게 되면 A레코드 추가 + Caddyfile Host 교체만으로 무중단 전환 가능 (설계 변경 없음).
 
@@ -554,31 +554,31 @@ User=mcp
 WantedBy=multi-user.target
 ```
 
-### 9.2 메모리·디스크 — 인스턴스 상향 권고 (중요)
+### 9.2 메모리·디스크 — 인스턴스 사양 (적용 완료)
 
-현 인스턴스: **nano $3.5/월 (512MB RAM / 20GB SSD / 2GB swap)**.
+현 인스턴스: **2GB plan $10/월 (2GB RAM / 60GB SSD / 2GB swap)** — 2026-05-28 사고 후 마이그레이션 완료 (§14).
 
 | 구성요소 | RAM(평시/피크) |
 |---|---|
-| gateway Deno + Caddo + 시스템 (기존) | ~200MB |
+| gateway Deno + Caddy + 시스템 (기존) | ~200MB |
 | docker daemon | ~80MB |
 | auth-proxy | ~30MB |
 | postgres-mcp ×2 | ~150MB |
 | sentry-mcp | ~120MB |
 | **playwright headless chromium** | **~400–800MB (피크)** |
 
-→ **512MB + swap 으로는 playwright 가동 시 OOM 위험** (최악의 경우 OOM killer 가 gateway 프로세스를 죽일 수 있음 — 운영 사고). 대응:
+→ 2GB 인스턴스에서 피크 합산 ≈1.4GB, 평시 ≪1GB — swap 여유. **mem_limit 강제**: 위 compose 의 `mem_limit` 합(≈2.3GB 상한, cgroup 격리)으로 컨테이너가 gateway 메모리를 잠식하지 못하게 한다. OOM 시 **컨테이너만** 죽고 gateway 는 보존.
 
-- **권고: 2GB plan($10/월)로 상향**. 60GB SSD 동반 → docker 이미지(chromium 포함 ~2–3GB) 여유.
-- **mem_limit 강제**: 위 compose 의 `mem_limit` 합(≈2.3GB 피크, 평시 ≪)으로 컨테이너가 gateway 메모리를 잠식하지 못하게 cgroup 격리. OOM 시 **컨테이너만** 죽고 gateway 는 보존.
-- 대안(비용 억제): 1GB plan($5) + playwright 를 평시 `stop`, 필요 시 `docker compose up -d playwright-mcp` 온디맨드.
+다운사이즈 시 주의:
+- **1GB plan($5)** : playwright 를 평시 `stop`, 필요 시 `docker compose up -d playwright-mcp` 온디맨드.
+- **512MB(nano $3.5)** : playwright/sentry `profiles: ["heavy"]` 부활 + `--profile heavy` 로만 활성. 미적용 시 gateway OOM 사고 재발 위험 (§14 사고 기록).
 
-**static IP 보존 resize 절차** (IP 43.201.83.78 절대 보존):
+**static IP 보존 resize 절차** (IP 3.36.239.243 절대 보존):
 1. 인스턴스 snapshot 생성.
 2. snapshot → 2GB plan 신규 인스턴스 생성 (서울).
 3. 신규 인스턴스에서 gateway + MCP 헬스 확인.
 4. **static IP 를 구 인스턴스에서 detach → 신규 인스턴스에 attach** (동일 IP 객체 재attach = 주소 보존. **release/delete 는 금지**).
-5. `curl https://43-201-83-78.sslip.io/healthz` (gateway) + `https://mcp.43-201-83-78.sslip.io/healthz` (MCP) 200 확인 → 구 인스턴스 삭제.
+5. `curl https://3-36-239-243.sslip.io/healthz` (gateway) + `https://mcp.3-36-239-243.sslip.io/healthz` (MCP) 200 확인 → 구 인스턴스 삭제.
 - 컷오버 중 gateway 수 분 다운 → 사전 공지 후 트래픽 한산 시간대. (또는 신규 인스턴스 병행 기동 후 IP 스위치로 다운 최소화.)
 
 ### 9.3 로그·헬스체크·재시작
@@ -588,7 +588,7 @@ WantedBy=multi-user.target
   - gateway: `journalctl -u market-gateway -f` (기존 그대로).
 - **real audit**: `/var/log/mcp-hosting/real-access.log` (auth-proxy) + logrotate(daily, 30일).
 - **헬스체크**:
-  - 통합: `GET https://mcp.43-201-83-78.sslip.io/healthz` (auth-proxy, 무인증, 민감정보 없음) → 200.
+  - 통합: `GET https://mcp.3-36-239-243.sslip.io/healthz` (auth-proxy, 무인증, 민감정보 없음) → 200.
   - 각 컨테이너 docker `healthcheck`(HTTP ping) + `restart: unless-stopped`.
   - 외부 uptime(선택): 기존 gateway 와 동일 도구로 `/healthz` 폴링.
 - **재시작**: `docker compose restart <svc>` 또는 `systemctl restart mcp-hosting`. gateway 와 독립.
@@ -596,13 +596,13 @@ WantedBy=multi-user.target
 
 ### 9.4 비용 추정
 
-| 항목 | 현재 | MCP 추가 후 |
+| 항목 | 마이그레이션 전 (nano) | 현재 (2GB, 2026-05-28~) |
 |---|---|---|
-| Lightsail 인스턴스 | $3.5/월 (512MB) | **$10/월 (2GB) 권고** (또는 $5/1GB 온디맨드 운용) |
-| Static IP | $0 (attach 중 무료) | $0 (동일) |
-| 데이터 전송 | 1TB 포함 | 동일 (MCP egress 미미, playwright 페이지 fetch 소량) |
+| Lightsail 인스턴스 | $3.5/월 (512MB) | **$10/월 (2GB)** — 적용 완료 |
+| Static IP | $0 (attach 중 무료) | $0 (동일, `3.36.239.243`) |
+| 데이터 전송 | 1TB 포함 | 3TB 포함 (2GB plan) |
 | 외부 토큰 | — | Sentry/GitHub 무료 tier |
-| **합계** | $3.5/월 | **$10/월 (Δ +$6.5)** 또는 $5/월(Δ +$1.5, 온디맨드) |
+| **합계** | $3.5/월 | **$10/월 (Δ +$6.5)** |
 
 ---
 
@@ -617,22 +617,22 @@ WantedBy=multi-user.target
   "mcpServers": {
     "supabase-dev": {
       "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/supabase-dev",
+      "url": "https://mcp.3-36-239-243.sslip.io/supabase-dev",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_SUPABASE_DEV}" }
     },
     "supabase-real": {
       "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/supabase-real",
+      "url": "https://mcp.3-36-239-243.sslip.io/supabase-real",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_SUPABASE_REAL}" }
     },
     "playwright": {
       "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/playwright",
+      "url": "https://mcp.3-36-239-243.sslip.io/playwright",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_PLAYWRIGHT}" }
     },
     "sentry": {
       "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/sentry",
+      "url": "https://mcp.3-36-239-243.sslip.io/sentry",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_SENTRY}" }
     }
     // "github": { "type": "http", "url": ".../github", "headers": { "Authorization": "Bearer ${MCP_TOKEN_GITHUB}" } }  // 선택
@@ -685,6 +685,7 @@ WantedBy=multi-user.target
 
 ## 14. 변경 이력
 
+- 2026-05-28 (운영 사고 + IP 마이그레이션) — Phase 2·3 배포 후 512MB nano 에서 docker+chromium OOM-lock 발생 → gateway 다운 (8h+ 외부 영향). 복구 중 §9.2 "static IP" 절차 진입 시 **기존 IP `43.201.83.78` 이 실제로는 정식 Static IP 가 아니라 인스턴스 기본(동적) 공인 IP** 였음이 확인됨 — Stop 시 release 되어 회수 불가. **사후 조치**: (a) 신규 2GB plan 인스턴스(snapshot 기반) + **정식 Lightsail Static IP `3.36.239.243`** 할당, 도메인 `mcp.3-36-239-243.sslip.io` 로 갱신; (b) `systemctl disable mcp-hosting` 으로 부팅 자동기동 차단(재활성화 정책 후속 — 2GB 에서도 mem_limit 강제 + playwright on-demand 가 안전); (c) `market-gateway.md §10` 동일 incident 엔트리 + 본 §14 동기 갱신; (d) 5개 마켓 화이트리스트 재등록 진행 중. **재발 방지 룰**: 인스턴스의 "고정 IP" 라 부르는 값이 콘솔 **최상위 Networking → Static IPs** 목록에 실제 객체로 존재하는지 명시 검증 후에만 "Static" 으로 기록할 것.
 - 2026-05-28 — Phase 2·3 구현 (`infra/mcp-hosting/`). 클라이언트 = **데스크톱 `.mcp.json`(Bearer) 전용** 확정, 모바일 보류 (§10/§12). 구현 중 설계 정정 2건: (1) compose 비밀 주입을 `env_file` → **`--env-file` 치환**으로 교정 (`${DATABASE_URI_*}` 가 env_file 에서 치환되지 않는 compose 사양 때문 — 그대로면 postgres-mcp 기동 실패). (2) §5.1 의 `revoke ... on schema auth/storage` 제거 — 해당 스키마는 `postgres` 소유가 아니라 명시 revoke 시 에러 → GRANT 미부여(기본 차단)로 동일 효과.
 - 2026-05-27 — v1 도입. 기존 Lightsail gateway 에 MCP 스택 추가 호스팅 설계(Phase 1 문서). 도메인 = sslip.io 서브도메인(`mcp.43-201-83-78.sslip.io`) 확정. real DB = 전용 뷰 스키마 `mcp_ro` deny-by-default + MCP 전용 제한 role(`mcp_ro_real`/`mcp_ro_dev`) 확정. 인스턴스 2GB 상향 권고.
 

@@ -13,7 +13,7 @@
 #   2) 본 디렉토리를 인스턴스로 전송:
 #        rsync -avz infra/mcp-hosting/ ubuntu@<static-ip>:/tmp/mcp-hosting/
 #   3) 실행 (MCP_BASE = gateway 와 동일한 sslip 베이스 도메인. 엔드포인트는 서브도메인으로 노출):
-#        sudo MCP_BASE=43-201-83-78.sslip.io bash /tmp/mcp-hosting/setup.sh
+#        sudo MCP_BASE=3-36-239-243.sslip.io bash /tmp/mcp-hosting/setup.sh
 #   4) /etc/mcp-hosting/env 의 토큰/DATABASE_URI/SENTRY 채우기 (.env.example 참고).
 #   5) sql/ 적용 (운영자 수동, real 1회 + dev 1회 — sql/README.md).
 #   6) sudo systemctl start mcp-hosting   (또는 cd /opt/mcp-hosting && sudo -u mcp docker compose up -d)
@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-MCP_BASE="${MCP_BASE:?set MCP_BASE=<ip-hyphen>.sslip.io  (예: 43-201-83-78.sslip.io)}"
+MCP_BASE="${MCP_BASE:?set MCP_BASE=<ip-hyphen>.sslip.io  (예: 3-36-239-243.sslip.io)}"
 # Caddy 전역 email 은 gateway 의 메인 Caddyfile 에 이미 정의됨 → import 된 mcp vhost 가 공유.
 # 따라서 OPS_EMAIL 은 받지 않는다 (gateway 무수정 원칙).
 # 엔드포인트는 supabase-dev.${MCP_BASE} / supabase-real.${MCP_BASE} / playwright… / sentry… 서브도메인.
@@ -169,7 +169,7 @@ main() {
        curl -i https://${MCP_BASE}/healthz                 # gateway 무영향 재확인
   5) 디바이스 .mcp.json 배포 (mcp.json.example) + real read-only/PII-redacted 검증.
 
- ⚠ 인스턴스가 512MB(nano)면 playwright OOM 위험 — §9.2 의 2GB resize 룬북 권고.
+ 인스턴스 권고 = 2GB plan ($10/월). 1GB 이하면 playwright OOM 위험 — §9.2 룬북 참조.
 ==========================================================================
 EOM
 }

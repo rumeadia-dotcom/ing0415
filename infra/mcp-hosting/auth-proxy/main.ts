@@ -8,7 +8,7 @@
  *   광고하므로 path-prefix(/supabase-real)로는 메시지 POST 가 prefix 를 잃어 깨진다.
  *   서브도메인이면 prefix 가 없어 SSE·Streamable HTTP 모두 그대로 동작.
  *
- * 동작 (Caddy 가 *.43-201-83-78.sslip.io 의 4 서브도메인을 127.0.0.1:9000 으로 reverse-proxy):
+ * 동작 (Caddy 가 *.3-36-239-243.sslip.io 의 4 서브도메인을 127.0.0.1:9000 으로 reverse-proxy):
  *  (a) Host 헤더 첫 라벨로 엔드포인트 식별 (supabase-dev / supabase-real / playwright / sentry)
  *  (b) 엔드포인트별 Bearer 토큰 상수시간 검증 (현재 + grace _NEXT)
  *  (c) supabase-real 은 200/401 전건 audit 1줄 (쿼리 본문 미기록)
@@ -68,7 +68,7 @@ function parseRoutes(raw: string): Map<string, string> {
 const ROUTES = parseRoutes(Deno.env.get('ROUTES') ?? '');
 if (ROUTES.size === 0) log('warn', {}, 'ROUTES is empty — every request will 404');
 
-/** Host 헤더 첫 DNS 라벨 → 엔드포인트. supabase-real.43-201-83-78.sslip.io → supabase-real */
+/** Host 헤더 첫 DNS 라벨 → 엔드포인트. supabase-real.3-36-239-243.sslip.io → supabase-real */
 function endpointFromHost(req: Request): string {
   const host = (req.headers.get('host') ?? req.headers.get('x-forwarded-host') ?? '').toLowerCase();
   const hostname = host.split(':')[0];           // 포트 제거

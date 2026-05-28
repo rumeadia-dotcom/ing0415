@@ -3,13 +3,13 @@
 #
 # 위치(인스턴스): /etc/caddy/mcp.caddy
 # 메인 /etc/caddy/Caddyfile 끝에 `import mcp.caddy` 1줄로 로드 (setup.sh 가 멱등 추가).
-# gateway site 블록(43-201-83-78.sslip.io → :8787)은 손대지 않는다.
+# gateway site 블록(3-36-239-243.sslip.io → :8787)은 손대지 않는다.
 #
 # 라우팅: 엔드포인트별 **서브도메인** (path-prefix 폐기 — SSE /messages/ 호환).
-#   sslip.io 는 <anything>.43-201-83-78.sslip.io 를 전부 43.201.83.78 로 해석 → 서브도메인 무료.
+#   sslip.io 는 <anything>.3-36-239-243.sslip.io 를 전부 3.36.239.243 로 해석 → 서브도메인 무료.
 #   Caddy 가 각 서브도메인 인증서를 HTTP-01 로 자동 발급.
 # auth-proxy 가 Host 헤더로 엔드포인트 식별 + Bearer 검증 후 내부 MCP 로 전달.
-# MCP_BASE_PLACEHOLDER 는 setup.sh 가 MCP_BASE(예: 43-201-83-78.sslip.io)로 치환.
+# MCP_BASE_PLACEHOLDER 는 setup.sh 가 MCP_BASE(예: 3-36-239-243.sslip.io)로 치환.
 
 supabase-dev.MCP_BASE_PLACEHOLDER,
 supabase-real.MCP_BASE_PLACEHOLDER,

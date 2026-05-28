@@ -1,48 +1,24 @@
-// Claude Code 디바이스별 .mcp.json 예시.
-// 설계: docs/architecture/v1/cross-cutting/mcp-hosting.md §10
-//
-// 사용:
-//   1) 이 파일을 프로젝트 루트 .mcp.json 으로 복사 (또는 ~/.claude.json 의 mcpServers 에 병합).
-//      ⚠ 프로젝트 루트 .mcp.json 은 .gitignore 됨 (커밋 금지).
-//   2) 셸 환경변수로 토큰 주입 — .mcp.json 에 평문 토큰 박지 않는다:
-//        export MCP_TOKEN_SUPABASE_DEV=...   (인스턴스 /etc/mcp-hosting/env 와 동일 값)
-//        export MCP_TOKEN_SUPABASE_REAL=...
-//        export MCP_TOKEN_PLAYWRIGHT=...
-//        export MCP_TOKEN_SENTRY=...
-//   3) MCP_DOMAIN 은 인스턴스와 동일 (예: mcp.43-201-83-78.sslip.io).
-//
-// DB/Sentry/GitHub 토큰은 인스턴스 컨테이너 env 에만 존재 — 클라이언트로 내려오지 않는다.
-// type: "http" = Streamable HTTP. real 은 엔드포인트 단위 토큰 (dev 와 다름).
-//
-// 주의: MCP 서버가 서브경로(/mcp 등)에서 listen 하면 url 끝에 그 경로를 붙이거나
-//       (예: ".../supabase-real/mcp"), 인스턴스 ROUTES 의 target 에 경로를 포함한다.
-//       기동 후 실제 경로를 확인해 한쪽으로 맞춘다 (README "엔드포인트 경로 튜닝").
 {
   "mcpServers": {
     "supabase-dev": {
-      "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/supabase-dev",
+      "type": "sse",
+      "url": "https://supabase-dev.3-36-239-243.sslip.io/sse",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_SUPABASE_DEV}" }
     },
     "supabase-real": {
-      "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/supabase-real",
+      "type": "sse",
+      "url": "https://supabase-real.3-36-239-243.sslip.io/sse",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_SUPABASE_REAL}" }
     },
     "playwright": {
       "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/playwright",
+      "url": "https://playwright.3-36-239-243.sslip.io/mcp",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_PLAYWRIGHT}" }
     },
     "sentry": {
       "type": "http",
-      "url": "https://mcp.43-201-83-78.sslip.io/sentry",
+      "url": "https://sentry.3-36-239-243.sslip.io/mcp",
       "headers": { "Authorization": "Bearer ${MCP_TOKEN_SENTRY}" }
     }
-    // "github": {
-    //   "type": "http",
-    //   "url": "https://mcp.43-201-83-78.sslip.io/github",
-    //   "headers": { "Authorization": "Bearer ${MCP_TOKEN_GITHUB}" }
-    // }
   }
 }

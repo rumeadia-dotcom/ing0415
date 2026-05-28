@@ -1,6 +1,6 @@
 # MCP hosting — AWS Lightsail (gateway 인스턴스 공존)
 
-단일 개발자(멀티 디바이스)가 회사/집/모바일에서 Claude Code 로 dev/real Supabase·Playwright·Sentry(·GitHub)를 MCP 로 조회하기 위한 **원격 MCP 서버 묶음**. 기존 **Market Gateway** Lightsail 인스턴스(서울, 고정 IP `43.201.83.78`)에 추가 호스팅한다.
+단일 개발자(멀티 디바이스)가 회사/집/모바일에서 Claude Code 로 dev/real Supabase·Playwright·Sentry(·GitHub)를 MCP 로 조회하기 위한 **원격 MCP 서버 묶음**. 기존 **Market Gateway** Lightsail 인스턴스(서울, 고정 IP `3.36.239.243`)에 추가 호스팅한다.
 
 설계 ground truth: [`docs/architecture/v1/cross-cutting/mcp-hosting.md`](../../docs/architecture/v1/cross-cutting/mcp-hosting.md).
 
@@ -9,15 +9,15 @@
 ## 절대 제약 (먼저 읽을 것)
 
 1. **gateway 무수정.** `market-gateway.service` / `/etc/market-gateway/env`(`MARKET_GATEWAY_SECRET`·마켓 자격증명) / `/opt/market-gateway` 를 일절 건드리지 않는다. MCP 가 침해돼도 gateway 비밀은 안전해야 한다.
-2. **고정 IP `43.201.83.78` 변경 금지.** 5개 마켓 셀러 콘솔 화이트리스트 자산. resize 시 IP **재attach** (release/delete 금지 — §9.2 룬북).
+2. **고정 IP `3.36.239.243` 변경 금지.** 5개 마켓 셀러 콘솔 화이트리스트 자산. resize 시 IP **재attach** (release/delete 금지 — §9.2 룬북).
 3. **real DB 변조 0.** real 은 read-only 강제 + PII·자격증명 절대 미노출 (`mcp_ro` 뷰만).
 
 ## 아키텍처 (요약)
 
 ```
 Claude Code ──HTTPS(Bearer)──▶ Caddy :443 (호스트, 기존)
-                                ├─ vhost A 43-201-83-78.sslip.io     → :8787 gateway (무수정)
-                                └─ vhost B mcp.43-201-83-78.sslip.io → :9000 auth-proxy
+                                ├─ vhost A 3-36-239-243.sslip.io     → :8787 gateway (무수정)
+                                └─ vhost B mcp.3-36-239-243.sslip.io → :9000 auth-proxy
                                                                          │ (Bearer 검증/라우팅/real audit)
                                               docker-compose (uid 10001, 내부망)
                                               ├─ postgres-mcp-dev  (role mcp_ro_dev)
@@ -55,11 +55,11 @@ Claude Code ──HTTPS(Bearer)──▶ Caddy :443 (호스트, 기존)
 
 ```bash
 # 1) 본 디렉토리 전송
-rsync -avz infra/mcp-hosting/ ubuntu@43.201.83.78:/tmp/mcp-hosting/
+rsync -avz infra/mcp-hosting/ ubuntu@3.36.239.243:/tmp/mcp-hosting/
 
 # 2) 셋업 (gateway 와 다른 mcp. 접두 도메인. Caddy email 은 gateway Caddyfile 전역 공유)
-ssh ubuntu@43.201.83.78
-sudo MCP_DOMAIN=mcp.43-201-83-78.sslip.io bash /tmp/mcp-hosting/setup.sh
+ssh ubuntu@3.36.239.243
+sudo MCP_DOMAIN=mcp.3-36-239-243.sslip.io bash /tmp/mcp-hosting/setup.sh
 
 # 3) /etc/mcp-hosting/env 채우기 (토큰/DATABASE_URI/SENTRY) — .env.example 주석 참고
 #    토큰: openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
@@ -68,13 +68,13 @@ sudo MCP_DOMAIN=mcp.43-201-83-78.sslip.io bash /tmp/mcp-hosting/setup.sh
 sudo systemctl start mcp-hosting
 
 # 5) 헬스체크 (둘 다 200 — gateway 무영향 확인)
-curl -i https://mcp.43-201-83-78.sslip.io/healthz
-curl -i https://43-201-83-78.sslip.io/healthz
+curl -i https://mcp.3-36-239-243.sslip.io/healthz
+curl -i https://3-36-239-243.sslip.io/healthz
 ```
 
-### Phase 4 — 인스턴스 2GB resize (필요 시, static IP 보존)
+### Phase 4 — 인스턴스 2GB resize (완료, static IP 보존)
 
-현 인스턴스가 512MB(nano)면 playwright headless chromium 가동 시 **OOM 위험** (gateway 프로세스가 OOM killer 대상이 될 수 있음). `mcp-hosting.md §9.2` 룬북:
+현 인스턴스 = **2GB plan / Static IP `3.36.239.243`** (2026-05-28 사고 후 마이그레이션 완료). 1GB 이하 다운사이즈 시 playwright headless chromium 가동 시 OOM 위험 (gateway 프로세스가 OOM killer 대상이 될 수 있음). `mcp-hosting.md §9.2` 룬북 (참고용):
 
 1. 인스턴스 snapshot → 2GB plan 신규 인스턴스 생성 (서울).
 2. gateway + MCP 헬스 확인.
@@ -83,13 +83,43 @@ curl -i https://43-201-83-78.sslip.io/healthz
 
 비용 억제 대안: 1GB($5) + playwright 온디맨드 (`docker compose up -d playwright-mcp` 필요 시).
 
-### Phase 5 — 클라이언트 연결 + 검증
+### Phase 5 — 클라이언트 (디바이스) 연결 + 검증
+
+각 디바이스 (회사 Mac · 집 Windows · 모바일 등) 에서 1회 셋업:
+
+**1) `.mcp.json` 배치** — `infra/mcp-hosting/mcp.json.example` 파일을 그대로 프로젝트 루트 `.mcp.json` 으로 복사. (`.gitignore` 됨 — 머신마다 직접 배치)
 
 ```bash
-# 디바이스에서 토큰을 셸 env 로 주입 후 mcp.json.example → .mcp.json
-export MCP_TOKEN_SUPABASE_REAL=...   # /etc/mcp-hosting/env 와 동일
-# Claude Code 에서 supabase-real 로 SELECT (PII redacted 확인) / write 시 거부 확인
+# macOS / Linux
+cp infra/mcp-hosting/mcp.json.example .mcp.json
 ```
+
+```powershell
+# Windows PowerShell
+Copy-Item infra\mcp-hosting\mcp.json.example .mcp.json
+```
+
+**2) 토큰 4개를 셸 env 로 주입** — 값은 `/etc/mcp-hosting/env` (인스턴스 운영자만 보유) 와 동일.
+
+```bash
+# macOS / Linux — ~/.zshrc 또는 ~/.bash_profile (cmux 사용 시 ~/.bash_profile 권장)
+export MCP_TOKEN_SUPABASE_DEV=...
+export MCP_TOKEN_SUPABASE_REAL=...
+export MCP_TOKEN_PLAYWRIGHT=...
+export MCP_TOKEN_SENTRY=...
+```
+
+```powershell
+# Windows PowerShell — setx 는 영구 저장 (새 셸 띄워야 반영)
+setx MCP_TOKEN_SUPABASE_DEV "..."
+setx MCP_TOKEN_SUPABASE_REAL "..."
+setx MCP_TOKEN_PLAYWRIGHT "..."
+setx MCP_TOKEN_SENTRY "..."
+```
+
+**3) Claude Code 재시작 → `/mcp` 에서 4개 모두 `connected` 확인.** supabase-real 로 SELECT (PII redacted) / write 시 거부 동작도 1회 검증.
+
+⚠ env 가 `이미 실행 중인 Claude Code` 에는 반영되지 않는다 — 자식 프로세스는 부모 env 를 시작 시점에만 상속. 셸 env 갱신 후 Claude Code 자체를 종료/재실행.
 
 ## 운영
 

@@ -92,11 +92,11 @@ services:
     mem_limit: 256m
 
   playwright-mcp:
-    # ⚠ 512MB 인스턴스에선 OOM 유발 (2026-05-28 사고). 기본 비활성.
-    #   활성: docker compose --profile heavy up -d  (2GB 이상으로 resize 후 권장)
-    profiles: ["heavy"]
+    # 현 인스턴스(2GB, 3.36.239.243)에서 기본 기동. mem_limit 1.5GB 로 chromium peak 흡수.
+    # 만약 1GB 이하 인스턴스로 다운사이즈 시 OOM 위험 → profiles: ["heavy"] 부활 + --profile heavy 운영.
     image: mcr.microsoft.com/playwright:v1.48.0-jammy
-    command: ["npx", "-y", "@playwright/mcp@latest", "--headless", "--host", "0.0.0.0", "--port", "8931", "--isolated"]
+    # --allowed-hosts '*' : auth-proxy 경유 외부 도메인 호출 허용. 보안은 auth-proxy Bearer 에 위임.
+    command: ["npx", "-y", "@playwright/mcp@latest", "--headless", "--host", "0.0.0.0", "--port", "8931", "--isolated", "--allowed-hosts", "*"]
     user: "10001:10001"
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -109,8 +109,7 @@ services:
     mem_limit: 1536m                          # headless chromium peak (§9.2)
 
   sentry-mcp:
-    # 512MB 에선 메모리 여유 부족 → 기본 비활성 (core 안정화 우선). 활성: --profile heavy.
-    profiles: ["heavy"]
+    # 현 인스턴스(2GB)에서 기본 기동. mem_limit 192MB.
     image: node:20-alpine
     command: ["npx", "-y", "supergateway", "--stdio", "npx -y @sentry/mcp-server", "--outputTransport", "streamableHttp", "--port", "8000", "--host", "0.0.0.0"]
     user: "10001:10001"
@@ -121,7 +120,9 @@ services:
     environment:
       HOME: /tmp                              # uid 10001 쓰기 가능 (npm 캐시 /.npm 권한오류 회피)
       npm_config_cache: /tmp/.npm
-      SENTRY_AUTH_TOKEN: "${SENTRY_AUTH_TOKEN}"   # read scope
+      # @sentry/mcp-server 는 SENTRY_ACCESS_TOKEN 을 읽음 (SENTRY_AUTH_TOKEN 아님).
+      # /etc/mcp-hosting/env 의 키는 SENTRY_AUTH_TOKEN 유지하고 컨테이너 측만 매핑.
+      SENTRY_ACCESS_TOKEN: "${SENTRY_AUTH_TOKEN}"
       SENTRY_HOST: "${SENTRY_HOST:-sentry.io}"
     restart: unless-stopped
     logging: { driver: journald }

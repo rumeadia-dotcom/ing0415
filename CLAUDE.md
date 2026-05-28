@@ -187,7 +187,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - **s5 마켓 계정** — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부** (real 어댑터까지 동작). 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전, 고정 IP)** 경유 (`docs/architecture/v1/cross-cutting/market-gateway.md`). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
   - PRD §2.2.1 OAuth 인증 플로우, §2.2.2 API 연결 상태 실시간 표시, §2.2.3 OAuth 토큰 갱신 자동화, §2.3.1 연결 계정 목록 조회, §2.3.2 마켓 계정 추가/수정/삭제, §2.3.3 연결 상태 실시간 표시.
   - 자격증명 보안: §2.4.1 정기 보안 감사, §2.4.2 인증 정보 백업/복구.
-  - **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 셀러의 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 Lightsail Gateway 의 고정 IP (`43.201.83.78`) 를 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리 / 11번가 셀러오피스 모두에 등록 후 키 발급. 미등록 시 키 발급 자체가 거부되거나 API 호출 시 거부 (`docs/handoff/lightsail-setup-guide.md §7` / `§A.8`).
+  - **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 셀러의 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 Lightsail Gateway 의 고정 IP (`3.36.239.243`) 를 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리 / 11번가 셀러오피스 모두에 등록 후 키 발급. 미등록 시 키 발급 자체가 거부되거나 API 호출 시 거부 (`docs/handoff/lightsail-setup-guide.md §7` / `§A.8`).
   - 근거: 5개 마켓 모두 v1 출시 가능. **5개 마켓 모두 IP 화이트리스트 정책이 있음** (이전에 11번가만 있다고 잘못 기재) — Lightsail 인스턴스 고정 IP 1개를 모든 마켓 셀러 콘솔에 등록하는 방식으로 일괄 해소 (2026-05-22 결정 / 2026-05-23 정정, O-9 종결).
 
 - **s6 등록 이력** — 목록 + 기본 필터 + 재시도/마켓 제외 후 등록.
@@ -333,6 +333,28 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 진단 시작 시 사용자에게 묶음 명령 (여러 가설을 동시에 검증할 SQL / 로그 쿼리 / DevTools 한 줄 / 게이트웨이 journalctl) 을 한 번에 전달하고, 사용자가 1~2회 재시도로 결과 전체를 보내도록 한다.
 
 **근거**: 2026-05-23 markets-connect 운영 검증에서 위 chain 의 5개 단계 — PG GRANT / audit category constraint / `HttpErrors.internal` 시그니처 누락 / `error.context.body` ReadableStream parse / 가이드 IP 화이트리스트 정정 — 의 버그가 동시에 잠재했으나 한 단계씩 진단하여 hotfix 8개 (v0.9.1 ~ v0.9.9) 로 쪼개졌고 사용자가 같은 자격증명 등록을 7회 반복함.
+
+### MCP 적극 사용 (2026-05-28 추가)
+
+원격 MCP 호스팅 (AWS Lightsail `3.36.239.243`) 에 supabase-dev / supabase-real / playwright / sentry 4개 서버 (총 64 tools) 가 항상 떠 있다. 아래 상황에서는 사용자 SQL 요청·로그 캡처·DevTools 작업을 반복 요구하지 말고 **MCP 도구를 먼저 호출한다**.
+
+| 상황 | 1순위 MCP | 보조 동작 |
+|---|---|---|
+| 스키마 / 테이블 / RLS 정책 확인 | `mcp__supabase-dev__list_objects` / `list_schemas` / `get_object_details` | 마이그레이션 파일 grep 은 보조 |
+| dev DB 데이터 조회·디버깅 | `mcp__supabase-dev__execute_sql` | 사용자 cli psql 요청 금지 |
+| 운영(real) 영향 확인 | `mcp__supabase-real__execute_sql` (mcp_ro 뷰 only) | write 시도 금지 — read-only 강제 |
+| 인덱스·쿼리 성능 분석 | `mcp__supabase-dev__analyze_query_indexes` / `explain_query` / `get_top_queries` | EXPLAIN 수동 명령 대체 |
+| 운영 사고 / 에러 빈도 분석 | `mcp__sentry__search_issues` / `search_events` / `search_issue_events` | Sentry 웹 콘솔 캡처 요청 대체 |
+| 릴리즈·DSN·프로젝트 조회 | `mcp__sentry__find_releases` / `find_projects` / `find_dsns` | — |
+| 배포 후 UI 동작 검증·스크린샷 | `mcp__playwright__browser_navigate` + `browser_snapshot` / `browser_take_screenshot` | 사용자 수동 캡처 요청 대체. 작업 종료 시 `browser_close` |
+| 운영 화면 a11y / 콘솔 에러 회귀 | `mcp__playwright__browser_console_messages` / `browser_network_requests` | — |
+
+**룰**:
+- MCP 호출은 **사용자 승인 불필요한 read-only 도구 우선** — 진단 chain 의 1단계로 자연스럽게 배치.
+- `supabase-real` 은 **mcp_ro 뷰 + read-only role** 로 제한돼 있다. `INSERT/UPDATE/DELETE` 시도 금지 — 에러 + audit 로그 + 운영 알람 트리거.
+- `playwright` 는 chromium peak ~800MB. 사용 후 반드시 `browser_close`. 같은 conversation 에서 5회 이상 반복 nav 시 한 번에 묶어 처리.
+- MCP 가 실패 (서버 disconnected / 401 / 5xx) 시에만 사용자에게 수동 작업 요청. "MCP 가 있다는 사실" 을 잊고 사용자에게 명령 복붙 요청하는 패턴 금지.
+- 미커밋 변경 / 로컬 파일 / git 작업은 MCP 범위 밖 — 기존 Bash·Read·Edit 도구 사용.
 
 ## Design Documents
 

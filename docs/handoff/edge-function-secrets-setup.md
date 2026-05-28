@@ -84,12 +84,12 @@ openssl rand -hex 32
 `Deploy Market Gateway → full-setup` 또는 `rotate-secret` 실행 시 워크플로우가 아래 2개를 자동으로 dev / real 양쪽 Supabase 에 push:
 
 - `MARKET_GATEWAY_SECRET` (게이트웨이 인스턴스 HMAC)
-- `MARKET_GATEWAY_BASE_URL` (`https://43-201-83-78.sslip.io`)
+- `MARKET_GATEWAY_BASE_URL` (`https://3-36-239-243.sslip.io`)
 
 만약 누락이면 워크플로우를 한 번 더 실행하거나 수동 등록:
 
 → **Secret 이름**: `MARKET_GATEWAY_BASE_URL`
-→ **Value**: `https://43-201-83-78.sslip.io`
+→ **Value**: `https://3-36-239-243.sslip.io`
 
 → **Secret 이름**: `MARKET_GATEWAY_SECRET`
 → **Value**: Lightsail 인스턴스의 `/etc/market-gateway/env` 파일의 `MARKET_GATEWAY_SECRET=` 뒤 값
