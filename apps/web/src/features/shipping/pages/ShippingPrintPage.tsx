@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { ko } from '@/locales/ko'
 import { useShippingPrintList } from '../hooks/useShippingPrintList'
 import { useMarkWaybillPrinted } from '../hooks/useMarkWaybillPrinted'
+import { useLogenCredentialsStatus } from '@/features/settings/shipping'
 import { ShippingApiError } from '../api/shipping-api'
 import { buildOutSlipPrintPopUrl } from '../api/logen-print-stub'
 import { ShippingTabsNav } from '../components/ShippingTabsNav'
@@ -37,6 +38,7 @@ import { MarketBadge } from '@/features/orders/components/MarketBadge'
  */
 export function ShippingPrintPage(): JSX.Element {
   const { data, isLoading, isError, error, refetch } = useShippingPrintList()
+  const logenStatus = useLogenCredentialsStatus()
   const markPrinted = useMarkWaybillPrinted()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -133,22 +135,24 @@ export function ShippingPrintPage(): JSX.Element {
 
       <ShippingTabsNav />
 
-      {/* 미연동 안내 — PR10 settings 연동 hook 도입 시 조건부로 교체. */}
-      <div className="mb-4 flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-soft/40 p-4">
-        <span
-          aria-hidden
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-warning text-xs font-bold text-white"
-        >
-          !
-        </span>
-        <p className="text-sm text-text">
-          로젠 연동이 필요합니다.{' '}
-          <Link to="/settings/shipping" className="font-semibold text-accent underline">
-            설정 → 로젠 연동
-          </Link>
-          에서 자격증명을 등록해 주세요.
-        </p>
-      </div>
+      {/* 미연동 안내 — logen 자격증명 미등록 시에만 조건부 표시. */}
+      {logenStatus.data && !logenStatus.data.hasCredentials && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-soft/40 p-4">
+          <span
+            aria-hidden
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-warning text-xs font-bold text-white"
+          >
+            !
+          </span>
+          <p className="text-sm text-text">
+            로젠 연동이 필요합니다.{' '}
+            <Link to="/settings/shipping" className="font-semibold text-accent underline">
+              설정 → 로젠 연동
+            </Link>
+            에서 자격증명을 등록해 주세요.
+          </p>
+        </div>
+      )}
 
       {/* 액션 바 */}
       <section className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-surface px-5 py-4 shadow-sm">

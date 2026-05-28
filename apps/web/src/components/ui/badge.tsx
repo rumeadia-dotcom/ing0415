@@ -42,30 +42,30 @@ const badgeVariants = cva(
         secondary:
           'bg-white text-ink border border-border',
         success:
-          'bg-success-soft text-success',
+          'bg-success-soft text-success-on-soft',
         warning:
-          'bg-warning-soft text-warning',
+          'bg-warning-soft text-warning-on-soft',
         danger:
-          'bg-danger-soft text-danger',
+          'bg-danger-soft text-danger-on-soft',
         info:
-          'bg-info-soft text-info',
+          'bg-info-soft text-info-on-soft',
         accent:
-          'bg-accent-soft text-accent',
+          'bg-accent-soft text-accent-onlight',
         neutral:
           'bg-card-2 text-faint',
         // RegistrationJob 상태 별칭 (의도 명확화)
         'status-pending':
           'bg-card-2 text-faint',
         'status-running':
-          'bg-info-soft text-info',
+          'bg-info-soft text-info-on-soft',
         'status-partial':
-          'bg-warning-soft text-warning',
+          'bg-warning-soft text-warning-on-soft',
         'status-succeeded':
-          'bg-success-soft text-success',
+          'bg-success-soft text-success-on-soft',
         'status-failed':
-          'bg-danger-soft text-danger',
+          'bg-danger-soft text-danger-on-soft',
         'status-retrying':
-          'bg-info-soft text-info',
+          'bg-info-soft text-info-on-soft',
         'status-cancelled':
           'bg-card-2 text-faint',
       },
