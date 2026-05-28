@@ -101,8 +101,37 @@ describe('normalizeCoupangStatus', () => {
   })
 })
 
+const COUPANG_V5_HAPPY_RESPONSE = {
+  code: 200,
+  message: 'OK',
+  data: [
+    {
+      shipmentBoxId: 333000111,
+      orderId: 50000000001,
+      orderedAt: '2026-05-21T02:30:00+00:00',
+      paidAt: '2026-05-21T02:31:00+00:00',
+      orderer: { name: '박영희', safeNumber: '+82-10-1111-2222' },
+      receiver: {
+        name: '박영희',
+        safeNumber: '010-2222-3333',
+        addr1: '인천광역시 연수구 송도과학로 1',
+        addr2: '101동 1505호',
+      },
+      orderItems: [
+        {
+          vendorItemId: 12345,
+          vendorItemName: '테스트 쿠팡 상품',
+          shippingCount: 3,
+          orderPrice: { currencyCode: 'KRW', units: 30000, nanos: 0 },
+        },
+      ],
+      status: 'ACCEPT',
+    },
+  ],
+}
+
 describe('coupangFetchOrders', () => {
-  it('happy: 응답 → MarketOrder[] 정규화 + status=new_pay + 합산 금액', async () => {
+  it('happy (v4 flat fallback): 응답 → MarketOrder[] 정규화 + status=new_pay + 합산 금액', async () => {
     globalThis.fetch = makeFetchMock([
       { ok: true, status: 200, body: COUPANG_HAPPY_RESPONSE },
     ]) as unknown as typeof fetch
@@ -117,6 +146,29 @@ describe('coupangFetchOrders', () => {
     expect(order.externalOrderId).toBe('333000111')
     expect(order.quantity).toBe(3)
     // 30000 * 3 = 90000
+    expect(order.orderAmount).toBe(90_000)
+  })
+
+  it('happy (v5 nested): orderer/receiver/Money 매핑', async () => {
+    globalThis.fetch = makeFetchMock([
+      { ok: true, status: 200, body: COUPANG_V5_HAPPY_RESPONSE },
+    ]) as unknown as typeof fetch
+
+    const orders = await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+    expect(orders.length).toBe(1)
+    const order = orders[0]
+    if (!order) throw new Error('order missing')
+    expect(() => MarketOrderSchema.parse(order)).not.toThrow()
+    expect(order.market).toBe('coupang')
+    expect(order.status).toBe('new_pay')
+    expect(order.externalOrderId).toBe('333000111')
+    expect(order.buyerName).toBe('박영희')
+    expect(order.receiverName).toBe('박영희')
+    expect(order.receiverAddress).toBe(
+      '인천광역시 연수구 송도과학로 1 101동 1505호',
+    )
+    expect(order.receiverPhone).toBe('010-2222-3333')
+    expect(order.quantity).toBe(3)
     expect(order.orderAmount).toBe(90_000)
   })
 
@@ -153,7 +205,40 @@ describe('coupangFetchOrders', () => {
 })
 
 describe('coupangSubmitTracking', () => {
-  it('happy: 200 응답 → ok=true', async () => {
+  it('happy (v4 /orders/invoices): responseList[0].succeed=true + resultCode=OK → ok=true', async () => {
+    globalThis.fetch = makeFetchMock([
+      {
+        ok: true,
+        status: 200,
+        body: {
+          code: 200,
+          message: 'OK',
+          data: {
+            responseCode: 0,
+            responseMessage: 'SUCCESS',
+            responseList: [
+              {
+                shipmentBoxId: 333000111,
+                succeed: true,
+                resultCode: 'OK',
+                retryRequired: false,
+                resultMessage: null,
+              },
+            ],
+          },
+        },
+      },
+    ]) as unknown as typeof fetch
+
+    const result = await coupangSubmitTracking(
+      VALID_TRACKING_INPUT,
+      VALID_HMAC_CRED,
+    )
+    expect(() => MarketSubmitTrackingResultSchema.parse(result)).not.toThrow()
+    expect(result.ok).toBe(true)
+  })
+
+  it('happy (legacy 단건 응답 fallback): resultCode=SUCCESS → ok=true', async () => {
     globalThis.fetch = makeFetchMock([
       {
         ok: true,
@@ -172,6 +257,41 @@ describe('coupangSubmitTracking', () => {
     )
     expect(() => MarketSubmitTrackingResultSchema.parse(result)).not.toThrow()
     expect(result.ok).toBe(true)
+  })
+
+  it('v4 invoices 실패: responseList[0].succeed=false + resultCode → ok=false + errorCode', async () => {
+    globalThis.fetch = makeFetchMock([
+      {
+        ok: true,
+        status: 200,
+        body: {
+          code: 200,
+          message: 'OK',
+          data: {
+            responseCode: 99,
+            responseMessage: 'FAILED',
+            responseList: [
+              {
+                shipmentBoxId: 333000111,
+                succeed: false,
+                resultCode: 'DUPLICATE_INVOICE_NUMBER',
+                retryRequired: true,
+                resultMessage: '이미 저장된 송장번호가 있습니다.',
+              },
+            ],
+          },
+        },
+      },
+    ]) as unknown as typeof fetch
+
+    const result = await coupangSubmitTracking(
+      VALID_TRACKING_INPUT,
+      VALID_HMAC_CRED,
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errorCode).toBe('DUPLICATE_INVOICE_NUMBER')
+    }
   })
 
   it('400 응답 (마켓 정상 거부) → ok=false + errorCode', async () => {

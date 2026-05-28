@@ -53,7 +53,7 @@ Deno.test('buildCoupangOrdersPath: status=ACCEPT + since/until 쿼리 포함', (
   )
   assertEquals(
     path.startsWith(
-      '/v2/providers/openapi/apis/api/v4/vendors/A00012345/ordersheets?',
+      '/v2/providers/openapi/apis/api/v5/vendors/A00012345/ordersheets?',
     ),
     true,
   )
@@ -67,8 +67,59 @@ Deno.test('buildCoupangOrdersPath: since/until 없으면 status=ACCEPT 만', () 
   const path = buildCoupangOrdersPath('A00012345')
   assertEquals(
     path,
-    '/v2/providers/openapi/apis/api/v4/vendors/A00012345/ordersheets?status=ACCEPT',
+    '/v2/providers/openapi/apis/api/v5/vendors/A00012345/ordersheets?status=ACCEPT',
   )
+})
+
+// ─────────────────────────────────────────────
+// mapCoupangOrders — v5 nested shape (orderer/receiver/Money)
+// ─────────────────────────────────────────────
+
+const COUPANG_V5_RESPONSE = {
+  code: 200,
+  message: 'OK',
+  data: [
+    {
+      shipmentBoxId: 333000111,
+      orderId: 50000000001,
+      orderedAt: '2026-05-21T02:30:00+00:00',
+      paidAt: '2026-05-21T02:31:00+00:00',
+      orderer: { name: '박영희', safeNumber: '+82-10-1111-2222' },
+      receiver: {
+        name: '박영희',
+        safeNumber: '010-2222-3333',
+        addr1: '인천광역시 연수구 송도과학로 1',
+        addr2: '101동 1505호',
+      },
+      orderItems: [
+        {
+          vendorItemId: 12345,
+          vendorItemName: '테스트 쿠팡 상품',
+          shippingCount: 3,
+          orderPrice: { currencyCode: 'KRW', units: 30000, nanos: 0 },
+        },
+      ],
+      status: 'ACCEPT',
+    },
+  ],
+}
+
+Deno.test('mapCoupangOrders: v5 nested shape — orderer/receiver/Money 매핑', () => {
+  const parsed = CoupangOrderListResponseSchema.parse(COUPANG_V5_RESPONSE)
+  const orders = mapCoupangOrders(parsed.data ?? [])
+  assertEquals(orders.length, 1)
+  const order = orders[0]
+  assertExists(order)
+  MarketOrderSchema.parse(order)
+  assertEquals(order.buyerName, '박영희')
+  assertEquals(order.receiverName, '박영희')
+  assertEquals(
+    order.receiverAddress,
+    '인천광역시 연수구 송도과학로 1 101동 1505호',
+  )
+  assertEquals(order.receiverPhone, '010-2222-3333')
+  assertEquals(order.quantity, 3)
+  assertEquals(order.orderAmount, 90_000)
 })
 
 // ─────────────────────────────────────────────
