@@ -50,8 +50,8 @@
     --text: 0.22 0.015 60; /* body */
     --text-secondary: 0.48 0.012 60; /* dim */
     --text-tertiary: 0.45 0.01 60; /* faint — L=0.45 for WCAG 2.1 AA 4.5:1 on white/cream */
-    --dim: 0.48 0.012 60;
-    --faint: 0.45 0.01 60; /* L=0.45 for WCAG 2.1 AA 4.5:1 on white/cream */
+    --dim: 0.34 0.012 60; /* L=0.34 — WCAG 2.1 AA 4.5:1 on cream */
+    --faint: 0.34 0.01 60; /* L=0.34 — WCAG 2.1 AA 4.5:1 on cream */
 
     /* border — warm-tinted neutral */
     --border: 0.92 0.008 75;

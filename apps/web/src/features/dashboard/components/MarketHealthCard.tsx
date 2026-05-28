@@ -45,7 +45,7 @@ export function MarketHealthCard({ state, health }: MarketHealthCardProps): JSX.
             <div className="flex items-center gap-3">
               <span
                 aria-hidden
-                className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent"
+                className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent-onlight"
               >
                 <Plug className="h-4 w-4" />
               </span>
