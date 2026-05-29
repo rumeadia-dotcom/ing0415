@@ -87,19 +87,28 @@ CREATE TABLE public.esm_shipping_profiles (
   market_account_id   uuid NOT NULL REFERENCES public.market_accounts(id) ON DELETE CASCADE,
   site                text NOT NULL CHECK (site IN ('G', 'A')),   -- G=지마켓, A=옥션
   profile_label       text NOT NULL,                              -- 셀러 표시명 (예: "기본 출고지/택배")
-  addr_no             text NOT NULL,                              -- 판매자 주소록 번호 (esm POST /sellers/address)
-  place_no            text NOT NULL,                              -- 출하지 번호 (esm POST /shipping/places)
-  bundle_policy_no    text,                                       -- 묶음배송비 정책 (esm POST /shipping/policies)
-  dispatch_policy_no  text NOT NULL,                              -- 발송정책 번호 (esm POST /shipping/dispatch-policies)
+  -- 번호 컬럼: status='active' 일 때만 NOT NULL 보장(아래 partial CHECK).
+  -- status='error' (부분 성공 후 실패 — 고아 추적 row) 시엔 아직 못 받은 번호가 NULL 일 수 있다.
+  addr_no             text,                                       -- 판매자 주소록 번호 (esm POST /sellers/address)
+  place_no            text,                                       -- 출하지 번호 (esm POST /shipping/places)
+  bundle_policy_no    text,                                       -- 묶음배송비 정책 (esm POST /shipping/policies) — active 여도 사이트별 optional
+  dispatch_policy_no  text,                                       -- 발송정책 번호 (esm POST /shipping/dispatch-policies)
   dispatch_type       text NOT NULL CHECK (dispatch_type IN ('A','B','C','D','E','F')), -- A=당일/B=순차/C=해외/D=요청일/E=주문제작/F=미정
   shipping_fee        integer NOT NULL DEFAULT 0,                 -- 기본 배송비(원)
   fee_type            smallint NOT NULL CHECK (fee_type IN (1,2)),-- 1=묶음배송비, 2=상품별배송비
-  raw_meta            jsonb,                                      -- 생성 응답 메타(번호 외 부가). PII/시크릿 금지.
+  raw_meta            jsonb,                                      -- 생성 응답 메타(번호 외 부가). PII/시크릿 금지. error row 는 failedStep/errorCode/completedSteps 만.
   status              text NOT NULL DEFAULT 'active' CHECK (status IN ('active','error')),
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
 
-  CONSTRAINT esm_shipping_profiles_unique_label UNIQUE (market_account_id, profile_label)
+  CONSTRAINT esm_shipping_profiles_unique_label UNIQUE (market_account_id, profile_label),
+  CONSTRAINT esm_shipping_profiles_fee_nonneg   CHECK (shipping_fee >= 0),
+  -- status='active' = 4단계 모두 성공 → 필수 번호 보장. status='error' = 부분 성공 후 실패 → NULL 허용.
+  -- (bundle_policy_no 는 사이트별 미반환이 있어 active 여도 제약 대상 아님)
+  CONSTRAINT esm_shipping_profiles_active_nums_present CHECK (
+    status <> 'active'
+    OR (addr_no IS NOT NULL AND place_no IS NOT NULL AND dispatch_policy_no IS NOT NULL)
+  )
 );
 
 CREATE INDEX esm_shipping_profiles_seller_idx  ON public.esm_shipping_profiles (seller_id);
@@ -124,6 +133,19 @@ CREATE POLICY esm_shipping_profiles_select_own
 
 - **RLS 없는 테이블 금지 원칙 준수.** `dispatch_policy_no`/`addr_no` 등 번호는 PII 아님(마켓 내부 식별자) → 클라이언트 SELECT 허용. 단 `raw_meta` 에 셀러 주소·전화 평문 저장 금지(주소록 생성 시 PII 는 ESM 측에만, 우리 DB 엔 번호만).
 - 생성·삭제 경로: Edge Function `esm-shipping-profile` (PR-3) 가 service_role 로 INSERT/DELETE.
+- **error row 도 동일 RLS** — `status='error'` row 역시 `seller_id = auth.uid()` 로 본인만 SELECT (cross-tenant 차단). 적재 주체는 service_role(Edge Function)뿐 — authenticated 직접 INSERT 거부는 active/error 동일.
+
+### 3.2 부분 실패 시 `status='error'` row 적재 (고아 정책 추적 — QA-313)
+
+배송 프로필 생성은 ESM 4단계(주소록 → 출하지 → 묶음배송 → 발송정책) 순차 호출이다. 멱등이 아니므로 step 단위 retry 를 하지 않는다(중복 생성 방지). 따라서 **일부 단계가 성공한 뒤 뒷단계가 실패하면 ESM 측에 부분 생성된 리소스(`addrNo`/`placeNo`/`bundlePolicyNo`)가 고아로 남는다.**
+
+- Edge Function 은 4단계 중 어느 단계든 실패하면 **throw 하기 전에 `status='error'` row 를 service_role 로 INSERT** 한다. 그렇지 않으면 우리 DB 에 흔적이 없어 고아 리소스를 영원히 추적·수동 정리할 수 없다.
+- error row 가 담는 것:
+  - **그때까지 확보한 부분 번호** — `addr_no`/`place_no`/`bundle_policy_no` 중 성공분(나머지는 NULL). `dispatch_policy_no` 는 마지막 단계라 error row 에선 항상 NULL.
+  - **`raw_meta`** — `{ failedStep, errorCode, completedSteps }` 만. `failedStep` 은 실패 단계명(`address`/`place`/`policy`/`dispatch`), `errorCode` 는 HttpError code(`esm_<step>_http_5xx` / `esm_<step>_schema_mismatch` 등 ESM 응답 성격), `completedSteps` 는 실패 직전까지 성공한 단계 목록. **토큰/secretKey/주소/전화/이름 등 PII 절대 금지.**
+- error row 적재는 **best-effort** — 적재 자체가 실패(예: 동일 라벨 unique 충돌)해도 원래 에러를 가리지 않고 그대로 re-throw 한다(로그만 남김).
+- `status='active'` 경로는 그대로 4단계 모두 성공 시 INSERT. partial CHECK(`esm_shipping_profiles_active_nums_present`)가 active row 의 필수 번호 누락을 DB 레벨에서 거부한다.
+- 정상화: 셀러가 동일 라벨로 재시도하려면 unique 충돌을 피하기 위해 error row 를 먼저 삭제(service_role)하거나 다른 라벨을 쓴다. error row 삭제·재처리 UI 는 후속 PR.
 
 ---
 
@@ -222,8 +244,8 @@ CREATE POLICY esm_shipping_profiles_select_own
 - **변경(PR-3.5)**: `CategoryMappingCard` → `MarketOptionsCard`. 카테고리 매핑 + `adapter.getRegistrationFields()` 가 선언한 필드를 동적 렌더.
   - ESM(gmarket/auction) 카드 = 카테고리 + **배송 프로필 select** (옵션 출처 `esm_shipping_profiles`, "프로필 없음 → 만들러 가기" deep link) + **상품정보고시** 입력.
   - 네이버/쿠팡/11번가 카드 = `getRegistrationFields()` 빈 배열(기본) → 카테고리만 (현 동작 유지, 하위호환).
-- **배송 프로필 생성 진입점**(PR-3): `/markets` 행 또는 `/settings/shipping` 에 "ESM 배송 프로필 관리" — 생성 폼 → Edge Function 4단계 호출 → 목록.
-- **user_flow 영향**: s3 3단계 노드 내부 카드 구조 변경(노드 추가 아님). s5/settings 에 배송 프로필 관리 화면 추가 → `user_flow.md` 갱신(PR-3). PR-0 은 문서 영향만 기록.
+- **배송 프로필 생성 진입점**(PR-3, 구현됨): `/settings/shipping/esm-profiles` (`SettingsShippingEsmProfilesPage`) — `/settings/shipping` 허브의 "G마켓·옥션 배송 프로필" 카드 [배송 프로필 관리] 로 진입. 목록(`useEsmShippingProfiles` = RLS 적용 직접 SELECT) + 생성 Dialog(RHF + `EsmShippingProfileCreateInputSchema` → `useCreateEsmShippingProfile` → Edge `esm-shipping-profile` 4단계 호출). ESM(gmarket/auction) 계정 미연결 시 생성 차단 + `/markets/connect` 유도.
+- **user_flow 영향**(PR-3 반영 완료): s3 3단계 노드 내부 카드 구조 변경(노드 추가 아님 — PR-3.5). settings(s9)에 **n61 (G마켓·옥션 배송 프로필 관리)** 노드 추가 → `user_flow.md` §s9 + `design-renewal/s9-settings.md` §1.2/§1.3/§2/§3/§4.7 갱신.
 
 ---
 
@@ -247,7 +269,7 @@ CREATE POLICY esm_shipping_profiles_select_own
 - **PR-1**: `buildEsmJwt` payload 에 `kid`(마스터ID)/`iss`/`ssi`(site:sellerId 단일) 반영. 기존 jwt 단위테스트 갱신 + 신규 fail 케이스.
 - **PR-2**: `fetchCategoryTree` 가 `GET /item/v1/categories/site-cats` + `/{code}` 재귀, `isLeaf` 기반 leaf, `CategoryNode` 정규화. mock↔real parity.spec.
   - ⚠️ **Gateway allowlist (PR-2 가 첫 실호출이므로 여기서 필수)**: 새 base URL 호스트 `sa2.esmplus.com` 을 (a) `apps/api/supabase/functions/_shared/gateway-sign.ts` 의 `GATEWAY_ALLOWED_HOSTS` 에 추가, (b) Lightsail Gateway `infra/aws-lightsail-gateway/main.ts` 의 `ALLOWED_*` 미러 갱신·재배포, (c) `gateway-sign.test.ts` allowlist 케이스 갱신. 미반영 시 `assertGatewayUrl` 이 "host not in allow-list" 로 거부. (PR-0 에서 base URL 만 바꾸고 호스트 화이트리스트는 PR-2 로 의도적 분리 — PR-0 은 mock+parity 라 무해.)
-- **PR-3**: `esm_shipping_profiles` 마이그레이션 + RLS + `esm-shipping-profile` Edge Function(4단계 생성) + 설정 UI. RLS 본인 row 만 SELECT 검증.
+- **PR-3**: `esm_shipping_profiles` 마이그레이션 + RLS + `esm-shipping-profile` Edge Function(4단계 생성) + 설정 UI. RLS 본인 row 만 SELECT 검증. **부분 실패 시 `status='error'` row 적재(고아 추적, §3.2) — pgTAP 에서 error row RLS 본인 SELECT + nullable 번호 검증, Edge 단위테스트에서 단계별 실패 → error row payload(부분 번호 + PII-free raw_meta) 검증 (QA-313).**
 - **PR-3.5**: `getRegistrationFields` + `MarketOptionsCard` 동적 렌더. 컴포넌트 마켓 하드코딩 0(grep 검증). 네이버/쿠팡/11st 회귀 없음.
 - **PR-4**: `transformProduct` 중첩 페이로드 + `createProduct` `POST /item/v1/goods`, `siteDetail.{gmkt|iac}.SiteGoodsNo` 파싱. 옥션 중복 이미지 validation. parity.spec.
 - **PR-5**: officialNotice 입력 섹션 + 41개 상품군 상수. 미입력 시 등록 차단 + blockingReason tooltip.

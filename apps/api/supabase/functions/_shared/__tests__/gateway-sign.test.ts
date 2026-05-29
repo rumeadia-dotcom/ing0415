@@ -98,10 +98,11 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com/products')).not.toThrow()
     expect(() => assertGatewayUrl('https://api-gateway.coupang.com/v2/x')).not.toThrow()
     expect(() => assertGatewayUrl('https://sa.esmplus.com/api/v1/x')).not.toThrow()
-    // PR-2: ESM site-cats/상품 API 호스트 (현행 base).
+    // ESM sa2 (현행 base, esm.md §0/§7): PR-2 카테고리·상품 + PR-3 배송 프로필 Edge 실호출 대상.
     expect(() =>
       assertGatewayUrl('https://sa2.esmplus.com/item/v1/categories/site-cats'),
     ).not.toThrow()
+    expect(() => assertGatewayUrl('https://sa2.esmplus.com/item/v1/sellers/address')).not.toThrow()
     expect(() => assertGatewayUrl('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')).not.toThrow()
   })
 
@@ -120,7 +121,8 @@ describe('gateway-sign / assertGatewayUrl', () => {
   })
 
   it('GATEWAY_ALLOWED_HOSTS 는 정확히 5종 (naver/coupang/11st + ESM sa2·sa)', () => {
-    // ESM 은 sa2(현행 base)·sa(레거시 호환) 2개 호스트 → 5마켓이지만 호스트는 5종.
+    // ESM 은 sa2(현행 base, G+옥션 공유)·sa(레거시 호환) 2개 호스트 → 5마켓이지만 호스트는 5종.
+    // 전환 완료 전까지 sa 병존 — PR-2/4 가 전 호출을 sa2 로 옮긴 뒤 sa 제거 예정 (esm.md §0/§7).
     expect(GATEWAY_ALLOWED_HOSTS.size).toBe(5)
     expect(GATEWAY_ALLOWED_HOSTS.has('sa2.esmplus.com')).toBe(true)
   })

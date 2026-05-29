@@ -74,8 +74,9 @@ export function bufToHex(buf: ArrayBuffer): string {
 export const GATEWAY_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
-  // ESM(G마켓·옥션) 상품/카테고리 API 호스트. sa2 = 현행 base(sa2.esmplus.com/item/v1).
-  // sa = JWT aud 클레임용 레거시 도메인 — 일부 레거시 경로 호환 위해 유지.
+  // ESM(G마켓·옥션) 상품·카테고리(PR-2)·배송 프로필(PR-3) API 호스트. sa2 = 현행 base(sa2.esmplus.com/item/v1).
+  // sa = JWT aud 클레임용 레거시 도메인 — 전환 완료 전까지 호환 위해 병존(PR-2/4 가 전 호출 sa2 이전 후 제거 예정).
+  // NOTE: Lightsail Gateway main.ts 의 ALLOWED_* 미러 + gateway 재배포는 ops 작업 (esm.md §7 PR-2 항).
   'sa2.esmplus.com',
   'sa.esmplus.com',
   'openapi.11st.co.kr',
