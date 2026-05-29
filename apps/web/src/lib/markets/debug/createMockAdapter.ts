@@ -24,6 +24,7 @@ import {
 } from '@/lib/schemas'
 import { MarketError } from '../errors'
 import type { MarketAdapter } from '../types'
+import { getEsmRegistrationFields } from '../real/esm/registration-fields'
 
 /**
  * Debug 모드 mock 어댑터.
@@ -421,6 +422,12 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
         dispatchId: `MOCK-DISPATCH-${input.externalOrderId}`,
       })
     },
+  }
+
+  // ESM(G마켓·옥션) 만 동적 등록필드(배송 프로필 선택) 노출 — real 어댑터와 동형(parity).
+  // 타 마켓은 메서드 미정의 → 호출측 `getRegistrationFields(adapter)` 가 [] 반환(하위호환).
+  if (isEsmMarket(market)) {
+    base.getRegistrationFields = () => getEsmRegistrationFields()
   }
 
   // OAuth 어댑터(네이버) 만 refreshToken 노출.

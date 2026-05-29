@@ -241,9 +241,14 @@ CREATE POLICY esm_shipping_profiles_select_own
 ## 5. 화면 흐름 (s3 3단계) — PR-3.5 / PR-5 에서 구현, PR-0 계약
 
 - **현재**: [StepMarketsCategoriesPage.tsx](apps/web/src/features/registration/pages/StepMarketsCategoriesPage.tsx) — 마켓 체크 → 선택 마켓마다 `CategoryMappingCard` 동적 렌더.
-- **변경(PR-3.5)**: `CategoryMappingCard` → `MarketOptionsCard`. 카테고리 매핑 + `adapter.getRegistrationFields()` 가 선언한 필드를 동적 렌더.
-  - ESM(gmarket/auction) 카드 = 카테고리 + **배송 프로필 select** (옵션 출처 `esm_shipping_profiles`, "프로필 없음 → 만들러 가기" deep link) + **상품정보고시** 입력.
+- **변경(PR-3.5, 구현 완료)**: `CategoryMappingCard` → `MarketOptionsCard`. 카테고리 매핑 + 어댑터 메타가 선언한 필드를 동적 렌더.
+  - ESM(gmarket/auction) 카드 = 카테고리 + **배송 프로필 select** (옵션 출처 `esm_shipping_profiles`, "프로필 없음 → 만들러 가기" deep link `/settings/shipping/esm-profiles`). **상품정보고시** 입력은 PR-5.
   - 네이버/쿠팡/11번가 카드 = `getRegistrationFields()` 빈 배열(기본) → 카테고리만 (현 동작 유지, 하위호환).
+  - **구현 메모(PR-3.5)**:
+    - 컴포넌트 내 `if (marketId === ...)` 하드코딩 분기 0. UI 는 동기 resolver `getRegistrationFieldsForMarket(marketId)`(`apps/web/src/lib/markets/registration-fields.ts`) 가 돌려준 `RegistrationFieldMeta[]` 의 `kind` 로만 렌더 분기. resolver 는 ESM(gmarket/auction)→`getEsmRegistrationFields()`, 그 외→`[]`. `getRegistrationFields()` 가 순수·정적(mock↔real parity)이라 무거운 async `getMarketAdapter` 를 await 하지 않고 동기 해석.
+    - `RegistrationFieldMeta.label`/`helpText`/`blockingReason` 은 i18n key(`markets.registrationFields.*`) → `resolveKoPath()`(`apps/web/src/lib/i18n.ts`)로 해석(하드코딩 금지).
+    - 배송 프로필 select 4상태: loading(Skeleton) / error(문구) / data(`status='active'` 프로필만 옵션) / empty(만들러 가기 CTA). `useEsmShippingProfiles(marketAccountId)`(PR-3) 재사용.
+    - `Step3Schema` → `makeStep3Schema(requiredKeysFor)` 빌더로 확장. 어댑터가 `required` 로 선언한 fieldKey 가 해당 마켓 `mapping.marketOptions[key]` 에 비어있으면 zod fail + blockingReasons tooltip + 다음 버튼 비활성. provider 미주입 기본 `Step3Schema` 는 추가필드 검증 skip(하위호환).
 - **배송 프로필 생성 진입점**(PR-3, 구현됨): `/settings/shipping/esm-profiles` (`SettingsShippingEsmProfilesPage`) — `/settings/shipping` 허브의 "G마켓·옥션 배송 프로필" 카드 [배송 프로필 관리] 로 진입. 목록(`useEsmShippingProfiles` = RLS 적용 직접 SELECT) + 생성 Dialog(RHF + `EsmShippingProfileCreateInputSchema` → `useCreateEsmShippingProfile` → Edge `esm-shipping-profile` 4단계 호출). ESM(gmarket/auction) 계정 미연결 시 생성 차단 + `/markets/connect` 유도.
 - **user_flow 영향**(PR-3 반영 완료): s3 3단계 노드 내부 카드 구조 변경(노드 추가 아님 — PR-3.5). settings(s9)에 **n61 (G마켓·옥션 배송 프로필 관리)** 노드 추가 → `user_flow.md` §s9 + `design-renewal/s9-settings.md` §1.2/§1.3/§2/§3/§4.7 갱신.
 
@@ -270,7 +275,12 @@ CREATE POLICY esm_shipping_profiles_select_own
 - **PR-2**: `fetchCategoryTree` 가 `GET /item/v1/categories/site-cats` + `/{code}` 재귀, `isLeaf` 기반 leaf, `CategoryNode` 정규화. mock↔real parity.spec.
   - ⚠️ **Gateway allowlist (PR-2 가 첫 실호출이므로 여기서 필수)**: 새 base URL 호스트 `sa2.esmplus.com` 을 (a) `apps/api/supabase/functions/_shared/gateway-sign.ts` 의 `GATEWAY_ALLOWED_HOSTS` 에 추가, (b) Lightsail Gateway `infra/aws-lightsail-gateway/main.ts` 의 `ALLOWED_*` 미러 갱신·재배포, (c) `gateway-sign.test.ts` allowlist 케이스 갱신. 미반영 시 `assertGatewayUrl` 이 "host not in allow-list" 로 거부. (PR-0 에서 base URL 만 바꾸고 호스트 화이트리스트는 PR-2 로 의도적 분리 — PR-0 은 mock+parity 라 무해.)
 - **PR-3**: `esm_shipping_profiles` 마이그레이션 + RLS + `esm-shipping-profile` Edge Function(4단계 생성) + 설정 UI. RLS 본인 row 만 SELECT 검증. **부분 실패 시 `status='error'` row 적재(고아 추적, §3.2) — pgTAP 에서 error row RLS 본인 SELECT + nullable 번호 검증, Edge 단위테스트에서 단계별 실패 → error row payload(부분 번호 + PII-free raw_meta) 검증 (QA-313).**
-- **PR-3.5**: `getRegistrationFields` + `MarketOptionsCard` 동적 렌더. 컴포넌트 마켓 하드코딩 0(grep 검증). 네이버/쿠팡/11st 회귀 없음.
+- **PR-3.5 (완료)**: `getRegistrationFields` + `MarketOptionsCard` 동적 렌더. 컴포넌트 마켓 하드코딩 0(메타 kind 분기만). 네이버/쿠팡/11st 회귀 없음.
+  - [x] `MarketOptionsCard`(카테고리 + 동적 필드) — `CategoryMappingCard` 제거·일반화.
+  - [x] 동기 resolver `getRegistrationFieldsForMarket` + i18n `resolveKoPath`.
+  - [x] `makeStep3Schema(provider)` — required marketOptions zod 검증(단일 소스). 미입력 시 blocking.
+  - [x] Vitest: ESM select 렌더 / status=error 프로필 제외 / 미선택 deep link / onChange 적재 / error 상태 / naver 회귀(필드 0, 훅 미호출) + 스키마 pass/fail.
+  - [x] `pnpm typecheck` / `lint` / `test`(1100 pass) 통과.
 - **PR-4**: `transformProduct` 중첩 페이로드 + `createProduct` `POST /item/v1/goods`, `siteDetail.{gmkt|iac}.SiteGoodsNo` 파싱. 옥션 중복 이미지 validation. parity.spec.
 - **PR-5**: officialNotice 입력 섹션 + 41개 상품군 상수. 미입력 시 등록 차단 + blockingReason tooltip.
 - **PR-6**: `fetchOrders`/`submitTracking` 문서 order-shipping 엔드포인트 정정 + 상태 정규화 문서 대조. submitTracking Edge 측 완성(현 stub 제거).

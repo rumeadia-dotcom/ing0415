@@ -58,6 +58,8 @@ import {
   type SubmitTrackingInput,
 } from '@/lib/schemas'
 import { buildEsmJwt } from './jwt'
+import { getEsmRegistrationFields } from './registration-fields'
+import type { RegistrationFieldMeta } from '@/lib/schemas'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -533,6 +535,14 @@ export function createEsmRealAdapter(options: EsmAdapterOptions): MarketAdapter 
         status: 'succeeded',
         warnings: [],
       })
+    },
+
+    // ───────────────────────────────────────────
+    // getRegistrationFields — 배송 프로필 선택 필드 (esm.md §4.6 / §6)
+    //   officialNotice 는 PR-5. gmarket/auction 양쪽이 본 공용 어댑터로 동일 노출.
+    // ───────────────────────────────────────────
+    getRegistrationFields(): RegistrationFieldMeta[] {
+      return getEsmRegistrationFields()
     },
 
     // ───────────────────────────────────────────

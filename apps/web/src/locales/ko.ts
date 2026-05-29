@@ -85,6 +85,32 @@ export const ko = {
     connect: '연결하기',
   },
   markets: {
+    // 마켓별 동적 등록필드 (MarketAdapter.getRegistrationFields, esm.md §4.6 / §6).
+    // 어댑터가 반환하는 RegistrationFieldMeta.label / blockingReason 의 i18n 출처.
+    // MarketOptionsCard(PR-3.5) 가 이 path 를 t() 로 해석해 렌더한다.
+    registrationFields: {
+      shippingProfile: {
+        label: 'G마켓·옥션 배송 프로필',
+        helpText:
+          'ESM 상품 등록에 쓰일 출하지·발송정책을 선택하세요. 없으면 배송 설정에서 먼저 생성합니다.',
+        blockingReason: '배송 프로필 선택 필요',
+      },
+      // MarketOptionsCard(PR-3.5) UI chrome — 동적 필드 렌더 공통 문구.
+      card: {
+        sectionTitle: '마켓별 등록 옵션',
+        sectionDescription:
+          '선택한 마켓마다 카테고리와 마켓별 추가 등록 항목을 지정하세요. 미입력 마켓은 등록이 차단됩니다.',
+      },
+      shippingProfileField: {
+        placeholder: '— 배송 프로필 선택 —',
+        loading: '배송 프로필 불러오는 중…',
+        error: '배송 프로필을 불러오지 못했습니다.',
+        emptyTitle: '배송 프로필이 없습니다',
+        emptyCta: '배송 프로필 만들러 가기',
+        // active 가 아닌(error) 프로필은 선택지에서 제외됨을 알린다.
+        selectedStatusError: '이 프로필은 생성 중 오류가 있어 사용할 수 없습니다',
+      },
+    },
     page: {
       title: '마켓 계정',
       subtitleLine1: '연결된 마켓을 관리하고 새 마켓을 연결합니다',

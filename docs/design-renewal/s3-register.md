@@ -32,7 +32,7 @@
 |---|---|---|
 | 1.1.1 | 상품명 자동 검증 + 실시간 중복 확인 | Step 1 (`useDuplicateProductCheck` 500ms 디바운스) |
 | 1.1.2 | 이미지 다중 업로드 + 미리보기 + 순서 조정 | Step 2 (`ImageDropzone` / `ImageThumbnailGrid`) |
-| 1.1.3 | 동적 카테고리 선택 + 필터링 | Step 3 (`CategoryMappingCard`) |
+| 1.1.3 | 동적 카테고리 선택 + 필터링 | Step 3 (`MarketOptionsCard` — 카테고리 + 마켓별 동적 등록필드) |
 | 1.1.4 | 기본 배송 정보 입력 | Step 1 의 `shippingPolicyId` 선택 (정책 마스터는 별도 화면) |
 | 1.2.1 | 마켓별 상품 속성 자동 변환 | Step 4 미리보기 (`transformProduct` 클라이언트 + 서버 결정성) |
 | 1.2.2 | 마켓별 이미지 규격·포맷 자동 최적화 | Step 2 업로드 시 이미지 파이프라인 (`image-pipeline.md`) |
@@ -55,7 +55,7 @@
 | n16 | 상품 정보 입력 | Step 1 (`StepInfoPage`) | |
 | n17 | 마켓 선택 | Step 3 전반부 (`MarketSelectGrid`) | n17/n19 통합 페이지 |
 | n18 | 이미지 업로드 | Step 2 (`StepImagesPage`) | 구현은 이미지를 마켓보다 앞에 둠 |
-| n19 | 카테고리 매핑 | Step 3 후반부 (`CategoryMappingCard`) | n17 과 동일 페이지 |
+| n19 | 카테고리 매핑 + 마켓별 등록옵션 | Step 3 후반부 (`MarketOptionsCard`) | n17 과 동일 페이지. ESM(gmarket/auction)은 배송 프로필 select 추가 |
 | n20 | 등록 미리보기 | Step 4 (`StepPreviewPage`) | |
 | n21 | 등록 결과 | Step 5 (`StepResultPage`) | |
 | n22 | action 템플릿 불러오기 | (v2) | s4 템플릿 도메인 v2 보류 |
@@ -215,8 +215,9 @@
 | "다음: 미리보기" | `Step3Schema.safeParse` 통과 시 `/register/preview` navigate |
 
 **주요 컴포넌트**:
-- 자체: `MarketSelectGrid` (v1 4마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `CategoryMappingCard` (마켓별 카테고리 트리 + override 입력)
-- shadcn: `Card` / `Button` / `Skeleton` / `ErrorMessage` / `Tooltip`
+- 자체: `MarketSelectGrid` (v1 5마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `MarketOptionsCard` (마켓별 카테고리 트리 + 어댑터 메타 기반 동적 등록필드. ESM=배송 프로필 select)
+- shadcn: `Card` / `Button` / `Input` / `Skeleton` / `ErrorMessage` / `Tooltip`
+- **동적 등록필드 (PR-3.5)**: `MarketOptionsCard` 는 `getRegistrationFieldsForMarket(marketId)` 가 돌려준 `RegistrationFieldMeta[]` 를 `kind` 별로 렌더(마켓 하드코딩 분기 없음). ESM(gmarket/auction)은 `shippingProfile` 필드 1개(배송 프로필 select, 옵션 출처 `esm_shipping_profiles`, 없으면 `/settings/shipping/esm-profiles` deep link). 그 외 마켓은 필드 0개 → 카테고리만. required 필드 미입력 시 `makeStep3Schema` fail + 다음 버튼 비활성 tooltip.
 
 **데이터 의존**:
 - `useMarketAccounts()` — 셀러가 연결한 마켓 계정 목록 (`status='active'` 만 선택 가능).
@@ -557,7 +558,7 @@ stateDiagram-v2
 - **리뉴얼 시 가능 보강**: 툴바 커스터마이즈, 이미지 인서트 UX 개선 (현재 url 입력만 → drag&drop / Storage 업로드 연동), 마켓별 변환 미리보기 (이미지·HTML 깨짐 표시).
 - 에디터 라이브러리 결정 마무리됨 (Tiptap) — 리뉴얼은 UX 보강만.
 
-### 8.4 카테고리 트리 검색 (Step 3 `CategoryMappingCard`)
+### 8.4 카테고리 트리 검색 (Step 3 `MarketOptionsCard`)
 
 - 현재: 마켓별 트리 + leaf 선택 (구현 상세는 컴포넌트 내부).
 - **리뉴얼 핵심**:
@@ -611,7 +612,7 @@ stateDiagram-v2
 | zod 스키마 | `apps/web/src/lib/schemas/registration.ts` (`Step1Schema` ~ `Step4ValidationSchema`, `JOB_STATUSES`, `MARKET_RESULT_STATUSES`) |
 | zustand store | `apps/web/src/features/registration/store/useRegisterFormStore.ts` |
 | 라우터 | `apps/web/src/app/router.tsx` (`/register/*` children + `/register/result/:jobId`) |
-| 도메인 컴포넌트 | `apps/web/src/features/registration/components/` (Stepper / ImageDropzone / ImageThumbnailGrid / MarketSelectGrid / CategoryMappingCard / MarketPreviewCard / JobProgressBar / JobMarketResultRow / PartialJobBanner) |
+| 도메인 컴포넌트 | `apps/web/src/features/registration/components/` (Stepper / ImageDropzone / ImageThumbnailGrid / MarketSelectGrid / MarketOptionsCard / MarketPreviewCard / JobProgressBar / JobMarketResultRow / PartialJobBanner) |
 | 훅 (서버) | `hooks/useDuplicateProductCheck.ts` / `useImageUpload.ts` / `useMarketCategoryTree.ts` / `useProductDraft.ts` / `useRegistrationValidate.ts` / `useRegistrationStart.ts` / `useRegistrationJob.ts` / `useRegistrationRetry.ts` / `useRegistrationCancel.ts` / `useShippingPolicies.ts` |
 | API 클라이언트 | `api/registration-api.ts` / `image-api.ts` / `category-api.ts` |
 | 에러 메시지 매핑 | `utils/registration-error-messages.ts` |

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MarketIdSchema } from './common'
+import { MarketIdSchema, type MarketId } from './common'
 
 /**
  * 등록 도메인 zod 스키마.
@@ -113,18 +113,89 @@ export const CategoryMappingSchema = z.object({
 })
 export type CategoryMapping = z.infer<typeof CategoryMappingSchema>
 
-export const Step3Schema = z
-  .object({
-    selections: z
-      .array(MarketSelectionSchema)
-      .min(1, '마켓을 1개 이상 선택해주세요')
-      .max(5, '마켓은 최대 5개'),
-    mappings: z.array(CategoryMappingSchema).min(1, '카테고리 매핑이 필요합니다'),
-  })
-  .refine((d) => d.selections.length === d.mappings.length, {
+/**
+ * 마켓별 동적 등록필드 required 검증 hook (PR-3.5, esm.md §4.6).
+ *
+ * `getRegistrationFieldsForMarket(marketId)` 가 required 로 선언한 fieldKey 는
+ * 해당 마켓 mapping 의 `marketOptions[fieldKey]` 에 비어있지 않은 값이 있어야 한다.
+ *
+ * zod 스키마(단일 소스)가 어댑터 메타에 직접 import 의존하면 schemas → markets 역방향
+ * 결합이 생기므로, **필드 메타 provider 를 주입**받는 형태로 분리한다. UI(Step3 page)는
+ * `makeStep3Schema(getRegistrationFieldsForMarket)` 로 검증하고, 순수 스키마 단위테스트는
+ * 임의 provider 를 주입해 검증한다. provider 미주입 시 추가필드 검증은 skip(기존 동작).
+ */
+export type RequiredFieldKeyProvider = (marketId: MarketId) => string[]
+
+function defaultRequiredFieldKeys(): string[] {
+  return []
+}
+
+function refineMarketOptions(
+  d: { selections: MarketSelection[]; mappings: CategoryMapping[] },
+  ctx: z.RefinementCtx,
+  requiredKeysFor: RequiredFieldKeyProvider,
+): void {
+  for (const sel of d.selections) {
+    const requiredKeys = requiredKeysFor(sel.marketId)
+    if (requiredKeys.length === 0) continue
+    const mapping = d.mappings.find((m) => m.marketId === sel.marketId)
+    const opts = mapping?.marketOptions ?? {}
+    const mappingIndex = d.mappings.findIndex((m) => m.marketId === sel.marketId)
+    for (const key of requiredKeys) {
+      const value = opts[key]
+      const isEmpty =
+        value === undefined ||
+        value === null ||
+        (typeof value === 'string' && value.trim() === '')
+      if (isEmpty) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '마켓별 필수 등록 항목이 누락되었습니다',
+          // mapping 이 아직 없으면 selections 경로로 보고(다음 버튼 차단 목적).
+          path:
+            mappingIndex >= 0
+              ? ['mappings', mappingIndex, 'marketOptions', key]
+              : ['selections'],
+        })
+      }
+    }
+  }
+}
+
+/** Step3 원시 object 형태 — ProductDraftSchema 가 shape 접근에 사용. */
+export const Step3ObjectSchema = z.object({
+  selections: z
+    .array(MarketSelectionSchema)
+    .min(1, '마켓을 1개 이상 선택해주세요')
+    .max(5, '마켓은 최대 5개'),
+  mappings: z.array(CategoryMappingSchema).min(1, '카테고리 매핑이 필요합니다'),
+})
+
+const step3Base = Step3ObjectSchema.refine(
+  (d) => d.selections.length === d.mappings.length,
+  {
     message: '선택한 마켓 수와 카테고리 매핑 수가 일치해야 합니다',
     path: ['mappings'],
-  })
+  },
+)
+
+/**
+ * Step3 검증 스키마 빌더 — 마켓별 required 등록필드 provider 를 주입.
+ * UI 는 `makeStep3Schema(getRegistrationFieldsForMarket 기반 provider)` 로 검증.
+ */
+export function makeStep3Schema(
+  requiredKeysFor: RequiredFieldKeyProvider = defaultRequiredFieldKeys,
+) {
+  return step3Base.superRefine((d, ctx) =>
+    refineMarketOptions(d, ctx, requiredKeysFor),
+  )
+}
+
+/**
+ * 기존 사용처 호환 — provider 미주입(추가필드 검증 skip). 카테고리·마켓수만 검증(기존 동작).
+ * ESM 배송 프로필 required 검증이 필요한 곳은 makeStep3Schema(provider) 를 쓴다.
+ */
+export const Step3Schema = makeStep3Schema()
 
 // ─────────────────────────────────────────────
 // Step 4: 미리보기 (n20)
@@ -204,8 +275,8 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>
 export const ProductDraftSchema = Step1Schema.and(
   z.object({
     images: Step2Schema.innerType().shape.images,
-    selections: Step3Schema.innerType().shape.selections,
-    mappings: Step3Schema.innerType().shape.mappings,
+    selections: Step3ObjectSchema.shape.selections,
+    mappings: Step3ObjectSchema.shape.mappings,
   }),
 )
 export type ProductDraft = z.infer<typeof ProductDraftSchema>
