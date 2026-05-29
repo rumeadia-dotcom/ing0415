@@ -1,10 +1,11 @@
 # MarketCast — WIP 핸드오프 (v0.15 운영 배포 완료 — 11번가 v1 정식 + 5마켓 주문 수집)
 
-**develop HEAD**: `99a99dc` — chore: main → develop 백머지 (v0.15) (#235)
+**develop HEAD**: `722a164` — docs(coupang): Open API 99 article 마크다운 import + market-api-docs-import 스킬 (#244)
 **main HEAD**: `b1d0f96` — release: v0.15 — 11번가 v1 정식 활성 + 5마켓 주문 자동 수집 (#234)
-**테스트**: 984 passed / 31 todo (95 files / 1 skipped)
+**테스트**: 984 passed / 31 todo (FE coupang-orders 단위 14 통과, parity 7 통과 — v5 + v4 fallback happy 추가)
 **최근 운영 배포**: v0.15 (2026-05-27) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
-**최근 develop 머지**: PR #235 (v0.15 백머지)
+**최근 develop 머지**: PR #244 (쿠팡 Open API 99 article import)
+**진행 중 (uncommitted main 외)**: `feature/fix-coupang-orders-paths` — 쿠팡 drift #2 (v4→v5 ordersheets) + #3 (송장 업로드 path) hotfix
 
 ## 2026-05-28 세션 결과 (운영 사고 + Gateway IP 마이그레이션)
 
@@ -40,11 +41,14 @@
 
 **Drift (운영 영향 가능)**:
 
-| # | 우리 코드 | 공식 문서 | 영향 |
+| # | 우리 코드 | 공식 문서 | 상태 |
 |---|---|---|---|
-| 1 | `seller_api/.../categorization/display-categories/{id}` (`apps/web/src/lib/markets/real/coupang/index.ts:214`) | `seller_api/.../marketplace/meta/display-categories/{code}` (article "카테고리 조회") | 🔴 `categorization` prefix 가 공식 article 에 없음. 실제 호출 시 404 가능 — 운영 로그 확인 필요 |
-| 2 | `openapi/apis/api/v4/vendors/{vendorId}/ordersheets` (`coupang-orders.ts:114`, `coupang/orders.ts:278`) | `openapi/apis/api/v5/vendors/{vendorId}/ordersheets` (article "발주서 목록 조회 일단위/분단위") | 🟡 v4 → v5 마이그레이션 미적용. v4 동작 중일 수 있으나 deprecation 위험 |
-| 3 | `openapi/apis/api/v4/vendors/{vendorId}/orders/{externalOrderId}/ordersheets/shipments` (`coupang/orders.ts:378`) | `openapi/apis/api/v4/vendors/{vendorId}/orders/invoices` (article "송장업로드 처리") | 🔴 path 구조 자체 불일치. 실제 호출 시 404/400 가능. 운영 송장 업로드 미사용 상태라 잠재 |
+| 1 | `seller_api/.../categorization/display-categories/{id}` (`apps/web/src/lib/markets/real/coupang/index.ts:214`) | `seller_api/.../marketplace/meta/display-categories/{code}` (article "카테고리 조회") | 🔴 잔존 — `categorization` prefix 가 공식 article 에 없음. 실제 호출 시 404 가능 |
+| 2 | `openapi/apis/api/v4/vendors/{vendorId}/ordersheets` | `openapi/apis/api/v5/vendors/{vendorId}/ordersheets` | ✅ **해소** (feature/fix-coupang-orders-paths) — v5 path + nested orderer/receiver/Money 매핑 + v4 flat fallback |
+| 3 | `openapi/apis/api/v4/vendors/{vendorId}/orders/{externalOrderId}/ordersheets/shipments` | `openapi/apis/api/v4/vendors/{vendorId}/orders/invoices` | ✅ **해소** (동일 PR) — POST `/orders/invoices` + `orderSheetInvoiceApplyDtos[]` body + `responseList[].succeed/resultCode` 응답 parse |
+
+**Drift #2/#3 한계 (PR body 명시)**:
+- `SubmitTrackingInputSchema` 에 `orderId` / `vendorItemId` 없음 → 임시 `0` 으로 전송 (마켓 거부 시 ok=false). schema 확장은 별도 PR 필요.
 
 **미구현 endpoint (article 존재, 코드 없음 — 향후 백로그)**:
 - 출고지 생성/수정/조회 (셀러 onboarding 핵심)
@@ -57,8 +61,9 @@
 - 카테고리 추천
 
 **다음 액션**:
-- drift #1 / #3 — 운영 호출 로그 (Sentry MCP `mcp__sentry__search_issues`) 로 실제 실패 사례 확인. 실패 발견 시 hotfix 우선순위.
-- drift #2 — v5 가 v4 와 호환되지 않으면 별도 마이그레이션 PR (response shape 변화 확인 필요).
+- drift #1 — 카테고리 조회 path 정정 (`categorization` prefix 제거 + `{id}` → `{code}`). 운영 호출 로그 (Sentry MCP) 로 실제 실패 사례 확인 후 hotfix.
+- drift #2/#3 — `feature/fix-coupang-orders-paths` PR 머지 + 운영 배포 후 셀러 시드 실호출로 v5 응답 매핑 회귀 검증.
+- `SubmitTrackingInputSchema` 확장 (orderId / vendorItemId 추가) — v1 송장 업로드 실호출 전에 필수.
 - 미구현 endpoint — v2 로드맵 정리 시 우선순위 결정.
 
 ## 2026-05-27 세션 결과 (release v0.15 — 11번가 v1 정식 + 5마켓 주문 수집)
@@ -256,10 +261,11 @@ git pull origin develop && pnpm install && pnpm test -- --run
 **910 passed / 31 todo** 확인 후 진입.
 
 ### 우선 순위
-1. **11번가 발급 키 실호출 → apiCode / XML 엘리먼트 최종 검증** (어댑터는 본격 구현 완료).
-2. **dev DB 마이그 3개 + Edge Function 재배포** — 이월.
-3. **release/v0.12 검토** — develop 에 더 누적된 후 (사용자 결정).
-4. (보류 해제 시) partial / retry / skip-market E2E 3종.
+1. **쿠팡 drift #1 hotfix** — 카테고리 조회 path (`categorization` prefix 제거 + `{id}` → `{code}`). `feature/fix-coupang-orders-paths` 머지 후 별도 PR.
+2. **`SubmitTrackingInputSchema` 확장** — `orderId` / `vendorItemId` 추가 (쿠팡 v4 `/orders/invoices` 필수 필드). 실호출 검증 전 필수.
+3. **11번가 발급 키 실호출 → apiCode / XML 엘리먼트 최종 검증** (어댑터는 본격 구현 완료).
+4. **dev DB 마이그 3개 + Edge Function 재배포** — 이월.
+5. **release/v0.16 검토** — develop 에 더 누적된 후 (사용자 결정). 쿠팡 drift hotfix 3종이 묶일 수 있음.
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
 - 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
