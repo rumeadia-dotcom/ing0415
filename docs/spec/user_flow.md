@@ -5,7 +5,7 @@
 - **Version**: 1 ("새 플로우 1", COMPLETED)
 - **AI Model**: claude-opus-4-5
 - **Created**: 2026-05-18
-- **Pages**: 30 / Nodes: 60 / Edges: ~70 / Sections: 9
+- **Pages**: 30 / Nodes: 61 / Edges: ~71 / Sections: 9
 - **Note**: s7~s9 (주문·배송 자동화) 는 manyfast 다이어그램에 없는 자체 확장 섹션 — PRD §6~§9 와 매핑.
 
 ---
@@ -22,7 +22,7 @@
 | s6 | 등록 이력 | 6 |
 | s7 | 주문 현황 | 4 |
 | s8 | 배송 처리 | 7 |
-| s9 | 설정 (배송) | 3 |
+| s9 | 설정 (배송) | 4 |
 
 ---
 
@@ -197,10 +197,13 @@
 | n58 | main_page | 배송 설정 |
 | n59 | page | 로젠 API 연동 |
 | n60 | page | 발송인 정보 설정 |
+| n61 | page | G마켓·옥션 배송 프로필 관리 (ESM) |
 
 **Flow**
 - 배송 설정 → 로젠 API 연동 (userId / custCd 입력 → pgcrypto 암호화 저장 → 연결 테스트)
 - 배송 설정 → 발송인 정보 설정 (이름·주소·연락처·fareTy·dlvFare)
+- 배송 설정 → G마켓·옥션 배송 프로필 관리 (`/settings/shipping/esm-profiles`) — ESM 상품 등록 선행값(출하지·발송정책) 사전 생성·재사용. 생성 시 Edge `esm-shipping-profile` 가 ESM 4단계(주소록→출하지→묶음배송→발송정책) 호출 → 번호 저장. 상품 등록 3단계(s3)는 이 프로필을 select 만 (esm.md §1.3/§5, PR-3).
+  - ESM(G마켓/옥션) 계정 미연결 시 생성 불가 → 마켓 연결 유도 (n34 `/markets/connect`).
 - 로젠 미연동 상태에서 n47 진입 시 → 배송 설정 유도 배너
 
 ---
@@ -313,6 +316,7 @@ flowchart TD
     n58[배송 설정]
     n59[로젠 API 연동]
     n60[발송인 정보 설정]
+    n61[G마켓·옥션 배송 프로필 관리]
 
     n1 --> n2
     n2 --> n3
@@ -379,4 +383,5 @@ flowchart TD
     n9 --> n58
     n58 --> n59
     n58 --> n60
+    n58 --> n61
 ```

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { CheckCircle2, AlertCircle, Truck } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Truck, PackageCheck } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import {
   Badge,
@@ -22,6 +22,7 @@ import {
   useAutoDispatchSetting,
   useAutoDispatchToggle,
 } from '../hooks/useAutoDispatchToggle'
+import { useEsmShippingProfiles } from '../hooks/useEsmShippingProfiles'
 import type { LogenCredentialsStatus } from '@/lib/schemas/logen'
 
 /**
@@ -46,6 +47,7 @@ export function SettingsShippingPage(): JSX.Element {
   const status = useLogenCredentialsStatus()
   const autoDispatch = useAutoDispatchSetting()
   const toggleMut = useAutoDispatchToggle()
+  const esmProfiles = useEsmShippingProfiles()
 
   return (
     <div className="mx-auto w-full max-w-[1080px]">
@@ -101,6 +103,9 @@ export function SettingsShippingPage(): JSX.Element {
                 }
               />
               <CarrierCard />
+              <EsmProfilesCard
+                count={esmProfiles.data?.length ?? null}
+              />
             </>
           )}
         </div>
@@ -275,6 +280,35 @@ function CarrierCard(): JSX.Element {
       <CardContent>
         <Badge variant="secondary">{t.carrier}</Badge>
       </CardContent>
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────────
+// 카드 — G마켓·옥션 배송 프로필 진입점
+// ─────────────────────────────────────────────
+
+function EsmProfilesCard({ count }: { count: number | null }): JSX.Element {
+  const t = ko.settings.shipping.esmProfilesCard
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            <PackageCheck className="h-4 w-4" aria-hidden="true" />
+            {t.title}
+            {count !== null && count > 0 && (
+              <Badge variant="secondary">
+                {t.count.replace('{count}', String(count))}
+              </Badge>
+            )}
+          </CardTitle>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/settings/shipping/esm-profiles">{t.manageButton}</Link>
+          </Button>
+        </div>
+        <CardDescription>{t.description}</CardDescription>
+      </CardHeader>
     </Card>
   )
 }

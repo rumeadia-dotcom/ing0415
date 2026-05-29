@@ -102,4 +102,10 @@ export const HttpErrors = {
     message = 'internal server error',
     details?: Record<string, unknown>,
   ) => new HttpError(500, code, message, details),
+  /** upstream(외부 마켓 API) 응답 실패 — 우리 서버 버그가 아닌 외부 도달/응답 문제. */
+  badGateway: (
+    code = 'bad_gateway',
+    message = 'upstream service error',
+    details?: Record<string, unknown>,
+  ) => new HttpError(502, code, message, details),
 }
