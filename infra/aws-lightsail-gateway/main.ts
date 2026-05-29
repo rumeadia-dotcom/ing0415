@@ -22,6 +22,8 @@ const ALLOWED_MARKETS = new Set(['naver', 'coupang', 'gmarket', 'auction', '11st
 const ALLOWED_UPSTREAM_HOSTS = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
+  // ESM(G마켓·옥션): sa2 = 현행 상품/카테고리 base, sa = 레거시 호환 유지.
+  'sa2.esmplus.com',
   'sa.esmplus.com',
   'openapi.11st.co.kr',
 ]);

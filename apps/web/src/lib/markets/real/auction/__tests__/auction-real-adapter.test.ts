@@ -77,18 +77,14 @@ const VALID_MAPPING: MarketMapping = {
   extra: {},
 }
 
-const CATEGORY_RESPONSE = {
-  resultCode: '0000',
-  data: {
-    categories: [
-      {
-        categoryId: '500009999',
-        categoryName: '주방/욕실',
-        isLeaf: true,
-      },
-    ],
+// site-cats 대분류 응답 — 단일 leaf. esm-api/product/4.md 형태.
+const CATEGORY_RESPONSE = [
+  {
+    catCode: '500009999',
+    catName: '주방/욕실',
+    isLeaf: true,
   },
-}
+]
 
 const CREATE_PRODUCT_RESPONSE = {
   resultCode: '0000',
