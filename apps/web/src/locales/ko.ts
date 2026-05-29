@@ -426,6 +426,10 @@ export const ko = {
       dispatchHint: '운송장 발급 후 자동으로 마켓 송장 API에 제출됩니다.',
       errorLoad: '주문 상세를 불러오지 못했습니다',
       notFound: '주문을 찾을 수 없습니다',
+      safeNumberBadge: '안심번호',
+      safeNumberAriaLabel: '안심번호 안내',
+      safeNumberNote:
+        '쿠팡은 셀러 보호 정책에 따라 안심번호(050…)를 제공합니다. 통화 시 자동으로 수취인 연락처로 연결됩니다.',
     },
     timeline: {
       collected: '수집됨',

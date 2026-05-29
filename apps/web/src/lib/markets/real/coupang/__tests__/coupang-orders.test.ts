@@ -14,6 +14,7 @@ import {
   type StoredCredential,
 } from '@/lib/schemas'
 import {
+  COUPANG_ORDERS_MAX_PAGES,
   coupangFetchOrders,
   coupangSubmitTracking,
   normalizeCoupangStatus,
@@ -229,6 +230,116 @@ describe('coupangFetchOrders', () => {
       const err = e as MarketError
       expect(err.code).toBe('rate_limit')
       expect(err.context.retryAfterMs).toBeGreaterThan(0)
+    }
+  })
+
+  // ─────────────────────────────────────────────
+  // 페이징 (nextToken) — v5 follow-up 호출
+  // ─────────────────────────────────────────────
+
+  function makePageBody(args: {
+    shipmentBoxId: number
+    nextToken?: string
+  }) {
+    return {
+      code: 200,
+      message: 'OK',
+      data: [
+        {
+          shipmentBoxId: args.shipmentBoxId,
+          orderId: args.shipmentBoxId,
+          orderedAt: '2026-05-21T02:30:00+00:00',
+          paidAt: '2026-05-21T02:31:00+00:00',
+          orderer: { name: '셀러', safeNumber: '+82-10-0000-0000' },
+          receiver: {
+            name: '수취',
+            safeNumber: '010-0000-0000',
+            addr1: '서울시 강남구',
+            addr2: '1동 1호',
+          },
+          orderItems: [
+            {
+              vendorItemId: 1,
+              vendorItemName: '상품',
+              shippingCount: 1,
+              orderPrice: { currencyCode: 'KRW', units: 10000, nanos: 0 },
+            },
+          ],
+          status: 'ACCEPT',
+        },
+      ],
+      ...(args.nextToken !== undefined ? { nextToken: args.nextToken } : {}),
+    }
+  }
+
+  it('페이징: nextToken 없음 (단일 페이지) → 1회 호출 후 종료', async () => {
+    const fetchMock = makeFetchMock([
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 1 }) },
+    ])
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const orders = await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+    expect(orders.length).toBe(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('페이징: 2 페이지 (nextToken="abc" → "" 종료) → 결과 concat', async () => {
+    const fetchMock = makeFetchMock([
+      {
+        ok: true,
+        status: 200,
+        body: makePageBody({ shipmentBoxId: 1, nextToken: 'abc' }),
+      },
+      {
+        ok: true,
+        status: 200,
+        body: makePageBody({ shipmentBoxId: 2, nextToken: '' }),
+      },
+    ])
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const orders = await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+    expect(orders.length).toBe(2)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // 2번째 호출 URL 에 nextToken=abc 포함 여부 확인.
+    const secondCallUrl = fetchMock.mock.calls[1]?.[0]
+    expect(typeof secondCallUrl).toBe('string')
+    expect(String(secondCallUrl)).toContain('nextToken=abc')
+  })
+
+  it('페이징: MAX_PAGES (5) cap — 6 페이지째는 호출하지 않음', async () => {
+    // 5 페이지 모두 nextToken 다른 값으로 응답 → MAX 도달 후 종료.
+    const fetchMock = makeFetchMock([
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 1, nextToken: 't1' }) },
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 2, nextToken: 't2' }) },
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 3, nextToken: 't3' }) },
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 4, nextToken: 't4' }) },
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 5, nextToken: 't5' }) },
+      // 6번째 호출이 발생하면 안 됨 (fail-fast).
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 99, nextToken: '' }) },
+    ])
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const orders = await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+    expect(COUPANG_ORDERS_MAX_PAGES).toBe(5)
+    expect(orders.length).toBe(COUPANG_ORDERS_MAX_PAGES)
+    expect(fetchMock).toHaveBeenCalledTimes(COUPANG_ORDERS_MAX_PAGES)
+  })
+
+  it('페이징: 동일 nextToken 2번 연속 → MarketError("server") + nextToken_loop', async () => {
+    const fetchMock = makeFetchMock([
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 1, nextToken: 'same' }) },
+      { ok: true, status: 200, body: makePageBody({ shipmentBoxId: 2, nextToken: 'same' }) },
+    ])
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    try {
+      await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+      throw new Error('should have thrown')
+    } catch (e) {
+      const err = e as MarketError
+      expect(err.code).toBe('server')
+      expect(err.context.marketErrorCode).toBe('nextToken_loop')
     }
   })
 })
