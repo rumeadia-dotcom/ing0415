@@ -288,3 +288,321 @@ export const JOB_MARKET_ERROR_CODES = [
 ] as const
 export const JobMarketErrorCodeSchema = z.enum(JOB_MARKET_ERROR_CODES)
 export type JobMarketErrorCode = z.infer<typeof JobMarketErrorCodeSchema>
+
+// ─────────────────────────────────────────────
+// ESM(G마켓·옥션) 스키마 (src/lib/schemas/esm.ts 미러)
+//   마스터: docs/architecture/v1/features/esm.md §4
+//   클라이언트 단일 출처: apps/web/src/lib/schemas/esm.ts — 변경 시 양쪽 동시 갱신.
+// ─────────────────────────────────────────────
+
+/** UTF-8 byte 길이 (한글 3byte). truncate 금지 → validation error. */
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length
+}
+
+function isMultipleOfTen(value: number): boolean {
+  return value % 10 === 0
+}
+
+export const ESM_SELLING_PERIODS = [-1, 0, 15, 30, 60, 90, 365] as const
+export const EsmSellingPeriodSchema = z.union([
+  z.literal(-1),
+  z.literal(0),
+  z.literal(15),
+  z.literal(30),
+  z.literal(60),
+  z.literal(90),
+  z.literal(365),
+])
+export type EsmSellingPeriod = z.infer<typeof EsmSellingPeriodSchema>
+
+export const EsmSiteTypeSchema = z.union([z.literal(1), z.literal(2)])
+export type EsmSiteType = z.infer<typeof EsmSiteTypeSchema>
+
+export const EsmShippingTypeSchema = z.union([z.literal(1), z.literal(2)])
+
+const EsmPriceSchema = z
+  .object({
+    Gmkt: z.number().int().min(10).max(999_999_999).refine(isMultipleOfTen, {
+      message: '가격은 10원 단위여야 합니다',
+    }),
+    Iac: z.number().int().min(10).max(999_999_999).refine(isMultipleOfTen, {
+      message: '가격은 10원 단위여야 합니다',
+    }),
+  })
+  .partial()
+
+const EsmStockSchema = z
+  .object({
+    Gmkt: z.number().int().min(1).max(99_999),
+    Iac: z.number().int().min(1).max(99_999),
+  })
+  .partial()
+
+const EsmSellingPeriodPairSchema = z
+  .object({
+    Gmkt: EsmSellingPeriodSchema,
+    Iac: EsmSellingPeriodSchema,
+  })
+  .partial()
+
+export const EsmOfficialNoticeDetailSchema = z.object({
+  code: z.string().min(1),
+  value: z.string().min(1),
+})
+export type EsmOfficialNoticeDetail = z.infer<
+  typeof EsmOfficialNoticeDetailSchema
+>
+
+export const EsmOfficialNoticeSchema = z.object({
+  officialNoticeNo: z.string().min(1),
+  details: z.array(EsmOfficialNoticeDetailSchema),
+})
+export type EsmOfficialNotice = z.infer<typeof EsmOfficialNoticeSchema>
+
+const EsmCategorySiteSchema = z.object({
+  siteType: EsmSiteTypeSchema,
+  catCode: z.string().min(1),
+})
+
+const EsmItemBasicInfoSchema = z.object({
+  goodsName: z.object({
+    kor: z
+      .string()
+      .min(1)
+      .refine((v) => utf8ByteLength(v) <= 100, {
+        message: '검색용 상품명(kor)은 100byte 이하여야 합니다',
+      }),
+  }),
+  category: z.object({
+    site: z.array(EsmCategorySiteSchema).min(1),
+  }),
+})
+
+const EsmImagesSchema = z
+  .object({
+    basicImgURL: z.string().url(),
+    addtionalImg1URL: z.string().url().optional(),
+    addtionalImg2URL: z.string().url().optional(),
+    addtionalImg3URL: z.string().url().optional(),
+    addtionalImg4URL: z.string().url().optional(),
+    addtionalImg5URL: z.string().url().optional(),
+    addtionalImg6URL: z.string().url().optional(),
+    addtionalImg7URL: z.string().url().optional(),
+    addtionalImg8URL: z.string().url().optional(),
+    addtionalImg9URL: z.string().url().optional(),
+    addtionalImg10URL: z.string().url().optional(),
+    addtionalImg11URL: z.string().url().optional(),
+    addtionalImg12URL: z.string().url().optional(),
+    addtionalImg13URL: z.string().url().optional(),
+    addtionalImg14URL: z.string().url().optional(),
+  })
+  .strict()
+
+const EsmShippingPolicySchema = z.object({
+  placeNo: z.string().min(1),
+})
+
+const EsmDispatchPolicyNoSchema = z
+  .object({
+    gmkt: z.string().min(1),
+    iac: z.string().min(1),
+  })
+  .partial()
+
+const EsmShippingSchema = z.object({
+  type: EsmShippingTypeSchema,
+  policy: EsmShippingPolicySchema,
+  dispatchPolicyNo: EsmDispatchPolicyNoSchema,
+})
+
+const EsmItemAddtionalInfoSchema = z.object({
+  price: EsmPriceSchema,
+  stock: EsmStockSchema,
+  sellingPeriod: EsmSellingPeriodPairSchema,
+  shipping: EsmShippingSchema,
+  images: EsmImagesSchema,
+  officialNotice: EsmOfficialNoticeSchema,
+  isVatFree: z.boolean(),
+})
+
+export const EsmGoodsCreateRequestSchema = z
+  .object({
+    itemBasicInfo: EsmItemBasicInfoSchema,
+    itemAddtionalInfo: EsmItemAddtionalInfoSchema,
+  })
+  .superRefine((data, ctx) => {
+    const siteTypes = data.itemBasicInfo.category.site.map((s) => s.siteType)
+    const isGmkt = siteTypes.includes(2)
+    const isAuction = siteTypes.includes(1)
+
+    if (isAuction) {
+      const imgs = data.itemAddtionalInfo.images
+      const urls = Object.values(imgs).filter(
+        (u): u is string => typeof u === 'string',
+      )
+      const distinct = new Set(urls)
+      if (distinct.size !== urls.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '옥션은 이미지 URL 중복이 허용되지 않습니다',
+          path: ['itemAddtionalInfo', 'images'],
+        })
+      }
+    }
+
+    const price = data.itemAddtionalInfo.price
+    if (isGmkt && price.Gmkt === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '지마켓(siteType:2) 등록에는 price.Gmkt 가 필요합니다',
+        path: ['itemAddtionalInfo', 'price', 'Gmkt'],
+      })
+    }
+    if (isAuction && price.Iac === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '옥션(siteType:1) 등록에는 price.Iac 가 필요합니다',
+        path: ['itemAddtionalInfo', 'price', 'Iac'],
+      })
+    }
+  })
+export type EsmGoodsCreateRequest = z.infer<typeof EsmGoodsCreateRequestSchema>
+
+// 보안 주의 (security.md §6): passthrough 보존 필드는 redact.ts 키 화이트리스트에
+// 의존해 마스킹된다. 알려진 응답 필드엔 PII 가 없으나 ESM 비표준 키 PII 잔여
+// 리스크가 있으므로 이 응답을 로그/Sentry extra 에 직접 싣지 말 것(요약 필드만).
+const EsmSiteDetailEntrySchema = z
+  .object({
+    SiteGoodsNo: z.string().optional(),
+    SiteGoodsComment: z.string().optional(),
+  })
+  .passthrough()
+
+export const EsmGoodsCreateResponseSchema = z
+  .object({
+    goodsNo: z.number(),
+    siteDetail: z
+      .object({
+        gmkt: EsmSiteDetailEntrySchema.optional(),
+        iac: EsmSiteDetailEntrySchema.optional(),
+      })
+      .passthrough()
+      .optional(),
+    resultCode: z.number(),
+    message: z.string().nullable().optional(),
+  })
+  .passthrough()
+export type EsmGoodsCreateResponse = z.infer<
+  typeof EsmGoodsCreateResponseSchema
+>
+
+export interface EsmSiteCat {
+  siteCatCode: string
+  siteCatName: string
+  isLeaf: boolean
+  siteType?: EsmSiteType
+  children?: EsmSiteCat[]
+}
+
+export const EsmSiteCatSchema: z.ZodType<EsmSiteCat> = z.lazy(() =>
+  z.object({
+    siteCatCode: z.string().min(1),
+    siteCatName: z.string().min(1),
+    isLeaf: z.boolean(),
+    siteType: EsmSiteTypeSchema.optional(),
+    children: z.array(EsmSiteCatSchema).optional(),
+  }),
+)
+
+export const ESM_PROFILE_SITES = ['G', 'A'] as const
+export const EsmProfileSiteSchema = z.enum(ESM_PROFILE_SITES)
+export type EsmProfileSite = z.infer<typeof EsmProfileSiteSchema>
+
+export const ESM_DISPATCH_TYPES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
+export const EsmDispatchTypeSchema = z.enum(ESM_DISPATCH_TYPES)
+export type EsmDispatchType = z.infer<typeof EsmDispatchTypeSchema>
+
+export const EsmFeeTypeSchema = z.union([z.literal(1), z.literal(2)])
+export type EsmFeeType = z.infer<typeof EsmFeeTypeSchema>
+
+export const ESM_SHIPPING_PROFILE_STATUSES = ['active', 'error'] as const
+export const EsmShippingProfileStatusSchema = z.enum(
+  ESM_SHIPPING_PROFILE_STATUSES,
+)
+export type EsmShippingProfileStatus = z.infer<
+  typeof EsmShippingProfileStatusSchema
+>
+
+// PII 경계(security.md §2 / esm.md §3): 저장형엔 주소·전화·이름 PII 미포함.
+// 번호(addrNo/placeNo/dispatchPolicyNo)만 저장. raw_meta(jsonb)는 타입 계약에서
+// 제외 — 임의 jsonb 가 PII 유입 통로가 되지 않도록. PII 는 CreateInput.address 만.
+export const EsmShippingProfileSchema = z.object({
+  id: UuidSchema,
+  sellerId: UuidSchema,
+  marketAccountId: UuidSchema,
+  site: EsmProfileSiteSchema,
+  profileLabel: z.string().min(1),
+  addrNo: z.string().min(1),
+  placeNo: z.string().min(1),
+  bundlePolicyNo: z.string().nullable().optional(),
+  dispatchPolicyNo: z.string().min(1),
+  dispatchType: EsmDispatchTypeSchema,
+  shippingFee: MoneyKrwSchema,
+  feeType: EsmFeeTypeSchema,
+  status: EsmShippingProfileStatusSchema,
+  createdAt: IsoDateTimeOffsetSchema,
+  updatedAt: IsoDateTimeOffsetSchema,
+})
+export type EsmShippingProfile = z.infer<typeof EsmShippingProfileSchema>
+
+export const EsmShippingProfileCreateInputSchema = z.object({
+  marketAccountId: UuidSchema,
+  site: EsmProfileSiteSchema,
+  profileLabel: z.string().min(1),
+  dispatchType: EsmDispatchTypeSchema,
+  shippingFee: MoneyKrwSchema,
+  feeType: EsmFeeTypeSchema,
+  address: z.object({
+    zipCode: z.string().min(1),
+    addressMain: z.string().min(1),
+    addressDetail: z.string().optional(),
+    contactName: z.string().min(1),
+    contactPhone: z.string().min(1),
+  }),
+})
+export type EsmShippingProfileCreateInput = z.infer<
+  typeof EsmShippingProfileCreateInputSchema
+>
+
+export const REGISTRATION_FIELD_KINDS = [
+  'select',
+  'text',
+  'number',
+  'officialNotice',
+  'shippingProfile',
+] as const
+export const RegistrationFieldKindSchema = z.enum(REGISTRATION_FIELD_KINDS)
+export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
+
+export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
+  'shippingProfiles',
+  'static',
+] as const
+export const RegistrationFieldOptionsSourceSchema = z.enum(
+  REGISTRATION_FIELD_OPTIONS_SOURCES,
+)
+export type RegistrationFieldOptionsSource = z.infer<
+  typeof RegistrationFieldOptionsSourceSchema
+>
+
+export const RegistrationFieldMetaSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  kind: RegistrationFieldKindSchema,
+  required: z.boolean(),
+  optionsSource: RegistrationFieldOptionsSourceSchema.optional(),
+  helpText: z.string().optional(),
+  blockingReason: z.string().optional(),
+})
+export type RegistrationFieldMeta = z.infer<typeof RegistrationFieldMetaSchema>
