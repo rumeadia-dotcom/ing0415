@@ -33,8 +33,10 @@ import type { FetchOrdersInput, MarketOrder } from './market-orders.ts'
 /**
  * 송장 제출 결과 (v2 shipping).
  *
- * 마스터: PR4 (MarketAdapter.submitTracking 구현) 시점에 본 타입 zod 미러 추가 예정.
- * 본 PR 에서는 인터페이스 시그니처만 고정.
+ * Edge 워커(shipping-dispatch-market-worker)는 positional 인자 + throw-on-failure
+ * 계약을 사용한다 (Web 의 discriminated-union MarketSubmitTrackingResult 와 다름 —
+ * Edge 는 withRetry / 결과 적재를 process.ts 오케스트레이터가 담당하므로 어댑터는
+ * 성공 객체만 반환하고 거부는 MarketError throw).
  */
 export interface SubmitTrackingResult {
   market: MarketId
@@ -71,9 +73,10 @@ export interface MarketAdapter {
   fetchOrders?(input: FetchOrdersInput): Promise<MarketOrder[]>
 
   /**
-   * 송장 제출 (v2 shipping, optional — PR4 에서 구현).
+   * 송장 제출 (v2 shipping, optional — 마켓별 real 어댑터에서 구현).
    * 마켓별 외부 주문 ID + 운송장번호 + 택배사 코드 → 마켓 API 호출.
-   * MarketError throw 만. (재시도 / 로깅은 호출측 withRetry.)
+   * 마켓 거부(검증 실패 / 이미 발송 등) 포함 모든 실패는 MarketError throw.
+   * (재시도 / 결과 적재 / 로깅은 호출측 process.ts withRetry 오케스트레이터.)
    */
   submitTracking?(
     externalOrderId: string,
