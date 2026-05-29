@@ -24,7 +24,7 @@
 export interface CoupangSignatureInput {
   /** HTTP 메서드 (대소문자 무관, 내부에서 대문자 정규화). */
   method: string
-  /** 요청 path + query string. 예: "/v2/providers/.../categorization/...". */
+  /** 요청 path + query string. 예: "/v2/providers/.../marketplace/meta/display-categories/0". */
   path: string
   /** Wing OpenAPI 발급 accessKey */
   accessKey: string

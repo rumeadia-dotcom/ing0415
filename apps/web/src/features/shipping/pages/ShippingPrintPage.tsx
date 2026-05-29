@@ -77,10 +77,10 @@ export function ShippingPrintPage(): JSX.Element {
       const url = buildOutSlipPrintPopUrl({ waybillNumbers: waybills })
       // noopener,noreferrer: 로젠 외부 도메인 팝업이 window.opener 로 본 페이지에 접근하는
       // reverse tabnabbing 공격 방지 (OWASP A05:2021 — Security Misconfiguration).
-      const popup = window.open(url, 'logen-print-pop', 'width=900,height=700,noopener,noreferrer')
-      if (!popup) {
-        toast.error(ko.commonToasts.popupBlocked)
-      }
+      // W3C 사양상 noopener 가 set 되면 window.open 은 항상 null 반환 → 차단 자동 감지 불가.
+      // 차단 시 사용자가 브라우저 팝업 허용 아이콘으로 직접 해소 (안내성 toast).
+      window.open(url, 'logen-print-pop', 'width=900,height=700,noopener,noreferrer')
+      toast.info(ko.commonToasts.popupHint)
     } catch (e) {
       const message = e instanceof Error ? e.message : '팝업 URL 생성 실패'
       toast.error(message)

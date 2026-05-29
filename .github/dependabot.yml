@@ -1,7 +1,9 @@
 # Dependabot 설정
-# 인용: docs/architecture/v1/ops/ci-cd.md 부록 A — 자동 머지는 비활성. 알림만.
+# 인용: docs/architecture/v1/ops/ci-cd.md 부록 A
 #
-# 주간 (월요일 09:00 KST = 00:00 UTC) — 운영자가 수동 검토 후 머지.
+# 주간 (월요일 09:00 KST = 00:00 UTC). patch/minor 는 CI 통과 시 자동 머지
+# (.github/workflows/dependabot-auto-merge.yml). major 는 사용자가 명시적
+# 검토 후 머지.
 
 version: 2
 updates:
@@ -49,3 +51,10 @@ updates:
       - 'github-actions'
     commit-message:
       prefix: 'chore(actions)'
+    # 액션 호환성은 안전한 편 — patch/minor/major 모두 한 PR 로 묶어 검토 부담 최소화.
+    groups:
+      github-actions-all:
+        update-types:
+          - 'minor'
+          - 'patch'
+          - 'major'

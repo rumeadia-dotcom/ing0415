@@ -96,7 +96,11 @@ services:
     # 만약 1GB 이하 인스턴스로 다운사이즈 시 OOM 위험 → profiles: ["heavy"] 부활 + --profile heavy 운영.
     image: mcr.microsoft.com/playwright:v1.48.0-jammy
     # --allowed-hosts '*' : auth-proxy 경유 외부 도메인 호출 허용. 보안은 auth-proxy Bearer 에 위임.
-    command: ["npx", "-y", "@playwright/mcp@latest", "--headless", "--host", "0.0.0.0", "--port", "8931", "--isolated", "--allowed-hosts", "*"]
+    # --browser firefox  : @playwright/mcp 의 'chromium' 별칭은 chrome-for-testing 으로 변경돼
+    #                      mcr.microsoft.com/playwright 이미지에 미포함 → 실행 실패. 동 이미지에
+    #                      번들된 firefox 로 강제. (대안: 별도 entrypoint 에서 chrome-for-testing
+    #                      install. v1 은 단순성 우선해 firefox 채택. 2026-05-28 검증)
+    command: ["npx", "-y", "@playwright/mcp@latest", "--headless", "--host", "0.0.0.0", "--port", "8931", "--isolated", "--allowed-hosts", "*", "--browser", "firefox"]
     user: "10001:10001"
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
