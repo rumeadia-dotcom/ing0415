@@ -217,6 +217,7 @@ async function esmFetchSigned(opts: {
     masterId: cred.masterId,
     secretKey: cred.secretKey,
     site: cred.site,
+    sellerId: cred.sellerId,
   })
 
   const queryString = query

@@ -135,13 +135,27 @@ async function buildJwt(opts: {
   masterId: string
   secretKey: string
   site: 'G' | 'A'
+  sellerId?: string
   iat?: number
 }): Promise<string> {
-  const { masterId, secretKey, site, iat = Math.floor(Date.now() / 1000) } = opts
+  const {
+    masterId,
+    secretKey,
+    site,
+    sellerId = 'seller-edge',
+    iat = Math.floor(Date.now() / 1000),
+  } = opts
   const exp = iat + 300
   const headerB64 = strToBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT', kid: masterId }))
   const payloadB64 = strToBase64Url(
-    JSON.stringify({ iss: 'esm', sub: 'sell', aud: 'sa.esmplus.com', iat, exp, site }),
+    JSON.stringify({
+      iss: 'www.esmplus.com',
+      sub: 'sell',
+      aud: 'sa.esmplus.com',
+      iat,
+      exp,
+      ssi: `${site}:${sellerId}`,
+    }),
   )
   const signingInput = `${headerB64}.${payloadB64}`
   const enc = new TextEncoder()

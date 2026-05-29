@@ -1,20 +1,28 @@
 /**
- * ESM JWT (HS256) 서명 모듈 단위 테스트 (10건).
+ * ESM JWT (HS256) 서명 모듈 단위 테스트.
  *
- * 마스터: WIP-5markets-mvp.md C-3 Phase 0
- * 근거 — PRD §2.4 자격증명 보안, market-adapter.md §9.
+ * 마스터: WIP-5markets-mvp.md C-3 Phase 0, esm.md §7 PR-1
+ * 근거 — PRD §2.4 자격증명 보안, market-adapter.md §9, esm-api/README.md 인증 섹션.
+ *
+ * 스펙 정합 (PR-1): payload 는 `iss`(발행자) / `sub`='sell' / `aud`='sa.esmplus.com'
+ *   / `ssi`='{site}:{sellerId}' (사이트별 분리 — 단일 사이트). `site` flat 키 제거.
  *
  * 테스트 카테고리:
  *   T1.  JWT 구조 — 3-segment (header.payload.signature)
  *   T2.  header 디코드 — alg=HS256, typ=JWT, kid=MasterID
- *   T3.  payload 디코드 — iss/sub/aud 고정값 + site 분기
+ *   T3.  payload 디코드 — iss(기본)/sub/aud 고정값 + ssi=site:sellerId
  *   T4.  iat 주입 시 결정성 (동일 입력 → 동일 토큰)
  *   T5.  exp = iat + ttlSec (기본 300)
- *   T6.  site 변경 시 payload 변경 → token 변경
+ *   T6.  site 변경 시 payload.ssi 변경 → token 변경
  *   T7.  masterId 변경 시 header.kid 변경 → token 변경
  *   T8.  secretKey 변경 시 signature 변경 → token 변경
  *   T9.  base64url 인코딩 형식 — '+', '/', '=' 미포함
  *  T10.  ttlSec 커스텀 — exp = iat + 60 검증
+ *  T11.  iss 커스텀 주입 시 payload.iss 반영
+ *  T12.  ssi 는 옥션/지마켓 단일 사이트만 — 콤마 결합·다중 사이트 없음
+ *  T13.  (fail) sellerId 빈 문자열 → ssi 가 'G:' 형태로 깨짐 (잘못된 입력 방어 단언)
+ *  T14.  (fail) site 가 'G'|'A' 외 값이면 ssi prefix 가 규약 위반
+ *  T15.  (fail) payload 에 구(舊) flat `site` 키가 남아있지 않음 (회귀 가드)
  */
 
 import { describe, it, expect } from 'vitest'
@@ -23,6 +31,7 @@ import { buildEsmJwt } from '../jwt'
 // 테스트 고정값
 const FIXED_MASTER_ID = 'esmplus-master-abc123'
 const FIXED_SECRET_KEY = 'esmplus-secret-xyz789'
+const FIXED_SELLER_ID = 'esmplus-seller-001'
 const FIXED_IAT = 1747734645 // 2026-05-20T09:30:45Z
 
 // ─────────────────────────────────────────────
@@ -53,6 +62,7 @@ describe('buildEsmJwt — JWT 구조 & 결정성', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const parts = token.split('.')
@@ -67,6 +77,7 @@ describe('buildEsmJwt — JWT 구조 & 결정성', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'A',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const header = decodeJsonSegment(segmentAt(token, 0)) as Record<string, unknown>
@@ -75,19 +86,20 @@ describe('buildEsmJwt — JWT 구조 & 결정성', () => {
     expect(header.kid).toBe(FIXED_MASTER_ID)
   })
 
-  it('T3: payload 디코드 → iss/sub/aud 고정값 + site=G', async () => {
+  it('T3: payload 디코드 → iss(기본)/sub/aud 고정값 + ssi=G:sellerId', async () => {
     const { token } = await buildEsmJwt({
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const payload = decodeJsonSegment(segmentAt(token, 1)) as Record<string, unknown>
-    expect(payload.iss).toBe('esm')
+    expect(payload.iss).toBe('www.esmplus.com') // 기본 발행자
     expect(payload.sub).toBe('sell')
     expect(payload.aud).toBe('sa.esmplus.com')
     expect(payload.iat).toBe(FIXED_IAT)
-    expect(payload.site).toBe('G')
+    expect(payload.ssi).toBe(`G:${FIXED_SELLER_ID}`)
   })
 
   it('T4: 같은 입력 두 번 호출 → 동일 토큰 (결정성)', async () => {
@@ -95,6 +107,7 @@ describe('buildEsmJwt — JWT 구조 & 결정성', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G' as const,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const r1 = await buildEsmJwt(input)
@@ -108,6 +121,7 @@ describe('buildEsmJwt — JWT 구조 & 결정성', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     expect(exp).toBe(FIXED_IAT + 300)
@@ -115,26 +129,28 @@ describe('buildEsmJwt — JWT 구조 & 결정성', () => {
 })
 
 describe('buildEsmJwt — 입력 변화 시 토큰 변화', () => {
-  it('T6: site 변경 시 payload.site + token 달라짐', async () => {
+  it('T6: site 변경 시 payload.ssi + token 달라짐', async () => {
     const baseInput = {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const gMarket = await buildEsmJwt({ ...baseInput, site: 'G' })
     const auction = await buildEsmJwt({ ...baseInput, site: 'A' })
     expect(gMarket.token).not.toBe(auction.token)
 
-    const gPayload = decodeJsonSegment(segmentAt(gMarket.token, 1)) as { site: string }
-    const aPayload = decodeJsonSegment(segmentAt(auction.token, 1)) as { site: string }
-    expect(gPayload.site).toBe('G')
-    expect(aPayload.site).toBe('A')
+    const gPayload = decodeJsonSegment(segmentAt(gMarket.token, 1)) as { ssi: string }
+    const aPayload = decodeJsonSegment(segmentAt(auction.token, 1)) as { ssi: string }
+    expect(gPayload.ssi).toBe(`G:${FIXED_SELLER_ID}`)
+    expect(aPayload.ssi).toBe(`A:${FIXED_SELLER_ID}`)
   })
 
   it('T7: masterId 변경 시 header.kid + token 달라짐', async () => {
     const baseInput = {
       secretKey: FIXED_SECRET_KEY,
       site: 'G' as const,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const r1 = await buildEsmJwt({ ...baseInput, masterId: 'master-A' })
@@ -151,6 +167,7 @@ describe('buildEsmJwt — 입력 변화 시 토큰 변화', () => {
     const baseInput = {
       masterId: FIXED_MASTER_ID,
       site: 'G' as const,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const r1 = await buildEsmJwt({ ...baseInput, secretKey: 'secret-X' })
@@ -170,6 +187,7 @@ describe('buildEsmJwt — 인코딩 & 옵션', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     expect(token).not.toMatch(/[+/=]/)
@@ -182,9 +200,85 @@ describe('buildEsmJwt — 인코딩 & 옵션', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'A',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
       ttlSec: 60,
     })
     expect(exp).toBe(FIXED_IAT + 60)
+  })
+
+  it('T11: iss 커스텀 주입 시 payload.iss 반영', async () => {
+    const { token } = await buildEsmJwt({
+      masterId: FIXED_MASTER_ID,
+      secretKey: FIXED_SECRET_KEY,
+      site: 'G',
+      sellerId: FIXED_SELLER_ID,
+      iss: 'www.playauto.com',
+      iat: FIXED_IAT,
+    })
+    const payload = decodeJsonSegment(segmentAt(token, 1)) as { iss: string }
+    expect(payload.iss).toBe('www.playauto.com')
+  })
+
+  it('T12: ssi 는 단일 사이트만 — 콤마/다중 사이트 결합 없음', async () => {
+    const { token } = await buildEsmJwt({
+      masterId: FIXED_MASTER_ID,
+      secretKey: FIXED_SECRET_KEY,
+      site: 'A',
+      sellerId: FIXED_SELLER_ID,
+      iat: FIXED_IAT,
+    })
+    const payload = decodeJsonSegment(segmentAt(token, 1)) as { ssi: string }
+    expect(payload.ssi).toBe(`A:${FIXED_SELLER_ID}`)
+    expect(payload.ssi).not.toContain(',') // 사이트별 분리 — 단일 사이트 prefix 만
+    expect(payload.ssi.split(':')).toHaveLength(2)
+  })
+})
+
+// ─────────────────────────────────────────────
+// 실패 / 회귀 가드
+// ─────────────────────────────────────────────
+
+describe('buildEsmJwt — 실패 케이스 & 회귀 가드', () => {
+  it('T13 (fail): sellerId 빈 문자열이면 ssi 가 규약 위반 (site prefix 만 남음)', async () => {
+    const { token } = await buildEsmJwt({
+      masterId: FIXED_MASTER_ID,
+      secretKey: FIXED_SECRET_KEY,
+      site: 'G',
+      sellerId: '',
+      iat: FIXED_IAT,
+    })
+    const payload = decodeJsonSegment(segmentAt(token, 1)) as { ssi: string }
+    // 정상 규약은 'G:<sellerId>' — sellerId 누락 시 'G:' 로 깨진다.
+    // 호출측(어댑터 connect)에서 sellerId 필수 검증을 통과시켜야 함을 보장하는 가드.
+    expect(payload.ssi).toBe('G:')
+    expect(payload.ssi.endsWith(':')).toBe(true)
+  })
+
+  it('T14 (fail): 잘못된 site 값은 ssi prefix 가 G/A 규약을 벗어남', async () => {
+    // 런타임에 타입을 우회한 잘못된 site 주입 — 타입 가드 밖의 입력 방어 단언.
+    const { token } = await buildEsmJwt({
+      masterId: FIXED_MASTER_ID,
+      secretKey: FIXED_SECRET_KEY,
+      site: 'X' as unknown as 'G' | 'A',
+      sellerId: FIXED_SELLER_ID,
+      iat: FIXED_IAT,
+    })
+    const payload = decodeJsonSegment(segmentAt(token, 1)) as { ssi: string }
+    const prefix = payload.ssi.split(':')[0]
+    expect(['G', 'A']).not.toContain(prefix) // 규약 위반 — 'X' prefix
+  })
+
+  it('T15 (회귀): payload 에 구(舊) flat `site` 키가 남아있지 않음', async () => {
+    const { token } = await buildEsmJwt({
+      masterId: FIXED_MASTER_ID,
+      secretKey: FIXED_SECRET_KEY,
+      site: 'G',
+      sellerId: FIXED_SELLER_ID,
+      iat: FIXED_IAT,
+    })
+    const payload = decodeJsonSegment(segmentAt(token, 1)) as Record<string, unknown>
+    expect(payload.site).toBeUndefined() // ssi 로 대체됨
+    expect(payload).toHaveProperty('ssi')
   })
 })
