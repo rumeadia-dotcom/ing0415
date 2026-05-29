@@ -16,8 +16,10 @@
  *   - 카테고리(PR-2): GET /categories/site-cats (대분류) + GET /categories/site-cats/{siteCatCode} (하위) 재귀.
  *     site 선택은 쿼리가 아닌 JWT ssi 클레임(buildEsmJwt({ site }))으로 결정 (esm-api/product/4.md).
  *     isLeaf=true 인 최하위만 상품등록 가능.
- *   - 상품 생성: POST /products
- *   ※ 상품 생성 경로(/products)·페이로드 빌드는 PR-4 에서 문서 기준 재작성 예정.
+ *   - 상품 생성(PR-4): POST /item/v1/goods — 중첩 EsmGoodsCreateRequest(itemBasicInfo/
+ *     itemAddtionalInfo). 배송 프로필 번호(placeNo/dispatchPolicyNo)·officialNotice 는
+ *     오케스트레이터(registration-market-worker)가 mapping.extra 로 주입. 응답
+ *     siteDetail.{gmkt|iac}.SiteGoodsNo 를 externalId 로 매핑 (esm-api/product/20.md).
  *
  * 에러 매핑:
  *   - 401 / 403 → 'unauthorized'
@@ -33,9 +35,13 @@ import { createLogger } from '../logger.ts'
 import { generateCorrelationId } from '../correlation.ts'
 import { gatewayFetch } from '../gatewayFetch.ts'
 import {
+  EsmGoodsCreateRequestSchema,
+  EsmGoodsCreateResponseSchema,
   EsmSiteCatSchema,
+  EsmTransformExtraSchema,
   type AuthInput,
   type CreateProductResult,
+  type EsmGoodsCreateRequest,
   type EsmSiteCat,
   type EsmSiteType,
   type MarketId,
@@ -70,9 +76,120 @@ import {
 export const ESM_API_BASE = 'https://sa2.esmplus.com/item/v1'
 const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
-const PRODUCT_NAME_MAX_LENGTH = 80
+/** 검색용 상품명(goodsName.kor) 최대 byte (esm.md §4.1 / product/20.md). */
+const GOODS_NAME_MAX_BYTES = 100
+/** 미지정 시 기본 판매기간 (무제한). */
+const DEFAULT_SELLING_PERIOD = -1
+/** 미지정 시 기본 배송 type (1=택배). */
+const DEFAULT_SHIPPING_TYPE = 1
 /** site-cats 재귀 안전 상한 (Web 미러와 동일). */
 export const ESM_CATEGORY_MAX_DEPTH = 5
+
+/** UTF-8 byte 길이로 잘라 ≤maxBytes 보장 (Web 미러와 동일). */
+function truncateToBytes(value: string, maxBytes: number): string {
+  const encoder = new TextEncoder()
+  if (encoder.encode(value).length <= maxBytes) return value
+  let result = value
+  while (encoder.encode(result).length > maxBytes && result.length > 0) {
+    result = result.slice(0, -1)
+  }
+  return result
+}
+
+/**
+ * 도메인 Product + MarketMapping + ESM extra → 중첩 EsmGoodsCreateRequest 빌드.
+ * Web 미러: apps/web/src/lib/markets/real/esm/shared-adapter.ts buildEsmGoodsPayload (동형).
+ * 순수 함수. 배송 프로필 번호·officialNotice 는 오케스트레이터가 mapping.extra 로 주입.
+ */
+export function buildEsmGoodsPayload(
+  market: MarketId,
+  site: 'G' | 'A',
+  product: Product,
+  mapping: MarketMapping,
+): EsmGoodsCreateRequest {
+  const parsedExtra = EsmTransformExtraSchema.safeParse(mapping.extra ?? {})
+  if (!parsedExtra.success) {
+    throw new MarketError(
+      'validation',
+      `ESM(${market}): 등록 옵션(extra) 형식 오류 — ${parsedExtra.error.message}`,
+      { market, cause: parsedExtra.error },
+    )
+  }
+  const extra = parsedExtra.data
+
+  const placeNo = extra.placeNo
+  const dispatchPolicyNo = extra.dispatchPolicyNo
+  if (!placeNo || !dispatchPolicyNo) {
+    throw new MarketError(
+      'validation',
+      `ESM(${market}): 배송 프로필 번호 누락 (placeNo/dispatchPolicyNo). 등록 전 배송 프로필 선택이 필요합니다`,
+      { market },
+    )
+  }
+  if (!extra.officialNotice) {
+    throw new MarketError(
+      'validation',
+      `ESM(${market}): 상품정보고시(officialNotice) 누락`,
+      { market },
+    )
+  }
+
+  const siteType: EsmSiteType = site === 'G' ? 2 : 1
+  const goodsName = truncateToBytes(product.name, GOODS_NAME_MAX_BYTES)
+  const stock = extra.stock ?? product.stock
+  const sellingPeriod = extra.sellingPeriod ?? DEFAULT_SELLING_PERIOD
+  const shippingType = extra.shippingType ?? DEFAULT_SHIPPING_TYPE
+  const isVatFree = extra.isVatFree ?? false
+
+  const urls = mapping.transformedImageUrls
+  const basicImgURL = urls[0]
+  if (!basicImgURL) {
+    throw new MarketError('validation', `ESM(${market}): 대표 이미지(basicImgURL) 누락`, {
+      market,
+    })
+  }
+  const images: Record<string, string> = { basicImgURL }
+  urls.slice(1, 15).forEach((url, idx) => {
+    images[`addtionalImg${idx + 1}URL`] = url
+  })
+
+  const price = site === 'G' ? { Gmkt: product.priceKrw } : { Iac: product.priceKrw }
+  const stockObj = site === 'G' ? { Gmkt: stock } : { Iac: stock }
+  const sellingPeriodObj =
+    site === 'G' ? { Gmkt: sellingPeriod } : { Iac: sellingPeriod }
+  const dispatchPolicyNoObj =
+    site === 'G' ? { gmkt: dispatchPolicyNo } : { iac: dispatchPolicyNo }
+
+  const candidate = {
+    itemBasicInfo: {
+      goodsName: { kor: goodsName },
+      category: { site: [{ siteType, catCode: mapping.categoryId }] },
+    },
+    itemAddtionalInfo: {
+      price,
+      stock: stockObj,
+      sellingPeriod: sellingPeriodObj,
+      shipping: {
+        type: shippingType,
+        policy: { placeNo },
+        dispatchPolicyNo: dispatchPolicyNoObj,
+      },
+      images,
+      officialNotice: extra.officialNotice,
+      isVatFree,
+    },
+  }
+
+  const parsed = EsmGoodsCreateRequestSchema.safeParse(candidate)
+  if (!parsed.success) {
+    throw new MarketError(
+      'validation',
+      `ESM(${market}): 상품등록 페이로드 검증 실패 — ${parsed.error.message}`,
+      { market, cause: parsed.error },
+    )
+  }
+  return parsed.data
+}
 
 // ─────────────────────────────────────────────
 // site-cats 카테고리 API 응답 raw 스키마
@@ -94,17 +211,6 @@ const EsmSiteCatRawSchema: z.ZodType<EsmSiteCatRaw> = z.lazy(() =>
     subCats: z.array(EsmSiteCatRawSchema).optional(),
   }),
 )
-
-const EsmCreateProductResponseSchema = z.object({
-  resultCode: z.string(),
-  resultMessage: z.string().optional(),
-  data: z
-    .object({
-      itemNo: z.string().optional(),
-      itemUrl: z.string().url().optional(),
-    })
-    .optional(),
-})
 
 // CategoryNode (Deno 측 수동 정의)
 interface CategoryNode {
@@ -451,30 +557,15 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       return expandedRoots.map((cat) => siteCatToCategoryNode(cat, 1, null))
     },
 
+    // transformProduct — 순수 함수. 중첩 EsmGoodsCreateRequest 빌드 (esm.md §4.1).
+    // 배송 프로필 번호·officialNotice 는 오케스트레이터가 mapping.extra 로 주입.
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
-      const truncatedName =
-        product.name.length > PRODUCT_NAME_MAX_LENGTH
-          ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
-          : product.name
-      const raw = {
-        site,
-        sellerId: cred?.sellerId ?? '',
-        itemName: truncatedName,
-        sellPrice: product.priceKrw,
-        stockQty: product.stock,
-        images: mapping.transformedImageUrls.map((url, idx) => ({
-          order: idx,
-          imageUrl: url,
-          imageType: idx === 0 ? 'MAIN' : 'EXTRA',
-        })),
-        categoryCode: mapping.categoryId,
-        shippingFee: product.shippingFeeKrw,
-        brand: product.brand ?? '',
-        ...mapping.extra,
-      }
+      const raw = buildEsmGoodsPayload(market, site, product, mapping)
       return { market, raw }
     },
 
+    // createProduct — ESM POST /item/v1/goods (중첩 페이로드).
+    //   응답 siteDetail.{gmkt|iac}.SiteGoodsNo → externalId. 없으면 에러.
     async createProduct(payload: MarketPayload): Promise<CreateProductResult> {
       const c = getCredOrThrow()
       const correlationId = generateCorrelationId()
@@ -486,7 +577,7 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       const response = await esmFetch({
         market,
         method: 'POST',
-        path: '/products',
+        path: '/goods',
         body: payload.raw,
         cred: c,
         correlationId,
@@ -505,31 +596,32 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
           status: response.status,
         })
       }
-      const parsed = EsmCreateProductResponseSchema.safeParse(json)
+      const parsed = EsmGoodsCreateResponseSchema.safeParse(json)
       if (!parsed.success) {
         throw new MarketError('server', 'ESM 상품 생성 응답 스키마 불일치', {
           market,
           cause: parsed.error,
         })
       }
-      const data = parsed.data.data
-      if (!data?.itemNo) {
+      // 호출한 site 의 SiteGoodsNo 를 externalId 로. site='G'→gmkt, 'A'→iac.
+      const entry =
+        site === 'G' ? parsed.data.siteDetail?.gmkt : parsed.data.siteDetail?.iac
+      const externalId = entry?.SiteGoodsNo
+      if (!externalId) {
         throw new MarketError(
           'server',
-          `ESM 상품 생성 실패: ${parsed.data.resultMessage ?? '알 수 없는 오류'}`,
+          `ESM 상품 생성 실패: ${entry?.SiteGoodsComment ?? parsed.data.message ?? '알 수 없는 오류'}`,
           {
             market,
-            marketErrorCode: parsed.data.resultCode,
-            marketErrorMessage: parsed.data.resultMessage,
+            marketErrorCode: String(parsed.data.resultCode),
+            marketErrorMessage: entry?.SiteGoodsComment,
           },
         )
       }
-      const externalId = data.itemNo
-      const fallbackUrlBase =
+      const productUrl =
         site === 'G'
           ? `https://item.gmarket.co.kr/Item?goodscode=${externalId}`
           : `https://itempage3.auction.co.kr/DetailView.aspx?itemno=${externalId}`
-      const productUrl = data.itemUrl ?? fallbackUrlBase
 
       return {
         market,

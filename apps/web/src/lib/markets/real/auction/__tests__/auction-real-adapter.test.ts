@@ -6,7 +6,7 @@
  *
  * 옥션은 G마켓과 ESM+ 백오피스 공유 — 공용 shared-adapter 의 site='A' 인스턴스.
  * G마켓 측 12건과 중복 회피를 위해 옥션 고유 차이점만 검증 (site 'A' 분기 / market id /
- * 상품 URL fallback). 공통 로직(상품명 80자 truncate 등) 회귀는 G마켓 측 테스트로 커버.
+ * 상품 URL fallback). 공통 로직(상품명 100byte truncate 등) 회귀는 G마켓 측 테스트로 커버.
  *
  * 테스트 카테고리:
  *   authenticate (3건):
@@ -17,9 +17,9 @@
  *   fetchCategoryTree (1건):
  *     F1. 정상 응답 → CategoryNode 반환 (G마켓과 동일 파서 — sanity 1건만)
  *
- *   transformProduct (2건):
- *     T1. payload.market = 'auction' + payload.raw.site = 'A'
- *     T2. 상품명 80자 이하 — 그대로 유지 (G마켓 truncate 회귀는 G 측에서 커버)
+ *   transformProduct (2건, PR-4 중첩 페이로드):
+ *     T1. payload.market = 'auction' + siteType 1 / price.Iac (옥션 분기)
+ *     T2. 상품명 100byte 이하 — 그대로 유지 (G마켓 truncate 회귀는 G 측에서 커버)
  *
  *   createProduct (2건):
  *     C1. 정상 응답 → CreateProductResult(succeeded) + auction.co.kr URL fallback
@@ -70,11 +70,20 @@ const VALID_PRODUCT: Product = {
   shippingFeeKrw: 2_500,
 }
 
+// PR-4: ESM transformProduct 는 배송 프로필 번호 + officialNotice 를 extra 로 받는다.
 const VALID_MAPPING: MarketMapping = {
   market: 'auction',
   categoryId: '500009999',
   transformedImageUrls: ['https://cdn.example.com/a1-auction.jpg'],
-  extra: {},
+  extra: {
+    shippingProfileId: '00000000-0000-4000-8000-0000000000bb',
+    placeNo: 'PLACE-A-001',
+    dispatchPolicyNo: 'DISPATCH-A-001',
+    officialNotice: {
+      officialNoticeNo: 'NOTICE-KITCHEN-01',
+      details: [{ code: 'origin', value: '국산' }],
+    },
+  },
 }
 
 // site-cats 대분류 응답 — 단일 leaf. esm-api/product/4.md 형태.
@@ -86,11 +95,14 @@ const CATEGORY_RESPONSE = [
   },
 ]
 
+// PR-4: POST /item/v1/goods 응답 (siteDetail.iac.SiteGoodsNo).
 const CREATE_PRODUCT_RESPONSE = {
-  resultCode: '0000',
-  data: {
-    itemNo: 'A-ITEM-1234567',
+  goodsNo: 1_234_567,
+  siteDetail: {
+    iac: { SiteGoodsNo: 'A-ITEM-1234567', SiteGoodsComment: 'Success' },
   },
+  resultCode: 0,
+  message: null,
 }
 
 async function getAuthenticatedAdapter() {
@@ -189,18 +201,25 @@ describe('auctionRealAdapter.transformProduct', () => {
     vi.unstubAllGlobals()
   })
 
-  it('T1: payload.market="auction" + payload.raw.site="A"', async () => {
+  it('T1: payload.market="auction" + siteType 1 / price.Iac (옥션 분기)', async () => {
     const adapter = await getAuthenticatedAdapter()
     const payload = adapter.transformProduct(VALID_PRODUCT, VALID_MAPPING)
     expect(payload.market).toBe('auction')
-    expect((payload.raw as { site: string }).site).toBe('A')
+    const raw = payload.raw as {
+      itemBasicInfo: { category: { site: { siteType: number }[] } }
+      itemAddtionalInfo: { price: { Iac?: number }; shipping: { dispatchPolicyNo: { iac?: string } } }
+    }
+    expect(raw.itemBasicInfo.category.site[0]?.siteType).toBe(1)
+    expect(raw.itemAddtionalInfo.price.Iac).toBe(12_900)
+    expect(raw.itemAddtionalInfo.shipping.dispatchPolicyNo.iac).toBe('DISPATCH-A-001')
   })
 
-  it('T2: 상품명 80자 이하 — 그대로 유지', async () => {
+  it('T2: 상품명 100byte 이하 — 그대로 유지 (goodsName.kor)', async () => {
     const adapter = await getAuthenticatedAdapter()
     const product: Product = { ...VALID_PRODUCT, name: '짧은 옥션 상품명' }
     const payload = adapter.transformProduct(product, VALID_MAPPING)
-    expect((payload.raw as { itemName: string }).itemName).toBe('짧은 옥션 상품명')
+    const raw = payload.raw as { itemBasicInfo: { goodsName: { kor: string } } }
+    expect(raw.itemBasicInfo.goodsName.kor).toBe('짧은 옥션 상품명')
   })
 })
 

@@ -181,12 +181,89 @@ export async function loadDomainProduct(
     shippingFeeKrw: 0,
   }
 
+  const baseExtra = (mappingRes.data.market_options ?? {}) as Record<
+    string,
+    unknown
+  >
+
+  // ESM(gmarket/auction): marketOptions.shippingProfileId 로 esm_shipping_profiles
+  // (service_role) 조회 → 배송 프로필 번호(placeNo/dispatchPolicyNo/bundlePolicyNo)를
+  // mapping.extra 에 주입. transformProduct 는 순수 함수이므로 조회는 오케스트레이터가 맡는다
+  // (esm.md §7 PR-4). PR-5 가 적재하는 officialNotice 는 marketOptions 에 이미 있으면 보존.
+  const extra = isEsmMarket(marketId)
+    ? await injectEsmShippingProfile(service, sellerId, marketId, baseExtra)
+    : baseExtra
+
   const mapping: MarketMapping = {
     market: marketId,
     categoryId: String(mappingRes.data.market_category_code),
     transformedImageUrls: transformedUrls,
-    extra: (mappingRes.data.market_options ?? {}) as Record<string, unknown>,
+    extra,
   }
 
   return { product, mapping }
+}
+
+function isEsmMarket(market: MarketId): boolean {
+  return market === 'gmarket' || market === 'auction'
+}
+
+/**
+ * marketOptions.shippingProfileId → esm_shipping_profiles 조회 후 번호를 extra 에 주입.
+ *
+ * - service_role 조회 + seller_id WHERE 강제 (cross-tenant 차단).
+ * - status='active' 프로필만 사용 (error/부분 실패 row 는 등록 차단).
+ * - place_no / dispatch_policy_no 누락(active 인데 NULL — partial CHECK 가 막지만 방어) 시 validation.
+ * - shippingProfileId 자체가 없으면 placeNo 미주입 → transformProduct 가 validation 으로 차단.
+ */
+async function injectEsmShippingProfile(
+  service: Service,
+  sellerId: string,
+  marketId: MarketId,
+  baseExtra: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const shippingProfileId = baseExtra['shippingProfileId']
+  if (typeof shippingProfileId !== 'string' || shippingProfileId.length === 0) {
+    // 프로필 미선택 — 번호 주입 없이 그대로. transformProduct 가 누락을 validation 으로 차단.
+    return baseExtra
+  }
+
+  const { data, error } = await service
+    .from('esm_shipping_profiles')
+    .select('place_no, dispatch_policy_no, bundle_policy_no, status')
+    .eq('id', shippingProfileId)
+    .eq('seller_id', sellerId)
+    .maybeSingle()
+
+  if (error || !data) {
+    throw new MarketError('validation', 'esm shipping profile not found', {
+      market: marketId,
+    })
+  }
+  if (data.status !== 'active') {
+    throw new MarketError(
+      'validation',
+      'esm shipping profile not active (부분 실패 프로필)',
+      { market: marketId },
+    )
+  }
+  const placeNo = typeof data.place_no === 'string' ? data.place_no : null
+  const dispatchPolicyNo =
+    typeof data.dispatch_policy_no === 'string' ? data.dispatch_policy_no : null
+  if (!placeNo || !dispatchPolicyNo) {
+    throw new MarketError(
+      'validation',
+      'esm shipping profile missing place_no/dispatch_policy_no',
+      { market: marketId },
+    )
+  }
+
+  return {
+    ...baseExtra,
+    placeNo,
+    dispatchPolicyNo,
+    ...(typeof data.bundle_policy_no === 'string'
+      ? { bundlePolicyNo: data.bundle_policy_no }
+      : {}),
+  }
 }

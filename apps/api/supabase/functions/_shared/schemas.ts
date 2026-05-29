@@ -426,6 +426,23 @@ const EsmItemAddtionalInfoSchema = z.object({
   isVatFree: z.boolean(),
 })
 
+// transformProduct 입력 보조 — ESM 전용 extra (mapping.extra). Web 미러:
+// apps/web/src/lib/schemas/esm.ts EsmTransformExtraSchema (구조 동일).
+// 오케스트레이터가 배송 프로필 번호(placeNo/dispatchPolicyNo)·officialNotice 를 주입.
+export const EsmTransformExtraSchema = z
+  .object({
+    placeNo: z.string().min(1).optional(),
+    dispatchPolicyNo: z.string().min(1).optional(),
+    bundlePolicyNo: z.string().min(1).optional(),
+    officialNotice: EsmOfficialNoticeSchema.optional(),
+    sellingPeriod: EsmSellingPeriodSchema.optional(),
+    shippingType: EsmShippingTypeSchema.optional(),
+    isVatFree: z.boolean().optional(),
+    stock: z.number().int().min(1).max(99_999).optional(),
+  })
+  .passthrough()
+export type EsmTransformExtra = z.infer<typeof EsmTransformExtraSchema>
+
 export const EsmGoodsCreateRequestSchema = z
   .object({
     itemBasicInfo: EsmItemBasicInfoSchema,

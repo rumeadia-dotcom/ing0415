@@ -26,7 +26,7 @@ import { describe, it, expect } from 'vitest'
 // 인라인 재구현 (Edge esm-shared.ts 의 옥션 분기)
 // ─────────────────────────────────────────────
 
-const PRODUCT_NAME_MAX_LENGTH = 80
+const GOODS_NAME_MAX_BYTES = 100
 
 type MarketErrorCode =
   | 'unauthorized'
@@ -58,28 +58,48 @@ function validateEsmCredential(
   return { valid: true }
 }
 
+// PR-4: 중첩 EsmGoodsCreateRequest 빌드 (옥션 분기 — siteType 1 / price.Iac / dispatchPolicyNo.iac).
+function truncateToBytes(value: string, maxBytes: number): string {
+  const enc = new TextEncoder()
+  if (enc.encode(value).length <= maxBytes) return value
+  let r = value
+  while (enc.encode(r).length > maxBytes && r.length > 0) r = r.slice(0, -1)
+  return r
+}
 function transformProduct(
   product: { name: string; priceKrw: number; stock: number },
-  mapping: { categoryId: string; transformedImageUrls: string[] },
+  mapping: {
+    categoryId: string
+    transformedImageUrls: string[]
+    extra: { placeNo: string; dispatchPolicyNo: string; officialNotice: unknown }
+  },
   site: 'G' | 'A',
-  sellerId: string,
 ) {
-  const truncatedName =
-    product.name.length > PRODUCT_NAME_MAX_LENGTH
-      ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
-      : product.name
+  const siteType = site === 'G' ? 2 : 1
+  const urls = mapping.transformedImageUrls
+  const images: Record<string, string> = { basicImgURL: urls[0] ?? '' }
+  urls.slice(1, 15).forEach((url, idx) => {
+    images[`addtionalImg${idx + 1}URL`] = url
+  })
   return {
-    site,
-    sellerId,
-    itemName: truncatedName,
-    sellPrice: product.priceKrw,
-    stockQty: product.stock,
-    images: mapping.transformedImageUrls.map((url, idx) => ({
-      order: idx,
-      imageUrl: url,
-      imageType: idx === 0 ? 'MAIN' : 'EXTRA',
-    })),
-    categoryCode: mapping.categoryId,
+    itemBasicInfo: {
+      goodsName: { kor: truncateToBytes(product.name, GOODS_NAME_MAX_BYTES) },
+      category: { site: [{ siteType, catCode: mapping.categoryId }] },
+    },
+    itemAddtionalInfo: {
+      price: site === 'G' ? { Gmkt: product.priceKrw } : { Iac: product.priceKrw },
+      stock: site === 'G' ? { Gmkt: product.stock } : { Iac: product.stock },
+      shipping: {
+        type: 1,
+        policy: { placeNo: mapping.extra.placeNo },
+        dispatchPolicyNo:
+          site === 'G'
+            ? { gmkt: mapping.extra.dispatchPolicyNo }
+            : { iac: mapping.extra.dispatchPolicyNo },
+      },
+      images,
+      officialNotice: mapping.extra.officialNotice,
+    },
   }
 }
 
@@ -170,13 +190,25 @@ describe('E2: authenticate(site 불일치 G→A) → validation', () => {
   })
 })
 
-describe('E3: transformProduct site="A" 임베드', () => {
-  it('payload.site = "A"', () => {
+describe('E3: transformProduct site="A" → siteType 1 / price.Iac / dispatchPolicyNo.iac', () => {
+  it('옥션 분기 매핑', () => {
     const product = { name: '옥션상품', priceKrw: 1000, stock: 1 }
-    const mapping = { categoryId: 'cat-A', transformedImageUrls: ['https://cdn.example.com/x.jpg'] }
-    const result = transformProduct(product, mapping, 'A', SELLER_ID)
-    expect(result.site).toBe('A')
-    expect(result.itemName).toBe('옥션상품')
+    const mapping = {
+      categoryId: 'cat-A',
+      transformedImageUrls: ['https://cdn.example.com/x.jpg'],
+      extra: {
+        placeNo: 'PLACE-A',
+        dispatchPolicyNo: 'DISPATCH-A',
+        officialNotice: { officialNoticeNo: 'N-1', details: [{ code: 'c', value: 'v' }] },
+      },
+    }
+    const result = transformProduct(product, mapping, 'A')
+    expect(result.itemBasicInfo.category.site[0]?.siteType).toBe(1)
+    expect(result.itemBasicInfo.goodsName.kor).toBe('옥션상품')
+    expect(result.itemAddtionalInfo.price).toEqual({ Iac: 1000 })
+    expect(result.itemAddtionalInfo.shipping.dispatchPolicyNo).toEqual({
+      iac: 'DISPATCH-A',
+    })
   })
 })
 
