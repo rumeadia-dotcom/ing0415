@@ -7,12 +7,12 @@
  * `MarketAdapter.getRegistrationFields()` 반환 RegistrationFieldMeta[] 를 만든다.
  * gmarket/auction thin wrapper(esm-shared)와 mock 어댑터(debug)가 본 함수 1곳을 재사용(parity).
  * label / blockingReason / helpText 는 i18n key(Web locales/ko.ts) — Edge 는 key 문자열만 담는다.
- * officialNotice 필드는 PR-5 담당 — 여기서 넣지 않는다.
+ * ESM 카드는 [배송 프로필, 상품정보고시] 2필드를 노출한다(esm.md §1.5 / §4.6 / §5).
  */
 
 import { RegistrationFieldMetaSchema, type RegistrationFieldMeta } from '../schemas.ts'
 
-/** ESM 배송 프로필 선택 필드 1개. (esm.md §4.6) */
+/** ESM 동적 등록필드 2개 — [배송 프로필 선택, 상품정보고시]. (esm.md §4.6 / PR-5) */
 export function getEsmRegistrationFields(): RegistrationFieldMeta[] {
   return [
     RegistrationFieldMetaSchema.parse({
@@ -23,6 +23,15 @@ export function getEsmRegistrationFields(): RegistrationFieldMeta[] {
       optionsSource: 'shippingProfiles',
       helpText: 'markets.registrationFields.shippingProfile.helpText',
       blockingReason: 'markets.registrationFields.shippingProfile.blockingReason',
+    }),
+    RegistrationFieldMetaSchema.parse({
+      key: 'officialNotice',
+      label: 'markets.registrationFields.officialNotice.label',
+      kind: 'officialNotice',
+      required: true,
+      optionsSource: 'static',
+      helpText: 'markets.registrationFields.officialNotice.helpText',
+      blockingReason: 'markets.registrationFields.officialNotice.blockingReason',
     }),
   ]
 }

@@ -89,6 +89,7 @@
 - 마켓 선택 → 카테고리 매핑
 - 카테고리 매핑 → 등록 미리보기
 - 카테고리 매핑(n19) → (deep link) G마켓·옥션 배송 프로필 관리(n61) — ESM(gmarket/auction) 카드에 배송 프로필 select 가 동적 렌더되며, 프로필이 없으면 "배송 프로필 만들러 가기"로 `/settings/shipping/esm-profiles` 진입 (PR-3.5). ESM 외 마켓은 카테고리만(하위호환).
+- 카테고리 매핑(n19) 내 ESM(gmarket/auction) 카드는 **상품정보고시 입력**도 동적 렌더한다(PR-5) — 상품군 select(41개 법정 표준) → 선택 군의 필수 고시 항목 동적 폼. 입력값은 `marketOptions.officialNotice`({officialNoticeNo, details[{code,value}]})로 수집되어 오케스트레이터가 `mapping.extra.officialNotice` 로 적재(PR-4 transformProduct 가 페이로드에 매핑). 군 미선택/항목 value 누락 시 blockingReason → 다음(미리보기) 버튼 비활성. ESM 외 마켓은 고시 입력 없음(하위호환). (노드 추가 아님 — n19 카드 내부 구조.)
 - 등록 미리보기 → 일괄 등록 실행
 - 일괄 등록 실행 → 등록 결과
 - 등록 결과 → 오류 재시도 / 마켓 제외 등록

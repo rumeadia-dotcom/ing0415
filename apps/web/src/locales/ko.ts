@@ -95,6 +95,12 @@ export const ko = {
           'ESM 상품 등록에 쓰일 출하지·발송정책을 선택하세요. 없으면 배송 설정에서 먼저 생성합니다.',
         blockingReason: '배송 프로필 선택 필요',
       },
+      officialNotice: {
+        label: 'G마켓·옥션 상품정보고시',
+        helpText:
+          '상품군을 선택하고 해당 상품군의 필수 고시 항목을 입력하세요. 전자상거래법상 필수입니다.',
+        blockingReason: '상품정보고시 입력 필요',
+      },
       // MarketOptionsCard(PR-3.5) UI chrome — 동적 필드 렌더 공통 문구.
       card: {
         sectionTitle: '마켓별 등록 옵션',
@@ -109,6 +115,19 @@ export const ko = {
         emptyCta: '배송 프로필 만들러 가기',
         // active 가 아닌(error) 프로필은 선택지에서 제외됨을 알린다.
         selectedStatusError: '이 프로필은 생성 중 오류가 있어 사용할 수 없습니다',
+      },
+      // 상품정보고시 입력(OfficialNoticeField, PR-5) — 상품군 select + 군별 항목 동적 폼.
+      officialNoticeField: {
+        groupPlaceholder: '— 상품군 선택 —',
+        itemsTitle: '필수 고시 항목',
+        itemsEmpty:
+          '이 상품군의 고시 항목을 추가하세요. 항목 코드와 내용을 입력합니다.',
+        itemCodePlaceholder: '항목 코드 (예: 41-1)',
+        itemValuePlaceholder: '내용 입력',
+        itemAdd: '항목 추가',
+        itemCodeAria: (n: number) => `고시 항목 ${n} 코드`,
+        itemValueAria: (n: number) => `고시 항목 ${n} 내용`,
+        itemRemoveAria: (n: number) => `고시 항목 ${n} 삭제`,
       },
     },
     page: {

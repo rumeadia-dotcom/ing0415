@@ -82,15 +82,18 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
       it('getRegistrationFields 정책 일치 — ESM(gmarket/auction) 한정 (PR-3.5)', () => {
         const isEsm = market === 'gmarket' || market === 'auction'
         if (isEsm) {
-          // mock ↔ real 동형: 둘 다 함수로 노출 + shippingProfile 필드 1개 반환.
+          // mock ↔ real 동형: 둘 다 함수로 노출 + [배송 프로필, 상품정보고시] 2필드 반환 (PR-5).
           expect(typeof mock.getRegistrationFields).toBe('function')
           expect(typeof real.getRegistrationFields).toBe('function')
           const mockFields = mock.getRegistrationFields?.() ?? []
           const realFields = real.getRegistrationFields?.() ?? []
           expect(mockFields).toEqual(realFields)
-          expect(mockFields).toHaveLength(1)
-          expect(mockFields[0]?.key).toBe('shippingProfileId')
+          expect(mockFields.map((f) => f.key)).toEqual([
+            'shippingProfileId',
+            'officialNotice',
+          ])
           expect(mockFields[0]?.kind).toBe('shippingProfile')
+          expect(mockFields[1]?.kind).toBe('officialNotice')
         } else {
           // 하위호환: naver/coupang/11st 는 메서드 미정의 → 헬퍼 통해 [] 취급.
           expect(mock.getRegistrationFields).toBeUndefined()

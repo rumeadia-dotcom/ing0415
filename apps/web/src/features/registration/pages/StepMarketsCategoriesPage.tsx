@@ -12,7 +12,7 @@ import { useMarketAccounts } from '@/features/markets/hooks/useMarketAccounts'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
 import { MarketSelectGrid } from '../components/MarketSelectGrid'
 import { MarketOptionsCard } from '../components/MarketOptionsCard'
-import { makeStep3Schema } from '@/lib/schemas/registration'
+import { makeStep3Schema, isMarketOptionValuePresent } from '@/lib/schemas/registration'
 import type { MarketSelection, CategoryMapping } from '@/lib/schemas/registration'
 import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
 import { resolveKoPath } from '@/lib/i18n'
@@ -85,9 +85,7 @@ export function StepMarketsCategoriesPage(): JSX.Element {
     const opts = mappingByMarket.get(s.marketId)?.marketOptions ?? {}
     for (const field of getRegistrationFieldsForMarket(s.marketId)) {
       if (!field.required) continue
-      const v = opts[field.key]
-      const empty =
-        v === undefined || v === null || (typeof v === 'string' && v.trim() === '')
+      const empty = !isMarketOptionValuePresent(opts[field.key])
       if (empty && field.blockingReason) {
         const reason = resolveKoPath(field.blockingReason)
         if (!blockingReasons.includes(reason)) blockingReasons.push(reason)

@@ -19,17 +19,39 @@ import { coupangRealAdapter } from '../../../real/coupang'
 import { createMockAdapter } from '../../../debug/createMockAdapter'
 
 describe('getEsmRegistrationFields — 빌더', () => {
-  it('shippingProfile 필드 1개를 반환한다 (required, optionsSource=shippingProfiles)', () => {
+  it('shippingProfile + officialNotice 2필드를 반환한다 (PR-5)', () => {
     const fields = getEsmRegistrationFields()
-    expect(fields).toHaveLength(1)
-    const f = fields[0]
-    expect(f?.key).toBe('shippingProfileId')
+    expect(fields).toHaveLength(2)
+    expect(fields.map((f) => f.key)).toEqual([
+      'shippingProfileId',
+      'officialNotice',
+    ])
+  })
+
+  it('shippingProfile 필드 (required, optionsSource=shippingProfiles, i18n key)', () => {
+    const f = getEsmRegistrationFields().find(
+      (x) => x.key === 'shippingProfileId',
+    )
     expect(f?.kind).toBe('shippingProfile')
     expect(f?.required).toBe(true)
     expect(f?.optionsSource).toBe('shippingProfiles')
     // label / blockingReason 은 i18n key (하드코딩 문구 아님).
     expect(f?.label).toBe('markets.registrationFields.shippingProfile.label')
-    expect(f?.blockingReason).toBe('markets.registrationFields.shippingProfile.blockingReason')
+    expect(f?.blockingReason).toBe(
+      'markets.registrationFields.shippingProfile.blockingReason',
+    )
+  })
+
+  it('officialNotice 필드 (kind=officialNotice, required, optionsSource=static, i18n key)', () => {
+    const f = getEsmRegistrationFields().find((x) => x.key === 'officialNotice')
+    expect(f).toBeDefined()
+    expect(f?.kind).toBe('officialNotice')
+    expect(f?.required).toBe(true)
+    expect(f?.optionsSource).toBe('static')
+    expect(f?.label).toBe('markets.registrationFields.officialNotice.label')
+    expect(f?.blockingReason).toBe(
+      'markets.registrationFields.officialNotice.blockingReason',
+    )
   })
 
   it('반환 필드는 RegistrationFieldMetaSchema 를 통과한다 (pass)', () => {
@@ -42,24 +64,23 @@ describe('getEsmRegistrationFields — 빌더', () => {
     const bad = { key: 'shippingProfileId', label: 'x', required: true }
     expect(RegistrationFieldMetaSchema.safeParse(bad).success).toBe(false)
   })
-
-  it('officialNotice 는 PR-5 담당 — 여기선 포함하지 않는다', () => {
-    const keys = getEsmRegistrationFields().map((f) => f.key)
-    expect(keys).not.toContain('officialNotice')
-  })
 })
 
 describe('MarketAdapter.getRegistrationFields — 마켓별 정책', () => {
-  it('gmarket real 어댑터가 shippingProfile 필드 1개 반환', () => {
+  it('gmarket real 어댑터가 shippingProfile + officialNotice 2필드 반환', () => {
     const fields = gmarketRealAdapter.getRegistrationFields?.() ?? []
-    expect(fields).toHaveLength(1)
-    expect(fields[0]?.key).toBe('shippingProfileId')
+    expect(fields.map((f) => f.key)).toEqual([
+      'shippingProfileId',
+      'officialNotice',
+    ])
   })
 
-  it('auction real 어댑터가 shippingProfile 필드 1개 반환', () => {
+  it('auction real 어댑터가 shippingProfile + officialNotice 2필드 반환', () => {
     const fields = auctionRealAdapter.getRegistrationFields?.() ?? []
-    expect(fields).toHaveLength(1)
-    expect(fields[0]?.kind).toBe('shippingProfile')
+    expect(fields.map((f) => f.key)).toEqual([
+      'shippingProfileId',
+      'officialNotice',
+    ])
   })
 
   it('naver real 어댑터는 getRegistrationFields 미정의 → [] (하위호환)', () => {

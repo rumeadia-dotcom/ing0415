@@ -130,6 +130,48 @@ function defaultRequiredFieldKeys(): string[] {
   return []
 }
 
+/**
+ * marketOptions 값이 "채워졌는지" 판정 (required 검증·blockingReason 단일 소스).
+ *
+ * 단순 string/number(예: shippingProfileId)뿐 아니라, 상품군 고시(officialNotice)처럼
+ * **객체 형태**의 동적 필드도 한 곳에서 판정한다. officialNotice 는
+ * `{officialNoticeNo, details:[{code,value}]}` 형태이며(esm.md §4.4), 셀러가 상품군만
+ * 고르고 항목 value 를 비워두면 "미완성"으로 봐야 한다(PR-5). 항목코드 마스터는 markets
+ * 레이어(역참조 금지)이므로 여기서는 **형태 기반 완성도**만 본다:
+ *   - officialNoticeNo 비어있지 않음 + 모든 detail 의 code/value 비어있지 않음 + detail ≥ 1.
+ * 군별 정적 필수항목 코드 누락 등 마스터 의존 정밀 검증은 markets 레이어
+ * (isEsmOfficialNoticeComplete) 가 추가로 본다. 본 스키마는 schemas→markets 역참조를
+ * 만들지 않기 위해 형태 검증까지만 한다.
+ */
+export function isMarketOptionValuePresent(value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  if (typeof value === 'string') return value.trim() !== ''
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    // officialNotice 형태 판정 (officialNoticeNo + details 보유).
+    if ('officialNoticeNo' in obj || 'details' in obj) {
+      const no = obj.officialNoticeNo
+      if (typeof no !== 'string' || no.trim() === '') return false
+      const details = obj.details
+      if (!Array.isArray(details) || details.length === 0) return false
+      return details.every((d) => {
+        if (typeof d !== 'object' || d === null) return false
+        const code = (d as Record<string, unknown>).code
+        const val = (d as Record<string, unknown>).value
+        return (
+          typeof code === 'string' &&
+          code.trim() !== '' &&
+          typeof val === 'string' &&
+          val.trim() !== ''
+        )
+      })
+    }
+    // 그 외 객체(빈 객체 포함)는 비어있음으로 간주.
+    return Object.keys(obj).length > 0
+  }
+  return true
+}
+
 function refineMarketOptions(
   d: { selections: MarketSelection[]; mappings: CategoryMapping[] },
   ctx: z.RefinementCtx,
@@ -143,10 +185,7 @@ function refineMarketOptions(
     const mappingIndex = d.mappings.findIndex((m) => m.marketId === sel.marketId)
     for (const key of requiredKeys) {
       const value = opts[key]
-      const isEmpty =
-        value === undefined ||
-        value === null ||
-        (typeof value === 'string' && value.trim() === '')
+      const isEmpty = !isMarketOptionValuePresent(value)
       if (isEmpty) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
