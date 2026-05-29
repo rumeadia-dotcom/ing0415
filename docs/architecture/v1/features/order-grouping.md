@@ -150,7 +150,7 @@ const MarketOrderSchema = z.object({
 - 네이버 `naver.ts` — `order.orderId` → externalGroupId
 - 쿠팡 `coupang.ts` — `order.orderId` → externalGroupId
 - G마켓·옥션 `esm-shared.ts` — `order.orderNo` → externalGroupId
-- 11번가 (Wave 2 본격 구현 시) — `order.ordNo` → externalGroupId
+- 11번가 `11st.ts` — `order.ordNo` → externalGroupId
 
 ### 4.3 `submitTracking` 시그니처 확장
 
@@ -288,7 +288,7 @@ interface SubmitTrackingInput {
 | 옥션 (ESM) | `order.orderNo` | `orderItem.orderItemNo` | orderItemNo 배열 |
 | 11번가 | `order.ordNo` | `orderDetail.ordDtlNo` | ordDtlNo 배열 |
 
-11번가는 Phase 4-B-2 Wave 2 본격 구현 시 동시 처리.
+11번가는 v1 정식 동작 — `order.ordNo` 그룹 키로 동시 처리.
 
 ## 10. 다음 액션
 
@@ -300,5 +300,5 @@ interface SubmitTrackingInput {
 ---
 
 **v1.4 진입 전제**:
-- 5마켓 정식 운영 (현재 v1.3) 안정화 — Phase 4-B-1 네이버 / Phase 4-B-2 Wave 2 11번가 진행 후 추진 권장
-- 또는 병행 — 운영 검증 중인 G·옥션·쿠팡 의 외부 spec 만으로 v1.4 진입 가능 (네이버 / 11번가는 stub 동안에도 그룹 흐름 미러)
+- 5마켓 정식 운영 (현재 v1.3) 안정화 — Phase 4-B-1 네이버 주문수집 진행 후 추진 권장
+- 또는 병행 — 운영 검증 중인 쿠팡 · G마켓 · 옥션 · 11번가 의 외부 spec 만으로 v1.4 진입 가능 (네이버 주문수집 미구현 동안에도 그룹 흐름 미러)

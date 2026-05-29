@@ -21,10 +21,11 @@ export function HistoryEmptyState({
       <section className="flex flex-col items-center gap-3 rounded-lg border border-border bg-surface px-6 py-12 text-center">
         <div
           aria-hidden
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent-onlight"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
             width="22"
             height="22"
             viewBox="0 0 24 24"

@@ -24,9 +24,9 @@ import { MarketIdSchema, type MarketId } from '@/lib/schemas/common'
  * 응답은 zod parse → 위반 시 throw (UI 가 error 상태로 표시).
  */
 
-/** v1 정식 마켓 (UI 노출 순서). 11번가는 'oem_준비중' placeholder. */
-const V1_MARKETS: readonly MarketId[] = ['naver', 'coupang', 'gmarket', 'auction']
-const V1_COMING_SOON: readonly MarketId[] = ['11st']
+/** v1 정식 마켓 (UI 노출 순서). 2026-05-25 11번가 scaffold 활성 (#152) — 5마켓 전부 ready. */
+const V1_MARKETS: readonly MarketId[] = ['naver', 'coupang', 'gmarket', 'auction', '11st']
+const V1_COMING_SOON: readonly MarketId[] = []
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary | null> {
   const supabase = getSupabase()
@@ -68,8 +68,9 @@ export async function fetchMarketHealth(): Promise<MarketHealth> {
  * 조립 로직:
  *  1) orders_with_dispatch_summary view 에서 `by_market` 추출 → newOrdersCount / pendingCount
  *  2) orders 테이블에서 오늘 0시 이후 collected_at 행 마켓별 카운트 → todayTotalCount
- *  3) market_accounts 에서 마켓별 (가장 최근 last_verified_at, status) → lastSyncedAt / syncStatus
- *  4) V1_MARKETS 순서로 배열 생성. comingSoon = ['11st'].
+ *  3) market_accounts 에서 마켓별 (가장 최근 last_verified_at, status) → lastSyncedAt / syncStatus.
+ *     계정 행 존재 여부 → connected (false 면 미연동 = 위젯 비활성 행).
+ *  4) V1_MARKETS 순서로 배열 생성.
  *
  * 한 마켓에 여러 계정이 있을 경우: status 는 우선순위 `error > expired > revoked > active`, lastSyncedAt 은 MAX.
  */
@@ -179,6 +180,7 @@ export async function fetchMarketOrdersSummary(): Promise<MarketOrdersSummary> {
     const account = accountsMap.get(marketId)
     return {
       marketId,
+      connected: accountsMap.has(marketId),
       newOrdersCount: byMarket?.newOrdersCount ?? 0,
       todayTotalCount: todayMap.get(marketId) ?? 0,
       lastSyncedAt: account?.lastSyncedAt ?? null,

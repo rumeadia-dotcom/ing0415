@@ -669,7 +669,7 @@ curl -s  https://<owner>.github.io/<repo>/dashboard | grep -q '<div id="root">' 
 | 자체 호스팅 러너 | 보안·운영 부담. GitHub-hosted 로 충분 |
 | 멀티 리전 / 카나리 / 블루그린 | 1인 셀러 규모에 과잉. v2 |
 | 자동 회귀 감지 후 자동 롤백 | 신뢰도 부족. 오작동 위험 > 이득 |
-| Renovate / Dependabot 자동 머지 | v1 에 도입은 가능하지만 자동 머지는 위험. 알림만 사용 권장 |
+| Renovate / Dependabot 자동 머지 (major 포함) | major 는 break 위험. **patch/minor 만 자동 머지 도입** (2026-05-28, `.github/workflows/dependabot-auto-merge.yml`) — develop branch protection 의 CI 8 checks 통과 요건은 그대로 유지. major / ignored 패키지(React 등) 는 사용자 명시 머지 |
 
 ---
 

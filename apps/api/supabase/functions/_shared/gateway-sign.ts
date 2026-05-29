@@ -75,7 +75,7 @@ export const GATEWAY_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
   'sa.esmplus.com',
-  'api.11st.co.kr',
+  'openapi.11st.co.kr',
 ])
 
 export function assertGatewayUrl(url: string): void {

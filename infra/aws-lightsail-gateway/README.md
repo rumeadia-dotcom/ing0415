@@ -23,7 +23,7 @@
 | Plan | $3.5/월 nano (vCPU 2 / RAM 512MB / 20GB SSD / 1TB transfer) |
 | OS | Ubuntu 22.04 LTS |
 | Static IP | 1개 (attach 중 무료, detach 금지) |
-| DNS | `<ip-hyphen>.sslip.io` 자동 (예: `43-201-83-78.sslip.io`) — DNS 패널 조작·도메인 구매 불요 |
+| DNS | `<ip-hyphen>.sslip.io` 자동 (예: `3-36-239-243.sslip.io`) — DNS 패널 조작·도메인 구매 불요 |
 | swap | 2GB (setup.sh 자동 생성, 512MB RAM 보강) |
 
 ## 배포 절차
@@ -49,8 +49,8 @@ rsync -avz infra/aws-lightsail-gateway/ ubuntu@<static-ip>:/tmp/market-gateway/
 
 # 4) 인스턴스 측에서 셋업 실행
 #    GATEWAY_DOMAIN 은 Static IP 의 하이픈 형태 + .sslip.io
-#    예) Static IP 43.201.83.78 → 43-201-83-78.sslip.io
-sudo GATEWAY_DOMAIN=43-201-83-78.sslip.io OPS_EMAIL=ops@<domain> \
+#    예) Static IP 3.36.239.243 → 3-36-239-243.sslip.io
+sudo GATEWAY_DOMAIN=3-36-239-243.sslip.io OPS_EMAIL=ops@<domain> \
   bash /tmp/market-gateway/setup.sh
 
 # 5) MARKET_GATEWAY_SECRET 채우기
@@ -64,7 +64,7 @@ sudo systemctl restart market-gateway
 #    또는 supabase secrets set MARKET_GATEWAY_SECRET=<hex>
 
 # 7) 헬스체크
-curl -i https://43-201-83-78.sslip.io/healthz
+curl -i https://3-36-239-243.sslip.io/healthz
 # → 200 {"ok":true,"ts":...}
 
 # 8) 마켓별 화이트리스트 등록 (Phase 4~5 진입 직전, 사람 액션)
@@ -110,7 +110,7 @@ ssh ubuntu@<ip> 'sudo install -o marketgw -g marketgw -m 0644 /tmp/main.ts /opt/
 
 - `/etc/market-gateway/env` 권한 `0640 root:marketgw`. 일반 사용자 접근 차단
 - HMAC 시크릿은 Edge Function env + 인스턴스 env 양쪽 일치. 로테이션 시 양쪽 동시 갱신
-- `main.ts` 의 `ALLOWED_UPSTREAM_HOSTS` 화이트리스트 — 임의 URL forwarding 차단 (SSRF 방어). 현재: `api.commerce.naver.com` / `api-gateway.coupang.com` / `sa.esmplus.com` (G·옥션 공유 ESM Single Account API) / `api.11st.co.kr`
+- `main.ts` 의 `ALLOWED_UPSTREAM_HOSTS` 화이트리스트 — 임의 URL forwarding 차단 (SSRF 방어). 현재: `api.commerce.naver.com` / `api-gateway.coupang.com` / `sa.esmplus.com` (G·옥션 공유 ESM Single Account API) / `openapi.11st.co.kr` (11번가 Seller API)
 - Caddy hardening: HSTS preload / X-Content-Type-Options nosniff / -Server
 - systemd hardening: NoNewPrivileges / ProtectSystem=strict / SystemCallFilter=@system-service
 

@@ -5,19 +5,19 @@ import { MarketIdSchema } from './common'
  * 마켓 계정 도메인 zod 스키마.
  * 마스터: docs/architecture/v1/features/markets.md §6
  *
- * v1 정식 라인업 (2026-05-19 Wave 1 재결정):
- *   - oauth   = 'naver'             — markets-oauth-start / markets-oauth-callback
- *   - hmac    = 'coupang'           — markets-connect (kind='hmac_key')
- *   - esm_jwt = 'gmarket','auction' — markets-connect (kind='esm_jwt')
- *   - api_key = '11st'              — markets-connect (kind='api_key', 서버 stub. Wave 2 에서 본격)
- *   (2026-05-23 — 5마켓 정식 결정과 11번가 stub 활성화 mirror 갱신)
+ * v1 정식 라인업 (5마켓 전부 real 어댑터 동작):
+ *   - oauth   = 'naver'                       — markets-oauth-start / markets-oauth-callback
+ *   - hmac    = 'coupang'                     — markets-connect (kind='hmac_key')
+ *   - esm_jwt = 'gmarket','auction'           — markets-connect (kind='esm_jwt')
+ *   - api_key = '11st'                        — markets-connect (kind='api_key'). 11번가 Open
+ *     API 카테고리 ping 포함 다른 마켓과 동일 흐름.
  */
 
 /** OAuth 방식 = 네이버만. markets-oauth-start / callback 의 market enum. */
 const V1OAuthMarketSchema = z.enum(['naver'])
 
-/** Key 직접 입력 방식 = 쿠팡 / G마켓 / 옥션. markets-connect 의 market enum. */
-const V1KeyConnectMarketSchema = z.enum(['coupang', 'gmarket', 'auction'])
+/** Key 직접 입력 방식 = 쿠팡 / G마켓 / 옥션 / 11번가. markets-connect 의 market enum. */
+const V1KeyConnectMarketSchema = z.enum(['coupang', 'gmarket', 'auction', '11st'])
 
 // ─────────────────────────────────────────────
 // MarketAccount (클라이언트 노출 형태)
@@ -136,7 +136,7 @@ export const CONNECTION_METHODS = [
   'oauth',         // 네이버 — markets-oauth-start
   'hmac_form',     // 쿠팡 — markets-connect (HMAC 키 직접 입력)
   'esm_jwt_form',  // G마켓 / 옥션 — markets-connect (ESM JWT 키 직접 입력)
-  'disabled',      // 11번가 — 오픈 준비중
+  'api_key_form',  // 11번가 — markets-connect (API Key 직접 입력)
 ] as const
 export const ConnectionMethodSchema = z.enum(CONNECTION_METHODS)
 export type ConnectionMethod = z.infer<typeof ConnectionMethodSchema>
@@ -146,25 +146,40 @@ export type ConnectionMethod = z.infer<typeof ConnectionMethodSchema>
 // 마스터: docs/architecture/v1/features/markets.md §5 markets-connect
 // ─────────────────────────────────────────────
 
+// 마켓 연결 폼 공용 한국어 에러 메시지 (zod 기본 영어 노출 차단)
+const labelMsg = { required_error: '계정 라벨을 입력하세요' }
+const labelMin = { message: '계정 라벨을 입력하세요' }
+const labelMax = { message: '40자 이내로 입력하세요' }
+const keyMin = { message: '키를 입력하세요' }
+const keyMax = (n: number) => ({ message: `${n}자 이내로 입력하세요` })
+
 /** 쿠팡 HMAC 키 입력 폼. RHF + zod resolver 직접 사용. */
 export const HmacConnectFormSchema = z.object({
   market: z.literal('coupang'),
-  accountLabel: z.string().min(1).max(40),
-  accessKey: z.string().min(1).max(200),
-  secretKey: z.string().min(1).max(200),
-  vendorId: z.string().min(1).max(40),
+  accountLabel: z.string(labelMsg).min(1, labelMin).max(40, labelMax),
+  accessKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+  secretKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+  vendorId: z.string().min(1, keyMin).max(40, keyMax(40)),
 })
 export type HmacConnectForm = z.infer<typeof HmacConnectFormSchema>
 
 /** G마켓·옥션 ESM JWT 키 입력 폼. site 는 market 으로부터 도출 (UI hidden). */
 export const EsmJwtConnectFormSchema = z.object({
   market: z.enum(['gmarket', 'auction']),
-  accountLabel: z.string().min(1).max(40),
-  masterId: z.string().min(1).max(80),
-  secretKey: z.string().min(1).max(200),
-  sellerId: z.string().min(1).max(80),
+  accountLabel: z.string(labelMsg).min(1, labelMin).max(40, labelMax),
+  masterId: z.string().min(1, keyMin).max(80, keyMax(80)),
+  secretKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+  sellerId: z.string().min(1, keyMin).max(80, keyMax(80)),
 })
 export type EsmJwtConnectForm = z.infer<typeof EsmJwtConnectFormSchema>
+
+/** 11번가 API Key 입력 폼. 영구 키 — refresh 없음. */
+export const ApiKeyConnectFormSchema = z.object({
+  market: z.literal('11st'),
+  accountLabel: z.string(labelMsg).min(1, labelMin).max(40, labelMax),
+  apiKey: z.string().min(1, keyMin).max(200, keyMax(200)),
+})
+export type ApiKeyConnectForm = z.infer<typeof ApiKeyConnectFormSchema>
 
 /**
  * markets-connect Edge Function Request — 서버 (apps/api/supabase/functions/markets-connect/index.ts)
@@ -185,12 +200,17 @@ const EsmJwtCredentialSchema = z.object({
   sellerId: z.string().min(1),
   site: z.enum(['G', 'A']),
 })
+const ApiKeyCredentialSchema = z.object({
+  kind: z.literal('api_key'),
+  apiKey: z.string().min(1),
+})
 export const ConnectRequestSchema = z.object({
   marketId: V1KeyConnectMarketSchema,
   accountLabel: z.string().min(1).max(40),
   credentials: z.discriminatedUnion('kind', [
     HmacKeyCredentialSchema,
     EsmJwtCredentialSchema,
+    ApiKeyCredentialSchema,
   ]),
 })
 export type ConnectRequest = z.infer<typeof ConnectRequestSchema>
@@ -198,12 +218,13 @@ export type ConnectRequest = z.infer<typeof ConnectRequestSchema>
 /**
  * 폼 데이터 → markets-connect Edge Function payload.
  *
- *  - 쿠팡: HmacConnectForm  → credentials.kind = 'hmac_key'
- *  - G마켓: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'G'
- *  - 옥션: EsmJwtConnectForm → credentials.kind = 'esm_jwt', site = 'A'
+ *  - 쿠팡: HmacConnectForm   → credentials.kind = 'hmac_key'
+ *  - G마켓: EsmJwtConnectForm  → credentials.kind = 'esm_jwt', site = 'G'
+ *  - 옥션: EsmJwtConnectForm  → credentials.kind = 'esm_jwt', site = 'A'
+ *  - 11번가: ApiKeyConnectForm → credentials.kind = 'api_key'
  */
 export function toConnectRequest(
-  form: HmacConnectForm | EsmJwtConnectForm,
+  form: HmacConnectForm | EsmJwtConnectForm | ApiKeyConnectForm,
 ): ConnectRequest {
   if (form.market === 'coupang') {
     return {
@@ -214,6 +235,16 @@ export function toConnectRequest(
         accessKey: form.accessKey,
         secretKey: form.secretKey,
         vendorId: form.vendorId,
+      },
+    }
+  }
+  if (form.market === '11st') {
+    return {
+      marketId: '11st',
+      accountLabel: form.accountLabel,
+      credentials: {
+        kind: 'api_key',
+        apiKey: form.apiKey,
       },
     }
   }

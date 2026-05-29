@@ -1,4 +1,5 @@
 import type { AuthError } from '@supabase/supabase-js'
+import { isDev } from '@/lib/env'
 
 /**
  * Supabase Auth 에러 → 한국어 사용자 메시지 매핑.
@@ -82,7 +83,9 @@ export function mapAuthError(err: unknown): MappedAuthError {
     shouldReport: SHOULD_REPORT[code],
     code,
   }
-  if (code === 'unknown') {
+  if (code === 'unknown' && isDev) {
+    // cycle 44: 운영에서는 raw error 내용을 사용자에게 노출하지 않음 (stack / 내부 정보 유출 방지).
+    // dev 에서만 디버그 편의로 details 채움 — Sentry beforeSend redact() 가 별도 책임.
     const raw = serializeRaw(err)
     if (raw) result.details = raw
   }

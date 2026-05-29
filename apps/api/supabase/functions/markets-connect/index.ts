@@ -7,16 +7,21 @@
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §2.1 (AuthInput 4-way)
  *
  * 책임 (비-OAuth 인증 흐름):
- *   - 쿠팡(HMAC) / G마켓·옥션(ESM JWT) 처럼 OAuth 흐름이 없는 마켓의 키 입력 처리.
+ *   - 쿠팡(HMAC) / G마켓·옥션(ESM JWT) / 11번가(API Key) 처럼 OAuth 흐름이
+ *     없는 4 마켓의 키 입력 처리.
  *   - 입력 검증 → adapter.authenticate(credentials) → 추가 fetchCategoryTree() 핑
  *     → storeCredential → market_accounts UPSERT(active) + audit.
  *
  * 강제:
- *   - v1 활성 비-OAuth 마켓 = coupang | gmarket | auction. 네이버는 본 함수 금지 (OAuth 사용).
- *   - 11번가는 v1 미사용 — UI 가드 + 본 함수 zod enum 단계 거부.
+ *   - v1 활성 비-OAuth 마켓 = coupang | gmarket | auction | 11st. 네이버는 본 함수 금지 (OAuth 사용).
  *   - 평문 키는 응답 body 에 절대 미노출.
  *   - withRetry 는 server / rate_limit / network 만. validation / unauthorized 즉시 실패.
  *   - ownership 검증 (JWT seller_id) + duplicate_label 체크.
+ *
+ * 11번가:
+ *   - 다른 비-OAuth 마켓(coupang/gmarket/auction)과 동일하게 fully active —
+ *     real 어댑터는 11번가 Open API (XML OpenAPI, gateway 경유) 를 호출한다.
+ *   - authenticate + fetchCategoryTree 핑 모두 동일 경로로 처리. 특별 분기 없음.
  */
 
 import { z } from 'npm:zod@3.23.8'
@@ -27,6 +32,7 @@ import {
   getMarketAdapter,
   getServiceClient,
   getUserClient,
+  HttpError,
   HttpErrors,
   MarketError,
   ok,
@@ -37,7 +43,7 @@ import {
   type MarketCredentialKind,
 } from '../_shared/index.ts'
 
-const SUPPORTED_MARKETS = ['coupang', 'gmarket', 'auction'] as const
+const SUPPORTED_MARKETS = ['coupang', 'gmarket', 'auction', '11st'] as const
 type SupportedMarket = (typeof SUPPORTED_MARKETS)[number]
 
 const RequestSchema = z.object({
@@ -64,8 +70,11 @@ async function resolveSellerId(req: Request): Promise<string> {
 }
 
 /** marketId ↔ credential kind 정합 가드. UI 잘못 호출 시 400. */
-function expectedAuthKind(market: SupportedMarket): 'hmac_key' | 'esm_jwt' {
+function expectedAuthKind(
+  market: SupportedMarket,
+): 'hmac_key' | 'esm_jwt' | 'api_key' {
   if (market === 'coupang') return 'hmac_key'
+  if (market === '11st') return 'api_key'
   return 'esm_jwt'
 }
 
@@ -134,6 +143,31 @@ export default Deno.serve(
       logger,
     })
 
+    // market_account_audit insert + 실패 시 로깅.
+    // (2026-05-27) 이전엔 error 미검사로 audit insert 가 조용히 실패해도 무음이었음 →
+    // 운영 사고 진단 시 correlation_id 로 row 가 0건이라 추적 불가. 이제 실패를 관찰 가능.
+    const insertAccountAudit = async (
+      row: Record<string, unknown>,
+      context: string,
+    ): Promise<void> => {
+      const { error: aErr } = await supabase
+        .from('market_account_audit')
+        .insert(row)
+      if (aErr) {
+        logger.error(
+          {
+            context,
+            pgCode: aErr.code,
+            pgMessage: aErr.message,
+            pgDetails: aErr.details,
+            pgHint: aErr.hint,
+            correlationId,
+          },
+          'market_account_audit insert failed',
+        )
+      }
+    }
+
     const auditFail = async (stage: string, reason: string): Promise<void> => {
       await appendAudit({
         category: 'markets',
@@ -143,14 +177,17 @@ export default Deno.serve(
         correlationId,
         logger,
       })
-      await supabase.from('market_account_audit').insert({
-        account_id: null,
-        seller_id: sellerId,
-        market_id: market,
-        event: 'connect_failed',
-        correlation_id: correlationId,
-        error_code: reason,
-      })
+      await insertAccountAudit(
+        {
+          account_id: null,
+          seller_id: sellerId,
+          market_id: market,
+          event: 'connect_failed',
+          correlation_id: correlationId,
+          error_code: reason,
+        },
+        `auditFail:${stage}`,
+      )
     }
     const marketReason = (e: unknown): string =>
       e instanceof MarketError ? e.code : 'unknown'
@@ -186,6 +223,9 @@ export default Deno.serve(
     const credentialKind: MarketCredentialKind = stored.kind
 
     // 2) fetchCategoryTree 핑
+    //
+    // 모든 비-OAuth 마켓(coupang/gmarket/auction/11st)에 동일 적용 — authenticate 만으로는
+    // 키 형식만 검증되므로, 실제 권한이 살아있는지 카테고리 트리 1회 조회로 확인한다.
     try {
       await withRetry(() => adapter.fetchCategoryTree(), {
         market,
@@ -227,7 +267,19 @@ export default Deno.serve(
         logger,
       })
       credentialId = res.credentialId
-    } catch {
+    } catch (e) {
+      // 무음 금지 — vault 실패의 실제 원인(코드/메시지)을 남겨 진단 가능하게.
+      logger.error(
+        {
+          market,
+          stage: 'vault',
+          errName: e instanceof Error ? e.name : typeof e,
+          errCode: e instanceof HttpError ? e.code : undefined,
+          errMessage: e instanceof Error ? e.message : String(e),
+          correlationId,
+        },
+        'storeCredential failed',
+      )
       await auditFail('vault', 'vault_unavailable')
       throw HttpErrors.internal('vault_unavailable', 'credential vault unavailable')
     }
@@ -259,13 +311,16 @@ export default Deno.serve(
     }
 
     // 5) audit
-    await supabase.from('market_account_audit').insert({
-      account_id: account.id,
-      seller_id: sellerId,
-      market_id: market,
-      event: 'connect_succeeded',
-      correlation_id: correlationId,
-    })
+    await insertAccountAudit(
+      {
+        account_id: account.id,
+        seller_id: sellerId,
+        market_id: market,
+        event: 'connect_succeeded',
+        correlation_id: correlationId,
+      },
+      'connect_succeeded',
+    )
     await appendAudit({
       category: 'markets',
       event: 'market_connect_success',

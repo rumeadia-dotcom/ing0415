@@ -5,6 +5,7 @@ import { Input } from './input'
 import { Label } from './label'
 import { openPostcodePopup, formatPostcodeAddress } from '@/lib/daum-postcode'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 /**
  * AddressSearchInput — Daum Postcode 기반 주소 입력.
@@ -78,7 +79,13 @@ export function AddressSearchInput({
       hydrated.current = true
       emit(nextBase, detail)
     } catch (err) {
-      setPopupError(err instanceof Error ? err.message : '주소 검색을 시작할 수 없습니다')
+      // cycle 47: 외부 daum 스크립트 로드 실패의 raw message 는 사용자에게 무의미.
+      // 항상 generic 메시지 사용. cycle 55: console.error → logger.error 로 통일
+      // (logger 의 beforeSend 가 Sentry 송출 + PII 마스킹 처리).
+      if (err instanceof Error) {
+        logger.error({ err: err.message }, '[address-search] failed')
+      }
+      setPopupError('주소 검색을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.')
     } finally {
       setOpening(false)
     }

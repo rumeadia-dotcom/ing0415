@@ -1,0 +1,4 @@
+# infra/mcp-hosting/* 는 전부 Linux 인스턴스(서울 Lightsail)에서 실행/적용된다.
+# Windows 작업본을 rsync 로 직접 전송해도 CRLF 가 섞이지 않도록 LF 강제.
+# (setup.sh / mcp.caddy / systemd unit / logrotate / Dockerfile 등 CRLF 시 실행 깨짐)
+* text eol=lf

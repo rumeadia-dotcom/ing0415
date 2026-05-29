@@ -18,7 +18,7 @@ export function MarketAccountEmpty(): JSX.Element {
               key={id}
               marketId={id}
               size="md"
-              className={MARKET_CATALOG[id].status === 'coming_soon' ? 'opacity-40' : ''}
+              className={MARKET_CATALOG[id].status !== 'ready' ? 'opacity-40' : ''}
             />
           ))}
         </div>

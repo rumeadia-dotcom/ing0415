@@ -1,0 +1,154 @@
+# MCP hosting 스택 — docker-compose.
+# 설계 ground truth: docs/architecture/v1/cross-cutting/mcp-hosting.md §8.2 / §7.2 (하드닝)
+#
+# 비밀 주입 방식 (중요):
+#   비밀은 /etc/mcp-hosting/env 1파일. compose 는 `--env-file /etc/mcp-hosting/env` 로 기동하며
+#   아래 environment 의 ${VAR} 를 그 파일에서 치환한다.
+#   → 컨테이너마다 **필요한 비밀만** 주입 (real URI 는 real 컨테이너에만, 토큰은 auth-proxy 에만).
+#   ⚠ env_file: 은 ${} 치환에 쓰이지 않으므로 사용하지 않는다 (compose 사양).
+#   기동: docker compose --env-file /etc/mcp-hosting/env up -d   (systemd unit 이 이 형태로 실행)
+#
+# 절대 제약 (mcp-hosting.md 머리말):
+#  - gateway 경로(/etc/market-gateway, /opt/market-gateway, market-gateway.service)는 1바이트도 안 건드림.
+#  - docker.sock 미마운트. host 네트워크 미사용. auth-proxy 만 127.0.0.1:9000 노출(외부 비공개).
+#
+# 공통 하드닝(§7.2): user 10001 비-root / read_only rootfs / cap_drop ALL /
+#   no-new-privileges / tmpfs 스크래치 / journald 로깅(gateway 와 통합 journalctl).
+
+name: mcp-hosting
+
+services:
+  # ── 유일한 host 노출 (127.0.0.1:9000). Caddy vhost B 가 여기로 reverse-proxy ──
+  auth-proxy:
+    build: ./auth-proxy
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    ports: ["127.0.0.1:9000:9000"]
+    volumes:
+      - /var/log/mcp-hosting:/var/log/mcp-hosting   # real audit 만 쓰기 (host uid 10001 소유)
+    environment:
+      MCP_PROXY_PORT: "9000"
+      MCP_AUDIT_LOG: "/var/log/mcp-hosting/real-access.log"
+      MCP_LOG_LEVEL: "${MCP_LOG_LEVEL:-info}"
+      ROUTES: >-
+        supabase-dev=http://postgres-mcp-dev:8000;
+        supabase-real=http://postgres-mcp-real:8000;
+        playwright=http://playwright-mcp:8931;
+        sentry=http://sentry-mcp:8000;
+        github=http://github-mcp:8000
+      # 엔드포인트별 Bearer (auth-proxy 만 보유 — DB URI/Sentry 토큰은 주입 안 함).
+      MCP_TOKEN_SUPABASE_DEV: "${MCP_TOKEN_SUPABASE_DEV}"
+      MCP_TOKEN_SUPABASE_REAL: "${MCP_TOKEN_SUPABASE_REAL}"
+      MCP_TOKEN_PLAYWRIGHT: "${MCP_TOKEN_PLAYWRIGHT}"
+      MCP_TOKEN_SENTRY: "${MCP_TOKEN_SENTRY}"
+      # rotation grace (미설정 시 빈 값 → 무시). §8.3
+      MCP_TOKEN_SUPABASE_DEV_NEXT: "${MCP_TOKEN_SUPABASE_DEV_NEXT:-}"
+      MCP_TOKEN_SUPABASE_REAL_NEXT: "${MCP_TOKEN_SUPABASE_REAL_NEXT:-}"
+      MCP_TOKEN_PLAYWRIGHT_NEXT: "${MCP_TOKEN_PLAYWRIGHT_NEXT:-}"
+      MCP_TOKEN_SENTRY_NEXT: "${MCP_TOKEN_SENTRY_NEXT:-}"
+      # github 옵트인 시: MCP_TOKEN_GITHUB / _NEXT 추가
+    depends_on: [postgres-mcp-dev, postgres-mcp-real]
+    restart: unless-stopped
+    logging: { driver: journald }
+    mem_limit: 64m
+    healthcheck:
+      # deno:alpine 의 busybox wget (read_only rootfs 안전 — deno eval 은 DENO_DIR 쓰기 시도로 실패).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres-mcp-dev:
+    image: crystaldba/postgres-mcp:latest
+    command: ["--access-mode=restricted", "--transport=sse", "--sse-host=0.0.0.0", "--sse-port=8000"]
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    environment:
+      DATABASE_URI: "${DATABASE_URI_DEV}"      # dev 풀러 (role mcp_ro_dev)
+    restart: unless-stopped
+    logging: { driver: journald }
+    mem_limit: 256m
+    # ports 없음 — 내부망만
+
+  postgres-mcp-real:
+    image: crystaldba/postgres-mcp:latest
+    command: ["--access-mode=restricted", "--transport=sse", "--sse-host=0.0.0.0", "--sse-port=8000"]
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    environment:
+      DATABASE_URI: "${DATABASE_URI_REAL}"     # real 풀러 (role mcp_ro_real, mcp_ro 뷰만)
+    restart: unless-stopped
+    logging: { driver: journald }
+    mem_limit: 256m
+
+  playwright-mcp:
+    # 현 인스턴스(2GB, 3.36.239.243)에서 기본 기동. mem_limit 1.5GB 로 chromium peak 흡수.
+    # 만약 1GB 이하 인스턴스로 다운사이즈 시 OOM 위험 → profiles: ["heavy"] 부활 + --profile heavy 운영.
+    image: mcr.microsoft.com/playwright:v1.48.0-jammy
+    # --allowed-hosts '*' : auth-proxy 경유 외부 도메인 호출 허용. 보안은 auth-proxy Bearer 에 위임.
+    # --browser firefox  : @playwright/mcp 의 'chromium' 별칭은 chrome-for-testing 으로 변경돼
+    #                      mcr.microsoft.com/playwright 이미지에 미포함 → 실행 실패. 동 이미지에
+    #                      번들된 firefox 로 강제. (대안: 별도 entrypoint 에서 chrome-for-testing
+    #                      install. v1 은 단순성 우선해 firefox 채택. 2026-05-28 검증)
+    command: ["npx", "-y", "@playwright/mcp@latest", "--headless", "--host", "0.0.0.0", "--port", "8931", "--isolated", "--allowed-hosts", "*", "--browser", "firefox"]
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true                                # chromium zombie 수확
+    environment:
+      HOME: /tmp                              # uid 10001 쓰기 가능 (npx/npm 캐시 /.npm 권한오류 회피)
+      npm_config_cache: /tmp/.npm
+    restart: unless-stopped
+    logging: { driver: journald }
+    mem_limit: 1536m                          # headless chromium peak (§9.2)
+
+  sentry-mcp:
+    # 현 인스턴스(2GB)에서 기본 기동. mem_limit 192MB.
+    image: node:20-alpine
+    command: ["npx", "-y", "supergateway", "--stdio", "npx -y @sentry/mcp-server", "--outputTransport", "streamableHttp", "--port", "8000", "--host", "0.0.0.0"]
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # read_only/tmpfs 제거: npx 가 받은 supergateway 바이너리를 실행해야 하는데 read_only rootfs +
+    # tmpfs(noexec) 가 실행을 차단(supergateway: Permission denied). playwright 처럼 overlay /tmp 사용.
+    environment:
+      HOME: /tmp                              # uid 10001 쓰기 가능 (npm 캐시 /.npm 권한오류 회피)
+      npm_config_cache: /tmp/.npm
+      # @sentry/mcp-server 는 SENTRY_ACCESS_TOKEN 을 읽음 (SENTRY_AUTH_TOKEN 아님).
+      # /etc/mcp-hosting/env 의 키는 SENTRY_AUTH_TOKEN 유지하고 컨테이너 측만 매핑.
+      SENTRY_ACCESS_TOKEN: "${SENTRY_AUTH_TOKEN}"
+      SENTRY_HOST: "${SENTRY_HOST:-sentry.io}"
+    restart: unless-stopped
+    logging: { driver: journald }
+    mem_limit: 192m
+
+  # ── github-mcp (선택 — 옵트인 시 주석 해제 + auth-proxy 에 MCP_TOKEN_GITHUB 추가) ──
+  # github-mcp:
+  #   image: ghcr.io/github/github-mcp-server:latest
+  #   command: ["stdio"]                       # streamable http 지원 빌드면 그에 맞게
+  #   user: "10001:10001"
+  #   read_only: true
+  #   cap_drop: [ALL]
+  #   security_opt: ["no-new-privileges:true"]
+  #   tmpfs: ["/tmp"]
+  #   environment:
+  #     GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"   # read scope
+  #   restart: unless-stopped
+  #   logging: { driver: journald }
+  #   mem_limit: 128m
+
+# 전용 bridge. host 네트워크 미사용. auth-proxy 만 127.0.0.1:9000 게시.
+networks:
+  default:
+    name: mcp-hosting_net
+    driver: bridge

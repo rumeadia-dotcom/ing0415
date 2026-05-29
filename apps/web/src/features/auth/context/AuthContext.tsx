@@ -10,6 +10,7 @@ import {
 import type { Session as SupabaseSession, User } from '@supabase/supabase-js'
 import { getSupabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
+import { buildAppUrl } from '@/lib/url'
 
 /**
  * AuthContext / useAuth — auth.md §3 / §3.5
@@ -104,8 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       email: input.email,
       password: input.password,
       options: {
-        // 이메일 인증 후 콜백 — Supabase 가 토큰 부착해 리다이렉트
-        emailRedirectTo: `${origin}/login`,
+        // 이메일 인증 후 콜백 — Supabase 가 토큰 부착해 리다이렉트.
+        // buildAppUrl 로 Vite BASE_URL (운영 = /ing0415/) 정합. naive
+        // `${origin}/login` 결합은 GitHub Pages subpath 누락으로 404.
+        emailRedirectTo: buildAppUrl(origin, '/login'),
         // auth.md §2.2: signup 시 사용자 메타로 displayName / marketingConsent 전달
         // 트리거 handle_new_seller 가 public.sellers 행 생성에 활용.
         data: {
@@ -125,7 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/reset-password`,
+      // buildAppUrl 로 Vite BASE_URL (운영 = /ing0415/) 정합 — signUp 와 동일.
+      redirectTo: buildAppUrl(origin, '/reset-password'),
     })
     if (error) return { ok: false as const, error }
     return { ok: true as const }

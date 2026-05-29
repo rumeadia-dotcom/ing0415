@@ -38,8 +38,8 @@
 |---|---|---|---|
 | s5-n34 | s5 진입 (대시보드 → 마켓 계정) | `GET /markets` 화면 (§7.1) | 사이드바 "마켓" |
 | s5-n35 | 연결된 계정 목록 | `GET /markets` 의 MarketStack 카드 (§7.1) | Realtime 구독 (§9) |
-| s5-n36 | 신규 연결 선택 | `GET /markets/connect` 화면 (§7.2) | 5개 마켓 그리드, **v1 활성 = 네이버 / 쿠팡 / G마켓 / 옥션, 11번가 = 오픈 준비중** |
-| s5-n37 | 인증 안내 (4-way 분기) | `GET /markets/connect/:provider` 화면 (§7.3) | provider 별 분기: **네이버 = `markets-oauth-start` 호출 + OAuth redirect** / **쿠팡 = HMAC 키 입력 폼** / **G마켓·옥션 = ESM JWT 키 입력 폼** / **11번가 = disabled** |
+| s5-n36 | 신규 연결 선택 | `GET /markets/connect` 화면 (§7.2) | 5개 마켓 그리드, **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부 활성** (11번가 transformProduct·createProduct·fetchCategoryTree 본격 동작은 spec 입수 후) |
+| s5-n37 | 인증 안내 (4-way 분기) | `GET /markets/connect/:provider` 화면 (§7.3) | provider 별 분기: **네이버 = `markets-oauth-start` 호출 + OAuth redirect** / **쿠팡 = HMAC 키 입력 폼** / **G마켓·옥션 = ESM JWT 키 입력 폼** / **11번가 = API Key 입력 폼** |
 | s5-n38 | 외부 마켓 인증 (OAuth 만) | 외부 마켓 도메인 (네이버 한정) | redirect 후 §s5-n39 로 복귀. HMAC / ESM JWT 는 외부 redirect 없음 — 폼 제출로 §s5-n39 로 직행 |
 | s5-n39 | 콜백 / 계정 연결 결과 | `GET /markets/callback/:provider` (OAuth) 또는 `markets-connect` 응답 결과 inline (HMAC / ESM JWT) | `markets-oauth-callback` 또는 `markets-connect` 결과 표시 |
 | s5-n40 | 해제 / 상태 확인 | `/markets` 행 내 액션 (§7.1) — `markets-disconnect` / `markets-verify` | 확인 다이얼로그 강제 |
@@ -208,12 +208,13 @@ SELECT cron.schedule(
 
 ---
 
-## 3. 마켓별 OAuth 사양
+## 3. 마켓별 인증 사양
 
-> v1 활성 마켓은 **네이버 스마트스토어 1개**. 쿠팡/11번가/G마켓/옥션은 v2 어댑터 인터페이스 확장 후 통합.
+> **v1 정식 = 5 마켓 전부** (네이버 / 쿠팡 / G마켓 / 옥션 / 11번가) — 2026-05-22 결정. 11번가 real 어댑터 본격 구현 완료.
+> 인증 방식 4-way 분기: OAuth (네이버) / HMAC (쿠팡) / ESM JWT (G마켓·옥션) / API Key (11번가).
 > 미해결 사안은 §14 에 행으로 보존.
 
-### 3.1 표 (v1 활성 — 네이버 스마트스토어)
+### 3.1 네이버 — OAuth 2.0
 
 | 항목 | 네이버 스마트스토어 (`naver`) |
 |---|---|
@@ -233,14 +234,22 @@ SELECT cron.schedule(
 | HTTP timeout (어댑터 fetch) | 15s |
 | 429 헤더 | `Retry-After` (초) |
 
-### 3.2 v2 예정 (쿠팡 / 11번가 / G마켓 / 옥션)
+### 3.2 비-OAuth 4마켓 (markets-connect 폼 입력)
 
-- **쿠팡 / 11번가 / G마켓 / 옥션**: v2 예정 — HMAC 기반(쿠팡) 또는 OAuth(11번가 등) 별도 어댑터 인터페이스 확장 필요.
-  - **쿠팡**: OpenAPI 가 OAuth 가 아닌 **HMAC 기반** (VENDOR_ID + ACCESS_KEY + SECRET_KEY 서명). 현 5메서드 OAuth 가정 인터페이스와 부정합 — v2 에서 `authenticate` input 을 `{kind:'oauth_code'|'hmac_key', ...}` union 으로 확대 후 통합.
-  - **11번가**: OAuth 추정. Phase 2 진입 직전 사양 확정.
-  - **G마켓 / 옥션**: 사양 미확정. Phase 2 진입 직전 확정.
-- v1 시점 어댑터 stub 파일은 호환을 위해 유지하되 호출 시 즉시 throw — 호출 경로 자체가 v1 에서 차단됨.
-- **TTL / scope / PKCE / refresh rotation** 등 세부 사양표는 v2 인터페이스 확정 후 본 §3 에 마켓별 표로 추가.
+쿠팡 / G마켓 / 옥션 / 11번가는 모두 OAuth 가 없는 영구·반영구 키 모델. `markets-connect` Edge Function 의 단일 진입점으로 자격증명 입력·검증·저장한다.
+
+| 마켓 | kind | 입력 필드 | 검증 ping | 비고 |
+|---|---|---|---|---|
+| 쿠팡 (`coupang`) | `hmac_key` | accessKey / secretKey / vendorId | fetchCategoryTree | Wing OpenAPI HMAC-SHA256 서명 |
+| G마켓 (`gmarket`) | `esm_jwt` | masterId / secretKey / sellerId + `site='G'` | fetchCategoryTree | ESM Plus 통합 인증 |
+| 옥션 (`auction`) | `esm_jwt` | masterId / secretKey / sellerId + `site='A'` | fetchCategoryTree | ESM Plus 통합 인증 (G마켓과 어댑터 공유) |
+| 11번가 (`11st`) | `api_key` | apiKey | fetchCategoryTree | 11번가 Open API (XML, EUC-KR). 게이트웨이 경유 |
+
+**11번가 real 어댑터 상태 (정식 활성)**:
+- `authenticate` — API Key 저장 + 검증 ping.
+- `fetchCategoryTree` / `transformProduct` / `createProduct` / `fetchOrders` / `submitTracking` 모두 11번가 Open API(XML, EUC-KR) 를 Lightsail 게이트웨이 경유로 호출하여 본 동작한다.
+- `markets-connect` 는 다른 4 마켓과 동일하게 category_ping 으로 자격증명을 검증한 뒤 active 표시한다.
+- parity §5 활성 — mock ↔ real 어댑터 동등성 테스트 대상.
 
 ---
 
@@ -329,7 +338,7 @@ SELECT cron.schedule(
 
 5개 함수 모두 Supabase Edge Functions (Deno + TypeScript). `apps/api/supabase/functions/_shared/*` 의 logger / withRetry / mask / authGuard 재사용.
 
-> **v1 활성 마켓 (2026-05-19 확정 — OQ-10)**: `naver` 만. 본 §5 의 모든 Request 스키마가 `z.enum(['naver', 'coupang'])` 형태이나 이는 v2 인터페이스 호환 유지용 — `getMarketAdapter('coupang')` 는 호출 시 즉시 throw 되어 v1 운영 경로에서 차단된다. UI 그리드에서 쿠팡 카드 자체가 disabled 라 클라이언트 측 발신 경로도 없음.
+> **v1 정식 마켓**: 5 마켓 전부 (`naver` / `coupang` / `gmarket` / `auction` / `11st`) 모두 real 어댑터 활성. OAuth 흐름은 `naver` 만 사용 (`markets-oauth-*`). 나머지 4 마켓 (`coupang` / `gmarket` / `auction` / `11st`) 은 `markets-connect` Edge Function 으로 키 입력. 본 §5 의 일부 zod 예시가 `z.enum(['naver', 'coupang'])` 형태로 남아있는 부분은 옛 예시 — 실제 enum 은 `apps/web/src/lib/schemas/markets-feature.ts` ground truth.
 
 ### 5.1 공통 규약
 
@@ -542,6 +551,8 @@ export const Response200 = z.object({
 
 **근거**: `fetchCategoryTree` 는 비교적 가벼운 GET 이며 어댑터 5메서드에 이미 포함 — 별도 메서드 신설 회피. 마켓별 quirk 로 부적합 시 Phase 2 에 별도 verify 메서드 검토 (§14 O-4).
 
+> **핑 깊이 제약 (2026-05-27 hotfix)**: 핑 용도의 `fetchCategoryTree` 는 **루트 1회 호출**(maxDepth=1)이어야 한다. 카테고리 트리 전체를 깊이 재귀하면 마켓당 수백~수천 호출로 게이트웨이가 폭주/타임아웃한다. 쿠팡 어댑터가 이 규칙으로 구현됨(`coupang.ts` `CATEGORY_PING_MAX_DEPTH=1`). 또한 쿠팡 카테고리 경로는 `…/api/v1/marketplace/meta/display-categories/{code}` (루트 `0`) 이다 — 이전 `categorization/…` 오타로 404 → `category_ping_failed` 운영 사고 (correlationId 58f3ca64).
+
 ---
 
 ## 6. 클라이언트 zod 스키마 (`apps/web/src/lib/schemas/markets.ts`)
@@ -673,7 +684,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │         │                                                                    │
 │  대시   │ ┌──────────────────────────────────────────────────────────────┐ │
 │  등록   │ │  ●●●●●  연결된 마켓 1 / 5                                   │ │
-│ ▶ 마켓  │ │  (네이버 스마트스토어 — 쿠팡/11번가/G마켓/옥션 오픈 준비중) │ │
+│ ▶ 마켓  │ │  (미연결 마켓은 [+ 신규 연결] 에서 추가 — 5마켓 v1 지원)  │ │
 │  이력   │ └──────────────────────────────────────────────────────────────┘ │
 │         │                                                                    │
 │         │ ┌─────────────────────────────────────────────────────────────┐  │
@@ -683,7 +694,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │         │ │                                                     [해제]  │  │
 │         │ └─────────────────────────────────────────────────────────────┘  │
 │         │                                                                    │
-│         │ (쿠팡/11번가/G마켓/옥션은 오픈 준비중 — 다음 버전 제공)            │
+│         │ (미연결 마켓은 [+ 신규 연결] 에서 연결 — 5마켓 모두 v1 지원)      │
 │         │                                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -701,7 +712,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │   ● 활성 · 2분 전 확인           │
 │   [상태 확인]  [해제]            │
 ├─────────────────────────────────┤
-│ (쿠팡/11번가/G마켓/옥션 오픈 준비중)│
+│ (미연결은 [+ 신규 연결] 에서 추가)  │
 ├─────────────────────────────────┤
 │                                 │
 │   [ + 신규 연결 ]               │
@@ -724,7 +735,7 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 
 ### 7.2 `/markets/connect` — 신규 연결 마켓 선택 (s5-n36)
 
-**목적**: 5개 마켓을 그리드로 표시. **v1 활성 = 네이버 1개만**. 쿠팡/11번가/G마켓/옥션 = "오픈 준비중" 비활성 카드.
+**목적**: 5개 마켓을 그리드로 표시. **v1 정식 = 5 마켓 전부 활성** (11번가 real 어댑터 포함).
 
 **ASCII 와이어 (데스크탑)**:
 
@@ -736,19 +747,19 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐                    │
 │  │   ●            │ │   ●            │ │   ●            │                    │
 │  │  네이버         │ │  쿠팡          │ │  11번가         │                    │
-│  │ 스마트스토어    │ │ (오픈 준비중)  │ │  (오픈 준비중) │                    │
+│  │ 스마트스토어    │ │  (HMAC 키)     │ │  (API 키)      │                    │
 │  │                │ │                │ │                │                    │
-│  │  [연결하기]    │ │  [오픈 준비중] │ │  [오픈 준비중] │                    │
-│  │                │ │   disabled     │ │   disabled     │                    │
+│  │  [연결하기]    │ │  [연결하기]    │ │  [연결하기]    │                    │
+│  │                │ │                │ │                │                    │
 │  └────────────────┘ └────────────────┘ └────────────────┘                    │
 │                                                                              │
 │  ┌────────────────┐ ┌────────────────┐                                       │
 │  │   ●            │ │   ●            │                                       │
 │  │  G마켓          │ │  옥션          │                                       │
-│  │ (오픈 준비중)  │ │ (오픈 준비중)  │                                       │
+│  │  (ESM JWT)     │ │  (ESM JWT)     │                                       │
 │  │                │ │                │                                       │
-│  │  [오픈 준비중] │ │  [오픈 준비중] │                                       │
-│  │   disabled     │ │   disabled     │                                       │
+│  │  [연결하기]    │ │  [연결하기]    │                                       │
+│  │                │ │                │                                       │
 │  └────────────────┘ └────────────────┘                                       │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -763,23 +774,23 @@ export type MarketApiError = z.infer<typeof MarketApiErrorSchema>;
 │  ●  네이버 스마트스토어         │
 │      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  쿠팡 (오픈 준비중)          │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  쿠팡                        │
+│      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  11번가 (오픈 준비중)        │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  11번가                      │
+│      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  G마켓 (오픈 준비중)         │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  G마켓                       │
+│      [ 연결하기 ]                │
 ├─────────────────────────────────┤
-│  ●  옥션 (오픈 준비중)          │
-│      [ 오픈 준비중 ]  disabled   │
+│  ●  옥션                        │
+│      [ 연결하기 ]                │
 └─────────────────────────────────┘
 ```
 
 **카드 컴포넌트** (`MarketCatalogCard`):
 - 색상: prototype `data.js` 의 마켓별 brandColorHex 그대로 사용 (naver `#03C75A` / coupang `#F11F44` / 11st `#FF0038` / gmarket `#00B147` / auction `#E73936`).
-- **v1 활성 = naver 1개만**. 나머지 4개는 grayscale + `[오픈 준비중]` 라벨 + 클릭 무반응 + `aria-disabled="true"`.
+- **v1 정식 = 5 마켓 전부 활성** (2026-05-25). 모든 카드 clickable + 인증 방식 힌트 표시 (OAuth / HMAC / ESM JWT / API Key).
 - 활성 카드 클릭 → `/markets/connect/:provider` 로 이동.
 
 ### 7.3 `/markets/connect/:provider` — OAuth 진입 안내 (s5-n37)
@@ -1148,7 +1159,7 @@ describe('market_accounts RLS — 셀러 본인 row 만 SELECT', () => {
 | O-5 | `external_account_id` 마스킹 형식 — 어느 자리수까지 노출할지 | §2.1 / §6 / §7.1 행 표시 | Phase 1 디자인 + security 합의 |
 | O-6 | OAuth state 와 함께 `account_label` 보존 방식 — `oauth_state.account_label` 컬럼 추가 (본 문서 가정) vs `markets-oauth-start` 의 state 에 서명 페이로드로 embed | §2.5 / §5.2 / §5.3 | Phase 1 코드 작성 직전 |
 | O-7 | PKCE 지원 — 네이버 / 쿠팡 OAuth 가 PKCE 수용 시 `code_verifier` 도입 | §3.1 / §2.5 `pkce_verifier` 컬럼 활용 | Phase 2 |
-| O-8 | 11번가 / G마켓 / 옥션 어댑터 stub 단위 테스트 — v1 시점 `market-adapter.md` §11 의 8개 케이스 중 어디까지 강제 | `market-adapter.md` §10 신규 마켓 절차 | v2 진입 직전 |
+| O-8 | 11번가 / G마켓 / 옥션 real 어댑터 단위 테스트 — `market-adapter.md` §11 의 8개 케이스 중 어디까지 강제 (3 마켓 모두 v1 정식 활성) | `market-adapter.md` §10 신규 마켓 절차 | 정식 활성 — parity §5 유지 |
 | O-9 | Realtime 채널 이름에 sellerId 노출 안전성 — Supabase Realtime 토큰 검증으로 충분한지 | §9.1 | security 추가 검토 |
 | O-10 | 일일 등록 한도 (소프트 limit) 와 마켓 연결 한도 — 셀러당 마켓별 N계정까지 허용할지 | §7.1 / §2.1 unique 제약 변경 가능성 | 베타 운영 데이터 후 |
 

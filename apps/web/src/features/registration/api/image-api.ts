@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getSupabase } from '@/lib/supabase'
+import { useMock } from '@/lib/env'
 import { logger } from '@/lib/logger'
 
 /**
@@ -73,6 +74,14 @@ export async function putImageToSignedUrl(
   file: File,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<void> {
+  if (useMock && uploadUrl.startsWith('https://mock.local/')) {
+    const blobUrl = URL.createObjectURL(file)
+    const imageId = uploadUrl.split('/').pop() ?? ''
+    const { registerMockImageBlob } = await import('@/lib/mock/createMockSupabase')
+    registerMockImageBlob(imageId, blobUrl)
+    onProgress?.(file.size, file.size)
+    return
+  }
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', uploadUrl, true)

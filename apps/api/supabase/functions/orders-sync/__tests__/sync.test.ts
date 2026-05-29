@@ -60,6 +60,10 @@ interface OrderRow {
   order_amount: number
   status: string
   collected_at: string
+  // 2026-05-29: paidAt 분리 + 쿠팡 vendor_item_id (마이그 20260529000001).
+  paid_at: string | null
+  ordered_at: string | null
+  vendor_item_id: string | null
 }
 
 interface MockState {
@@ -269,7 +273,8 @@ Deno.test('orders-sync: happy path — 4 마켓 모두 신규 주문 적재', as
   assertEquals(sample.product_name, '테스트 상품')
   assertEquals(sample.quantity, 1)
   assertEquals(sample.order_amount, 10000)
-  assertEquals(sample.collected_at, '2026-05-20T10:00:00+09:00')
+  // 2026-05-29 정합: collected_at 는 우리 시스템 수집 시각 (now()), paid_at 가 마켓 paidAt.
+  assertEquals(sample.paid_at, '2026-05-20T10:00:00+09:00')
 })
 
 // ─────────────────────────────────────────────

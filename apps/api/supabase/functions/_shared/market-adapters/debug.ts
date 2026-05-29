@@ -10,7 +10,7 @@
  *     - oauth_code  (네이버) → StoredCredential.kind='oauth' + TokenSet payload
  *     - hmac_key    (쿠팡)   → StoredCredential.kind='hmac' + HmacKeyPayload
  *     - esm_jwt     (G마켓·옥션) → StoredCredential.kind='esm_jwt' + EsmJwtKeyPayload
- *     - api_key     (11번가) → 즉시 throw (v1 미사용 — 오픈 준비중)
+ *     - api_key     (11번가) → StoredCredential.kind='api_key' + ApiKeyPayload (2026-05-25 활성)
  *   - refreshToken 은 oauth (네이버) 만 노출.
  *
  * 강제:
@@ -123,11 +123,18 @@ function buildHappyCredential(
       })
     }
     case 'api_key': {
-      throw new MarketError(
-        'validation',
-        `${market}: 11번가는 v1 미사용 (오픈 준비중) — v2 IP 화이트리스트 정책 해결 후`,
-        { market },
-      )
+      // 11번가 — 영구 키. AuthInput 의 api_key 입력에서 apiKey 만 추출.
+      if (input.kind !== 'api_key') {
+        throw new MarketError(
+          'validation',
+          `${market}: api_key input required (got ${input.kind})`,
+          { market },
+        )
+      }
+      return StoredCredentialSchema.parse({
+        kind: 'api_key',
+        payload: { apiKey: input.apiKey },
+      })
     }
   }
 }
@@ -175,6 +182,11 @@ export function createMockAdapter(
         throw new MarketError('network', 'mock timeout', { market })
       }
       return buildHappyCredential(market, credentialKind, input)
+    },
+
+    // mock 은 cred 게이트 없음 — hydrate 는 사실상 no-op (인터페이스 충족).
+    hydrate(stored: StoredCredential): void {
+      void stored
     },
 
     async fetchCategoryTree(): Promise<CategoryNode[]> {

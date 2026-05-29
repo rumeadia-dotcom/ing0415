@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useDocumentTitle } from '@/lib/use-document-title'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -31,6 +32,7 @@ import { studioClass } from '../lib/studio-tokens'
  * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function SignupPage(): JSX.Element {
+  useDocumentTitle('회원가입')
   const { signUp } = useAuth()
   const [submitError, setSubmitError] = useState<MappedAuthError | null>(null)
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null)
@@ -120,6 +122,7 @@ export function SignupPage(): JSX.Element {
               autoComplete="name"
               placeholder={ko.auth.signup.displayNamePlaceholder}
               aria-invalid={errors.displayName ? 'true' : 'false'}
+              aria-describedby={errors.displayName ? 'signup-name-error' : undefined}
               className={studioClass.input}
               {...register('displayName')}
             />
@@ -136,6 +139,7 @@ export function SignupPage(): JSX.Element {
               autoComplete="email"
               placeholder={ko.auth.login.emailPlaceholder}
               aria-invalid={errors.email ? 'true' : 'false'}
+              aria-describedby={errors.email ? 'signup-email-error' : undefined}
               className={studioClass.input}
               {...register('email')}
             />
@@ -152,6 +156,7 @@ export function SignupPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.password ? 'true' : 'false'}
+              aria-describedby={errors.password ? 'signup-password-error' : undefined}
               className={studioClass.input}
               {...register('password')}
             />
@@ -168,6 +173,9 @@ export function SignupPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.passwordConfirm ? 'true' : 'false'}
+              aria-describedby={
+                errors.passwordConfirm ? 'signup-password-confirm-error' : undefined
+              }
               className={studioClass.input}
               {...register('passwordConfirm')}
             />
@@ -179,12 +187,13 @@ export function SignupPage(): JSX.Element {
                 type="checkbox"
                 className="mt-0.5 h-4 w-4 rounded border-border-strong accent-ink"
                 aria-invalid={errors.termsAgreed ? 'true' : 'false'}
+                aria-describedby={errors.termsAgreed ? 'signup-terms-error' : undefined}
                 {...register('termsAgreed')}
               />
               <span>{ko.auth.signup.termsRequired}</span>
             </label>
             {errors.termsAgreed ? (
-              <p role="alert" className={studioClass.helperError}>
+              <p id="signup-terms-error" role="alert" className={studioClass.helperError}>
                 {errors.termsAgreed.message}
               </p>
             ) : null}
@@ -250,7 +259,7 @@ function FieldRow({
       {children}
       {hint ? <p className={studioClass.helperHint}>{hint}</p> : null}
       {error ? (
-        <p role="alert" className={studioClass.helperError}>
+        <p id={`${id}-error`} role="alert" className={studioClass.helperError}>
           {error}
         </p>
       ) : null}
@@ -304,6 +313,7 @@ function SignupSuccess({ email }: { email: string }): JSX.Element {
           <div className="absolute inset-0 rounded-full bg-success-soft" />
           <div className="absolute inset-[14px] flex items-center justify-center rounded-full bg-success text-white">
             <svg
+              aria-hidden="true"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -311,7 +321,6 @@ function SignupSuccess({ email }: { email: string }): JSX.Element {
               strokeLinecap="round"
               strokeLinejoin="round"
               className="h-8 w-8"
-              aria-hidden="true"
             >
               <path d="M4 6h16v12H4z" />
               <path d="m4 6 8 7 8-7" />

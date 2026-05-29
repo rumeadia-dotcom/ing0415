@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useDocumentTitle } from '@/lib/use-document-title'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -34,6 +35,7 @@ import { studioClass } from '../lib/studio-tokens'
  * 디자인: docs/design-renewal/designFile/concepts/studio-domains.jsx (s1)
  */
 export function ResetPasswordPage(): JSX.Element {
+  useDocumentTitle('비밀번호 재설정')
   const navigate = useNavigate()
   const { session, status, updatePassword, signOut } = useAuth()
   const [submitError, setSubmitError] = useState<MappedAuthError | null>(null)
@@ -145,6 +147,7 @@ export function ResetPasswordPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.password ? 'true' : 'false'}
+              aria-describedby={errors.password ? 'reset-password-error' : undefined}
               className={studioClass.input}
               {...register('password')}
             />
@@ -169,7 +172,7 @@ export function ResetPasswordPage(): JSX.Element {
               </div>
             ) : null}
             {errors.password ? (
-              <p role="alert" className={studioClass.helperError}>
+              <p id="reset-password-error" role="alert" className={studioClass.helperError}>
                 {errors.password.message}
               </p>
             ) : null}
@@ -187,11 +190,14 @@ export function ResetPasswordPage(): JSX.Element {
               type="password"
               autoComplete="new-password"
               aria-invalid={errors.passwordConfirm ? 'true' : 'false'}
+              aria-describedby={
+                errors.passwordConfirm ? 'reset-password-confirm-error' : undefined
+              }
               className={studioClass.input}
               {...register('passwordConfirm')}
             />
             {errors.passwordConfirm ? (
-              <p role="alert" className={studioClass.helperError}>
+              <p id="reset-password-confirm-error" role="alert" className={studioClass.helperError}>
                 {errors.passwordConfirm.message}
               </p>
             ) : null}

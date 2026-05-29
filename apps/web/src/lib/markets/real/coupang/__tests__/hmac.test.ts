@@ -17,6 +17,7 @@
  *  T10. message 구조 (줄바꿈 순서) 검증 - 반환 signature 재계산으로 크로스체크
  */
 
+import { createHmac } from 'node:crypto'
 import { describe, it, expect } from 'vitest'
 import {
   buildCoupangSignature,
@@ -61,6 +62,40 @@ describe('buildCoupangSignature', () => {
     expect(result.authorization).toContain(`access-key=${FIXED_ACCESS_KEY}`)
     expect(result.authorization).toContain(`signed-date=260520T093045Z`)
     expect(result.authorization).toContain('signature=')
+  })
+
+  // KAT (Known-Answer Test) — 운영 사고 (2026-05-27, credentials_unauthorized) 회귀 가드.
+  // 쿠팡 공식 스펙: message = datetime + method + path + query (무개행 연결).
+  // 출처: developers.coupangcorp.com "Creating HMAC Signature".
+  // 이전 구현은 `datetime\nMETHOD\npath\n` (개행) 으로 서명이 어긋나 쿠팡 401.
+  it('KAT: 서명 메시지는 datetime+method+path 무개행 연결 (query 없음)', async () => {
+    const path =
+      '/v2/providers/seller_api/apis/api/v1/marketplace/meta/display-categories/0'
+    const { signature } = await buildCoupangSignature({
+      method: 'GET',
+      path,
+      accessKey: FIXED_ACCESS_KEY,
+      secretKey: FIXED_SECRET_KEY,
+      now: FIXED_DATE,
+    })
+    const expected = createHmac('sha256', FIXED_SECRET_KEY)
+      .update(`260520T093045Z` + `GET` + path)
+      .digest('hex')
+    expect(signature).toBe(expected)
+  })
+
+  it('KAT: query 가 있으면 ? 를 떼고 datetime+method+path+query 로 서명', async () => {
+    const { signature } = await buildCoupangSignature({
+      method: 'GET',
+      path: '/v2/x/y?vendorId=A123&status=APPROVED',
+      accessKey: FIXED_ACCESS_KEY,
+      secretKey: FIXED_SECRET_KEY,
+      now: FIXED_DATE,
+    })
+    const expected = createHmac('sha256', FIXED_SECRET_KEY)
+      .update(`260520T093045Z` + `GET` + `/v2/x/y` + `vendorId=A123&status=APPROVED`)
+      .digest('hex')
+    expect(signature).toBe(expected)
   })
 
   it('T3: 알려진 고정 입력 → 동일 서명 결정성 검증 (같은 입력, 두 번 호출)', async () => {

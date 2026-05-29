@@ -39,7 +39,13 @@ import type {
   StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
+import {
+  FetchOrdersInputSchema,
+  type FetchOrdersInput,
+  type MarketOrder,
+} from '../market-orders.ts'
 import { buildEsmJwt } from './esm-jwt.ts'
+import { EsmOrderListResponseSchema, mapEsmOrders } from './esm-orders.ts'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -332,6 +338,31 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       } as StoredCredential
     },
 
+    // ───────────────────────────────────────────
+    // hydrate — 저장 자격증명으로 cred 복원 (API 호출 없음)
+    // ───────────────────────────────────────────
+    hydrate(stored: StoredCredential): void {
+      if (stored.kind !== 'esm_jwt') {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}): esm_jwt 자격증명 필요 (받은 kind: ${stored.kind})`,
+          { market },
+        )
+      }
+      const p = stored.payload as {
+        masterId?: string
+        secretKey?: string
+        sellerId?: string
+      }
+      if (!p.masterId || !p.secretKey || !p.sellerId) {
+        throw new MarketError('validation', `ESM(${market}): 저장 자격증명 누락`, {
+          market,
+        })
+      }
+      // site 는 어댑터에 고정 — 저장값 대신 어댑터 site 사용.
+      cred = { masterId: p.masterId, secretKey: p.secretKey, sellerId: p.sellerId, site }
+    },
+
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const c = getCredOrThrow()
       const correlationId = generateCorrelationId()
@@ -452,6 +483,65 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
         status: 'succeeded',
         warnings: [],
       } as CreateProductResult
+    },
+
+    // ───────────────────────────────────────────
+    // fetchOrders — ESM getOrderList (site 분기, v2 orders)
+    // ───────────────────────────────────────────
+    async fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]> {
+      const parsedInput = FetchOrdersInputSchema.safeParse(input)
+      if (!parsedInput.success) {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}) fetchOrders 입력 형식 오류 — ${parsedInput.error.message}`,
+          { market, cause: parsedInput.error },
+        )
+      }
+
+      const c = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+
+      const query: Record<string, string> = {
+        site,
+        sellerId: c.sellerId,
+      }
+      if (parsedInput.data.since) query.from = parsedInput.data.since
+      if (parsedInput.data.until) query.to = parsedInput.data.until
+
+      const response = await esmFetch({
+        market,
+        method: 'GET',
+        path: '/order',
+        query,
+        cred: c,
+        correlationId,
+        logger,
+      })
+
+      const text = await response.text()
+      if (!response.ok) {
+        throw httpStatusToMarketError(market, response.status, text, correlationId)
+      }
+
+      let json: unknown
+      try {
+        json = JSON.parse(text)
+      } catch {
+        throw new MarketError('server', 'ESM 주문 응답 JSON 파싱 실패', {
+          market,
+          status: response.status,
+        })
+      }
+
+      const parsed = EsmOrderListResponseSchema.safeParse(json)
+      if (!parsed.success) {
+        throw new MarketError('server', 'ESM 주문 응답 스키마 불일치', {
+          market,
+          cause: parsed.error,
+        })
+      }
+
+      return mapEsmOrders(parsed.data.data?.orders ?? [], market)
     },
   }
 }

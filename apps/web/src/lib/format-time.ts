@@ -2,7 +2,7 @@
  * ISO 시각 → 한국어 상대 시간 ("방금", "2분 전", "3일 전").
  * 1주일 이후는 절대 날짜 (yyyy-mm-dd).
  *
- * 동일 로직이 markets/utils/format-relative-time.ts 에 존재 — Phase 4 sync 시점에 통합 예정.
+ * 본 앱의 모든 상대시간 표시는 이 함수로 통일 (cycle 28).
  */
 export function formatRelativeTime(iso: string, now: Date = new Date()): string {
   const t = new Date(iso).getTime()
@@ -19,6 +19,20 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/**
+ * ISO → KST 절대 시각 ("2026-05-25 14:32"). cycle 59 — tooltip / title 용.
+ */
+export function formatAbsoluteKst(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day} ${hh}:${mm}`
 }
 
 /**

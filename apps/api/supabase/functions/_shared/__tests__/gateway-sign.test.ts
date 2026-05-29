@@ -98,7 +98,7 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com/products')).not.toThrow()
     expect(() => assertGatewayUrl('https://api-gateway.coupang.com/v2/x')).not.toThrow()
     expect(() => assertGatewayUrl('https://sa.esmplus.com/api/v1/x')).not.toThrow()
-    expect(() => assertGatewayUrl('https://api.11st.co.kr/x')).not.toThrow()
+    expect(() => assertGatewayUrl('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')).not.toThrow()
   })
 
   it('invalid URL → throw', () => {
@@ -128,8 +128,8 @@ describe('gateway-sign / maskUrlForLog', () => {
   })
 
   it('querystring 없으면 그대로', () => {
-    expect(maskUrlForLog('https://api.11st.co.kr/v1/orders')).toBe(
-      'https://api.11st.co.kr/v1/orders',
+    expect(maskUrlForLog('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')).toBe(
+      'https://openapi.11st.co.kr/openapi/OpenApiService.tmall',
     )
   })
 

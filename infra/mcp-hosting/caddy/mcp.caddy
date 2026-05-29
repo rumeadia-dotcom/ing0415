@@ -1,0 +1,36 @@
+# Caddy — MCP auth-proxy frontend (서브도메인 라우팅).
+# 설계 ground truth: docs/architecture/v1/cross-cutting/mcp-hosting.md §1.2 / §6.1
+#
+# 위치(인스턴스): /etc/caddy/mcp.caddy
+# 메인 /etc/caddy/Caddyfile 끝에 `import mcp.caddy` 1줄로 로드 (setup.sh 가 멱등 추가).
+# gateway site 블록(3-36-239-243.sslip.io → :8787)은 손대지 않는다.
+#
+# 라우팅: 엔드포인트별 **서브도메인** (path-prefix 폐기 — SSE /messages/ 호환).
+#   sslip.io 는 <anything>.3-36-239-243.sslip.io 를 전부 3.36.239.243 로 해석 → 서브도메인 무료.
+#   Caddy 가 각 서브도메인 인증서를 HTTP-01 로 자동 발급.
+# auth-proxy 가 Host 헤더로 엔드포인트 식별 + Bearer 검증 후 내부 MCP 로 전달.
+# MCP_BASE_PLACEHOLDER 는 setup.sh 가 MCP_BASE(예: 3-36-239-243.sslip.io)로 치환.
+
+supabase-dev.MCP_BASE_PLACEHOLDER,
+supabase-real.MCP_BASE_PLACEHOLDER,
+playwright.MCP_BASE_PLACEHOLDER,
+sentry.MCP_BASE_PLACEHOLDER {
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# 전 경로 → auth-proxy (Host 로 엔드포인트 식별, Bearer 검증/audit 는 proxy 책임).
+	# flush_interval -1 : MCP SSE(text/event-stream) 무버퍼 스트리밍.
+	reverse_proxy 127.0.0.1:9000 {
+		flush_interval -1
+		transport http {
+			dial_timeout 5s
+		}
+	}
+
+	# 액세스 로그: 별도 파일 미사용 (caddy 유저의 /var/log/caddy 신규파일 권한 문제 회피).
+	# 요청 로깅은 auth-proxy journald, real 접근은 audit 파일로 분리.
+}

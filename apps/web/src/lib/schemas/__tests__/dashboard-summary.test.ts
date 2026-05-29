@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DashboardSummarySchema,
   MarketHealthSchema,
+  MarketOrderItemSchema,
   RecentJobSchema,
 } from '@/lib/schemas/dashboard-summary'
 
@@ -74,6 +75,38 @@ describe('MarketHealthSchema', () => {
       error: 0,
       total: 0,
     })
+    expect(res.success).toBe(false)
+  })
+})
+
+describe('MarketOrderItemSchema', () => {
+  const VALID_ITEM = {
+    marketId: 'naver',
+    connected: true,
+    newOrdersCount: 5,
+    todayTotalCount: 12,
+    lastSyncedAt: '2026-05-21T09:00:00+09:00',
+    syncStatus: 'idle',
+    syncError: null,
+  }
+
+  it('연동된 마켓 row parse 통과', () => {
+    expect(MarketOrderItemSchema.parse(VALID_ITEM)).toMatchObject({
+      marketId: 'naver',
+      connected: true,
+    })
+  })
+
+  it('미연동 마켓 (connected:false) row parse 통과', () => {
+    const res = MarketOrderItemSchema.safeParse({ ...VALID_ITEM, connected: false })
+    expect(res.success).toBe(true)
+    if (res.success) expect(res.data.connected).toBe(false)
+  })
+
+  it('connected 누락 시 실패', () => {
+    const { connected, ...withoutConnected } = VALID_ITEM
+    void connected
+    const res = MarketOrderItemSchema.safeParse(withoutConnected)
     expect(res.success).toBe(false)
   })
 })

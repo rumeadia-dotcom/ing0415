@@ -34,6 +34,7 @@ export default defineConfig({
       'apps/web/src/**/*.test.tsx',
       'apps/web/src/**/*.spec.ts',
       'tests/unit/**/*.test.ts',
+      'tests/unit/**/*.spec.ts',
       'tests/integration/**/*.test.ts',
       // Edge Function 의 pure 헬퍼 (Deno specifier 없음) 단위·통합 테스트.
       'apps/api/supabase/functions/**/__tests__/*.test.ts',
@@ -44,8 +45,10 @@ export default defineConfig({
       'dist/**',
       'tests/e2e/**',
       'tests/fixtures/**',
-      // Deno-only 테스트 (URL ESM specifier 사용 → Vitest Node 환경 incompatible)
+      // Deno-only 테스트 (URL ESM / npm: specifier 사용 → Vitest Node 환경 incompatible)
       'apps/api/supabase/functions/orders-sync/__tests__/sync.test.ts',
+      'apps/api/supabase/functions/_shared/market-adapters/__tests__/coupang-orders.test.ts',
+      'apps/api/supabase/functions/_shared/market-adapters/__tests__/esm-orders.test.ts',
     ],
     coverage: {
       provider: 'v8',

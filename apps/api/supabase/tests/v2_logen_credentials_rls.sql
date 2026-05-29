@@ -15,7 +15,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
 -- raw 테이블 6 시나리오 + view 4 시나리오 = 10
-select plan(10);
+select plan(12);
 
 do $$
 begin
@@ -64,36 +64,54 @@ insert into public.logen_credentials (
    '셀러B',  '서울시 송파구 9', '02-222-2222', 'C', 0, 'test-kid');
 
 -- ══════════════════════════════════════════════════════════════════════════
--- raw 테이블 — authenticated 는 SELECT 불가 (정책 0개)
+-- raw 테이블 — authenticated 가 안전 컬럼은 본인 row 만 SELECT (2026-05-25 갱신).
+-- migration 20260525000001 가 SECURITY DEFINER view 경고 해소를 위해 column-level
+-- GRANT + RLS 정책 도입. authenticated 는 안전 컬럼 (id / seller_id / sender_* /
+-- fare_ty / dlv_fare / connected / ciphertext_kid / created_at / updated_at)
+-- 에 대해 본인 row 만 SELECT. encrypted bytea (user_id_enc / cust_cd_enc) 는
+-- 여전히 GRANT 없음 — 시도 시 42501.
 -- ══════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated"}';
 
--- logen_credentials 마이그 (20260521000003) 는 authenticated 에 GRANT 자체 없음
--- (service_role only). 따라서 SELECT/UPDATE/DELETE 시도 시 SQLSTATE 42501
--- (insufficient_privilege) 가 발생 — RLS 차단보다 한 단계 더 강한 격리.
--- 보안적으로 동등하므로 throws_ok 패턴으로 검증.
+-- 본인 row 의 안전 컬럼은 SELECT 가능 (RLS 필터로 1건)
+select is(
+  (select count(*)::bigint from public.logen_credentials
+    where seller_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid),
+  1::bigint,
+  'logen_credentials: 셀러 A 안전 컬럼 본인 row SELECT 1건'
+);
+
+-- 다른 셀러 row 는 RLS 로 0건 (42501 이 아닌 row filter)
+select is(
+  (select count(*)::bigint from public.logen_credentials
+    where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid),
+  0::bigint,
+  'logen_credentials: 셀러 A 가 B row 시도 → RLS 로 0건 (cross-tenant 차단)'
+);
+
+-- encrypted bytea 컬럼은 column GRANT 없어 42501
 select throws_ok(
-  $sql$ select count(*) from public.logen_credentials $sql$,
+  $sql$ select user_id_enc from public.logen_credentials $sql$,
   '42501',
   null,
-  'logen_credentials: authenticated 는 raw SELECT 거부 (GRANT 없음)'
+  'logen_credentials: authenticated 는 user_id_enc (encrypted) SELECT 거부 (column GRANT 없음)'
 );
 
 select throws_ok(
-  $sql$ select count(*) from public.logen_credentials
-        where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $sql$,
+  $sql$ select cust_cd_enc from public.logen_credentials $sql$,
   '42501',
   null,
-  'logen_credentials: 셀러 A 는 B row 명시 SELECT 거부'
+  'logen_credentials: authenticated 는 cust_cd_enc (encrypted) SELECT 거부'
 );
 
+-- UPDATE / DELETE 는 column GRANT 없음 (service_role 전용)
 select throws_ok(
   $sql$ update public.logen_credentials set sender_name = 'HACKED'
         where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $sql$,
   '42501',
   null,
-  'logen_credentials: 셀러 A 는 B row UPDATE 거부'
+  'logen_credentials: 셀러 A 는 B row UPDATE 거부 (GRANT 없음)'
 );
 
 select throws_ok(
@@ -101,7 +119,7 @@ select throws_ok(
         where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $sql$,
   '42501',
   null,
-  'logen_credentials: 셀러 A 는 B row DELETE 거부'
+  'logen_credentials: 셀러 A 는 B row DELETE 거부 (GRANT 없음)'
 );
 
 reset role;
@@ -111,7 +129,7 @@ select throws_ok(
   $sql$ select count(*) from public.logen_credentials $sql$,
   '42501',
   null,
-  'logen_credentials: anon 도 raw SELECT 거부'
+  'logen_credentials: anon 도 raw SELECT 거부 (GRANT 없음)'
 );
 
 reset role;

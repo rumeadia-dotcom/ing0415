@@ -115,7 +115,7 @@ dispatch_failed ──n56 재시도──→ waybill_printed → tracking_submit
 // Request — pg_cron 호출 시 body 없음. 수동 트리거(workflow_dispatch) 시 seller_id 1건 지정 가능.
 const OrdersSyncRequest = z.object({
   sellerId: z.string().uuid().optional(),     // 생략 시 활성 셀러 전체
-  marketIds: z.array(MarketIdSchema).optional() // 생략 시 4 마켓 전체
+  marketIds: z.array(MarketIdSchema).optional() // 생략 시 5 마켓 전체
 }).strict();
 
 // Response

@@ -28,6 +28,7 @@ import type {
   StoredCredential,
   TokenSet,
 } from './schemas.ts'
+import type { FetchOrdersInput, MarketOrder } from './market-orders.ts'
 
 /**
  * 송장 제출 결과 (v2 shipping).
@@ -49,10 +50,25 @@ export interface MarketAdapter {
   readonly credentialKind: MarketCredentialKind
 
   authenticate(input: AuthInput): Promise<StoredCredential>
+  /**
+   * 저장된(복호화된) 자격증명으로 어댑터 in-memory cred 를 복원한다.
+   * authenticate(최초 인증/교환)와 분리 — verify / registration 처럼 이미 저장된
+   * 자격증명을 쓰는 경로는 fetchCategoryTree / createProduct 호출 전에 hydrate 를
+   * 먼저 호출해야 한다. 외부 API 호출 없음. kind 불일치 시 MarketError('validation').
+   */
+  hydrate(stored: StoredCredential): void
   refreshToken?(refresh: string): Promise<TokenSet>
   fetchCategoryTree(): Promise<CategoryNode[]>
   transformProduct(product: Product, mapping: MarketMapping): MarketPayload
   createProduct(payload: MarketPayload): Promise<CreateProductResult>
+
+  /**
+   * 주문 자동 수집 (v2 orders, optional — 마켓별 real 어댑터에서 구현).
+   * 저장 자격증명으로 hydrate 후 호출. 마켓 raw status 를 정규화 enum 으로 변환해
+   * MarketOrder[] 반환. MarketError throw 만 (재시도/로깅은 orders-sync 오케스트레이터).
+   * 미구현 마켓은 메서드 자체 생략 → orders-sync 가 hasFetchOrders 로 스킵.
+   */
+  fetchOrders?(input: FetchOrdersInput): Promise<MarketOrder[]>
 
   /**
    * 송장 제출 (v2 shipping, optional — PR4 에서 구현).

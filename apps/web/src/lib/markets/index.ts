@@ -5,15 +5,14 @@ import type { MarketAdapter } from './types'
  * 마켓 어댑터 단일 진입.
  * 마스터: docs/architecture/v1/cross-cutting/market-adapter.md §4.1
  *
- * v1 정식 라인업 (2026-05-22 5마켓 확장 결정, 2026-05-23 mirror 갱신):
+ * v1 정식 라인업 (2026-05-22 5마켓 확장 결정 — real 어댑터까지 전부 동작):
  *   - naver   (oauth)   : 활성. useMock=true → mock, useMock=false → real.
  *   - coupang (hmac)    : 활성. useMock=true → mock, useMock=false → real (gateway 경유).
  *   - gmarket (esm_jwt) : 활성. useMock=true → mock, useMock=false → real (gateway 경유).
  *   - auction (esm_jwt) : 활성. useMock=true → mock, useMock=false → real (gateway 경유).
- *   - 11st    (api_key) : 활성. useMock=true → mock, useMock=false → 클라이언트 측 real 어댑터
- *     아직 없음 (서버 측 stub 만 — Phase 4-B-2 Wave 1, PR #111). 클라이언트 직접 호출은
- *     `markets-connect` Edge Function 경유 → 본 함수 호출 발생 안 함. 단위 테스트 / 검증
- *     시나리오 등에서 직접 호출 시 명확한 에러로 throw.
+ *   - 11st    (api_key) : 활성. useMock=true → mock, useMock=false → real.
+ *     authenticate / fetchCategoryTree / transformProduct / createProduct / fetchOrders /
+ *     submitTracking 전부 동작 (11번가 Open API, XML/EUC-KR, gateway 경유).
  *
  * `authenticate` 의 input 은 4-way AuthInput discriminated union — 마켓별 kind 분기.
  *
@@ -74,13 +73,10 @@ export async function getMarketAdapter(market: MarketId): Promise<MarketAdapter>
       const { auctionRealAdapter } = await import('./real/auction')
       return auctionRealAdapter
     }
-    case '11st':
-      // 클라이언트 측 11번가 real 어댑터 = 서버 stub 동치 (Phase 4-B-2 Wave 2 에서 본격
-      // 구현 예정). 클라이언트 직접 호출은 일반적으로 발생하지 않음 (markets-connect
-      // Edge Function 경유). 단위 테스트 / 검증 시나리오 등에서 직접 호출 시 명확한 에러.
-      throw new Error(
-        `11번가 real 어댑터 클라이언트 미구현 — 자격증명 등록은 Edge Function (markets-connect) 사용`,
-      )
+    case '11st': {
+      const { elevenstRealAdapter } = await import('./real/11st')
+      return elevenstRealAdapter
+    }
     default:
       throw new Error(
         `real 모드 마켓 어댑터(${market}) 미구현`,

@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { isDev } from '@/lib/env'
 
 const STALE_CHUNK_RELOAD_KEY = 'stale_chunk_reloaded'
 
@@ -17,10 +19,11 @@ function isStaleChunkError(error: unknown): boolean {
  * RouteErrorBoundary — React Router v6 errorElement.
  * frontend.md §11.2.
  *
- * stale chunk 감지: 배포 후 청크 해시가 바뀌어 이전 모듈 URL이 404가 되는 경우
+stale chunk 감지: 배포 후 청크 해시가 바뀌어 이전 모듈 URL이 404가 되는 경우
  * sessionStorage 플래그로 무한 새로고침을 방지하며 1회 자동 reload.
  *
- * Stage C 는 Sentry 통합 없이 시각만. Stage D 에서 Sentry.captureException + beforeSend 마스킹.
+ * Sentry 통합 (cycle 36): stale chunk 가 아닌 진짜 에러만 Sentry.captureException 호출.
+ * beforeSend 가 redact() 로 PII 마스킹 수행.
  */
 export function RouteErrorBoundary(): JSX.Element {
   const error = useRouteError()
@@ -33,6 +36,17 @@ export function RouteErrorBoundary(): JSX.Element {
     sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, '1')
     window.location.reload()
   }, [stale])
+
+  // stale chunk 가 아니면 Sentry 로 송출 (initSentry 가 안 된 경우 no-op).
+  useEffect(() => {
+    if (stale) return
+    if (error == null) return
+    try {
+      Sentry.captureException(error)
+    } catch {
+      // Sentry 미초기화 시 throw — 무시.
+    }
+  }, [error, stale])
 
   if (stale) {
     return (
@@ -66,7 +80,9 @@ export function RouteErrorBoundary(): JSX.Element {
   if (isRouteErrorResponse(error)) {
     title = `${error.status} ${error.statusText}`
     detail = typeof error.data === 'string' ? error.data : JSON.stringify(error.data ?? '')
-  } else if (error instanceof Error) {
+  } else if (error instanceof Error && isDev) {
+    // 운영 환경에서는 internal error.message 를 사용자에게 노출하지 않음 (stack/PII 유출 방지).
+    // dev 모드에서만 디버그 편의 위해 노출.
     detail = error.message
   }
 

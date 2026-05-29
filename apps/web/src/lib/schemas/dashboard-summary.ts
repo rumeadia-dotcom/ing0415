@@ -87,6 +87,8 @@ export type MarketOrderSyncStatus = z.infer<typeof MarketOrderSyncStatusSchema>
 
 export const MarketOrderItemSchema = z.object({
   marketId: MarketIdSchema,
+  // 셀러가 해당 마켓 계정을 연동했는지 (market_accounts 행 존재 여부). false 면 위젯에서 비활성 행으로 렌더.
+  connected: z.boolean(),
   newOrdersCount: z.number().int().nonnegative(),
   todayTotalCount: z.number().int().nonnegative(),
   lastSyncedAt: z.string().datetime({ offset: true }).nullable(),

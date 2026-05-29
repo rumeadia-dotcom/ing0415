@@ -11,7 +11,7 @@
  *
  * API 기반:
  *   - COUPANG_API_BASE = https://api-gateway.coupang.com
- *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/categorization/display-categories/{categoryId}
+ *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/marketplace/meta/display-categories/{displayCategoryCode}
  *   - 상품 생성: POST /v2/providers/seller_api/apis/api/v1/marketplace/seller-products
  *
  * 중요 제약:
@@ -211,7 +211,7 @@ async function fetchCategoryNode(
   secretKey: string,
   correlationId: string,
 ): Promise<CategoryNode> {
-  const path = `/v2/providers/seller_api/apis/api/v1/categorization/display-categories/${categoryId}`
+  const path = `/v2/providers/seller_api/apis/api/v1/marketplace/meta/display-categories/${categoryId}`
   const response = await coupangFetch({
     method: 'GET',
     path,

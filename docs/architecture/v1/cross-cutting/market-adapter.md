@@ -399,7 +399,7 @@ const SCENARIO: Scenario =
 
 /**
  * createDebugAdapter — 마켓 ID 별로 credentialKind 와 authenticate 분기를 다르게 셋업.
- * naver=oauth / coupang=hmac / gmarket=esm_jwt / auction=esm_jwt / 11st=api_key (stub).
+ * naver=oauth / coupang=hmac / gmarket=esm_jwt / auction=esm_jwt / 11st=api_key.
  */
 export function createDebugAdapter(market: MarketId): MarketAdapter {
   const credentialKind: MarketCredentialKind =
@@ -845,7 +845,7 @@ export class MarketError extends Error {
 | 쿠팡 (`coupang`) | `hmac` | `hmac_key` | `https://api-gateway.coupang.com` (HMAC-SHA256 헤더 서명) | 없음 (영구 키) | 불필요 | **v1** |
 | G마켓 (`gmarket`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='G'`) | JWT `iat` 만료 시 어댑터가 매 호출 직전 자체 재생성 | 불필요 | **v1** |
 | 옥션 (`auction`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='A'` — 동일 ESM Single Account API) | 동일 (JWT 자체 재생성) | 불필요 | **v1** |
-| 11번가 (`11st`) | `api_key` | `api_key` | `https://api.11st.co.kr` | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
+| 11번가 (`11st`) | `api_key` | `api_key` | `https://openapi.11st.co.kr/openapi/OpenApiService.tmall` (XML CP949) | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
 
 **확장 정책 (v1 부터 4-way union)**: 본 표의 5 마켓이 4 가지 `AuthInput.kind` 를 모두 커버한다 (oauth_code / hmac_key / esm_jwt / api_key). 신규 인증 방식 추가 시:
 
@@ -914,7 +914,7 @@ export class MarketError extends Error {
 
 ### 9.6 확장 정책 (v1 이후)
 
-- **v1 부터 4-way union 강제**: `AuthInput` 은 oauth_code / hmac_key / esm_jwt / api_key 4 변형이 이미 v1 인터페이스에 들어가 있다. v2 진입 시점에 인터페이스 시그니처 변경 없이 11번가 어댑터 본문(real 구현) + IP 화이트리스트 해결책만 추가하면 됨.
+- **v1 부터 4-way union 강제**: `AuthInput` 은 oauth_code / hmac_key / esm_jwt / api_key 4 변형이 v1 인터페이스에 들어가 있다. 11번가 (`api_key`) real 어댑터는 v1 정식 구현 완료 — 인터페이스 시그니처 변경 없이 본문만 채웠고, IP 화이트리스트는 Lightsail Gateway 고정 IP 로 해소.
 - **신규 인증 방식 추가 시** (예: 향후 OAuth2 Client Credentials 마켓 추가):
   1. `AuthInput` 에 `kind` 분기 추가 (`apps/web/src/lib/schemas/market.ts`)
   2. `MarketCredentialKind` enum 에 1값 추가

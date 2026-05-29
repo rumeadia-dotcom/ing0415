@@ -20,7 +20,8 @@ const MIN_LEVEL: Level = isDev ? 'debug' : 'warn'
 
 function emit(level: Level, args: readonly unknown[]): void {
   if (PRIORITY[level] < PRIORITY[MIN_LEVEL]) return
-   
+  // logger 의 backend — 의도된 console 호출 (cycle 55 no-console 룰 예외)
+  // eslint-disable-next-line no-console
   console[level](...args)
 }
 

@@ -39,8 +39,8 @@ export function ErrorMessage({
       className={cn(
         'flex flex-col gap-1 rounded-[10px] border px-3 py-2.5 text-[13px]',
         tone === 'error'
-          ? 'border-danger/30 bg-danger-soft text-danger'
-          : 'border-warning/30 bg-warning-soft text-warning',
+          ? 'border-danger/30 bg-danger-soft text-danger-on-soft'
+          : 'border-warning/30 bg-warning-soft text-warning-on-soft',
         className,
       )}
     >

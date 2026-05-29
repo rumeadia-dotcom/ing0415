@@ -16,7 +16,14 @@ export function MobileNav(): JSX.Element {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="메뉴 열기" aria-expanded={open}>
+        {/* WCAG 2.5.5 + PRD §5.2: 모바일 터치 타겟 ≥44×44px — 기본 icon size 36 을 44 로 확장 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="메뉴 열기"
+          aria-expanded={open}
+          className="h-11 w-11"
+        >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       </SheetTrigger>

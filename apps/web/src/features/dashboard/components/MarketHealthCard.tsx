@@ -20,7 +20,7 @@ export function MarketHealthCard({ state, health }: MarketHealthCardProps): JSX.
   return (
     <Card className="rounded-[14px] border-border">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-4 pb-3">
-        <CardTitle className="text-[14px] font-bold leading-none text-ink">
+        <CardTitle as="h2" className="text-[14px] font-bold leading-none text-ink">
           마켓 연결 상태
         </CardTitle>
         {state === 'data' && health && health.total > 0 ? (
@@ -45,7 +45,7 @@ export function MarketHealthCard({ state, health }: MarketHealthCardProps): JSX.
             <div className="flex items-center gap-3">
               <span
                 aria-hidden
-                className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent"
+                className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent-onlight"
               >
                 <Plug className="h-4 w-4" />
               </span>

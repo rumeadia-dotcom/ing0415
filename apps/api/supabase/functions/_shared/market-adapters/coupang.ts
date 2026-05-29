@@ -11,7 +11,7 @@
  *
  * API 기반:
  *   - COUPANG_API_BASE = https://api-gateway.coupang.com
- *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/categorization/display-categories/{id}
+ *   - 카테고리: GET /v2/providers/seller_api/apis/api/v1/marketplace/meta/display-categories/{code} (루트=0)
  *   - 상품 생성: POST /v2/providers/seller_api/apis/api/v1/marketplace/seller-products
  *
  * 에러 매핑:
@@ -42,7 +42,26 @@ import type {
   StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
+import {
+  FetchOrdersInputSchema,
+  type FetchOrdersInput,
+  type MarketOrder,
+} from '../market-orders.ts'
 import { buildCoupangSignature } from './coupang-hmac.ts'
+import {
+  buildCoupangOrdersPath,
+  COUPANG_ORDERS_MAX_PAGES,
+  CoupangOrderListResponseSchema,
+  mapCoupangOrders,
+} from './coupang-orders.ts'
+import {
+  buildCategoryTree,
+  buildDisplayCategoryPath,
+  coerceCoupangCategory,
+  coupangHttpStatusToMarketError,
+  ROOT_DISPLAY_CATEGORY_CODE,
+  type RawCoupangCategory,
+} from './coupang-category.ts'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -53,34 +72,17 @@ const MARKET = 'coupang' as const
 const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
 const PRODUCT_NAME_MAX_LENGTH = 50
+/**
+ * 연결 검증 핑의 카테고리 트리 최대 깊이. 1 = 루트 1회 호출만.
+ * 깊게 두면 쿠팡 전체 카테고리를 순차 조회해 게이트웨이가 폭주/타임아웃한다.
+ */
+const CATEGORY_PING_MAX_DEPTH = 1
 
 const logger = createLogger('market-adapter:coupang')
 
 // ─────────────────────────────────────────────
 // Wing OpenAPI 응답 zod 스키마
 // ─────────────────────────────────────────────
-
-const CoupangCategoryResponseSchema = z.object({
-  code: z.string(),
-  message: z.string().optional(),
-  data: z
-    .object({
-      categoryId: z.number(),
-      displayCategoryName: z.string(),
-      isLeafCategory: z.boolean(),
-      subCategories: z
-        .array(
-          z.object({
-            categoryId: z.number(),
-            displayCategoryName: z.string(),
-            isLeafCategory: z.boolean(),
-          }),
-        )
-        .optional()
-        .default([]),
-    })
-    .optional(),
-})
 
 const CoupangCreateProductResponseSchema = z.object({
   code: z.string(),
@@ -93,68 +95,9 @@ const CoupangCreateProductResponseSchema = z.object({
     .optional(),
 })
 
-// CategoryNode 재귀 스키마 (Deno 측 수동 정의)
-interface CategoryNode {
-  id: string
-  name: string
-  depth: number
-  leaf: boolean
-  parentId: string | null
-  children: CategoryNode[]
-}
-
 // ─────────────────────────────────────────────
 // 내부 유틸리티
 // ─────────────────────────────────────────────
-
-/** HTTP 상태 → MarketError code 매핑. */
-function httpStatusToMarketError(
-  status: number,
-  message: string,
-  correlationId: string,
-): MarketError {
-  if (status === 401 || status === 403) {
-    return new MarketError('unauthorized', `쿠팡 인증 실패 (${status})`, {
-      market: MARKET,
-      status,
-      marketErrorMessage: message,
-      marketErrorCode: String(status),
-    })
-  }
-  if (status === 400 || status === 422) {
-    return new MarketError(
-      'validation',
-      `쿠팡 요청 검증 실패 (${status}): ${message}`,
-      {
-        market: MARKET,
-        status,
-        marketErrorMessage: message,
-        marketErrorCode: String(status),
-      },
-    )
-  }
-  if (status === 429) {
-    return new MarketError('rate_limit', '쿠팡 API rate limit 초과', {
-      market: MARKET,
-      status,
-      retryAfterMs: 5_000,
-      marketErrorCode: 'rate_limit',
-    })
-  }
-  if (status >= 500) {
-    return new MarketError(`쿠팡 서버 오류 (${status})` as never, `쿠팡 서버 오류 (${status})`, {
-      market: MARKET,
-      status,
-      marketErrorMessage: message,
-      marketErrorCode: String(status),
-    })
-  }
-  return new MarketError(
-    'unknown',
-    `쿠팡 API 오류 (${status}) correlationId=${correlationId}`,
-    { market: MARKET, status, marketErrorMessage: message },
-  )
-}
 
 /** Wing OpenAPI fetch wrapper — HMAC 서명 + timeout + 로깅. */
 async function coupangFetch(opts: {
@@ -231,18 +174,19 @@ async function coupangFetch(opts: {
   }
 }
 
-/** 카테고리 단건 fetch + depth 3까지 재귀. */
-async function fetchCategoryNode(
-  categoryId: number,
-  depth: number,
+/**
+ * displayCategoryCode 1건을 조회해 RawCoupangCategory 로 파싱.
+ * 트리 순회 / 깊이 제한은 coupang-category.ts 의 buildCategoryTree 가 담당.
+ */
+async function fetchRawCoupangCategory(
+  code: number,
   accessKey: string,
   secretKey: string,
   correlationId: string,
-): Promise<CategoryNode> {
-  const path = `/v2/providers/seller_api/apis/api/v1/categorization/display-categories/${categoryId}`
+): Promise<RawCoupangCategory> {
   const response = await coupangFetch({
     method: 'GET',
-    path,
+    path: buildDisplayCategoryPath(code),
     accessKey,
     secretKey,
     correlationId,
@@ -251,51 +195,13 @@ async function fetchCategoryNode(
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
-    throw httpStatusToMarketError(response.status, text, correlationId)
+    throw coupangHttpStatusToMarketError(response.status, text, correlationId)
   }
 
-  const raw = await response.json()
-  const parsed = CoupangCategoryResponseSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new MarketError('server', '쿠팡 카테고리 응답 파싱 실패', {
-      market: MARKET,
-      cause: parsed.error,
-    })
-  }
-
-  const data = parsed.data.data
-  if (!data) {
-    throw new MarketError('server', '쿠팡 카테고리 데이터 없음', {
-      market: MARKET,
-      marketErrorCode: parsed.data.code,
-      marketErrorMessage: parsed.data.message,
-    })
-  }
-
-  const isLeaf = data.isLeafCategory || depth >= 3
-  const children: CategoryNode[] = []
-
-  if (!isLeaf && data.subCategories && data.subCategories.length > 0) {
-    for (const sub of data.subCategories) {
-      const child = await fetchCategoryNode(
-        sub.categoryId,
-        depth + 1,
-        accessKey,
-        secretKey,
-        correlationId,
-      )
-      children.push(child)
-    }
-  }
-
-  return {
-    id: String(data.categoryId),
-    name: data.displayCategoryName,
-    depth,
-    leaf: isLeaf,
-    parentId: depth === 1 ? null : String(categoryId),
-    children,
-  }
+  // HTTP 200 = 자격증명 OK. 본문 형태는 throw 사유가 아니다 (핑은 반환 트리 미사용).
+  // 응답 스키마가 어긋나도 coerceCoupangCategory 가 fallback 노드를 반환해 핑이 통과한다.
+  const raw = await response.json().catch(() => ({}))
+  return coerceCoupangCategory(raw, code)
 }
 
 // ─────────────────────────────────────────────
@@ -356,12 +262,42 @@ export function createCoupangAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
+    // hydrate — 저장 자격증명으로 cred 복원 (API 호출 없음)
+    // ───────────────────────────────────────────
+    hydrate(stored: StoredCredential): void {
+      if (stored.kind !== 'hmac') {
+        throw new MarketError(
+          'validation',
+          `쿠팡: hmac 자격증명 필요 (받은 kind: ${stored.kind})`,
+          { market: MARKET },
+        )
+      }
+      const p = stored.payload as {
+        accessKey?: string
+        secretKey?: string
+        vendorId?: string
+      }
+      if (!p.accessKey || !p.secretKey || !p.vendorId) {
+        throw new MarketError('validation', '쿠팡: 저장 자격증명 누락', {
+          market: MARKET,
+        })
+      }
+      cred = { accessKey: p.accessKey, secretKey: p.secretKey, vendorId: p.vendorId }
+    },
+
+    // ───────────────────────────────────────────
     // fetchCategoryTree
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const { accessKey, secretKey } = getCredOrThrow()
       const correlationId = generateCorrelationId()
-      const rootNode = await fetchCategoryNode(1, 1, accessKey, secretKey, correlationId)
+      const rootNode = await buildCategoryTree(
+        (code) => fetchRawCoupangCategory(code, accessKey, secretKey, correlationId),
+        ROOT_DISPLAY_CATEGORY_CODE,
+        1,
+        CATEGORY_PING_MAX_DEPTH,
+        null,
+      )
       return [rootNode]
     },
 
@@ -419,7 +355,7 @@ export function createCoupangAdapter(): MarketAdapter {
       const text = await response.text()
 
       if (!response.ok) {
-        throw httpStatusToMarketError(response.status, text, correlationId)
+        throw coupangHttpStatusToMarketError(response.status, text, correlationId)
       }
 
       let json: unknown
@@ -464,6 +400,132 @@ export function createCoupangAdapter(): MarketAdapter {
         status: 'succeeded',
         warnings: [],
       } as CreateProductResult
+    },
+
+    // ───────────────────────────────────────────
+    // fetchOrders — GET ordersheets?status=ACCEPT (v5 orders, nextToken 페이징)
+    //
+    // v5 ordersheets 는 페이지당 최대 50건. nextToken 이 비어있지 않으면 다음
+    // 페이지를 follow-up 호출하여 최대 COUPANG_ORDERS_MAX_PAGES 페이지까지 합산.
+    // 초과분은 다음 cron tick 으로 미룬다 (truncated_due_to_max_pages 로그).
+    // ───────────────────────────────────────────
+    async fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]> {
+      const parsedInput = FetchOrdersInputSchema.safeParse(input)
+      if (!parsedInput.success) {
+        throw new MarketError(
+          'validation',
+          `쿠팡 fetchOrders 입력 형식 오류 — ${parsedInput.error.message}`,
+          { market: MARKET, cause: parsedInput.error },
+        )
+      }
+
+      const { accessKey, secretKey, vendorId } = getCredOrThrow()
+      // 페이징 follow-up 전체를 동일 correlationId 로 묶는다 (운영 추적성).
+      const correlationId = generateCorrelationId()
+      const reqLogger = logger.with({ correlationId, market: MARKET })
+
+      const aggregated: MarketOrder[] = []
+      let nextToken: string | undefined
+      let prevNextToken: string | undefined
+      let page = 0
+
+      while (page < COUPANG_ORDERS_MAX_PAGES) {
+        page += 1
+
+        // query string 을 path 에 포함 — Deno 측 buildCoupangSignature 가 query 까지 서명.
+        const path = buildCoupangOrdersPath(
+          vendorId,
+          parsedInput.data.since,
+          parsedInput.data.until,
+          nextToken,
+        )
+
+        const response = await coupangFetch({
+          method: 'GET',
+          path,
+          accessKey,
+          secretKey,
+          correlationId,
+        })
+
+        const text = await response.text()
+        if (!response.ok) {
+          throw coupangHttpStatusToMarketError(
+            response.status,
+            text,
+            correlationId,
+          )
+        }
+
+        let json: unknown
+        try {
+          json = JSON.parse(text)
+        } catch {
+          throw new MarketError('server', '쿠팡 주문 응답 JSON 파싱 실패', {
+            market: MARKET,
+            status: response.status,
+          })
+        }
+
+        const parsed = CoupangOrderListResponseSchema.safeParse(json)
+        if (!parsed.success) {
+          throw new MarketError('server', '쿠팡 주문 응답 스키마 불일치', {
+            market: MARKET,
+            cause: parsed.error,
+          })
+        }
+
+        const items = parsed.data.data ?? []
+        const mapped = mapCoupangOrders(items)
+        aggregated.push(...mapped)
+
+        // PII 금지 — 페이지 번호 / 건수 / nextToken 존재 여부만 로그.
+        reqLogger.info(
+          {
+            page,
+            count: mapped.length,
+            hasNextToken:
+              typeof parsed.data.nextToken === 'string' &&
+              parsed.data.nextToken.length > 0,
+          },
+          '← ordersheets page',
+        )
+
+        const rawNext = parsed.data.nextToken
+        const trimmed =
+          typeof rawNext === 'string' && rawNext.length > 0 ? rawNext : undefined
+
+        // 마지막 페이지 — nextToken 빈 문자열 / undefined / null.
+        if (!trimmed) {
+          return aggregated
+        }
+
+        // 무한 루프 방지 — 동일 nextToken 이 2번 연속 나오면 throw.
+        if (prevNextToken !== undefined && trimmed === prevNextToken) {
+          throw new MarketError(
+            'server',
+            'coupang ordersheets: nextToken 중복 — 무한 루프 의심',
+            {
+              market: MARKET,
+              marketErrorCode: 'nextToken_loop',
+            },
+          )
+        }
+
+        prevNextToken = trimmed
+        nextToken = trimmed
+      }
+
+      // MAX_PAGES 도달 — 다음 cron tick 에서 좁은 since/until 로 재수집해야 함.
+      reqLogger.info(
+        {
+          maxPages: COUPANG_ORDERS_MAX_PAGES,
+          collected: aggregated.length,
+          truncated_due_to_max_pages: true,
+        },
+        '← ordersheets truncated',
+      )
+      return aggregated
     },
   }
 }

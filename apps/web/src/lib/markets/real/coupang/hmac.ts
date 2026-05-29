@@ -5,8 +5,8 @@
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (쿠팡 HMAC)
  *   - WIP-5markets-mvp.md C-2
  *
- * 서명 방식 (Wing OpenAPI 공식 문서):
- *   message   = datetime + "\n" + method + "\n" + path + "\n"
+ * 서명 방식 (Wing OpenAPI 공식 — "Creating HMAC Signature"):
+ *   message   = datetime + method + path + query   (무개행 연결, query 없으면 "")
  *   signature = HMAC-SHA256(secretKey, message) → hex lowercase
  *   Authorization: "CEA algorithm=HmacSHA256, access-key={accessKey},
  *                   signed-date={datetime}, signature={signature}"
@@ -24,7 +24,7 @@
 export interface CoupangSignatureInput {
   /** HTTP 메서드 (대소문자 무관, 내부에서 대문자 정규화). */
   method: string
-  /** 요청 path + query string. 예: "/v2/providers/.../categorization/...". */
+  /** 요청 path + query string. 예: "/v2/providers/.../marketplace/meta/display-categories/0". */
   path: string
   /** Wing OpenAPI 발급 accessKey */
   accessKey: string
@@ -79,8 +79,12 @@ export async function buildCoupangSignature(
   // 메서드는 대문자로 정규화
   const upperMethod = method.toUpperCase()
 
-  // message = datetime + "\n" + METHOD + "\n" + path + "\n"
-  const message = `${datetime}\n${upperMethod}\n${path}\n`
+  // Coupang 공식 스펙: message = datetime + method + path + query (무개행 연결).
+  // path 에 query 가 붙어 오면 '?' 를 떼고 path / query 로 분리해 연결한다.
+  const qIdx = path.indexOf('?')
+  const pathOnly = qIdx === -1 ? path : path.slice(0, qIdx)
+  const query = qIdx === -1 ? '' : path.slice(qIdx + 1)
+  const message = `${datetime}${upperMethod}${pathOnly}${query}`
 
   // Web Crypto HMAC-SHA256
   const encoder = new TextEncoder()

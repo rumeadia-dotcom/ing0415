@@ -24,12 +24,13 @@ import { MARKET_CATALOG, MARKET_IDS, type MarketId } from '../types'
 import {
   HmacConnectFormSchema,
   EsmJwtConnectFormSchema,
+  ApiKeyConnectFormSchema,
   type HmacConnectForm,
   type EsmJwtConnectForm,
+  type ApiKeyConnectForm,
 } from '@/lib/schemas/markets-feature'
 import { ProviderConnectShell } from '../components/ProviderConnectShell'
 import { ProviderGuideCard, ProviderSecurityNote } from '../components/ProviderGuideCard'
-import { MarketIdentity } from '../components/MarketIdentity'
 
 /**
  * MarketsConnectProviderPage — n37 4분기 본 동작 (Phase 2 — Studio 룩).
@@ -40,7 +41,7 @@ import { MarketIdentity } from '../components/MarketIdentity'
  *  - coupang → HMAC 폼 (Vendor / Access / Secret + Reveal toggle) + 발급가이드 aside
  *  - gmarket → ESM JWT 폼 (Master / Secret / Seller) + ESM 가이드 aside (site=G)
  *  - auction → ESM JWT 폼 (Master / Secret / Seller) + ESM 가이드 aside (site=A)
- *  - 11st    → disabled 안내 (가이드 aside 없음)
+ *  - 11st    → API Key 폼 (apiKey 단일 영구 키) + OPEN API 발급가이드 aside
  */
 function isMarketId(value: string | undefined): value is MarketId {
   return typeof value === 'string' && (MARKET_IDS as readonly string[]).includes(value)
@@ -65,8 +66,25 @@ export function MarketsConnectProviderPage(): JSX.Element {
 
   const entry = MARKET_CATALOG[provider]
 
-  if (entry.authMode === 'disabled') {
-    return <DisabledScreen marketId={provider} />
+  if (entry.authMode === 'api_key') {
+    return (
+      <ProviderConnectShell
+        marketId={provider}
+        authMode="api_key"
+        form={<ApiKeyForm marketId={provider} />}
+        aside={
+          <>
+            <ProviderGuideCard
+              title={ko.markets.form.apiKey.guideTitle}
+              steps={ko.markets.form.apiKey.guideSteps}
+              docUrl="https://openapi.11st.co.kr/openapi/OpenApiFrontMain.tmall"
+              docLabel={ko.markets.form.docLink.elevenst}
+            />
+            <ProviderSecurityNote />
+          </>
+        }
+      />
+    )
   }
 
   if (entry.authMode === 'oauth') {
@@ -491,28 +509,92 @@ function EsmJwtForm({
 }
 
 // ─────────────────────────────────────────────
-// Disabled (11번가)
+// API Key (11번가)
 // ─────────────────────────────────────────────
 
-function DisabledScreen({ marketId }: { marketId: MarketId }): JSX.Element {
+function ApiKeyForm({ marketId }: { marketId: MarketId }): JSX.Element {
+  const navigate = useNavigate()
+  const connect = useConnectMarket()
+  const [serverError, setServerError] = useState<{
+    message: string
+    correlationId: string | null
+  } | null>(null)
   const label = MARKET_CATALOG[marketId].label
   const t = ko.markets.form
 
+  const form = useForm<ApiKeyConnectForm>({
+    resolver: zodResolver(ApiKeyConnectFormSchema) as Resolver<ApiKeyConnectForm>,
+    defaultValues: {
+      market: '11st',
+      accountLabel: '',
+      apiKey: '',
+    },
+  })
+
+  const onSubmit = (values: ApiKeyConnectForm): void => {
+    setServerError(null)
+    connect.mutate(values, {
+      onSuccess: () => {
+        toast.success(`${label} 연결이 완료되었습니다.`)
+        navigate('/markets')
+      },
+      onError: (err) => {
+        if (err instanceof MarketApiInvocationError) {
+          const f = formatMarketError(err.toApiError())
+          setServerError({ message: f.message, correlationId: f.correlationId })
+        } else {
+          setServerError({ message: formatMarketError(null).message, correlationId: null })
+        }
+      },
+    })
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[640px]">
-      <Card>
-        <CardContent className="flex flex-col items-center gap-5 px-6 py-12 text-center">
-          <MarketIdentity marketId={marketId} size="lg" className="h-14 w-14 text-lg opacity-60" />
-          <div className="space-y-1.5">
-            <h2 className="text-lg font-bold text-text">{t.disabled.title(label)}</h2>
-            <p className="text-sm leading-relaxed text-text-secondary">{t.disabled.body}</p>
-          </div>
-          <Button asChild variant="ghost">
-            <Link to="/markets/connect">{ko.markets.connect.backToSelect}</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <FieldShell
+        id="apikey-accountLabel"
+        label={t.labelOptional}
+        hint={t.labelHint}
+        error={form.formState.errors.accountLabel?.message}
+      >
+        <Input
+          id="apikey-accountLabel"
+          type="text"
+          autoComplete="off"
+          placeholder={t.labelPlaceholder}
+          aria-invalid={form.formState.errors.accountLabel ? true : undefined}
+          {...form.register('accountLabel')}
+        />
+      </FieldShell>
+
+      <SecretField
+        id="apikey-apiKey"
+        label={t.apiKey.apiKey}
+        placeholder={t.apiKey.apiKeyPlaceholder}
+        register={form.register('apiKey')}
+        error={form.formState.errors.apiKey?.message}
+      />
+
+      <SecurityHintLine />
+
+      {serverError && (
+        <ErrorMessage
+          message={serverError.message}
+          {...(serverError.correlationId
+            ? { details: `요청 ID: ${serverError.correlationId}` }
+            : {})}
+        />
+      )}
+
+      <div className="mt-2 flex justify-end gap-2">
+        <Button asChild variant="ghost" type="button">
+          <Link to="/markets/connect">{ko.markets.connect.cancel}</Link>
+        </Button>
+        <Button type="submit" variant="primary" disabled={connect.isPending}>
+          {connect.isPending ? t.submit.savePending : t.submit.save}
+        </Button>
+      </div>
+    </form>
   )
 }
 
@@ -539,7 +621,11 @@ function FieldShell({ id, label, hint, required, error, children }: FieldShellPr
       {children}
       {hint && !error && <p className="text-[11.5px] text-text-tertiary">{hint}</p>}
       {error && (
-        <p role="alert" className="text-[11.5px] font-medium text-danger-on-soft">
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="text-[11.5px] font-medium text-danger-on-soft"
+        >
           {error}
         </p>
       )}
@@ -570,7 +656,8 @@ function SecretField({ id, label, placeholder, register, error }: SecretFieldPro
           type={reveal ? 'text' : 'password'}
           autoComplete="off"
           {...(placeholder ? { placeholder } : {})}
-          aria-invalid={error ? true : undefined}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={error ? `${id}-error` : undefined}
           className={cn('font-mono pr-16 tracking-wide')}
           {...register}
         />
@@ -586,7 +673,11 @@ function SecretField({ id, label, placeholder, register, error }: SecretFieldPro
         </button>
       </div>
       {error ? (
-        <p role="alert" className="text-[11.5px] font-medium text-danger-on-soft">
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="text-[11.5px] font-medium text-danger-on-soft"
+        >
           {error}
         </p>
       ) : (
@@ -597,9 +688,11 @@ function SecretField({ id, label, placeholder, register, error }: SecretFieldPro
 }
 
 function SecurityHintLine(): JSX.Element {
+  // SecretField 가 fallback hint 로 ko.markets.form.securityNote 를 이미 노출 —
+  // 폼 footer 는 보강 경고 (securityWarn) 로 중복 방지.
   return (
-    <p className="text-[11.5px] leading-relaxed text-text-tertiary">
-      {ko.markets.form.securityNote}
+    <p className="text-[11.5px] leading-relaxed text-warning-on-soft">
+      {ko.markets.form.securityWarn}
     </p>
   )
 }
