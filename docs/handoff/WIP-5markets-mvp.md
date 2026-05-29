@@ -2,48 +2,10 @@
 
 **develop HEAD**: `722a164` — docs(coupang): Open API 99 article 마크다운 import + market-api-docs-import 스킬 (#244)
 **main HEAD**: `b1d0f96` — release: v0.15 — 11번가 v1 정식 활성 + 5마켓 주문 자동 수집 (#234)
-**테스트**: 965 passed / 31 todo (FE coupang-orders 단위 18 통과 — v5 페이징 4 케이스 추가; sanitize-parity 1건은 Deno npm: 스킴 사전 존재 이슈 — 본 PR 무관)
+**테스트**: 984 passed / 31 todo (FE coupang-orders 단위 14 통과, parity 7 통과 — v5 + v4 fallback happy 추가)
 **최근 운영 배포**: v0.15 (2026-05-27) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
-**최근 develop 머지**: PR #244 (쿠팡 Open API 99 article import) + PR #246 (쿠팡 v5 ordersheets + 송장 path hotfix)
-**진행 중 (uncommitted main 외)**: `feature/coupang-orders-pagination` — 쿠팡 v5 nextToken 페이징 follow-up (5 페이지 cap)
-
-## 2026-05-29 세션 결과 (쿠팡 ordersheets v5 nextToken 페이징 follow-up)
-
-PR #246 으로 쿠팡 ordersheets 가 v4 → v5 로 마이그레이션됐고 schema 에 `nextToken` 만
-추가됐는데 실제 follow-up 호출은 누락된 상태였음. 10분 cron 폴링 1회당 첫 페이지(최대
-50건) 만 수집되어 대량 주문 셀러에서 누락 위험.
-
-**산출물**:
-- `apps/web/src/lib/markets/real/coupang/orders.ts` — `coupangFetchOrders` 본체에 페이징
-  루프 + `COUPANG_ORDERS_MAX_PAGES = 5` export. mapping 로직은 `mapCoupangOrderEntries`
-  헬퍼로 분리.
-- `apps/api/supabase/functions/_shared/market-adapters/coupang-orders.ts` —
-  `buildCoupangOrdersPath(vendorId, since?, until?, nextToken?)` 옵션 추가 + 동일
-  상수 export.
-- `apps/api/supabase/functions/_shared/market-adapters/coupang.ts` — Edge fetchOrders
-  도 동일 페이징 루프 (logger.with 으로 페이지 전체에 같은 correlationId).
-
-**운영 안전 장치**:
-- **MAX_PAGES = 5** (≈ 250건 / cron tick). 초과분은 다음 10분 tick 으로 미루고
-  `truncated_due_to_max_pages: true` 마커 로그 (운영 가시성).
-- nextToken 빈 문자열 / undefined / null → 정상 종료.
-- 동일 nextToken 이 2번 연속 → `MarketError('server', 'nextToken_loop')` throw
-  (무한 루프 방지).
-- 페이지 로깅은 `page / count / hasNextToken` 만. PII (receiverName / phone / addr)
-  는 모두 매핑 결과 외 로그 금지 유지.
-
-**테스트 (Vitest + Deno)**:
-- FE 4 케이스 추가: 단일 페이지 / 2 페이지 concat + nextToken query 포함 검증 /
-  5 페이지 cap (6번째 호출 차단) / nextToken 중복 throw.
-- Edge 3 케이스 추가: `buildCoupangOrdersPath` nextToken 포함 / 빈 문자열 미포함 /
-  `COUPANG_ORDERS_MAX_PAGES = 5` 상수 검증.
-
-**다음 액션**:
-- `feature/coupang-orders-pagination` PR → develop 머지 후 운영 배포.
-- v0.15 발효 셀러 시드로 실제 nextToken 페이징 회귀 검증 (Sentry MCP 로 `← ordersheets page`
-  로그 page=N count 확인).
-- MAX_PAGES 5 cap 이 운영에서 충분한지 1주 모니터링 (`truncated_due_to_max_pages`
-  발생 빈도). 빈번하면 cron 주기 단축 또는 cap 상향 재논의.
+**최근 develop 머지**: PR #244 (쿠팡 Open API 99 article import)
+**진행 중 (uncommitted main 외)**: `feature/fix-coupang-orders-paths` — 쿠팡 drift #2 (v4→v5 ordersheets) + #3 (송장 업로드 path) hotfix
 
 ## 2026-05-28 세션 결과 (운영 사고 + Gateway IP 마이그레이션)
 
