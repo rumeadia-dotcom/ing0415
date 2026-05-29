@@ -73,7 +73,7 @@ MIIEpAIBAAKCAQEA...
 | `LIGHTSAIL_SSH_KEY` | A.2 에서 복사한 `.pem` 파일 **전체 내용** (`-----BEGIN` 부터 `-----END` 줄 포함) |
 | `LIGHTSAIL_HOST` | `3.36.239.243` |
 | `GATEWAY_DOMAIN` | `3-36-239-243.sslip.io` |
-| `OPS_EMAIL` | `jhan@konai.com` |
+| `OPS_EMAIL` | `<운영자 이메일>` (Let's Encrypt 등록·만료 알림 수신용) |
 | `SUPABASE_ACCESS_TOKEN` | A.1 에서 발급한 토큰 |
 | `DEV_SUPABASE_PROJECT_REF` | `eqoywqoalwkwbrdsulfl` |
 | `REAL_SUPABASE_PROJECT_REF` | `lfrnythcujxdhehvkmtg` (기존 `deploy.yml` 도 동일 시크릿 사용) |
@@ -191,7 +191,7 @@ ssh -i ~/.ssh/<key>.pem ubuntu@3.36.239.243
 
 # 인스턴스 내부:
 sudo GATEWAY_DOMAIN=3-36-239-243.sslip.io \
-     OPS_EMAIL=jhan@konai.com \
+     OPS_EMAIL=<운영자 이메일> \
      bash /tmp/market-gateway/setup.sh
 ```
 
