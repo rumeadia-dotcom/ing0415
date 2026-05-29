@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { AlertCircle, Image as ImageIcon } from 'lucide-react'
@@ -38,18 +38,20 @@ export function StepPreviewPage(): JSX.Element {
   const images = useRegisterFormStore((s) => s.images)
   const validate = useRegistrationValidate()
   const start = useRegistrationStart()
-  const startedRef = useRef(false)
 
   useEffect(() => {
     if (!productId || selections.length === 0) {
       navigate('/register/info', { replace: true })
       return
     }
-    if (startedRef.current) return
-    startedRef.current = true
-    validate.mutate({ productId, marketIds: selections.map((s) => s.marketId) })
+    // Strict Mode 안전: useRef 는 persist 하는데 useState 는 reset 되는
+    // 비대칭 때문에 ref 가드는 사용 불가. mutation status='idle' 일 때만
+    // trigger — 두번째 mount 에서도 idle 이면 자동으로 재실행.
+    if (validate.status === 'idle') {
+      validate.mutate({ productId, marketIds: selections.map((s) => s.marketId) })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [validate.status, productId])
 
   if (!productId || selections.length === 0) return <></>
 

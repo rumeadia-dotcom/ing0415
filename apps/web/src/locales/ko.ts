@@ -22,6 +22,7 @@ export const ko = {
     noOrdersToProcess: '대상 주문이 없습니다.',
     noOrdersToDispatch: '제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.',
     popupBlocked: '팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.',
+    popupHint: '출력 팝업을 열었습니다. 팝업이 보이지 않으면 브라우저 주소창의 팝업 허용 아이콘을 확인해주세요.',
   },
   nav: {
     main: '메인',
