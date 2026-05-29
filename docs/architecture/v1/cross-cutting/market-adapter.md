@@ -92,6 +92,15 @@ export interface MarketAdapter {
    * 부분 성공이 마켓 측에서 있을 수 있으면 status='partial' + warnings 채움.
    */
   createProduct(payload: MarketPayload): Promise<CreateProductResult>;
+
+  /**
+   * 마켓별 동적 등록필드 메타 (optional, §9.8). s3 3단계 MarketOptionsCard 가
+   * 마켓을 몰라도 동적 렌더할 수 있게 RegistrationFieldMeta[] 를 노출.
+   * 하위호환: 미구현(undefined) = 추가 등록필드 없음(= []). naver/coupang/11st 는
+   * 메서드 생략 → 카테고리 매핑만. ESM(gmarket/auction)만 배송 프로필 선택 필드 선언.
+   * 순수 동기 함수 — 외부 호출 없음.
+   */
+  getRegistrationFields?(): RegistrationFieldMeta[];
 }
 ```
 
@@ -977,6 +986,26 @@ submitTracking(
 **호환 정책:**
 - v1 코드 (registration-run / market-connect / OAuth callback) 는 본 확장의 영향 없음. 어댑터 인스턴스에 메서드 2개가 추가되었을 뿐 v1 호출 경로 변경 X.
 - `getMarketAdapter()` 진입은 그대로. 신규 호출자 (`orders-sync` / `shipping-dispatch-job`) 는 동일 진입을 사용한다.
+
+### 9.8 getRegistrationFields — 마켓별 동적 등록필드 (2026-05-30, PR-3.5 도입)
+
+ESM(G마켓·옥션) 재구현(`features/esm.md` §4.6 / §5 / §6)에서 상품등록 3단계가 마켓별 추가 입력(배송 프로필 선택, 이후 PR-5 의 officialNotice)을 요구하게 됨에 따라, 컴포넌트 내 `if (marketId === ...)` 하드코딩 분기를 막기 위해 어댑터가 등록필드 메타를 선언하는 **optional 메서드**를 추가한다.
+
+```ts
+getRegistrationFields?(): RegistrationFieldMeta[];
+```
+
+- **반환 타입**: `RegistrationFieldMeta`(zod 단일 소스 `apps/web/src/lib/schemas/esm.ts` §4.6 / Edge 미러 `_shared/schemas.ts`).
+  필드: `key` / `label`(i18n key) / `kind`(`select`|`text`|`number`|`officialNotice`|`shippingProfile`) / `required` / `optionsSource?`(`shippingProfiles`|`static`) / `helpText?` / `blockingReason?`(미입력 시 3단계 다음 버튼 tooltip).
+- **하위호환 (핵심)**: optional 메서드 + "기본 동작 = `[]`". naver/coupang/11st 어댑터는 **메서드 자체를 생략** → 코드 0줄 수정. 호출측은 `getRegistrationFields(adapter)` 헬퍼(없으면 `[]`)로 접근한다.
+- **순수 동기 함수** — 외부 호출 / Date.now / Math.random 금지(렌더 시점 동기 호출). 옵션 데이터(배송 프로필 목록)는 어댑터가 아니라 UI 가 `useEsmShippingProfiles` 로 채운다(`optionsSource` 가 출처만 지정).
+- **ESM 선언**: gmarket/auction 은 공용 어댑터(`esm-shared.ts` / Web `shared-adapter.ts`)에서 `[{ key:'shippingProfileId', kind:'shippingProfile', required:true, optionsSource:'shippingProfiles', blockingReason:'…배송 프로필 선택 필요' }]` 1개 반환(thin wrapper 라 양 사이트 자동 동일). officialNotice 필드는 PR-5.
+- **단일 소스**: 필드 빌더는 Web `apps/web/src/lib/markets/real/esm/registration-fields.ts` / Edge `_shared/market-adapters/esm-registration-fields.ts` 두 미러에 동일 구조(`getEsmRegistrationFields()`). mock 어댑터(Web `createMockAdapter` / Edge `debug.ts`)도 ESM 마켓에 한해 동일 빌더를 재사용해 parity 를 보장한다.
+- **개정 분류**: 5메서드 핵심 인터페이스가 아니라 v2 Extension 계열의 **optional 메서드 추가**(fetchOrders/submitTracking 과 동일 패턴) — 기존 어댑터 무영향. backend + architect 합의(PR-3.5), security 검수 대상은 아님(외부 호출·자격증명 무관, i18n key 만 노출).
+
+**테스트 (R-006 회귀 강제):**
+- ESM(gmarket/auction) 어댑터: `getRegistrationFields()` 가 `shippingProfile` 필드 1개(required, optionsSource='shippingProfiles') 반환.
+- 타 마켓(naver/coupang/11st): `getRegistrationFields` 미정의 → 헬퍼 통해 `[]`(하위호환 회귀).
 
 ---
 

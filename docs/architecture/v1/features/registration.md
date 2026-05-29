@@ -1213,6 +1213,20 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
 - 선택 마켓 0 → "마켓을 1개 이상 선택해주세요"
 - 선택 마켓 중 카테고리 미지정 → "<MarketName> 카테고리를 선택해주세요"
 - 선택 마켓의 `market_accounts.status` ≠ 'active' → "<MarketName> 연결이 만료되었어요. 다시 연결해주세요" + 마켓 연결 페이지 deep link
+- (PR-3.5) 마켓별 동적 required 등록필드 미입력 → 어댑터 메타의 `blockingReason` 문구 (예: ESM "배송 프로필 선택 필요")
+
+#### 10.5.1 MarketOptionsCard — 카테고리 + 마켓별 동적 등록필드 (PR-3.5, 구현 완료)
+
+기존 `CategoryMappingCard` 를 **`MarketOptionsCard`** 로 일반화했다(`CategoryMappingCard` 제거).
+마스터: `docs/architecture/v1/features/esm.md §4.6 / §5 / §6`, `cross-cutting/market-adapter.md §9.8`.
+
+- **렌더**: 카테고리 매핑 row(기존) + 어댑터가 선언한 동적 등록필드를 카드 하단에 동적 렌더.
+- **마켓 하드코딩 분기 0**: UI 는 동기 resolver `getRegistrationFieldsForMarket(marketId)`(`apps/web/src/lib/markets/registration-fields.ts`)가 돌려준 `RegistrationFieldMeta[]` 의 `kind` 로만 분기. `getRegistrationFields()` 가 순수·정적(mock↔real parity 보장)이므로 무거운 async `getMarketAdapter` 를 await 하지 않는다.
+  - ESM(gmarket/auction) → `getEsmRegistrationFields()` = `shippingProfile` 필드 1개. 그 외 → `[]`(카테고리만, 하위호환 회귀 없음).
+- **필드 kind 별 렌더**: `shippingProfile` → 배송 프로필 select(`useEsmShippingProfiles(marketAccountId)` 재사용, 4상태: loading/error/data(`status='active'`만)/empty(`/settings/shipping/esm-profiles` deep link CTA)). `number`/`text`/`select`/`officialNotice`(PR-5 전 placeholder) → shadcn `Input` 기본 렌더(확장 대비).
+- **값 적재**: 동적 필드 값은 `CategoryMapping.marketOptions[fieldKey]`(zod `z.record`)에 적재.
+- **검증(단일 소스)**: `Step3Schema` → `makeStep3Schema(requiredKeysFor)` 빌더. 어댑터가 `required` 로 선언한 fieldKey 가 비어있으면 zod fail. UI 페이지(`StepMarketsCategoriesPage`)는 `getRegistrationFieldsForMarket` 기반 provider 를 주입해 검증·blockingReasons·다음버튼 tooltip 에 공유. 기본 `Step3Schema`(provider 미주입)는 추가필드 검증 skip(하위호환).
+- **i18n**: `RegistrationFieldMeta.label`/`helpText`/`blockingReason` 은 i18n key(`markets.registrationFields.*`) → `resolveKoPath()`(`apps/web/src/lib/i18n.ts`)로 해석. 하드코딩 금지.
 
 ### 10.6 Step 4 — 등록 미리보기 (n20)
 

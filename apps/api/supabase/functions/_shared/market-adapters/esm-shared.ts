@@ -42,9 +42,11 @@ import {
   type MarketMapping,
   type MarketPayload,
   type Product,
+  type RegistrationFieldMeta,
   type StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter, SubmitTrackingResult } from '../market-adapter.ts'
+import { getEsmRegistrationFields } from './esm-registration-fields.ts'
 import {
   FetchOrdersInputSchema,
   type FetchOrdersInput,
@@ -536,6 +538,14 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
         status: 'succeeded',
         warnings: [],
       } as CreateProductResult
+    },
+
+    // ───────────────────────────────────────────
+    // getRegistrationFields — 배송 프로필 선택 필드 (esm.md §4.6 / §6)
+    //   officialNotice 는 PR-5. gmarket/auction 양쪽이 본 공용 어댑터로 동일 노출.
+    // ───────────────────────────────────────────
+    getRegistrationFields(): RegistrationFieldMeta[] {
+      return getEsmRegistrationFields()
     },
 
     // ───────────────────────────────────────────

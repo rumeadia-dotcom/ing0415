@@ -40,6 +40,7 @@ import {
   type TokenSet,
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
+import { getEsmRegistrationFields } from './esm-registration-fields.ts'
 
 export type MockScenario =
   | 'happy'
@@ -375,6 +376,11 @@ export function createMockAdapter(
         warnings: [],
       })
     },
+  }
+
+  // ESM(G마켓·옥션) 만 동적 등록필드(배송 프로필 선택) 노출 — real 어댑터와 동형(parity).
+  if (isEsmMarket(market)) {
+    base.getRegistrationFields = () => getEsmRegistrationFields()
   }
 
   if (credentialKind === 'oauth') {
