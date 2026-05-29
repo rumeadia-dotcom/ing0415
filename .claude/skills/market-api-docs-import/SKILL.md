@@ -1,6 +1,6 @@
 ---
 name: market-api-docs-import
-description: 마켓·택배사 OpenAPI 공식 문서 사이트를 통째로 fetch 해서 프로젝트의 영구 설계 디렉토리에 마크다운으로 인덱스+상세 변환하는 워크플로우. 사용자가 "쿠팡 API 문서 정리", "네이버 OpenAPI docs 가져와", "11번가 API 문서", "로젠 API 문서", "마켓 API docs 다운로드", "Zendesk Help Center 문서 변환" 이라고 말하거나, 새 마켓 어댑터 (네이버/11번가/G마켓/옥션/쿠팡) 또는 택배사(로젠 등) 연동 구현 직전·기존 어댑터 회귀 검토 시 docs 가 stale 한 시점에 트리거. 사이트 유형(Zendesk Help Center / 정적 HTML+JS nav 등)을 먼저 판별한 뒤 해당 전략으로 변환. 일회성 외부 fetch 가 아닌, 프로젝트 영구 산출물로 박는 절차.
+description: 마켓·택배사 OpenAPI 공식 문서 사이트를 통째로 fetch 해서 프로젝트의 영구 설계 디렉토리에 마크다운으로 인덱스+상세 변환하는 워크플로우. 사용자가 "쿠팡 API 문서 정리", "네이버 OpenAPI docs 가져와", "11번가 API 문서", "G마켓/옥션 ESM API 문서", "로젠 API 문서", "마켓 API docs 다운로드", "Zendesk Help Center 문서 변환" 이라고 말하거나, 새 마켓 어댑터 (네이버/11번가/G마켓/옥션/쿠팡) 또는 택배사(로젠 등) 연동 구현 직전·기존 어댑터 회귀 검토 시 docs 가 stale 한 시점에 트리거. 사이트 유형(Zendesk Help Center / 정적 HTML+JS nav / Tistory 블로그 등)을 먼저 판별한 뒤 해당 전략으로 변환. 일회성 외부 fetch 가 아닌, 프로젝트 영구 산출물로 박는 절차.
 ---
 
 # 마켓 / 택배사 API 문서 import 스킬
@@ -23,7 +23,11 @@ docs 사이트는 벤더마다 구조가 다르다. **먼저 사이트 유형을
    요청/응답 예시가 별도 JSON(exampleData.json 등)으로 분리?
    → ✅ 전략 B (정적 HTML + JS nav)
 
-3. SPA(본문이 JS 렌더, HTML 에 내용 없음) / OpenAPI(Swagger·Redoc) spec json /
+3. Tistory 블로그(<title>TISTORY</title>, 글 1개=API 1개, URL=/숫자,
+   카테고리=/category/<name>, 본문=.entry-content, 제목=og:title)?
+   → ✅ 전략 C (Tistory 블로그)
+
+4. SPA(본문이 JS 렌더, HTML 에 내용 없음) / OpenAPI(Swagger·Redoc) spec json /
    GitBook / Docusaurus / 기타?
    → 🆕 신규 전략. 아래 "신규 전략 추가" 절차로 레시피를 만든 뒤 진행.
 ```
@@ -50,7 +54,7 @@ curl -sS -A "$UA" "https://<host>/.../page.html" | grep -oE '[^"]+(menuData|nav|
 | 로젠택배 | `openapihome.ilogen.com/lsy06f-api-service` | B (정적 HTML) | ✅ 2026-05-29 실행 (7 섹션 / 19 article + README, #247) |
 | 11번가 | TBD (셀러오피스 OpenAPI) | ❓ | 미실행 — 판별 먼저 |
 | 네이버 커머스 API 센터 | TBD | ❓ | 미실행 — 판별 먼저 (Swagger/자체 docs 가능성) |
-| G마켓 / 옥션 (ESM) | TBD | ❓ | 미실행 — 판별 먼저 |
+| G마켓 / 옥션 (ESM) | `etapi.gmarket.com` | C (Tistory) | ✅ 2026-05-29 실행 (7 섹션 / 118 article + README). ESM Plus 공용 → 옥션 동일 spec |
 
 신규 대상은 라우터로 유형 판별 → 해당 전략 적용. 유형이 셋 다 아니면 신규 전략 추가.
 
@@ -268,6 +272,65 @@ dev-guide/인증/IP·Header 같은 공통 페이지가 있으면 `<market>-api/R
 
 아래 "전략 공통 — 검수 / commit / PR" 참조.
 - 전략 B 장점: Input/Output params 테이블·dev/운영 URL·HTTP 메서드·수정이력이 깔끔히 보존되고 example JSON 까지 병합 (Zendesk nested-table 평탄화 문제 없음).
+
+---
+
+## 전략 C — Tistory 블로그 (G마켓·옥션 ESM 1회 실행 기준 — 2026-05-29)
+
+Tistory 블로그에 글 1개 = API 1개로 올라온 사이트(`etapi.gmarket.com`). 글 본문은 `.entry-content`, 제목은 본문 밖 `og:title`. 카테고리 페이지(`/category/<name>`)가 섹션별 글 목록(페이지네이션 `?page=N`). 변환은 `tistory-to-md.py`.
+
+### C-1. 카테고리 → 글 목록 크롤 (페이지네이션)
+
+사용자가 준 카테고리 URL 들이 곧 섹션. 각 카테고리를 `?page=1..N` 돌며 글 링크(`href="/숫자"`)를 새 항목 없을 때까지 수집. 한글 섹션명 → slug 매핑 (ESM 예):
+
+| 섹션 (한글) | slug | 글 수 |
+|---|---|---|
+| 상품 API | `product` | 44 |
+| 주문 · 배송 API | `order-shipping` | 8 |
+| 클레임 API | `claim` | 20 |
+| 정산조회 API | `settlement` | 3 |
+| CS API | `cs` | 5 |
+| 서비스 API | `service` | 12 |
+| 스타배송 API | `star-delivery` | 26 |
+
+```python
+# python (urllib) — 카테고리당 글 id 수집
+import urllib.request, urllib.parse, re
+def get(u): return urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent":UA}),timeout=40).read().decode("utf-8","replace")
+enc=urllib.parse.quote("상품API")
+ids=[]
+for p in range(1,12):
+    new=[int(x) for x in re.findall(r'href="/(\d+)"', get(f"https://etapi.gmarket.com/category/{enc}?page={p}")) if int(x) not in ids]
+    if not new: break
+    ids+=new
+```
+
+- RSS(`/rss`)는 최신 10개뿐이라 전체 목록엔 부적합 — 카테고리 페이지네이션이 source of truth.
+- 카테고리 간 중복 글이 없는지 확인(ESM 은 0). 있으면 한 곳에만 배치.
+
+### C-2. 글 fetch + 변환
+
+각 글 id 마다 `/<id>` HTML 을 받아 `tistory-to-md.py` 로 변환. 출력 파일명 = post id. og:title 은 인덱스용으로 함께 수집.
+
+```bash
+export EXTRACT_DATE=2026-05-29
+python3 .claude/skills/market-api-docs-import/tistory-to-md.py \
+  /tmp/esm/<id>.html "<섹션한글>" "<id>" "docs/architecture/v1/features/esm-api/<slug>" \
+  "https://etapi.gmarket.com/<id>" ".entry-content" >/dev/null
+```
+
+- `tistory-to-md.py` 가 글 끝 "카테고리의 다른 글" 관련글 네비 + 공유/좋아요 버튼을 제거(spec 아님). 변환 후 `grep -rl '카테고리의 다른 글'` 로 누수 0 확인.
+- Request/Response/Error Code 표 + JSON 예시(`<pre>`)는 깨끗이 보존됨.
+
+### C-3. 인덱스 + README
+
+- 인덱스: manifest(id·slug·section·title·url) 로 섹션별 묶어 `docs/handoff/<market>-api-index.md`.
+- README: "API 가이드" 페이지(`/pages/...`)를 변환해 `<market>-api/README.md`. ESM 은 인증(JWT/HMAC) 구성이 가이드에 있으니 프로젝트 연동 메모(payload.ssi siteId G/A, 고정 IP, secret key vault) 덧붙임.
+- ⚠️ Tistory 본문 이미지(kakaocdn)는 만료 서명 URL — 시간 지나면 깨짐. 이미지는 보조, 정확한 건 출처 URL.
+
+### C-4. 검수 → C-5. commit + PR
+
+아래 "전략 공통 — 검수 / commit / PR" 참조.
 
 ---
 
