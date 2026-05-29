@@ -1222,10 +1222,20 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
 
 - **렌더**: 카테고리 매핑 row(기존) + 어댑터가 선언한 동적 등록필드를 카드 하단에 동적 렌더.
 - **마켓 하드코딩 분기 0**: UI 는 동기 resolver `getRegistrationFieldsForMarket(marketId)`(`apps/web/src/lib/markets/registration-fields.ts`)가 돌려준 `RegistrationFieldMeta[]` 의 `kind` 로만 분기. `getRegistrationFields()` 가 순수·정적(mock↔real parity 보장)이므로 무거운 async `getMarketAdapter` 를 await 하지 않는다.
-  - ESM(gmarket/auction) → `getEsmRegistrationFields()` = `shippingProfile` 필드 1개. 그 외 → `[]`(카테고리만, 하위호환 회귀 없음).
-- **필드 kind 별 렌더**: `shippingProfile` → 배송 프로필 select(`useEsmShippingProfiles(marketAccountId)` 재사용, 4상태: loading/error/data(`status='active'`만)/empty(`/settings/shipping/esm-profiles` deep link CTA)). `number`/`text`/`select`/`officialNotice`(PR-5 전 placeholder) → shadcn `Input` 기본 렌더(확장 대비).
+  - ESM(gmarket/auction) → `getEsmRegistrationFields()` = `shippingProfile` + `officialNotice` 2필드(PR-5). 그 외 → `[]`(카테고리만, 하위호환 회귀 없음).
+- **필드 kind 별 렌더**: `shippingProfile` → 배송 프로필 select(`useEsmShippingProfiles(marketAccountId)` 재사용, 4상태: loading/error/data(`status='active'`만)/empty(`/settings/shipping/esm-profiles` deep link CTA)). `officialNotice` → `OfficialNoticeField`(상품군 select + 군별 항목 동적 폼, PR-5 — 아래 §10.5.2). `number`/`text`/`select` → shadcn `Input` 기본 렌더(확장 대비).
 - **값 적재**: 동적 필드 값은 `CategoryMapping.marketOptions[fieldKey]`(zod `z.record`)에 적재.
-- **검증(단일 소스)**: `Step3Schema` → `makeStep3Schema(requiredKeysFor)` 빌더. 어댑터가 `required` 로 선언한 fieldKey 가 비어있으면 zod fail. UI 페이지(`StepMarketsCategoriesPage`)는 `getRegistrationFieldsForMarket` 기반 provider 를 주입해 검증·blockingReasons·다음버튼 tooltip 에 공유. 기본 `Step3Schema`(provider 미주입)는 추가필드 검증 skip(하위호환).
+- **검증(단일 소스)**: `Step3Schema` → `makeStep3Schema(requiredKeysFor)` 빌더. 어댑터가 `required` 로 선언한 fieldKey 가 비어있으면 zod fail. 비어있음 판정은 `isMarketOptionValuePresent`(단일 소스) — string/number 뿐 아니라 `officialNotice` 같은 **객체 형태**도 완성도(군 선택 + 모든 detail code/value 채움 + detail ≥1)로 판정한다. UI 페이지(`StepMarketsCategoriesPage`)는 `getRegistrationFieldsForMarket` 기반 provider 를 주입해 검증·blockingReasons·다음버튼 tooltip 에 공유(동일 `isMarketOptionValuePresent` 재사용). 기본 `Step3Schema`(provider 미주입)는 추가필드 검증 skip(하위호환).
+
+#### 10.5.2 OfficialNoticeField — 상품정보고시 입력 (PR-5, 구현 완료)
+
+마스터: `docs/architecture/v1/features/esm.md §4.4 / §5`, `esm-api/product/161.md`.
+
+- **상품군 select**: `ESM_OFFICIAL_NOTICE_GROUPS`(41개 법정 표준 상품군, `apps/web/src/lib/markets/real/esm/official-notice-groups.ts`) → `getEsmOfficialNoticeOptions()` 로 옵션 생성. Edge 미러: `_shared/market-adapters/esm-official-notice-groups.ts`.
+- **항목 동적 폼**: 선택 군의 정적 `requiredItemCodes`(문서 161.md 확인분, 예: 군 41 의 `41-1`)는 코드 잠금(읽기전용) 행으로 seed. 군 항목 마스터가 라이브 API(`/groups/{no}/codes`, `hasStaticItems=false`) 대상이라 정적 코드가 없으면, 셀러가 `{code,value}` 행을 직접 추가(코드 날조 금지 — esm.md "근거 없는 결정 금지"). 라이브 codes API 연동은 후속(real 호출 라운드).
+- **값 적재**: 입력값을 `EsmOfficialNotice`({officialNoticeNo, details[{code,value}]}, `schemas/esm.ts`) 형태로 모아 `marketOptions.officialNotice` 에 적재. 등록 오케스트레이터가 `mapping.extra.officialNotice` 로 흘려(shippingProfileId 와 동일 경로) PR-4 `transformProduct` 가 `itemAddtionalInfo.officialNotice` 페이로드에 매핑.
+- **required/blocking**: 군 미선택 또는 항목 value 누락(미완성)이면 `makeStep3Schema`(객체 완성도 판정) fail → blockingReason "상품정보고시 입력 필요" tooltip + 다음 버튼 비활성.
+- **i18n**: 상품군명은 상수 마스터(법정 표준), UI chrome 문구는 `markets.registrationFields.officialNoticeField.*`(ko.ts). 하드코딩 금지.
 - **i18n**: `RegistrationFieldMeta.label`/`helpText`/`blockingReason` 은 i18n key(`markets.registrationFields.*`) → `resolveKoPath()`(`apps/web/src/lib/i18n.ts`)로 해석. 하드코딩 금지.
 
 ### 10.6 Step 4 — 등록 미리보기 (n20)

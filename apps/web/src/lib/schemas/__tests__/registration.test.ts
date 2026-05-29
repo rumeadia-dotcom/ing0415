@@ -6,6 +6,7 @@ import {
   Step2Schema,
   Step3Schema,
   makeStep3Schema,
+  isMarketOptionValuePresent,
   ProductDraftSchema,
   JOB_STATUSES,
   MARKET_RESULT_STATUSES,
@@ -305,6 +306,99 @@ describe('makeStep3Schema — 마켓별 required marketOptions', () => {
       mappings: [{ ...baseMapping, marketOptions: {} }],
     })
     expect(res.success).toBe(true)
+  })
+
+  // officialNotice 는 객체 형태 — 부분 입력(군만 선택, 항목 value 누락)은 미완성으로 차단 (PR-5).
+  const onProvider = (marketId: string): string[] =>
+    marketId === 'gmarket' ? ['officialNotice'] : []
+  const onSchema = makeStep3Schema(onProvider)
+
+  it('officialNotice 완성(군+모든 항목 value)이면 통과 (pass)', () => {
+    const res = onSchema.safeParse({
+      selections: [gmarketSel],
+      mappings: [
+        {
+          ...baseMapping,
+          marketOptions: {
+            officialNotice: {
+              officialNoticeNo: '41',
+              details: [{ code: '41-1', value: '살균제' }],
+            },
+          },
+        },
+      ],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('officialNotice 군만 선택하고 항목 value 가 비면 실패 (fail)', () => {
+    const res = onSchema.safeParse({
+      selections: [gmarketSel],
+      mappings: [
+        {
+          ...baseMapping,
+          marketOptions: {
+            officialNotice: {
+              officialNoticeNo: '41',
+              details: [{ code: '41-1', value: '' }],
+            },
+          },
+        },
+      ],
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it('officialNotice 군 선택했지만 details 빈 배열이면 실패 (fail)', () => {
+    const res = onSchema.safeParse({
+      selections: [gmarketSel],
+      mappings: [
+        {
+          ...baseMapping,
+          marketOptions: {
+            officialNotice: { officialNoticeNo: '1', details: [] },
+          },
+        },
+      ],
+    })
+    expect(res.success).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────
+// isMarketOptionValuePresent — required 판정 단일 소스 (PR-5)
+// ─────────────────────────────────────────────
+describe('isMarketOptionValuePresent', () => {
+  it('string/number 는 비어있지 않으면 present', () => {
+    expect(isMarketOptionValuePresent('p1')).toBe(true)
+    expect(isMarketOptionValuePresent('  ')).toBe(false)
+    expect(isMarketOptionValuePresent(undefined)).toBe(false)
+    expect(isMarketOptionValuePresent(null)).toBe(false)
+    expect(isMarketOptionValuePresent(0)).toBe(true)
+  })
+
+  it('officialNotice 객체는 군+모든 항목 value 가 채워져야 present', () => {
+    expect(
+      isMarketOptionValuePresent({
+        officialNoticeNo: '41',
+        details: [{ code: '41-1', value: '살균제' }],
+      }),
+    ).toBe(true)
+    // 항목 value 누락 → 미완성.
+    expect(
+      isMarketOptionValuePresent({
+        officialNoticeNo: '41',
+        details: [{ code: '41-1', value: '' }],
+      }),
+    ).toBe(false)
+    // details 빈 배열 → 미완성.
+    expect(
+      isMarketOptionValuePresent({ officialNoticeNo: '1', details: [] }),
+    ).toBe(false)
+    // 군 미선택 → 미완성.
+    expect(
+      isMarketOptionValuePresent({ officialNoticeNo: '', details: [] }),
+    ).toBe(false)
   })
 })
 

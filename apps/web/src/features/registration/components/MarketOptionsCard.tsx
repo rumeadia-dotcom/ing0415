@@ -2,12 +2,13 @@ import { useNavigate } from 'react-router-dom'
 import { Check, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui'
 import { useMarketCategoryTree } from '../hooks/useMarketCategoryTree'
+import { OfficialNoticeField } from './OfficialNoticeField'
 import { useEsmShippingProfiles } from '@/features/settings/shipping'
 import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import { resolveKoPath } from '@/lib/i18n'
 import { ko } from '@/locales/ko'
-import type { CategoryNode } from '@/lib/schemas'
+import type { CategoryNode, EsmOfficialNotice } from '@/lib/schemas'
 import type { CategoryMapping } from '@/lib/schemas/registration'
 import type { RegistrationFieldMeta } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
@@ -197,6 +198,13 @@ function MarketOptionField({
           value={typeof value === 'string' ? value : ''}
           onChange={onChange}
         />
+      ) : field.kind === 'officialNotice' ? (
+        <OfficialNoticeField
+          fieldId={`mof-${field.key}`}
+          fieldLabel={fieldLabel}
+          value={isOfficialNotice(value) ? value : undefined}
+          onChange={onChange}
+        />
       ) : field.kind === 'number' ? (
         <Input
           id={`mof-${field.key}`}
@@ -208,7 +216,7 @@ function MarketOptionField({
           }
         />
       ) : (
-        // 'text' / 'select' / 'officialNotice'(PR-5 전 placeholder) — 기본 text 입력.
+        // 'text' / 'select' — 기본 text 입력.
         // 'select' 의 동적 옵션 출처는 후속 PR 에서 optionsSource 별 분기 추가.
         <Input
           id={`mof-${field.key}`}
@@ -290,6 +298,13 @@ function ShippingProfileSelect({
       ))}
     </select>
   )
+}
+
+/** marketOptions[key] 의 unknown 값이 officialNotice 형태인지 좁힌다(부분입력 포함). */
+function isOfficialNotice(value: unknown): value is EsmOfficialNotice {
+  if (typeof value !== 'object' || value === null) return false
+  const obj = value as Record<string, unknown>
+  return typeof obj.officialNoticeNo === 'string' && Array.isArray(obj.details)
 }
 
 interface FlatOption {

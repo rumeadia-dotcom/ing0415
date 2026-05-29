@@ -184,6 +184,39 @@ describe('MarketOptionsCard — ESM(gmarket) 동적 필드', () => {
       screen.getByText('배송 프로필을 불러오지 못했습니다.'),
     ).toBeInTheDocument()
   })
+
+  it('상품정보고시(officialNotice) 입력 필드도 함께 렌더한다 (PR-5)', () => {
+    esmProfilesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [profile({ id: 'p1', profileLabel: '기본 출고지' })],
+    })
+    renderCard('gmarket')
+    // 상품군 select (officialNotice 필드).
+    expect(
+      screen.getByLabelText('G마켓·옥션 상품정보고시'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '의류' })).toBeInTheDocument()
+  })
+
+  it('상품군 선택 시 marketOptions.officialNotice 에 적재한다 (PR-5)', async () => {
+    const user = userEvent.setup()
+    esmProfilesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: [profile({ id: 'p1', profileLabel: '기본 출고지' })],
+    })
+    const { onChange } = renderCard('gmarket')
+    await user.selectOptions(
+      screen.getByLabelText('G마켓·옥션 상품정보고시'),
+      '41',
+    )
+    const last = onChange.mock.calls.at(-1)?.[0] as CategoryMapping
+    expect(last.marketOptions.officialNotice).toEqual({
+      officialNoticeNo: '41',
+      details: [{ code: '41-1', value: '' }],
+    })
+  })
 })
 
 describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {

@@ -242,7 +242,7 @@ CREATE POLICY esm_shipping_profiles_select_own
 
 - **현재**: [StepMarketsCategoriesPage.tsx](apps/web/src/features/registration/pages/StepMarketsCategoriesPage.tsx) — 마켓 체크 → 선택 마켓마다 `CategoryMappingCard` 동적 렌더.
 - **변경(PR-3.5, 구현 완료)**: `CategoryMappingCard` → `MarketOptionsCard`. 카테고리 매핑 + 어댑터 메타가 선언한 필드를 동적 렌더.
-  - ESM(gmarket/auction) 카드 = 카테고리 + **배송 프로필 select** (옵션 출처 `esm_shipping_profiles`, "프로필 없음 → 만들러 가기" deep link `/settings/shipping/esm-profiles`). **상품정보고시** 입력은 PR-5.
+  - ESM(gmarket/auction) 카드 = 카테고리 + **배송 프로필 select** (옵션 출처 `esm_shipping_profiles`, "프로필 없음 → 만들러 가기" deep link `/settings/shipping/esm-profiles`) + **상품정보고시** 입력(`OfficialNoticeField`, PR-5 완료 — 상품군 select + 군별 항목 동적 폼 → `marketOptions.officialNotice`).
   - 네이버/쿠팡/11번가 카드 = `getRegistrationFields()` 빈 배열(기본) → 카테고리만 (현 동작 유지, 하위호환).
   - **구현 메모(PR-3.5)**:
     - 컴포넌트 내 `if (marketId === ...)` 하드코딩 분기 0. UI 는 동기 resolver `getRegistrationFieldsForMarket(marketId)`(`apps/web/src/lib/markets/registration-fields.ts`) 가 돌려준 `RegistrationFieldMeta[]` 의 `kind` 로만 렌더 분기. resolver 는 ESM(gmarket/auction)→`getEsmRegistrationFields()`, 그 외→`[]`. `getRegistrationFields()` 가 순수·정적(mock↔real parity)이라 무거운 async `getMarketAdapter` 를 await 하지 않고 동기 해석.
@@ -282,7 +282,13 @@ CREATE POLICY esm_shipping_profiles_select_own
   - [x] Vitest: ESM select 렌더 / status=error 프로필 제외 / 미선택 deep link / onChange 적재 / error 상태 / naver 회귀(필드 0, 훅 미호출) + 스키마 pass/fail.
   - [x] `pnpm typecheck` / `lint` / `test`(1100 pass) 통과.
 - **PR-4**: `transformProduct` 중첩 페이로드 + `createProduct` `POST /item/v1/goods`, `siteDetail.{gmkt|iac}.SiteGoodsNo` 파싱. 옥션 중복 이미지 validation. parity.spec.
-- **PR-5**: officialNotice 입력 섹션 + 41개 상품군 상수. 미입력 시 등록 차단 + blockingReason tooltip.
+- **PR-5 (완료)**: officialNotice 입력 섹션(`OfficialNoticeField`) + 41개 상품군 상수(`ESM_OFFICIAL_NOTICE_GROUPS`, Web+Edge 미러). 상품군 select → 군별 항목 동적 폼 → `EsmOfficialNotice` 로 `marketOptions.officialNotice` 적재 → 오케스트레이터가 `mapping.extra.officialNotice` 로 PR-4 transformProduct 에 연결. 미입력/미완성(객체 완성도 `isMarketOptionValuePresent`) 시 `makeStep3Schema` fail + blockingReason tooltip + 다음 버튼 비활성.
+  - [x] `OfficialNoticeField`(상품군 select + 군별 필수항목 동적 폼) — `MarketOptionsCard` `kind='officialNotice'` 렌더.
+  - [x] `getEsmRegistrationFields()` 에 officialNotice 필드(required, kind=officialNotice) — gmarket/auction/mock parity.
+  - [x] `isMarketOptionValuePresent` 객체 완성도 판정(군+모든 detail code/value) — 스키마·페이지 blockingReason 단일 소스.
+  - [x] i18n `markets.registrationFields.officialNoticeField.*`(ko.ts) / 토큰 / a11y(폼 라벨·aria).
+  - [x] Vitest: 상품군 select 렌더(41) / 군 선택 → 항목 seed / value 적재 / 추가·삭제 / marketOptions.officialNotice 적재 / 미완성 blocking(pass+fail) / 타 마켓(naver) 회귀.
+  - [x] 2개 산출물 동기화: user_flow s3 / design-renewal s3-register.md / features/registration.md §10.5.
 - **PR-6**: `fetchOrders`/`submitTracking` 문서 order-shipping 엔드포인트 정정 + 상태 정규화 문서 대조. submitTracking Edge 측 완성(현 stub 제거).
 
 ---
