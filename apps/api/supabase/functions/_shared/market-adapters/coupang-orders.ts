@@ -199,7 +199,6 @@ export function mapCoupangOrders(
       item.receiver?.safeNumber ||
       item.receiver?.receiverNumber ||
       item.receiverPhoneNumber
-    const paidAtRaw = item.paidAt ?? item.orderedAt
 
     const addr = [receiverAddr1, receiverAddr2]
       .filter((s): s is string => typeof s === 'string' && s.length > 0)
@@ -209,6 +208,10 @@ export function mapCoupangOrders(
       (sum, entry) => sum + moneyToKrw(entry.orderPrice) * entry.shippingCount,
       0,
     )
+
+    // paidAt 과 orderedAt 분리 (2026-05-29 PR #246 잔여 정합).
+    const paidAtField = item.paidAt
+    const orderedAtField = item.orderedAt
 
     const order: MarketOrder = {
       market: MARKET,
@@ -228,7 +231,13 @@ export function mapCoupangOrders(
       quantity: first ? first.shippingCount : 1,
       orderAmount: totalAmount,
       status: normalizeCoupangStatus(item.status),
-      paidAt: normalizeIsoOffset(paidAtRaw),
+      paidAt: normalizeIsoOffset(paidAtField ?? orderedAtField),
+      ...(orderedAtField !== undefined
+        ? { orderedAt: normalizeIsoOffset(orderedAtField) }
+        : {}),
+      ...(first?.vendorItemId !== undefined
+        ? { vendorItemId: String(first.vendorItemId) }
+        : {}),
     }
     return MarketOrderSchema.parse(order)
   })

@@ -173,6 +173,35 @@ describe('coupangFetchOrders', () => {
     expect(order.orderAmount).toBe(90_000)
   })
 
+  it('v5: paidAt 와 orderedAt 분리 + vendorItemId 매핑', async () => {
+    globalThis.fetch = makeFetchMock([
+      { ok: true, status: 200, body: COUPANG_V5_HAPPY_RESPONSE },
+    ]) as unknown as typeof fetch
+
+    const orders = await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+    const order = orders[0]
+    if (!order) throw new Error('order missing')
+    expect(order.paidAt).toBe('2026-05-21T02:31:00+00:00')
+    expect(order.orderedAt).toBe('2026-05-21T02:30:00+00:00')
+    expect(order.vendorItemId).toBe('12345')
+  })
+
+  it('v4 flat: paidAt 미제공 시 orderedAt fallback + orderedAt 별도 채움', async () => {
+    globalThis.fetch = makeFetchMock([
+      { ok: true, status: 200, body: COUPANG_HAPPY_RESPONSE },
+    ]) as unknown as typeof fetch
+
+    const orders = await coupangFetchOrders(VALID_FETCH_INPUT, VALID_HMAC_CRED)
+    const order = orders[0]
+    if (!order) throw new Error('order missing')
+    // paidAt 은 orderedAt fallback (entry 에 paidAt 없음).
+    expect(order.paidAt).toBe('2026-05-21T02:30:00+00:00')
+    // orderedAt 도 명시적으로 채워야 함.
+    expect(order.orderedAt).toBe('2026-05-21T02:30:00+00:00')
+    // v4 happy response 에는 vendorItemId 없음.
+    expect(order.vendorItemId).toBeUndefined()
+  })
+
   it('hmac credential 누락 → MarketError("unauthorized")', async () => {
     await expect(
       coupangFetchOrders(VALID_FETCH_INPUT, undefined),
@@ -445,5 +474,105 @@ describe('coupangSubmitTracking', () => {
         VALID_HMAC_CRED,
       ),
     ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  it('orderId / vendorItemId 가 body 에 number 로 전송됨', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: 200,
+              message: 'OK',
+              data: {
+                responseCode: 0,
+                responseMessage: 'SUCCESS',
+                responseList: [
+                  {
+                    shipmentBoxId: 333000111,
+                    succeed: true,
+                    resultCode: 'OK',
+                  },
+                ],
+              },
+            }),
+          ),
+      }),
+    )
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const result = await coupangSubmitTracking(
+      {
+        externalOrderId: '333000111',
+        waybillNumber: '987654321098',
+        carrierCode: 'LOGEN',
+        orderId: '50000000001',
+        vendorItemId: '12345',
+      },
+      VALID_HMAC_CRED,
+    )
+    expect(result.ok).toBe(true)
+
+    // body 검증 — orderId / vendorItemId 가 number 로 직렬화돼야 함.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const callArg = fetchMock.mock.calls[0]?.[1] as
+      | { body?: string }
+      | undefined
+    expect(callArg?.body).toBeTruthy()
+    const bodyStr = callArg?.body
+    if (typeof bodyStr !== 'string') throw new Error('body missing')
+    const parsed = JSON.parse(bodyStr) as {
+      orderSheetInvoiceApplyDtos: {
+        shipmentBoxId: number | string
+        orderId: number | string
+        vendorItemId: number | string
+        invoiceNumber: string
+        deliveryCompanyCode: string
+      }[]
+    }
+    const entry = parsed.orderSheetInvoiceApplyDtos[0]
+    if (!entry) throw new Error('entry missing')
+    expect(entry.shipmentBoxId).toBe(333000111)
+    expect(entry.orderId).toBe(50000000001)
+    expect(entry.vendorItemId).toBe(12345)
+    expect(entry.invoiceNumber).toBe('987654321098')
+    expect(entry.deliveryCompanyCode).toBe('LOGEN')
+  })
+
+  it('orderId / vendorItemId 미지정 시 0 fallback (호환)', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: 200,
+              message: 'OK',
+              data: {
+                responseCode: 0,
+                responseList: [
+                  { shipmentBoxId: 333000111, succeed: true, resultCode: 'OK' },
+                ],
+              },
+            }),
+          ),
+      }),
+    )
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    await coupangSubmitTracking(VALID_TRACKING_INPUT, VALID_HMAC_CRED)
+    const callArg = fetchMock.mock.calls[0]?.[1] as { body?: string }
+    const bodyStr = callArg.body
+    if (typeof bodyStr !== 'string') throw new Error('body missing')
+    const parsed = JSON.parse(bodyStr) as {
+      orderSheetInvoiceApplyDtos: { orderId: number; vendorItemId: number }[]
+    }
+    const entry = parsed.orderSheetInvoiceApplyDtos[0]
+    if (!entry) throw new Error('entry missing')
+    expect(entry.orderId).toBe(0)
+    expect(entry.vendorItemId).toBe(0)
   })
 })

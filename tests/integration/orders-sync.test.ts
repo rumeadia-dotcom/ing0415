@@ -120,7 +120,10 @@ describe('orders-sync: Edge Function 산출물', () => {
     expect(src).toMatch(/status:\s*'collected'/)
     // payload jsonb 의존 제거.
     expect(src).not.toMatch(/payload:/)
-    expect(src).not.toMatch(/ordered_at/)
+    // 2026-05-29 정합: ordered_at / paid_at / vendor_item_id 신규 컬럼 (마이그 20260529000001).
+    expect(src).toMatch(/ordered_at/)
+    expect(src).toMatch(/paid_at/)
+    expect(src).toMatch(/vendor_item_id/)
   })
 })
 

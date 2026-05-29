@@ -58,6 +58,16 @@ export const MarketOrderSchema = z.object({
   orderAmount: z.number().int().nonnegative(),
   status: MarketOrderStatusSchema,
   paidAt: IsoDateTimeOffsetSchema,
+  /**
+   * 주문 생성 시각 — 마켓 응답의 orderedAt. 마켓별 미제공 시 omit.
+   * 쿠팡 v5: entry.orderedAt / 네이버: entry.orderDate 등.
+   */
+  orderedAt: IsoDateTimeOffsetSchema.optional(),
+  /**
+   * 쿠팡 vendor_item_id — 송장 제출 body 의 vendorItemId 재사용.
+   * 쿠팡 외 마켓은 항상 omit.
+   */
+  vendorItemId: z.string().min(1).optional(),
   market: MarketIdSchema,
 })
 export type MarketOrder = z.infer<typeof MarketOrderSchema>
@@ -73,6 +83,15 @@ export const SubmitTrackingInputSchema = z.object({
   externalOrderId: z.string().min(1),
   waybillNumber: z.string().min(1).max(40),
   carrierCode: TrackingCarrierCodeSchema,
+  /**
+   * 마켓 주문 ID — 쿠팡 v4 /orders/invoices body 의 orderId. shipmentBoxId 와 별개.
+   * 다른 마켓은 omit (어댑터에서 무시).
+   */
+  orderId: z.string().min(1).optional(),
+  /**
+   * 쿠팡 vendor_item_id — v4 /orders/invoices body 의 vendorItemId 필수.
+   */
+  vendorItemId: z.string().min(1).optional(),
 })
 export type SubmitTrackingInput = z.infer<typeof SubmitTrackingInputSchema>
 

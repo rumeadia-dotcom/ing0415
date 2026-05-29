@@ -358,7 +358,6 @@ function mapCoupangOrderEntries(
       item.receiver?.safeNumber ||
       item.receiver?.receiverNumber ||
       item.receiverPhoneNumber
-    const paidAtRaw = item.paidAt ?? item.orderedAt
 
     const addr = [receiverAddr1, receiverAddr2]
       .filter((s): s is string => typeof s === 'string' && s.length > 0)
@@ -368,6 +367,11 @@ function mapCoupangOrderEntries(
       (sum, entry) => sum + moneyToKrw(entry.orderPrice) * entry.shippingCount,
       0,
     )
+
+    // paidAt 과 orderedAt 분리 (이전엔 paidAt ?? orderedAt fallback 으로 한 컬럼 사용).
+    // v5 응답: 둘 다 entry-level 에 존재. v4 응답: orderedAt 만 존재할 수 있음.
+    const paidAtField = item.paidAt
+    const orderedAtField = item.orderedAt
 
     const order: MarketOrder = {
       market: MARKET,
@@ -387,7 +391,17 @@ function mapCoupangOrderEntries(
       quantity: first ? first.shippingCount : 1,
       orderAmount: totalAmount,
       status: normalizeCoupangStatus(item.status),
-      paidAt: normalizeIsoOffset(paidAtRaw),
+      // paidAt: 결제완료 시각. 없으면 orderedAt fallback (v4 호환).
+      paidAt: normalizeIsoOffset(paidAtField ?? orderedAtField),
+      // orderedAt: 주문 생성 시각 (별개 시각). 응답에 명시되었을 때만 채움.
+      ...(orderedAtField !== undefined
+        ? { orderedAt: normalizeIsoOffset(orderedAtField) }
+        : {}),
+      // vendorItemId: 쿠팡 송장 제출 (POST /orders/invoices) body 의 vendorItemId.
+      // orderItems[0].vendorItemId 가 number 타입 — string 으로 변환해 schema 정합.
+      ...(first?.vendorItemId !== undefined
+        ? { vendorItemId: String(first.vendorItemId) }
+        : {}),
     }
     return MarketOrderSchema.parse(order)
   })
@@ -521,12 +535,10 @@ export async function coupangFetchOrders(
 //       preSplitShipped, estimatedShippingDate }]
 //   }
 //
-// 한계: SubmitTrackingInputSchema 에 orderId / vendorItemId 가 없음. v1 MVP 의
-// SubmitTrackingInput 은 externalOrderId(=shipmentBoxId) / waybillNumber /
-// carrierCode 만 보유 — 쿠팡 v4 invoices 가 요구하는 orderId / vendorItemId 는
-// 별도 PR 에서 SubmitTrackingInput 확장 후 채워야 한다. 현재 PR 은 path /
-// method / body 구조만 정정하고 누락 필드는 0 으로 보낸다 (마켓이 거부하면
-// ok=false 반환).
+// 2026-05-29: SubmitTrackingInputSchema 에 orderId / vendorItemId optional 추가
+// (PR #246 잔여 #1 해소). 호출측 (shipping-dispatch-job) 이 orders 행의
+// external_order_id / order_id / vendor_item_id 를 채워서 전달한다. 둘 중 하나라도
+// 누락되면 마켓이 거부 → ok=false 반환.
 // ─────────────────────────────────────────────
 
 export async function coupangSubmitTracking(
@@ -549,6 +561,17 @@ export async function coupangSubmitTracking(
   // shipmentBoxId 는 Number 가 표준이지만 SubmitTrackingInput 은 string —
   // Number 변환 후 NaN 이면 fallback 으로 string 그대로 (마켓에서 거부).
   const shipmentBoxIdNum = Number(parsedInput.data.externalOrderId)
+  // 쿠팡은 shipmentBoxId / orderId / vendorItemId 모두 Number 가 표준.
+  // SubmitTrackingInput 은 string 이므로 Number 변환 후 NaN 이면 string 그대로 (마켓 거부).
+  const orderIdNum =
+    parsedInput.data.orderId !== undefined
+      ? Number(parsedInput.data.orderId)
+      : NaN
+  const vendorItemIdNum =
+    parsedInput.data.vendorItemId !== undefined
+      ? Number(parsedInput.data.vendorItemId)
+      : NaN
+
   const body = {
     vendorId: cred.vendorId,
     orderSheetInvoiceApplyDtos: [
@@ -556,9 +579,14 @@ export async function coupangSubmitTracking(
         shipmentBoxId: Number.isFinite(shipmentBoxIdNum)
           ? shipmentBoxIdNum
           : parsedInput.data.externalOrderId,
-        // SubmitTrackingInput 미보유 필드 — schema 확장 후 채울 것 (별도 PR).
-        orderId: 0,
-        vendorItemId: 0,
+        // orderId / vendorItemId 가 input 에 명시되면 사용, 없으면 0 fallback
+        // (호출측이 채우지 않은 경우 마켓이 거부 → ok=false 반환).
+        orderId: Number.isFinite(orderIdNum)
+          ? orderIdNum
+          : (parsedInput.data.orderId ?? 0),
+        vendorItemId: Number.isFinite(vendorItemIdNum)
+          ? vendorItemIdNum
+          : (parsedInput.data.vendorItemId ?? 0),
         deliveryCompanyCode: parsedInput.data.carrierCode, // 'LOGEN'
         invoiceNumber: parsedInput.data.waybillNumber,
         splitShipping: false,
