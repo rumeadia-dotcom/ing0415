@@ -14,9 +14,11 @@
  *   - authenticate = 자격증명 검증 후 StoredCredential 저장 (API 호출 없이).
  *
  * API 기반:
- *   - ESM_API_BASE = https://sa.esmplus.com/api/v1
+ *   - ESM_API_BASE = https://sa2.esmplus.com/item/v1 (공식 문서 esm-api/README.md)
  *   - 카테고리: GET /category (depth 3 재귀, site 쿼리 파라미터)
  *   - 상품 생성: POST /products
+ *   ※ 호출 경로(/category, /products)·페이로드 빌드는 PR-2/4 에서 문서 기준 재작성 예정.
+ *     PR-0 은 base URL 상수만 정정한다.
  *
  * 중요 제약:
  *   - masterId / accessKey / secretKey 는 절대 로그에 포함 금지.
@@ -56,7 +58,7 @@ import { buildEsmJwt } from './jwt'
 // 상수
 // ─────────────────────────────────────────────
 
-export const ESM_API_BASE = 'https://sa.esmplus.com/api/v1'
+export const ESM_API_BASE = 'https://sa2.esmplus.com/item/v1'
 const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
 const PRODUCT_NAME_MAX_LENGTH = 80

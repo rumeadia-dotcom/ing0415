@@ -12,9 +12,11 @@
  *   - refreshToken 없음 (영구 키, 매 요청마다 JWT 새로 발급 — 수명 5분).
  *
  * API 기반:
- *   - ESM_API_BASE = https://sa.esmplus.com/api/v1
+ *   - ESM_API_BASE = https://sa2.esmplus.com/item/v1 (공식 문서 esm-api/README.md)
  *   - 카테고리: GET /category (site 쿼리)
  *   - 상품 생성: POST /products
+ *   ※ 호출 경로(/category, /products)·페이로드 빌드는 PR-2/4 에서 문서 기준 재작성 예정.
+ *     PR-0 은 base URL 상수만 정정한다.
  *
  * 에러 매핑:
  *   - 401 / 403 → 'unauthorized'
@@ -51,7 +53,7 @@ import { EsmOrderListResponseSchema, mapEsmOrders } from './esm-orders.ts'
 // 상수
 // ─────────────────────────────────────────────
 
-export const ESM_API_BASE = 'https://sa.esmplus.com/api/v1'
+export const ESM_API_BASE = 'https://sa2.esmplus.com/item/v1'
 const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
 const PRODUCT_NAME_MAX_LENGTH = 80
