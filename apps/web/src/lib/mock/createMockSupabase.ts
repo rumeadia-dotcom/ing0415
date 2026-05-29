@@ -539,13 +539,115 @@ function createChannel(_name: string) {
 
 function makeFunctions() {
   return {
-    async invoke(_name: string, _opts?: any) {
-      return { data: { ok: true }, error: null }
+    async invoke(name: string, opts?: any) {
+      const body = (opts?.body ?? {}) as Record<string, any>
+      await Promise.resolve()
+      switch (name) {
+        case 'image-upload-url': {
+          const imageId = crypto.randomUUID()
+          const productId = typeof body.productId === 'string' ? body.productId : 'no-product'
+          const originalPath = `mock/${productId}/${imageId}`
+          return {
+            data: {
+              uploadUrl: `https://mock.local/storage/${imageId}`,
+              token: 'mock-token',
+              imageId,
+              originalPath,
+              expiresAt: new Date(Date.now() + 60_000).toISOString(),
+            },
+            error: null,
+          }
+        }
+        case 'image-register': {
+          return {
+            data: {
+              imageId:
+                typeof body.imageId === 'string' ? body.imageId : crypto.randomUUID(),
+              status: 'uploaded' as const,
+              role: body.position === 0 ? 'main' : 'sub',
+            },
+            error: null,
+          }
+        }
+        case 'registration-validate': {
+          const marketIds: string[] = Array.isArray(body.marketIds) ? body.marketIds : []
+          return {
+            data: {
+              ok: true,
+              issues: [],
+              previews: marketIds.map((m) => ({
+                marketId: m,
+                payload: { mock: true },
+                estimatedFee: 0,
+              })),
+            },
+            error: null,
+          }
+        }
+        case 'registration-start': {
+          const marketIds: string[] = Array.isArray(body.marketIds) ? body.marketIds : []
+          const jobId = crypto.randomUUID()
+          const productId =
+            typeof body.productId === 'string' ? body.productId : crypto.randomUUID()
+          const now = new Date().toISOString()
+          // mock 흐름: 즉시 succeeded 상태로 시뮬레이션 (step 5 결과 화면 검증용)
+          const marketResultRows = marketIds.map((m) => ({
+            id: crypto.randomUUID(),
+            job_id: jobId,
+            market_id: m,
+            market_account_id: crypto.randomUUID(),
+            market_status: 'success' as const,
+            external_product_id: `MOCK-${m}-${jobId.slice(0, 8)}`,
+            product_url: `https://mock.local/${m}/product/${jobId.slice(0, 8)}`,
+            error_code: null,
+            error_message: null,
+            attempt_count: 1,
+            excluded: false,
+            last_attempted_at: now,
+            created_at: now,
+          }))
+          // in-memory 적재 — step 5 의 from('registration_jobs').eq('id', jobId).single() 조회 성공
+          ;(TABLES.registration_jobs ??= []).push({
+            id: jobId,
+            seller_id: MOCK_SELLER_ID,
+            product_id: productId,
+            status: 'succeeded',
+            retry_count: 0,
+            error_summary: null,
+            parent_job_id: null,
+            created_at: now,
+            started_at: now,
+            completed_at: now,
+          })
+          ;(TABLES.registration_job_market_results ??= []).push(...marketResultRows)
+          return {
+            data: {
+              jobId,
+              status: 'pending' as const,
+              marketResults: marketIds.map((m, i) => ({
+                marketId: m,
+                marketAccountId: marketResultRows[i]?.market_account_id ?? crypto.randomUUID(),
+                status: 'pending' as const,
+              })),
+            },
+            error: null,
+          }
+        }
+        default:
+          return { data: { ok: true }, error: null }
+      }
     },
   }
 }
 
-// ─── Storage (no-op) ─────────────────────────────────────────────────────────
+// ─── Storage (in-memory blob URL 매핑) ───────────────────────────────────────
+
+const mockImageBlobs = new Map<string, string>()
+
+/** putImageToSignedUrl 의 mock fast-path 에서 호출 — imageId → blob URL 매핑 등록 */
+export function registerMockImageBlob(imageId: string, blobUrl: string): void {
+  mockImageBlobs.set(imageId, blobUrl)
+}
 
 function makeStorage() {
   return {
@@ -561,7 +663,9 @@ function makeStorage() {
           }
         },
         getPublicUrl(path: string) {
-          return { data: { publicUrl: `https://mock.local/public/${path}` } }
+          const imageId = path.split('/').pop() ?? ''
+          const blobUrl = mockImageBlobs.get(imageId)
+          return { data: { publicUrl: blobUrl ?? `https://mock.local/public/${path}` } }
         },
       }
     },

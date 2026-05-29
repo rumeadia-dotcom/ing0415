@@ -115,13 +115,13 @@ React + Vite + TS strict (`noUncheckedIndexedAccess`) / pnpm / React Router v6 +
 플래그 2개로 분리 (2026-05-22):
 
 - **`VITE_APP_MODE`** (`dev` | `real`) — DB / Edge Function 타겟 + Sentry 환경 라벨
-- **`VITE_USE_MOCK`** (`true` | `false`) — 마켓 어댑터 소스 (mock vs real)
+- **`VITE_USE_MOCK`** (`true` | `false`) — **마켓 어댑터 + Supabase 클라이언트 전체** 소스 (mock vs real). true 면 `getSupabase()` 가 mock supabase 반환 (Auth/DB/Storage/Functions/Realtime 전부 mock). dev-supabase 에는 붙지 않음.
 
 두 플래그 모두 **빌드 타임 분기**. 런타임 토글 아님.
 
 | 조합 | 명령 | 데이터 소스 | 마켓 API | 인증 |
 |---|---|---|---|---|
-| `dev` + `useMock=true` | `pnpm dev` | dev-supabase (eqo...) | mock 어댑터 | dev Supabase Auth |
+| `dev` + `useMock=true` | `pnpm dev` | **mock supabase** (in-memory, 자동 로그인) | mock 어댑터 | mock auto-login (MOCK_SELLER_ID) |
 | `dev` + `useMock=false` | `pnpm dev:db` | dev-supabase (eqo...) | 실 마켓 API | dev Supabase Auth |
 | `real` + `useMock=false` | `pnpm dev:real` / `build:real` | real-supabase (lfr...) | 실 마켓 API | real Supabase Auth |
 | `real` + `useMock=true` | (금지) | — | — | 부트스트랩 시 throw |

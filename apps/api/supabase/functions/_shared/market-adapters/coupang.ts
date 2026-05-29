@@ -50,6 +50,7 @@ import {
 import { buildCoupangSignature } from './coupang-hmac.ts'
 import {
   buildCoupangOrdersPath,
+  COUPANG_ORDERS_MAX_PAGES,
   CoupangOrderListResponseSchema,
   mapCoupangOrders,
 } from './coupang-orders.ts'
@@ -402,7 +403,11 @@ export function createCoupangAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
-    // fetchOrders — GET ordersheets?status=ACCEPT (v2 orders)
+    // fetchOrders — GET ordersheets?status=ACCEPT (v5 orders, nextToken 페이징)
+    //
+    // v5 ordersheets 는 페이지당 최대 50건. nextToken 이 비어있지 않으면 다음
+    // 페이지를 follow-up 호출하여 최대 COUPANG_ORDERS_MAX_PAGES 페이지까지 합산.
+    // 초과분은 다음 cron tick 으로 미룬다 (truncated_due_to_max_pages 로그).
     // ───────────────────────────────────────────
     async fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]> {
       const parsedInput = FetchOrdersInputSchema.safeParse(input)
@@ -415,47 +420,112 @@ export function createCoupangAdapter(): MarketAdapter {
       }
 
       const { accessKey, secretKey, vendorId } = getCredOrThrow()
+      // 페이징 follow-up 전체를 동일 correlationId 로 묶는다 (운영 추적성).
       const correlationId = generateCorrelationId()
+      const reqLogger = logger.with({ correlationId, market: MARKET })
 
-      // query string 을 path 에 포함 — Deno 측 buildCoupangSignature 가 query 까지 서명.
-      const path = buildCoupangOrdersPath(
-        vendorId,
-        parsedInput.data.since,
-        parsedInput.data.until,
+      const aggregated: MarketOrder[] = []
+      let nextToken: string | undefined
+      let prevNextToken: string | undefined
+      let page = 0
+
+      while (page < COUPANG_ORDERS_MAX_PAGES) {
+        page += 1
+
+        // query string 을 path 에 포함 — Deno 측 buildCoupangSignature 가 query 까지 서명.
+        const path = buildCoupangOrdersPath(
+          vendorId,
+          parsedInput.data.since,
+          parsedInput.data.until,
+          nextToken,
+        )
+
+        const response = await coupangFetch({
+          method: 'GET',
+          path,
+          accessKey,
+          secretKey,
+          correlationId,
+        })
+
+        const text = await response.text()
+        if (!response.ok) {
+          throw coupangHttpStatusToMarketError(
+            response.status,
+            text,
+            correlationId,
+          )
+        }
+
+        let json: unknown
+        try {
+          json = JSON.parse(text)
+        } catch {
+          throw new MarketError('server', '쿠팡 주문 응답 JSON 파싱 실패', {
+            market: MARKET,
+            status: response.status,
+          })
+        }
+
+        const parsed = CoupangOrderListResponseSchema.safeParse(json)
+        if (!parsed.success) {
+          throw new MarketError('server', '쿠팡 주문 응답 스키마 불일치', {
+            market: MARKET,
+            cause: parsed.error,
+          })
+        }
+
+        const items = parsed.data.data ?? []
+        const mapped = mapCoupangOrders(items)
+        aggregated.push(...mapped)
+
+        // PII 금지 — 페이지 번호 / 건수 / nextToken 존재 여부만 로그.
+        reqLogger.info(
+          {
+            page,
+            count: mapped.length,
+            hasNextToken:
+              typeof parsed.data.nextToken === 'string' &&
+              parsed.data.nextToken.length > 0,
+          },
+          '← ordersheets page',
+        )
+
+        const rawNext = parsed.data.nextToken
+        const trimmed =
+          typeof rawNext === 'string' && rawNext.length > 0 ? rawNext : undefined
+
+        // 마지막 페이지 — nextToken 빈 문자열 / undefined / null.
+        if (!trimmed) {
+          return aggregated
+        }
+
+        // 무한 루프 방지 — 동일 nextToken 이 2번 연속 나오면 throw.
+        if (prevNextToken !== undefined && trimmed === prevNextToken) {
+          throw new MarketError(
+            'server',
+            'coupang ordersheets: nextToken 중복 — 무한 루프 의심',
+            {
+              market: MARKET,
+              marketErrorCode: 'nextToken_loop',
+            },
+          )
+        }
+
+        prevNextToken = trimmed
+        nextToken = trimmed
+      }
+
+      // MAX_PAGES 도달 — 다음 cron tick 에서 좁은 since/until 로 재수집해야 함.
+      reqLogger.info(
+        {
+          maxPages: COUPANG_ORDERS_MAX_PAGES,
+          collected: aggregated.length,
+          truncated_due_to_max_pages: true,
+        },
+        '← ordersheets truncated',
       )
-
-      const response = await coupangFetch({
-        method: 'GET',
-        path,
-        accessKey,
-        secretKey,
-        correlationId,
-      })
-
-      const text = await response.text()
-      if (!response.ok) {
-        throw coupangHttpStatusToMarketError(response.status, text, correlationId)
-      }
-
-      let json: unknown
-      try {
-        json = JSON.parse(text)
-      } catch {
-        throw new MarketError('server', '쿠팡 주문 응답 JSON 파싱 실패', {
-          market: MARKET,
-          status: response.status,
-        })
-      }
-
-      const parsed = CoupangOrderListResponseSchema.safeParse(json)
-      if (!parsed.success) {
-        throw new MarketError('server', '쿠팡 주문 응답 스키마 불일치', {
-          market: MARKET,
-          cause: parsed.error,
-        })
-      }
-
-      return mapCoupangOrders(parsed.data.data ?? [])
+      return aggregated
     },
   }
 }

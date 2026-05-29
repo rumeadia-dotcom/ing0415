@@ -9,6 +9,8 @@ import { OrderStatusTimeline } from '../components/OrderStatusTimeline'
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { MarketBadge } from '../components/MarketBadge'
 import { OrderManualResolveDialog } from '../components/OrderManualResolveDialog'
+import { SafeNumberBadge } from '../components/SafeNumberBadge'
+import { isSafeNumberMarket } from '../lib/safe-number-market'
 import type { MarketDispatchStatus } from '@/lib/schemas/orders'
 
 /**
@@ -169,6 +171,9 @@ export function OrderDetailPage(): JSX.Element {
               <KV label={ko.orders.detail.labelBuyer}>
                 {order.buyerMaskedName}
                 {order.buyerMaskedPhone ? ` · ${order.buyerMaskedPhone}` : ''}
+                {order.buyerMaskedPhone && isSafeNumberMarket(order.marketId) ? (
+                  <SafeNumberBadge />
+                ) : null}
               </KV>
               <KV label={ko.orders.detail.labelAddress}>{order.shippingAddressMasked}</KV>
               <KV label={ko.orders.detail.labelWaybill}>

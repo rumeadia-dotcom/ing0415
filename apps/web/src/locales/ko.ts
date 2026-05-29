@@ -22,6 +22,7 @@ export const ko = {
     noOrdersToProcess: '대상 주문이 없습니다.',
     noOrdersToDispatch: '제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.',
     popupBlocked: '팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.',
+    popupHint: '출력 팝업을 열었습니다. 팝업이 보이지 않으면 브라우저 주소창의 팝업 허용 아이콘을 확인해주세요.',
   },
   nav: {
     main: '메인',
@@ -426,6 +427,10 @@ export const ko = {
       dispatchHint: '운송장 발급 후 자동으로 마켓 송장 API에 제출됩니다.',
       errorLoad: '주문 상세를 불러오지 못했습니다',
       notFound: '주문을 찾을 수 없습니다',
+      safeNumberBadge: '안심번호',
+      safeNumberAriaLabel: '안심번호 안내',
+      safeNumberNote:
+        '쿠팡은 셀러 보호 정책에 따라 안심번호(050…)를 제공합니다. 통화 시 자동으로 수취인 연락처로 연결됩니다.',
     },
     timeline: {
       collected: '수집됨',
