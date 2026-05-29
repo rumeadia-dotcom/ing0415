@@ -1,11 +1,25 @@
 # MarketCast — WIP 핸드오프 (v0.15 운영 배포 완료 — 11번가 v1 정식 + 5마켓 주문 수집)
 
-**develop HEAD**: `722a164` — docs(coupang): Open API 99 article 마크다운 import + market-api-docs-import 스킬 (#244)
+**develop HEAD**: `b6898d4` — fix(coupang): 발주서 v5 마이그레이션 + 송장 path drift #2 #3 정정 (#246)
 **main HEAD**: `b1d0f96` — release: v0.15 — 11번가 v1 정식 활성 + 5마켓 주문 자동 수집 (#234)
-**테스트**: 984 passed / 31 todo (FE coupang-orders 단위 14 통과, parity 7 통과 — v5 + v4 fallback happy 추가)
+**테스트**: 995 passed / 31 todo (orders SafeNumberBadge·helper·DetailPage coupang/naver 분기 8건 추가)
 **최근 운영 배포**: v0.15 (2026-05-27) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
-**최근 develop 머지**: PR #244 (쿠팡 Open API 99 article import)
-**진행 중 (uncommitted main 외)**: `feature/fix-coupang-orders-paths` — 쿠팡 drift #2 (v4→v5 ordersheets) + #3 (송장 업로드 path) hotfix
+**최근 develop 머지**: PR #246 (쿠팡 v5 ordersheets + invoices path drift hotfix), #245 (카테고리 path drift hotfix)
+**진행 중**: `feature/coupang-safe-number-label` — 쿠팡 v5 안심번호 UI 라벨/툴팁 (OrderDetailPage 만, 데이터 변경 0)
+
+## 2026-05-29 세션 결과 (쿠팡 v5 안심번호 UI 안내)
+
+쿠팡 v5 API 정책 변경으로 셀러에게 수취인 실 전화번호 대신 050 가상번호(safeNumber)만 노출되는 상황을 OrderDetailPage 에 반영. 데이터/스키마/매핑 변경 없는 **순수 UI 안내** 트랙.
+
+| 영역 | 산출물 |
+|---|---|
+| helper | `apps/web/src/features/orders/lib/safe-number-market.ts` — `isSafeNumberMarket(market)` (현재 coupang only, 향후 마켓 확장 시 배열에 추가) |
+| 컴포넌트 | `apps/web/src/features/orders/components/SafeNumberBadge.tsx` — shadcn Tooltip + lucide Info + aria-label, 토큰 색상만 |
+| 통합 | `OrderDetailPage` buyer KV — `order.buyerMaskedPhone && isSafeNumberMarket(order.marketId)` 일 때 배지 노출 |
+| i18n | `ko.orders.detail.safeNumberBadge` / `safeNumberAriaLabel` / `safeNumberNote` 3개 추가 |
+| 테스트 | helper 3 / SafeNumberBadge 3 (label + hover content + focusable) / OrderDetailPage coupang·naver 분기 2 = 8건 신규 |
+
+**잔여 백로그**: 택배사(로젠/CJ/한진) 송장 자동 등록 시 050 가상번호가 거부될 가능성 — 별도 트랙(데이터 path) 으로 분리, 본 PR 범위 밖.
 
 ## 2026-05-28 세션 결과 (운영 사고 + Gateway IP 마이그레이션)
 
@@ -170,7 +184,11 @@ Seller ─┬─ Order ── order_group_id → OrderGroup (1박스=1송장, Ph
 | D-A~D-D | axe E2E / pgTAP RLS / 법적 페이지 / Sentry 마스킹 | — |
 | v0.4~v0.10 | 주문·배송 자동화 / WYSIWYG / Market Gateway / qa-matrix / order-grouping | 운영 배포 |
 | 2026-05-25 전반 | **release v0.11** 운영 안전망 3종 | #142~#151 |
-| **2026-05-25 후반** | **11번가 v1 scaffold (단계 1 A~G)** | **#152** |
+| 2026-05-25 후반 | 11번가 v1 scaffold (단계 1 A~G) | #152 |
+| 2026-05-27 | **release v0.15** — 11번가 v1 정식 + 5마켓 fetchOrders | #233~#235 |
+| 2026-05-28 | Gateway IP 마이그레이션 (`3.36.239.243` Static IP) + MCP 호스팅 도입 | #240~#241 |
+| 2026-05-28 #2 | 쿠팡 OpenAPI 99 article import + market-api-docs-import 스킬 | #244 |
+| **2026-05-29** | **쿠팡 v5 안심번호 UI 라벨 + 안내 툴팁** | **feature/coupang-safe-number-label** |
 
 ## 운영 현황
 
@@ -258,14 +276,14 @@ develop 누적: #152 (11번가 real 어댑터). 변경 양 작아 추가 누적 
 git pull origin develop && pnpm install && pnpm test -- --run
 ```
 
-**910 passed / 31 todo** 확인 후 진입.
+**995 passed / 31 todo** 확인 후 진입.
 
 ### 우선 순위
-1. **쿠팡 drift #1 hotfix** — 카테고리 조회 path (`categorization` prefix 제거 + `{id}` → `{code}`). `feature/fix-coupang-orders-paths` 머지 후 별도 PR.
+1. **쿠팡 v5 안심번호 — 택배사 호환 검증 트랙** — 로젠/CJ/한진 송장 자동 등록 시 050 가상번호가 거부될 가능성. 별도 PR 로 데이터 path 검증 (Sentry MCP 로 실패 빈도 추적).
 2. **`SubmitTrackingInputSchema` 확장** — `orderId` / `vendorItemId` 추가 (쿠팡 v4 `/orders/invoices` 필수 필드). 실호출 검증 전 필수.
 3. **11번가 발급 키 실호출 → apiCode / XML 엘리먼트 최종 검증** (어댑터는 본격 구현 완료).
 4. **dev DB 마이그 3개 + Edge Function 재배포** — 이월.
-5. **release/v0.16 검토** — develop 에 더 누적된 후 (사용자 결정). 쿠팡 drift hotfix 3종이 묶일 수 있음.
+5. **release/v0.16 검토** — develop 누적: #240~#246 + 안심번호 UI. 쿠팡 drift hotfix + UI 안내 묶음 release 가능 시점.
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
 - 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
