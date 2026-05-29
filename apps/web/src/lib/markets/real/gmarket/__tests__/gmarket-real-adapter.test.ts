@@ -91,39 +91,30 @@ const VALID_MAPPING: MarketMapping = {
   extra: {},
 }
 
-const CATEGORY_RESPONSE_LEAF = {
-  resultCode: '0000',
-  resultMessage: 'success',
-  data: {
-    categories: [
+// site-cats 대분류 응답 — 단일 leaf (추가 조회 없음). esm-api/product/4.md 형태.
+const CATEGORY_RESPONSE_LEAF = [
+  {
+    catCode: '200001234',
+    catName: '여성의류',
+    isLeaf: true,
+  },
+]
+
+// site-cats 대분류 응답 — 비-leaf 1개 + 인라인 subCats(leaf). 추가 조회 없이 트리 완성.
+const CATEGORY_RESPONSE_WITH_CHILDREN = [
+  {
+    catCode: '1',
+    catName: '패션',
+    isLeaf: false,
+    subCats: [
       {
-        categoryId: '200001234',
-        categoryName: '여성의류',
+        catCode: '200001234',
+        catName: '여성의류',
         isLeaf: true,
       },
     ],
   },
-}
-
-const CATEGORY_RESPONSE_WITH_CHILDREN = {
-  resultCode: '0000',
-  data: {
-    categories: [
-      {
-        categoryId: '1',
-        categoryName: '패션',
-        isLeaf: false,
-        children: [
-          {
-            categoryId: '200001234',
-            categoryName: '여성의류',
-            isLeaf: true,
-          },
-        ],
-      },
-    ],
-  },
-}
+]
 
 const CREATE_PRODUCT_RESPONSE = {
   resultCode: '0000',

@@ -74,6 +74,9 @@ export function bufToHex(buf: ArrayBuffer): string {
 export const GATEWAY_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
+  // ESM(G마켓·옥션) 상품/카테고리 API 호스트. sa2 = 현행 base(sa2.esmplus.com/item/v1).
+  // sa = JWT aud 클레임용 레거시 도메인 — 일부 레거시 경로 호환 위해 유지.
+  'sa2.esmplus.com',
   'sa.esmplus.com',
   'openapi.11st.co.kr',
 ])

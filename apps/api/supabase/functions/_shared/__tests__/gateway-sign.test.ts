@@ -98,6 +98,10 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com/products')).not.toThrow()
     expect(() => assertGatewayUrl('https://api-gateway.coupang.com/v2/x')).not.toThrow()
     expect(() => assertGatewayUrl('https://sa.esmplus.com/api/v1/x')).not.toThrow()
+    // PR-2: ESM site-cats/상품 API 호스트 (현행 base).
+    expect(() =>
+      assertGatewayUrl('https://sa2.esmplus.com/item/v1/categories/site-cats'),
+    ).not.toThrow()
     expect(() => assertGatewayUrl('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')).not.toThrow()
   })
 
@@ -115,8 +119,10 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com.evil.com/x')).toThrow(/host not in allow-list/)
   })
 
-  it('GATEWAY_ALLOWED_HOSTS 는 정확히 4종 (5마켓 — G+옥션 공유)', () => {
-    expect(GATEWAY_ALLOWED_HOSTS.size).toBe(4)
+  it('GATEWAY_ALLOWED_HOSTS 는 정확히 5종 (naver/coupang/11st + ESM sa2·sa)', () => {
+    // ESM 은 sa2(현행 base)·sa(레거시 호환) 2개 호스트 → 5마켓이지만 호스트는 5종.
+    expect(GATEWAY_ALLOWED_HOSTS.size).toBe(5)
+    expect(GATEWAY_ALLOWED_HOSTS.has('sa2.esmplus.com')).toBe(true)
   })
 })
 

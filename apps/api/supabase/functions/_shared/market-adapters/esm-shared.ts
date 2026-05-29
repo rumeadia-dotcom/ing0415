@@ -13,10 +13,11 @@
  *
  * API 기반:
  *   - ESM_API_BASE = https://sa2.esmplus.com/item/v1 (공식 문서 esm-api/README.md)
- *   - 카테고리: GET /category (site 쿼리)
+ *   - 카테고리(PR-2): GET /categories/site-cats (대분류) + GET /categories/site-cats/{siteCatCode} (하위) 재귀.
+ *     site 선택은 쿼리가 아닌 JWT ssi 클레임(buildEsmJwt({ site }))으로 결정 (esm-api/product/4.md).
+ *     isLeaf=true 인 최하위만 상품등록 가능.
  *   - 상품 생성: POST /products
- *   ※ 호출 경로(/category, /products)·페이로드 빌드는 PR-2/4 에서 문서 기준 재작성 예정.
- *     PR-0 은 base URL 상수만 정정한다.
+ *   ※ 상품 생성 경로(/products)·페이로드 빌드는 PR-4 에서 문서 기준 재작성 예정.
  *
  * 에러 매핑:
  *   - 401 / 403 → 'unauthorized'
@@ -31,14 +32,17 @@ import { MarketError } from '../errors.ts'
 import { createLogger } from '../logger.ts'
 import { generateCorrelationId } from '../correlation.ts'
 import { gatewayFetch } from '../gatewayFetch.ts'
-import type {
-  AuthInput,
-  CreateProductResult,
-  MarketId,
-  MarketMapping,
-  MarketPayload,
-  Product,
-  StoredCredential,
+import {
+  EsmSiteCatSchema,
+  type AuthInput,
+  type CreateProductResult,
+  type EsmSiteCat,
+  type EsmSiteType,
+  type MarketId,
+  type MarketMapping,
+  type MarketPayload,
+  type Product,
+  type StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
 import {
@@ -57,36 +61,29 @@ export const ESM_API_BASE = 'https://sa2.esmplus.com/item/v1'
 const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
 const PRODUCT_NAME_MAX_LENGTH = 80
+/** site-cats 재귀 안전 상한 (Web 미러와 동일). */
+export const ESM_CATEGORY_MAX_DEPTH = 5
 
 // ─────────────────────────────────────────────
-// 응답 zod 스키마
+// site-cats 카테고리 API 응답 raw 스키마
+//   esm-api/product/4.md — { catCode, catName, isLeaf, subCats?[] }
 // ─────────────────────────────────────────────
 
-interface EsmCategoryRaw {
-  categoryId: number | string
-  categoryName: string
+interface EsmSiteCatRaw {
+  catCode: string
+  catName: string
   isLeaf: boolean
-  children?: unknown[]
+  subCats?: EsmSiteCatRaw[]
 }
 
-const EsmCategoryNodeRawSchema: z.ZodType<EsmCategoryRaw> = z.lazy(() =>
+const EsmSiteCatRawSchema: z.ZodType<EsmSiteCatRaw> = z.lazy(() =>
   z.object({
-    categoryId: z.union([z.number(), z.string()]),
-    categoryName: z.string(),
+    catCode: z.string().min(1),
+    catName: z.string().min(1),
     isLeaf: z.boolean(),
-    children: z.array(z.unknown()).optional(),
+    subCats: z.array(EsmSiteCatRawSchema).optional(),
   }),
 )
-
-const EsmCategoryResponseSchema = z.object({
-  resultCode: z.string(),
-  resultMessage: z.string().optional(),
-  data: z
-    .object({
-      categories: z.array(EsmCategoryNodeRawSchema).optional().default([]),
-    })
-    .optional(),
-})
 
 const EsmCreateProductResponseSchema = z.object({
   resultCode: z.string(),
@@ -257,26 +254,42 @@ async function esmFetch(opts: {
   }
 }
 
-function normalizeCategoryNode(
-  raw: EsmCategoryRaw,
+/**
+ * site-cats 응답 본문에서 카테고리 배열 추출.
+ * 대분류=배열 / 하위 조회=단일 객체(subCats) / wrapper 모두 허용.
+ */
+function extractSiteCatList(raw: unknown): EsmSiteCatRaw[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((r) => EsmSiteCatRawSchema.safeParse(r))
+      .filter((p): p is { success: true; data: EsmSiteCatRaw } => p.success)
+      .map((p) => p.data)
+  }
+  const single = EsmSiteCatRawSchema.safeParse(raw)
+  if (single.success) return [single.data]
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    for (const key of ['subCats', 'categories', 'data']) {
+      if (key in obj) return extractSiteCatList(obj[key])
+    }
+  }
+  return []
+}
+
+/** EsmSiteCat → 공통 CategoryNode. depth 1-base, parentId 연결. */
+function siteCatToCategoryNode(
+  cat: EsmSiteCat,
   depth: number,
   parentId: string | null,
 ): CategoryNode {
-  const id = String(raw.categoryId)
-  const isLeaf = raw.isLeaf || depth >= 3
-  const children: CategoryNode[] = []
-  if (!isLeaf && Array.isArray(raw.children)) {
-    for (const child of raw.children) {
-      const parsed = EsmCategoryNodeRawSchema.safeParse(child)
-      if (!parsed.success) continue
-      children.push(normalizeCategoryNode(parsed.data, depth + 1, id))
-    }
-  }
+  const children = (cat.children ?? []).map((c) =>
+    siteCatToCategoryNode(c, depth + 1, cat.siteCatCode),
+  )
   return {
-    id,
-    name: raw.categoryName,
+    id: cat.siteCatCode,
+    name: cat.siteCatName,
     depth,
-    leaf: isLeaf,
+    leaf: cat.isLeaf,
     parentId,
     children,
   }
@@ -366,37 +379,63 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       cred = { masterId: p.masterId, secretKey: p.secretKey, sellerId: p.sellerId, site }
     },
 
+    // ───────────────────────────────────────────
+    // fetchCategoryTree — site-cats 재귀 (esm-api/product/4.md)
+    //   대분류 GET /categories/site-cats → 비-leaf 는 /{siteCatCode} 로 하위 재귀.
+    //   site 선택은 JWT ssi 클레임(buildEsmJwt({ site }))으로 결정. isLeaf 만 등록 가능.
+    // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
       const c = getCredOrThrow()
-      const correlationId = generateCorrelationId()
-      const response = await esmFetch({
-        market,
-        method: 'GET',
-        path: '/category',
-        query: { site },
-        cred: c,
-        correlationId,
-        timeoutMs: CATEGORY_TIMEOUT_MS,
-        logger,
-      })
-      if (!response.ok) {
-        const text = await response.text().catch(() => '')
-        throw httpStatusToMarketError(market, response.status, text, correlationId)
-      }
-      const raw = await response.json()
-      const parsed = EsmCategoryResponseSchema.safeParse(raw)
-      if (!parsed.success) {
-        throw new MarketError('server', 'ESM 카테고리 응답 파싱 실패', {
+      const siteType: EsmSiteType = site === 'G' ? 2 : 1
+
+      const fetchSiteCats = async (
+        path: string,
+        correlationId: string,
+      ): Promise<EsmSiteCatRaw[]> => {
+        const response = await esmFetch({
           market,
-          cause: parsed.error,
+          method: 'GET',
+          path,
+          cred: c,
+          correlationId,
+          timeoutMs: CATEGORY_TIMEOUT_MS,
+          logger,
+        })
+        if (!response.ok) {
+          const text = await response.text().catch(() => '')
+          throw httpStatusToMarketError(market, response.status, text, correlationId)
+        }
+        const raw = await response.json()
+        return extractSiteCatList(raw)
+      }
+
+      const expand = async (
+        raw: EsmSiteCatRaw,
+        depth: number,
+      ): Promise<EsmSiteCat> => {
+        let children = raw.subCats
+        if (!raw.isLeaf && (!children || children.length === 0) && depth < ESM_CATEGORY_MAX_DEPTH) {
+          children = await fetchSiteCats(
+            `/categories/site-cats/${encodeURIComponent(raw.catCode)}`,
+            generateCorrelationId(),
+          )
+        }
+        const expandedChildren =
+          !raw.isLeaf && children && depth < ESM_CATEGORY_MAX_DEPTH
+            ? await Promise.all(children.map((ch) => expand(ch, depth + 1)))
+            : []
+        return EsmSiteCatSchema.parse({
+          siteCatCode: raw.catCode,
+          siteCatName: raw.catName,
+          isLeaf: raw.isLeaf,
+          siteType,
+          children: expandedChildren,
         })
       }
-      const rootCategories = parsed.data.data?.categories ?? []
-      const tree: CategoryNode[] = []
-      for (const root of rootCategories) {
-        tree.push(normalizeCategoryNode(root, 1, null))
-      }
-      return tree
+
+      const roots = await fetchSiteCats('/categories/site-cats', generateCorrelationId())
+      const expandedRoots = await Promise.all(roots.map((r) => expand(r, 1)))
+      return expandedRoots.map((cat) => siteCatToCategoryNode(cat, 1, null))
     },
 
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
