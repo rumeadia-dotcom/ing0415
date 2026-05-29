@@ -12,11 +12,11 @@
  *   - 옥션용 상품 URL fallback 패턴
  *
  * 테스트 카테고리:
- *   E1.  authenticate(esm_jwt, site=A) → valid + payload.site='A'
+ *   E1.  authenticate(esm_jwt, site=A) → valid
  *   E2.  authenticate(site 불일치 G→A) → 'validation'
  *   E3.  transformProduct site='A' 임베드
  *   E4.  옥션 itemNo → DetailView.aspx URL fallback
- *   E5.  JWT payload.site = 'A' (옥션 분기 확인)
+ *   E5.  JWT payload.ssi = 'A:<sellerId>' (옥션 분기 확인)
  *   E6.  market 식별자 = 'auction'
  */
 
@@ -102,13 +102,21 @@ async function buildJwt(opts: {
   masterId: string
   secretKey: string
   site: 'G' | 'A'
+  sellerId?: string
   iat: number
 }): Promise<string> {
-  const { masterId, secretKey, site, iat } = opts
+  const { masterId, secretKey, site, sellerId = SELLER_ID, iat } = opts
   const exp = iat + 300
   const headerB64 = strToBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT', kid: masterId }))
   const payloadB64 = strToBase64Url(
-    JSON.stringify({ iss: 'esm', sub: 'sell', aud: 'sa.esmplus.com', iat, exp, site }),
+    JSON.stringify({
+      iss: 'www.esmplus.com',
+      sub: 'sell',
+      aud: 'sa.esmplus.com',
+      iat,
+      exp,
+      ssi: `${site}:${sellerId}`,
+    }),
   )
   const signingInput = `${headerB64}.${payloadB64}`
   const enc = new TextEncoder()
@@ -188,19 +196,20 @@ describe('E4: 옥션 상품 URL fallback', () => {
   })
 })
 
-describe('E5: JWT payload.site = "A" (옥션 분기)', () => {
-  it('JWT 디코드 → payload.site = "A"', async () => {
+describe('E5: JWT payload.ssi = "A:<sellerId>" (옥션 분기)', () => {
+  it('JWT 디코드 → payload.ssi = "A:<sellerId>"', async () => {
     const token = await buildJwt({
       masterId: MASTER_ID,
       secretKey: SECRET_KEY,
       site: 'A',
+      sellerId: SELLER_ID,
       iat: 1747734645,
     })
     const parts = token.split('.')
     const payloadB64 = parts[1]
     if (payloadB64 === undefined) throw new Error('JWT payload segment missing')
-    const payload = JSON.parse(base64UrlDecode(payloadB64)) as { site: string; aud: string }
-    expect(payload.site).toBe('A')
+    const payload = JSON.parse(base64UrlDecode(payloadB64)) as { ssi: string; aud: string }
+    expect(payload.ssi).toBe(`A:${SELLER_ID}`)
     expect(payload.aud).toBe('sa.esmplus.com')
   })
 })

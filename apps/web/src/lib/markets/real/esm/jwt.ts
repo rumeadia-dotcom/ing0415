@@ -5,16 +5,16 @@
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (ESM JWT)
  *   - WIP-5markets-mvp.md C-3 Phase 0
  *
- * JWT 스펙 (ESM Selling API):
- *   header  = { alg: 'HS256', typ: 'JWT', kid: '{MasterID}' }
+ * JWT 스펙 (ESM Selling API — esm-api/README.md 인증 섹션):
+ *   header  = { alg: 'HS256', typ: 'JWT', kid: '{ESM+ Master ID}' }
  *   payload = {
- *     iss:  'esm',
- *     sub:  'sell',
- *     aud:  'sa.esmplus.com',
+ *     iss:  '{token issuer}',       // 토큰 발행자 (클라이언트 도메인). 기본 'www.esmplus.com'
+ *     sub:  'sell',                 // Sell API 고정
+ *     aud:  'sa.esmplus.com',       // 고정
  *     iat:  <epoch seconds>,
  *     exp:  <iat + 300>,            // 5분 짧은 수명 — 매 요청마다 새로 발급
- *     site: 'G' | 'A',              // G마켓 / 옥션 분기
- *   }
+ *     ssi:  '{siteId}:{sellerId}',  // 옥션 'A:<sellerId>' / 지마켓 'G:<sellerId>'
+ *   }                               //   사이트별 분리이므로 단일 사이트만 (콤마 결합 안 함)
  *   signature = HMAC-SHA256(secretKey, base64url(header) + '.' + base64url(payload))
  *
  * 구현 원칙:
@@ -34,8 +34,14 @@ export interface EsmJwtInput {
   masterId: string
   /** ESM+ Secret Key (HMAC-SHA256 서명 키) */
   secretKey: string
-  /** 마켓 분기 — 'G' = G마켓, 'A' = 옥션 */
+  /** 마켓 분기 — 'G' = G마켓, 'A' = 옥션 (payload.ssi 의 siteId) */
   site: 'G' | 'A'
+  /** 사이트 판매자 ID (payload.ssi 의 sellerId — 우리 schema 의 sellerId 필드) */
+  sellerId: string
+  /**
+   * 토큰 발행자 (payload.iss). 클라이언트 도메인. 생략 시 'www.esmplus.com'.
+   */
+  iss?: string
   /**
    * 발급 기준 시각 (epoch seconds). 생략 시 `Math.floor(Date.now()/1000)`.
    * 단위 테스트에서 결정성 보장을 위해 고정값 주입 가능.
@@ -60,6 +66,7 @@ export interface EsmJwtResult {
 // ─────────────────────────────────────────────
 
 const DEFAULT_TTL_SEC = 300
+const DEFAULT_ISS = 'www.esmplus.com'
 
 // ─────────────────────────────────────────────
 // base64url 인코딩
@@ -102,6 +109,8 @@ export async function buildEsmJwt(input: EsmJwtInput): Promise<EsmJwtResult> {
     masterId,
     secretKey,
     site,
+    sellerId,
+    iss = DEFAULT_ISS,
     iat = Math.floor(Date.now() / 1000),
     ttlSec = DEFAULT_TTL_SEC,
   } = input
@@ -114,14 +123,14 @@ export async function buildEsmJwt(input: EsmJwtInput): Promise<EsmJwtResult> {
     typ: 'JWT',
     kid: masterId,
   }
-  // payload
+  // payload — ssi 는 사이트별 분리이므로 단일 사이트만 ('{site}:{sellerId}').
   const payload = {
-    iss: 'esm',
+    iss,
     sub: 'sell',
     aud: 'sa.esmplus.com',
     iat,
     exp,
-    site,
+    ssi: `${site}:${sellerId}`,
   }
 
   // JSON.stringify 는 키 순서가 객체 리터럴 정의 순서와 일치 (ES2015+).

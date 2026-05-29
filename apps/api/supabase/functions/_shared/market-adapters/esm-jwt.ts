@@ -8,10 +8,11 @@
  *   - docs/architecture/v1/cross-cutting/market-adapter.md §9 (ESM JWT)
  *   - WIP-5markets-mvp.md C-3 Phase 0
  *
- * JWT 스펙:
- *   header  = { alg: 'HS256', typ: 'JWT', kid: '{MasterID}' }
- *   payload = { iss: 'esm', sub: 'sell', aud: 'sa.esmplus.com',
- *               iat, exp: iat+300, site: 'G'|'A' }
+ * JWT 스펙 (esm-api/README.md 인증 섹션):
+ *   header  = { alg: 'HS256', typ: 'JWT', kid: '{ESM+ Master ID}' }
+ *   payload = { iss: '{token issuer}' (기본 'www.esmplus.com'), sub: 'sell',
+ *               aud: 'sa.esmplus.com', iat, exp: iat+300,
+ *               ssi: '{site}:{sellerId}' (옥션 'A:..' / 지마켓 'G:..', 단일 사이트) }
  *   signature = HMAC-SHA256(secretKey, base64url(header) + '.' + base64url(payload))
  *
  * Deno 환경: Web Crypto API (`crypto.subtle`) 기본 제공 — Node.js crypto 사용 불가.
@@ -21,7 +22,12 @@
 export interface EsmJwtInput {
   masterId: string
   secretKey: string
+  /** 마켓 분기 — 'G' = G마켓, 'A' = 옥션 (payload.ssi 의 siteId) */
   site: 'G' | 'A'
+  /** 사이트 판매자 ID (payload.ssi 의 sellerId) */
+  sellerId: string
+  /** 토큰 발행자 (payload.iss). 생략 시 'www.esmplus.com'. */
+  iss?: string
   iat?: number
   ttlSec?: number
 }
@@ -32,6 +38,7 @@ export interface EsmJwtResult {
 }
 
 const DEFAULT_TTL_SEC = 300
+const DEFAULT_ISS = 'www.esmplus.com'
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = ''
@@ -55,6 +62,8 @@ export async function buildEsmJwt(input: EsmJwtInput): Promise<EsmJwtResult> {
     masterId,
     secretKey,
     site,
+    sellerId,
+    iss = DEFAULT_ISS,
     iat = Math.floor(Date.now() / 1000),
     ttlSec = DEFAULT_TTL_SEC,
   } = input
@@ -66,13 +75,14 @@ export async function buildEsmJwt(input: EsmJwtInput): Promise<EsmJwtResult> {
     typ: 'JWT',
     kid: masterId,
   }
+  // payload — ssi 는 사이트별 분리이므로 단일 사이트만 ('{site}:{sellerId}').
   const payload = {
-    iss: 'esm',
+    iss,
     sub: 'sell',
     aud: 'sa.esmplus.com',
     iat,
     exp,
-    site,
+    ssi: `${site}:${sellerId}`,
   }
 
   const headerB64 = stringToBase64Url(JSON.stringify(header))

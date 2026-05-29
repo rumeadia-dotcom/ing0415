@@ -48,6 +48,8 @@ async function buildEsmJwt(opts: {
   masterId: string
   secretKey: string
   site: 'G' | 'A'
+  sellerId: string
+  iss?: string
   iat?: number
   ttlSec?: number
 }): Promise<{ token: string; exp: number }> {
@@ -55,6 +57,8 @@ async function buildEsmJwt(opts: {
     masterId,
     secretKey,
     site,
+    sellerId,
+    iss = 'www.esmplus.com',
     iat = Math.floor(Date.now() / 1000),
     ttlSec = 300,
   } = opts
@@ -62,12 +66,12 @@ async function buildEsmJwt(opts: {
 
   const header = { alg: 'HS256', typ: 'JWT', kid: masterId }
   const payload = {
-    iss: 'esm',
+    iss,
     sub: 'sell',
     aud: 'sa.esmplus.com',
     iat,
     exp,
-    site,
+    ssi: `${site}:${sellerId}`,
   }
 
   const headerB64 = stringToBase64Url(JSON.stringify(header))
@@ -110,6 +114,7 @@ function segmentAt(token: string, idx: 0 | 1 | 2): string {
 
 const FIXED_MASTER_ID = 'master-id-edge'
 const FIXED_SECRET_KEY = 'secret-key-edge'
+const FIXED_SELLER_ID = 'seller-id-edge'
 const FIXED_IAT = 1747734645
 
 // ─────────────────────────────────────────────
@@ -122,6 +127,7 @@ describe('E1: base64url 인코딩 형식', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     expect(token).not.toMatch(/[+/=]/)
@@ -135,6 +141,7 @@ describe('E2: JWT 3-segment 구조', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const parts = token.split('.')
@@ -148,6 +155,7 @@ describe('E3: header 디코드', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'A',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const header = decodeJsonSegment(segmentAt(token, 0)) as Record<string, unknown>
@@ -158,20 +166,23 @@ describe('E3: header 디코드', () => {
 })
 
 describe('E4: payload 디코드', () => {
-  it('iss/sub/aud 고정 + iat/exp/site 변동', async () => {
+  it('iss(기본)/sub/aud 고정 + iat/exp + ssi=site:sellerId', async () => {
     const { token } = await buildEsmJwt({
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const payload = decodeJsonSegment(segmentAt(token, 1)) as Record<string, unknown>
-    expect(payload.iss).toBe('esm')
+    expect(payload.iss).toBe('www.esmplus.com')
     expect(payload.sub).toBe('sell')
     expect(payload.aud).toBe('sa.esmplus.com')
     expect(payload.iat).toBe(FIXED_IAT)
     expect(payload.exp).toBe(FIXED_IAT + 300)
-    expect(payload.site).toBe('G')
+    expect(payload.ssi).toBe(`G:${FIXED_SELLER_ID}`)
+    // 사이트별 분리 — site 단일 키는 더 이상 존재하지 않음
+    expect(payload.site).toBeUndefined()
   })
 })
 
@@ -181,6 +192,7 @@ describe('E5: 결정성', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G' as const,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const r1 = await buildEsmJwt(input)
@@ -191,10 +203,11 @@ describe('E5: 결정성', () => {
 })
 
 describe('E6: site G ↔ A 변경 시 토큰 변경', () => {
-  it('site 만 다르면 payload + signature 변경, header 동일', async () => {
+  it('site 만 다르면 payload.ssi + signature 변경, header 동일', async () => {
     const baseInput = {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const gMarket = await buildEsmJwt({ ...baseInput, site: 'G' })
@@ -202,8 +215,13 @@ describe('E6: site G ↔ A 변경 시 토큰 변경', () => {
     const [hG, pG] = gMarket.token.split('.')
     const [hA, pA] = auction.token.split('.')
     expect(hG).toBe(hA) // header 동일 (kid 같음)
-    expect(pG).not.toBe(pA) // payload 다름 (site)
+    expect(pG).not.toBe(pA) // payload 다름 (ssi)
     expect(gMarket.token).not.toBe(auction.token)
+
+    const gPayload = decodeJsonSegment(segmentAt(gMarket.token, 1)) as { ssi: string }
+    const aPayload = decodeJsonSegment(segmentAt(auction.token, 1)) as { ssi: string }
+    expect(gPayload.ssi).toBe(`G:${FIXED_SELLER_ID}`)
+    expect(aPayload.ssi).toBe(`A:${FIXED_SELLER_ID}`)
   })
 })
 
@@ -213,6 +231,7 @@ describe('E7: exp 기본 ttl 300', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     expect(exp).toBe(FIXED_IAT + 300)
@@ -225,6 +244,7 @@ describe('E8: ttlSec 커스텀', () => {
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
       ttlSec: 60,
     })
@@ -237,6 +257,7 @@ describe('E9: secretKey 변경 시 signature 만 다름', () => {
     const baseInput = {
       masterId: FIXED_MASTER_ID,
       site: 'G' as const,
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     }
     const r1 = await buildEsmJwt({ ...baseInput, secretKey: 'sk-1' })
@@ -255,6 +276,7 @@ describe('E10: signature 길이 — HMAC-SHA256 (32B → base64url 43자)', () =
       masterId: FIXED_MASTER_ID,
       secretKey: FIXED_SECRET_KEY,
       site: 'G',
+      sellerId: FIXED_SELLER_ID,
       iat: FIXED_IAT,
     })
     const parts = token.split('.')
