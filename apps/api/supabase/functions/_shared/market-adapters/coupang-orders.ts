@@ -139,19 +139,39 @@ export function normalizeCoupangStatus(raw: string): MarketOrderStatus {
 // ─────────────────────────────────────────────
 
 /**
+ * fetchOrders 페이징 follow-up 호출의 최대 페이지 수.
+ *
+ * v5 ordersheets 는 페이지당 최대 50건 (maxPerPage default 50). 10분 cron tick
+ * 1회당 5 페이지 (= 250건) 까지만 수집하고, 초과분은 다음 tick 으로 미룬다.
+ * - Lightsail Gateway timeout (15s) 와 Edge Function timeout 내 안전 마진 확보
+ * - rate limit 1 페이지당 1회 호출 → 동일 vendor 의 동시 폴링 시 폭주 방지
+ * - 셀러가 일시에 1000+ 건이 쌓이는 케이스는 next cron tick (10분 후) 으로 분산
+ *
+ * MAX 도달 시 호출자는 응답에 `truncated_due_to_max_pages: true` 마커를 로그하고
+ * 다음 tick 에 더 좁은 since/until 윈도우로 재시도하면 된다.
+ */
+export const COUPANG_ORDERS_MAX_PAGES = 5
+
+/**
  * ordersheets 조회 path 를 query string 포함하여 반환한다.
  *
  * Deno 측 buildCoupangSignature 는 path 를 '?' 로 분리해 query 까지 서명하므로,
  * query string 을 path 인자에 포함해 전달해야 한다 (프론트엔드와 서명 정책이 다름).
+ *
+ * @param nextToken — 다음 페이지 조회 token. 첫 호출에서는 undefined. 빈 문자열은
+ *                    "마지막 페이지" 의미이므로 호출 전 종료 처리해야 한다 (이 함수는
+ *                    nextToken 값을 그대로 query 에 포함만 한다).
  */
 export function buildCoupangOrdersPath(
   vendorId: string,
   since?: string,
   until?: string,
+  nextToken?: string,
 ): string {
   const query: Record<string, string> = { status: 'ACCEPT' }
   if (since) query.createdAtFrom = since
   if (until) query.createdAtTo = until
+  if (nextToken) query.nextToken = nextToken
 
   const queryString = Object.entries(query)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)

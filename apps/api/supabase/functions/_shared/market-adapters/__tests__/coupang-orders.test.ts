@@ -20,6 +20,7 @@ import {
 import { MarketOrderSchema } from '../../market-orders.ts'
 import {
   buildCoupangOrdersPath,
+  COUPANG_ORDERS_MAX_PAGES,
   CoupangOrderListResponseSchema,
   mapCoupangOrders,
   normalizeCoupangStatus,
@@ -69,6 +70,27 @@ Deno.test('buildCoupangOrdersPath: since/until 없으면 status=ACCEPT 만', () 
     path,
     '/v2/providers/openapi/apis/api/v5/vendors/A00012345/ordersheets?status=ACCEPT',
   )
+})
+
+// ─────────────────────────────────────────────
+// buildCoupangOrdersPath — nextToken 페이징
+// ─────────────────────────────────────────────
+
+Deno.test('buildCoupangOrdersPath: nextToken 전달 시 query 에 포함', () => {
+  const path = buildCoupangOrdersPath('A00012345', undefined, undefined, 'tok-123')
+  assertEquals(path.includes('status=ACCEPT'), true)
+  assertEquals(path.includes('nextToken=tok-123'), true)
+})
+
+Deno.test('buildCoupangOrdersPath: nextToken=빈 문자열 → query 에 미포함', () => {
+  // 빈 문자열은 "마지막 페이지" 의미. 호출자가 종료 처리해야 하지만,
+  // path 빌더 자체도 빈 문자열을 무시한다 (방어적 처리).
+  const path = buildCoupangOrdersPath('A00012345', undefined, undefined, '')
+  assertEquals(path.includes('nextToken'), false)
+})
+
+Deno.test('COUPANG_ORDERS_MAX_PAGES: 5 페이지 cap 상수', () => {
+  assertEquals(COUPANG_ORDERS_MAX_PAGES, 5)
 })
 
 // ─────────────────────────────────────────────
