@@ -1,11 +1,10 @@
-# MarketCast — WIP 핸드오프 (v0.15 운영 배포 완료 — 11번가 v1 정식 + 5마켓 주문 수집)
+# MarketCast — WIP 핸드오프 (쿠팡 drift 3건 hotfix 완료 + v5 후속 정합 3 PR develop 누적)
 
-**develop HEAD**: `722a164` — docs(coupang): Open API 99 article 마크다운 import + market-api-docs-import 스킬 (#244)
-**main HEAD**: `b1d0f96` — release: v0.15 — 11번가 v1 정식 활성 + 5마켓 주문 자동 수집 (#234)
-**테스트**: 984 passed / 31 todo (FE coupang-orders 단위 14 통과, parity 7 통과 — v5 + v4 fallback happy 추가)
-**최근 운영 배포**: v0.15 (2026-05-27) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
-**최근 develop 머지**: PR #244 (쿠팡 Open API 99 article import)
-**진행 중 (uncommitted main 외)**: `feature/fix-coupang-orders-paths` — 쿠팡 drift #2 (v4→v5 ordersheets) + #3 (송장 업로드 path) hotfix
+**develop HEAD**: `2e5db22` — feat(orders): SubmitTrackingInput 확장 + 결제/주문 시각 컬럼 분리 (drift #3 잔여 해소) (#250)
+**main HEAD**: `262c778` — hotfix: v0.15.1 — deploy.yml setup-cli rate-limit 회피 (#237)
+**테스트**: 961 passed / 31 todo (sanitize-parity 1 파일 Deno `npm:` 스킴 환경 이슈로 fail — 신규 PR 영향 아님)
+**최근 운영 배포**: v0.15.1 (2026-05-27 hotfix) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
+**최근 develop 머지**: #248 안심번호 UI / #249 nextToken 페이징 / #250 SubmitTrackingInput 확장 + 결제·주문 시각 컬럼 분리
 
 ## 2026-05-28 세션 결과 (운영 사고 + Gateway IP 마이그레이션)
 
@@ -43,12 +42,11 @@
 
 | # | 우리 코드 | 공식 문서 | 상태 |
 |---|---|---|---|
-| 1 | `seller_api/.../categorization/display-categories/{id}` (`apps/web/src/lib/markets/real/coupang/index.ts:214`) | `seller_api/.../marketplace/meta/display-categories/{code}` (article "카테고리 조회") | 🔴 잔존 — `categorization` prefix 가 공식 article 에 없음. 실제 호출 시 404 가능 |
-| 2 | `openapi/apis/api/v4/vendors/{vendorId}/ordersheets` | `openapi/apis/api/v5/vendors/{vendorId}/ordersheets` | ✅ **해소** (feature/fix-coupang-orders-paths) — v5 path + nested orderer/receiver/Money 매핑 + v4 flat fallback |
-| 3 | `openapi/apis/api/v4/vendors/{vendorId}/orders/{externalOrderId}/ordersheets/shipments` | `openapi/apis/api/v4/vendors/{vendorId}/orders/invoices` | ✅ **해소** (동일 PR) — POST `/orders/invoices` + `orderSheetInvoiceApplyDtos[]` body + `responseList[].succeed/resultCode` 응답 parse |
+| 1 | `seller_api/.../categorization/display-categories/{id}` | `seller_api/.../marketplace/meta/display-categories/{code}` | ✅ **해소** (PR #245) — `categorization` 제거 + `{id}` → `{code}` |
+| 2 | `openapi/apis/api/v4/vendors/{vendorId}/ordersheets` | `openapi/apis/api/v5/vendors/{vendorId}/ordersheets` | ✅ **해소** (PR #246) — v5 path + nested orderer/receiver/Money 매핑 + v4 flat fallback |
+| 3 | `openapi/apis/api/v4/vendors/{vendorId}/orders/{externalOrderId}/ordersheets/shipments` | `openapi/apis/api/v4/vendors/{vendorId}/orders/invoices` | ✅ **해소** (PR #246) — POST `/orders/invoices` + `orderSheetInvoiceApplyDtos[]` body + `responseList[].succeed/resultCode` 응답 parse |
 
-**Drift #2/#3 한계 (PR body 명시)**:
-- `SubmitTrackingInputSchema` 에 `orderId` / `vendorItemId` 없음 → 임시 `0` 으로 전송 (마켓 거부 시 ok=false). schema 확장은 별도 PR 필요.
+**Drift #2/#3 잔여 한계**: ✅ **해소** (PR #250) — `SubmitTrackingInputSchema` 에 `orderId` / `vendorItemId` 추가 + 쿠팡 어댑터에서 input 값 그대로 전송. 임시 `0` 하드코드 제거.
 
 **미구현 endpoint (article 존재, 코드 없음 — 향후 백로그)**:
 - 출고지 생성/수정/조회 (셀러 onboarding 핵심)
@@ -61,10 +59,43 @@
 - 카테고리 추천
 
 **다음 액션**:
-- drift #1 — 카테고리 조회 path 정정 (`categorization` prefix 제거 + `{id}` → `{code}`). 운영 호출 로그 (Sentry MCP) 로 실제 실패 사례 확인 후 hotfix.
-- drift #2/#3 — `feature/fix-coupang-orders-paths` PR 머지 + 운영 배포 후 셀러 시드 실호출로 v5 응답 매핑 회귀 검증.
-- `SubmitTrackingInputSchema` 확장 (orderId / vendorItemId 추가) — v1 송장 업로드 실호출 전에 필수.
+- drift 1/2/3 운영 회귀 검증 — release/v0.16 묶음 머지 후 셀러 시드 실호출로 v5 응답 매핑 + 송장 업로드 정상 동작 확인.
 - 미구현 endpoint — v2 로드맵 정리 시 우선순위 결정.
+
+## 2026-05-29 세션 결과 (쿠팡 drift hotfix + v5 후속 정합 3 PR)
+
+drift 3건 전부 develop 머지 + v5 후속 정합 (페이징·schema·UI) 3 PR 추가 머지. 모두 운영 배포 (main) 전 단계 — 다음 release 묶음 후보.
+
+### drift hotfix (이전 세션 외 본 세션 머지)
+
+| PR | 내용 | merge SHA |
+|---|---|---|
+| #245 | drift #1 카테고리 path 정정 (`categorization` → `marketplace/meta`) | `5eb6822` |
+| #246 | drift #2 발주서 v4→v5 + drift #3 송장 path 정정 (hybrid schema) | `b6898d4` |
+
+### v5 후속 정합 3 PR (병렬 dispatch → 순차 머지)
+
+| PR | 내용 | merge SHA |
+|---|---|---|
+| #248 | 쿠팡 v5 안심번호 UI 안내 — `SafeNumberBadge` + i18n 3 key + `isSafeNumberMarket` helper (1차 `['coupang']`) | `0b33260` |
+| #249 | ordersheets v5 nextToken 페이징 follow-up (5 페이지 cap + 무한루프 가드 + `truncated_due_to_max_pages` 로깅) | `a237fa2` |
+| #250 | SubmitTrackingInput 확장 (`orderId`/`vendorItemId`) + DB 컬럼 분리 (`paid_at` / `ordered_at` / `vendor_item_id`) + orders-sync 매핑 정합 | `2e5db22` |
+
+### v5 매핑 영향 매트릭스 (도메인 모델)
+
+| 도메인 필드 | v5 source | v4 source | 영향 |
+|---|---|---|---|
+| `buyerName` / `receiverName` / `receiverAddress` | `orderer.*` / `receiver.*` nested | flat | hybrid fallback 처리 — 무영향 |
+| `receiverPhone` | `receiver.safeNumber > receiverNumber` | `receiverPhoneNumber` | 🟡 v5 부터 안심번호 우선 — UI 안내 (#248) 적용. 택배사 호환 별도 트랙 |
+| `orderAmount` | `orderPrice.units` (Money) | scalar number | `moneyToKrw()` union 처리 — 무영향 (KRW nanos 무시) |
+| `ordered_at` | `orderedAt` (주문시각) | (없음) | DB 신규 컬럼 (#250) |
+| `paid_at` | `paidAt` (결제완료) | `orderedAt` (의미상 주문시각) | DB 신규 컬럼 (#250) — v4 적재분은 별도 백필 필요 |
+
+### 잠재 한계 / 후속 백로그
+
+- **택배사 시스템 안심번호 호환** — 로젠 등 송장 인쇄·통화 연결 검증 미진행. 별도 트랙.
+- **paid_at / ordered_at 백필** — v0.15 이전 적재된 `collected_at` 만 채워진 row 들. 운영 데이터 분석 시점에 백필 정책 결정.
+- **WIP 갱신 정합** — 본 PR 1건으로 통합 (각 agent 가 별 commit 으로 갱신했던 분량 revert 후 sweep).
 
 ## 2026-05-27 세션 결과 (release v0.15 — 11번가 v1 정식 + 5마켓 주문 수집)
 
@@ -183,7 +214,7 @@ Seller ─┬─ Order ── order_group_id → OrderGroup (1박스=1송장, Ph
 
 ## ⚠ 즉시 필요한 운영 액션 (사용자 작업)
 
-### 1. dev DB 마이그 3개 적용 (이월)
+### 1. dev DB 마이그 적용 (이월 3개 + 신규 1개)
 ```bash
 pnpm supabase:link:dev
 pnpm db:push:dev
@@ -192,19 +223,26 @@ pnpm db:push:dev
 - `20260523000003_order_groups.sql`
 - `20260524000001_rpc_fn_prefix_fix.sql`
 - `20260524000002_registration_job_state_machine.sql`
+- **신규**: `20260529000001_orders_vendor_item_and_ordered_at.sql` (PR #250 — idempotent, nullable 컬럼 3개 추가만)
 
 ### 2. dev Edge Function 재배포 (이월)
 ```bash
 pnpm functions:deploy:dev
 ```
 
-### 3. 마이그 immutability 검증 (다음 release 전)
+### 3. real DB 마이그 적용 (release/v0.16 머지 전)
+```bash
+pnpm supabase:link:real
+pnpm db:push:real   # 신규 1건만 — 20260529000001
+```
+
+### 4. 마이그 immutability 검증 (다음 release 전)
 ```bash
 pnpm supabase:link:dev   # 또는 :real
 supabase db push --linked --dry-run
 ```
 
-### 4. 11번가 발급 키 실호출 최종 검증 (어댑터는 본격 구현 완료)
+### 5. 11번가 발급 키 실호출 최종 검증 (어댑터는 본격 구현 완료)
 - 11번가 셀러오피스 (seller.11st.co.kr) 또는 OPEN API 센터 (openapi.11st.co.kr) 로그인 → Seller API 발급 양식
 - IP 화이트리스트에 Lightsail 고정 IP `3.36.239.243` 등록 → 정식 API Key 발급
 - 발급 키로 1회 실호출 → 어댑터의 `apiCode` / 요청·응답 XML 엘리먼트명 최종 검증 (불일치 시 어댑터 미세 보정)
@@ -258,14 +296,14 @@ develop 누적: #152 (11번가 real 어댑터). 변경 양 작아 추가 누적 
 git pull origin develop && pnpm install && pnpm test -- --run
 ```
 
-**910 passed / 31 todo** 확인 후 진입.
+**961 passed / 31 todo** 확인 후 진입 (sanitize-parity 1 파일은 Deno `npm:` 스킴 환경 이슈 — 본 트랙 영향 아님).
 
 ### 우선 순위
-1. **쿠팡 drift #1 hotfix** — 카테고리 조회 path (`categorization` prefix 제거 + `{id}` → `{code}`). `feature/fix-coupang-orders-paths` 머지 후 별도 PR.
-2. **`SubmitTrackingInputSchema` 확장** — `orderId` / `vendorItemId` 추가 (쿠팡 v4 `/orders/invoices` 필수 필드). 실호출 검증 전 필수.
-3. **11번가 발급 키 실호출 → apiCode / XML 엘리먼트 최종 검증** (어댑터는 본격 구현 완료).
-4. **dev DB 마이그 3개 + Edge Function 재배포** — 이월.
-5. **release/v0.16 검토** — develop 에 더 누적된 후 (사용자 결정). 쿠팡 drift hotfix 3종이 묶일 수 있음.
+1. **release/v0.16 묶음 운영 배포** — develop 누적: drift hotfix 3건 (#245/#246) + v5 후속 정합 3 PR (#248/#249/#250). 모두 운영 영향 있어 묶어 main 배포 권장. 사전 액션: real DB 마이그 (#250 의 `20260529000001`) push.
+2. **dev DB 마이그 4건 적용 (이월 3 + 신규 1)** + Edge Function 재배포.
+3. **11번가 발급 키 실호출** → `apiCode` / XML 엘리먼트 최종 검증 (어댑터는 본격 구현 완료).
+4. **셀러 시드 실호출로 v5 응답 매핑 회귀 검증** — 운영 배포 후 1건 실호출로 v5 nested orderer/receiver + Money 매핑 + nextToken 페이징 + 안심번호 UI 정상 동작 확인.
+5. **택배사 안심번호 호환 검증 트랙 신설** — 로젠 송장 인쇄·통화 안내가 050 가상번호로 정상 처리되는지.
 
 ### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
 - 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
