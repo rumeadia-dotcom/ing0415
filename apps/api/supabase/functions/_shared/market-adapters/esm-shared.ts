@@ -44,14 +44,22 @@ import {
   type Product,
   type StoredCredential,
 } from '../schemas.ts'
-import type { MarketAdapter } from '../market-adapter.ts'
+import type { MarketAdapter, SubmitTrackingResult } from '../market-adapter.ts'
 import {
   FetchOrdersInputSchema,
   type FetchOrdersInput,
   type MarketOrder,
 } from '../market-orders.ts'
 import { buildEsmJwt } from './esm-jwt.ts'
-import { EsmOrderListResponseSchema, mapEsmOrders } from './esm-orders.ts'
+import {
+  EsmOrderListResponseSchema,
+  EsmShipResponseSchema,
+  ESM_SHIPPING_API_BASE,
+  buildEsmOrderListBody,
+  buildEsmShipInfoBody,
+  isEsmSuccessCode,
+  mapEsmOrders,
+} from './esm-orders.ts'
 
 // ─────────────────────────────────────────────
 // 상수
@@ -174,6 +182,8 @@ async function esmFetch(opts: {
   market: MarketId
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   path: string
+  /** base URL — 상품/카테고리는 ESM_API_BASE(/item/v1), 주문/배송은 ESM_SHIPPING_API_BASE(/shipping/v1). */
+  baseUrl?: string
   query?: Record<string, string>
   body?: unknown
   cred: EsmCred
@@ -186,6 +196,7 @@ async function esmFetch(opts: {
     market,
     method,
     path,
+    baseUrl = ESM_API_BASE,
     query,
     body,
     cred,
@@ -208,7 +219,7 @@ async function esmFetch(opts: {
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
         .join('&')
     : ''
-  const url = `${ESM_API_BASE}${path}${queryString}`
+  const url = `${baseUrl}${path}${queryString}`
 
   const reqLogger = logger.with({ correlationId, jobId, market })
   reqLogger.info(
@@ -528,7 +539,8 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
-    // fetchOrders — ESM getOrderList (site 분기, v2 orders)
+    // fetchOrders — ESM 주문조회 (POST /shipping/v1/Order/RequestOrders)
+    //   esm-api/order-shipping/67.md. site → siteType, 결제완료(1) 신규 주문.
     // ───────────────────────────────────────────
     async fetchOrders(input: FetchOrdersInput): Promise<MarketOrder[]> {
       const parsedInput = FetchOrdersInputSchema.safeParse(input)
@@ -543,18 +555,18 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       const c = getCredOrThrow()
       const correlationId = generateCorrelationId()
 
-      const query: Record<string, string> = {
+      const body = buildEsmOrderListBody({
         site,
-        sellerId: c.sellerId,
-      }
-      if (parsedInput.data.since) query.from = parsedInput.data.since
-      if (parsedInput.data.until) query.to = parsedInput.data.until
+        since: parsedInput.data.since,
+        until: parsedInput.data.until,
+      })
 
       const response = await esmFetch({
         market,
-        method: 'GET',
-        path: '/order',
-        query,
+        method: 'POST',
+        baseUrl: ESM_SHIPPING_API_BASE,
+        path: '/Order/RequestOrders',
+        body,
         cred: c,
         correlationId,
         logger,
@@ -583,7 +595,113 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
         })
       }
 
-      return mapEsmOrders(parsed.data.data?.orders ?? [], market)
+      // ResultCode != 0 → 마켓 검증 실패 (조회기간 초과 등, Error Code 3000).
+      if (
+        parsed.data.ResultCode !== undefined &&
+        parsed.data.ResultCode !== 0
+      ) {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}) 주문조회 거부: ${parsed.data.Message ?? '알 수 없는 오류'}`,
+          {
+            market,
+            marketErrorCode: String(parsed.data.ResultCode),
+            marketErrorMessage: parsed.data.Message ?? undefined,
+          },
+        )
+      }
+
+      return mapEsmOrders(parsed.data.Data?.RequestOrders ?? [], market)
+    },
+
+    // ───────────────────────────────────────────
+    // submitTracking — ESM 발송처리 (POST /shipping/v1/Delivery/ShippingInfo)
+    //   esm-api/order-shipping/70.md. carrierCode → DeliveryCompanyCode(int).
+    //   Edge 계약: positional 인자 + SubmitTrackingResult 반환 + 실패는 throw
+    //   (재시도/결과 적재는 process.ts 오케스트레이터). 마켓 거부도 MarketError throw.
+    // ───────────────────────────────────────────
+    async submitTracking(
+      externalOrderId: string,
+      waybillNumber: string,
+      carrierCode: string,
+    ): Promise<SubmitTrackingResult> {
+      const c = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+
+      let body
+      try {
+        body = buildEsmShipInfoBody({
+          externalOrderId,
+          waybillNumber,
+          carrierCode,
+        })
+      } catch (err) {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}) submitTracking: ${err instanceof Error ? err.message : '택배사 코드 오류'}`,
+          { market },
+        )
+      }
+
+      const response = await esmFetch({
+        market,
+        method: 'POST',
+        baseUrl: ESM_SHIPPING_API_BASE,
+        path: '/Delivery/ShippingInfo',
+        body,
+        cred: c,
+        correlationId,
+        logger,
+      })
+
+      const text = await response.text()
+      if (!response.ok) {
+        throw httpStatusToMarketError(market, response.status, text, correlationId)
+      }
+
+      let json: unknown = {}
+      try {
+        json = text.length > 0 ? JSON.parse(text) : {}
+      } catch {
+        throw new MarketError('server', 'ESM 발송 응답 JSON 파싱 실패', {
+          market,
+          status: response.status,
+        })
+      }
+
+      const parsed = EsmShipResponseSchema.safeParse(json)
+      if (!parsed.success) {
+        throw new MarketError('server', 'ESM 발송 응답 스키마 불일치', {
+          market,
+          cause: parsed.error,
+        })
+      }
+
+      // ResultCode 0 / "Success" → 성공. 그 외(3000 등) → 마켓 거부 throw.
+      if (!isEsmSuccessCode(parsed.data.ResultCode)) {
+        throw new MarketError(
+          'validation',
+          `ESM(${market}) 발송 처리 실패: ${parsed.data.Message ?? '알 수 없는 오류'}`,
+          {
+            market,
+            marketErrorCode:
+              parsed.data.ResultCode !== undefined
+                ? String(parsed.data.ResultCode)
+                : undefined,
+            marketErrorMessage: parsed.data.Message ?? undefined,
+          },
+        )
+      }
+
+      return {
+        market,
+        externalOrderId,
+        waybillNumber,
+        carrierCode,
+        ...(parsed.data.Data?.OrderNo !== undefined
+          ? { trackingReceiptId: String(parsed.data.Data.OrderNo) }
+          : {}),
+      }
     },
   }
 }

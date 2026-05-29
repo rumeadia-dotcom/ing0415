@@ -67,23 +67,28 @@ const VALID_TRACKING_INPUT = {
   carrierCode: 'LOGEN' as const,
 }
 
+// ESM 공식 주문조회 응답 (esm-api/order-shipping/67.md — PascalCase, RequestOrders).
 const ESM_HAPPY_RESPONSE = {
-  resultCode: '0000',
-  resultMessage: 'OK',
-  data: {
-    orders: [
+  ResultCode: 0,
+  Message: '',
+  Data: {
+    SiteType: 2,
+    TotalCount: 1,
+    SellerId: 'gmarket-seller',
+    RequestOrders: [
       {
-        orderNo: 'ESM-2026052100000001',
-        buyerName: '이서연',
-        receiverName: '이서연',
-        receiverZipCode: '06236',
-        receiverAddress: '서울특별시 강남구 강남대로 100, 5층',
-        receiverPhone: '010-7777-1111',
-        itemName: '테스트 ESM 상품',
-        orderQty: 1,
-        orderPrice: 18000,
-        orderStatus: 'PAID',
-        paidDate: '2026-05-21T01:00:00+00:00',
+        OrderNo: 'ESM-2026052100000001',
+        OrderStatus: 1,
+        BuyerName: '이서연',
+        ReceiverName: '이서연',
+        ZipCode: '06236',
+        DelFullAddress: '서울특별시 강남구 강남대로 100, 5층',
+        HpNo: '010-7777-1111',
+        GoodsName: '테스트 ESM 상품',
+        ContrAmount: 1,
+        OrderAmount: '18000.0000',
+        OrderDate: '2026-05-21T01:00:00',
+        PayDate: '2026-05-21T01:00:00',
       },
     ],
   },
@@ -137,12 +142,12 @@ describe('gmarketFetchOrders (site=G)', () => {
 })
 
 describe('gmarketSubmitTracking (site=G)', () => {
-  it('happy: resultCode=0000 응답 → ok=true', async () => {
+  it('happy: ResultCode=0 응답 → ok=true (esm-api/.../70.md)', async () => {
     globalThis.fetch = makeFetchMock([
       {
         ok: true,
         status: 200,
-        body: { resultCode: '0000', resultMessage: 'OK', data: { shipNo: 'S-1' } },
+        body: { ResultCode: 0, Message: 'Success', Data: { OrderNo: 2503423671 } },
       },
     ]) as unknown as typeof fetch
 
@@ -153,16 +158,16 @@ describe('gmarketSubmitTracking (site=G)', () => {
     expect(() => MarketSubmitTrackingResultSchema.parse(result)).not.toThrow()
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.dispatchId).toBe('S-1')
+      expect(result.dispatchId).toBe('2503423671')
     }
   })
 
-  it('200 + resultCode=ERR_DUP → ok=false + errorCode', async () => {
+  it('200 + ResultCode=3000 (정상 거부) → ok=false + errorCode', async () => {
     globalThis.fetch = makeFetchMock([
       {
         ok: true,
         status: 200,
-        body: { resultCode: 'ERR_DUP', resultMessage: '이미 발송' },
+        body: { ResultCode: 3000, Message: '해당 주문 내역이 없습니다.' },
       },
     ]) as unknown as typeof fetch
 
@@ -172,7 +177,7 @@ describe('gmarketSubmitTracking (site=G)', () => {
     )
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.errorCode).toBe('ERR_DUP')
+      expect(result.errorCode).toBe('3000')
     }
   })
 
