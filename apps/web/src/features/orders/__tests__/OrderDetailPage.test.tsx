@@ -127,4 +127,28 @@ describe('OrderDetailPage 4상태', () => {
     expect(trigger).toBeEnabled()
     expect(screen.getByText('주소 형식 오류')).toBeInTheDocument()
   })
+
+  it('data (coupang): 안심번호 배지가 buyer 표시 옆에 렌더된다', () => {
+    mockDetail.mockReturnValue({
+      data: makeDetail({ marketId: 'coupang' }),
+      isLoading: false,
+      isError: false,
+    })
+    renderPage()
+    expect(
+      screen.getByRole('button', { name: '안심번호 안내' }),
+    ).toBeInTheDocument()
+  })
+
+  it('data (naver): 안심번호 배지가 렌더되지 않는다', () => {
+    mockDetail.mockReturnValue({
+      data: makeDetail({ marketId: 'naver' }),
+      isLoading: false,
+      isError: false,
+    })
+    renderPage()
+    expect(
+      screen.queryByRole('button', { name: '안심번호 안내' }),
+    ).not.toBeInTheDocument()
+  })
 })
