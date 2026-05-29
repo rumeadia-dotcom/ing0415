@@ -9,7 +9,7 @@
  * Vitest 에서 직접 import 불가. 본 테스트는 동일 규칙을 인라인으로 검증한다:
  *   - JWT 발급 시 Bearer 헤더 형식
  *   - authenticate 자격증명 검증 규칙 (esm_jwt + site 일치 강제)
- *   - transformProduct 변환 규칙 (상품명 80자 / 이미지 MAIN+EXTRA / site 임베드)
+ *   - transformProduct 변환 규칙 (PR-4: 중첩 페이로드 / 상품명 100byte / basic+추가이미지 / siteType)
  *   - createProduct / fetchCategoryTree HTTP → MarketError 매핑
  *   - 카테고리 응답 파싱 규칙
  *
@@ -17,8 +17,8 @@
  *   E1.  authenticate(esm_jwt, site=G) → kind=esm_jwt, site='G'
  *   E2.  authenticate(잘못된 kind) → 'validation'
  *   E3.  authenticate(site 불일치 A→G) → 'validation'
- *   E4.  transformProduct 상품명 80자 truncate
- *   E5.  transformProduct site 'G' 임베드 + 이미지 MAIN/EXTRA 분기
+ *   E4.  transformProduct 상품명 100byte truncate (goodsName.kor)
+ *   E5.  transformProduct site 'G' → siteType 2 / basic+추가 이미지 / price.Gmkt
  *   E6.  HTTP 상태 → MarketError code 매핑 (401/400/429/500)
  *   E7.  카테고리 응답 파싱 — leaf node
  *   E8.  Bearer 헤더 형식 (JWT 발급 → "Bearer <token>")
@@ -30,7 +30,7 @@ import { describe, it, expect } from 'vitest'
 // 인라인 재구현 (Edge esm-shared.ts 와 동일)
 // ─────────────────────────────────────────────
 
-const PRODUCT_NAME_MAX_LENGTH = 80
+const GOODS_NAME_MAX_BYTES = 100
 type MarketErrorCode =
   | 'unauthorized'
   | 'rate_limit'
@@ -77,31 +77,51 @@ function validateEsmCredential(
   return { valid: true }
 }
 
+// PR-4: 중첩 EsmGoodsCreateRequest 빌드 규칙 (esm-shared.ts buildEsmGoodsPayload 동형).
+// 배송 프로필 번호·officialNotice 는 mapping.extra 로 주입된 값을 사용.
+function truncateToBytes(value: string, maxBytes: number): string {
+  const enc = new TextEncoder()
+  if (enc.encode(value).length <= maxBytes) return value
+  let r = value
+  while (enc.encode(r).length > maxBytes && r.length > 0) r = r.slice(0, -1)
+  return r
+}
 function transformProduct(
-  product: { name: string; priceKrw: number; stock: number; shippingFeeKrw?: number; brand?: string },
-  mapping: { categoryId: string; transformedImageUrls: string[]; extra?: Record<string, unknown> },
+  product: { name: string; priceKrw: number; stock: number },
+  mapping: {
+    categoryId: string
+    transformedImageUrls: string[]
+    extra: { placeNo: string; dispatchPolicyNo: string; officialNotice: unknown }
+  },
   site: 'G' | 'A',
-  sellerId: string,
 ) {
-  const truncatedName =
-    product.name.length > PRODUCT_NAME_MAX_LENGTH
-      ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
-      : product.name
+  const siteType = site === 'G' ? 2 : 1
+  const urls = mapping.transformedImageUrls
+  const images: Record<string, string> = { basicImgURL: urls[0] ?? '' }
+  urls.slice(1, 15).forEach((url, idx) => {
+    images[`addtionalImg${idx + 1}URL`] = url
+  })
   return {
-    site,
-    sellerId,
-    itemName: truncatedName,
-    sellPrice: product.priceKrw,
-    stockQty: product.stock,
-    images: mapping.transformedImageUrls.map((url, idx) => ({
-      order: idx,
-      imageUrl: url,
-      imageType: idx === 0 ? 'MAIN' : 'EXTRA',
-    })),
-    categoryCode: mapping.categoryId,
-    shippingFee: product.shippingFeeKrw ?? 0,
-    brand: product.brand ?? '',
-    ...(mapping.extra ?? {}),
+    itemBasicInfo: {
+      goodsName: { kor: truncateToBytes(product.name, GOODS_NAME_MAX_BYTES) },
+      category: { site: [{ siteType, catCode: mapping.categoryId }] },
+    },
+    itemAddtionalInfo: {
+      price: site === 'G' ? { Gmkt: product.priceKrw } : { Iac: product.priceKrw },
+      stock: site === 'G' ? { Gmkt: product.stock } : { Iac: product.stock },
+      sellingPeriod: site === 'G' ? { Gmkt: -1 } : { Iac: -1 },
+      shipping: {
+        type: 1,
+        policy: { placeNo: mapping.extra.placeNo },
+        dispatchPolicyNo:
+          site === 'G'
+            ? { gmkt: mapping.extra.dispatchPolicyNo }
+            : { iac: mapping.extra.dispatchPolicyNo },
+      },
+      images,
+      officialNotice: mapping.extra.officialNotice,
+      isVatFree: false,
+    },
   }
 }
 
@@ -214,27 +234,47 @@ describe('E3: authenticate(site 불일치 A→G) → validation', () => {
   })
 })
 
-describe('E4: transformProduct 상품명 80자 truncate', () => {
-  it('100자 상품명 → 80자', () => {
-    const product = { name: '가'.repeat(100), priceKrw: 1000, stock: 1 }
-    const mapping = { categoryId: 'cat-1', transformedImageUrls: ['https://cdn.example.com/x.jpg'] }
-    const result = transformProduct(product, mapping, 'G', SELLER_ID)
-    expect(result.itemName).toHaveLength(80)
+const SAMPLE_EXTRA = {
+  placeNo: 'PLACE-001',
+  dispatchPolicyNo: 'DISPATCH-001',
+  officialNotice: {
+    officialNoticeNo: 'NOTICE-01',
+    details: [{ code: 'material', value: '면 100%' }],
+  },
+}
+
+describe('E4: transformProduct 상품명 100byte truncate (goodsName.kor)', () => {
+  it('한글 40자(120byte) → ≤100byte (33자)', () => {
+    const product = { name: '가'.repeat(40), priceKrw: 1000, stock: 1 }
+    const mapping = {
+      categoryId: 'cat-1',
+      transformedImageUrls: ['https://cdn.example.com/x.jpg'],
+      extra: SAMPLE_EXTRA,
+    }
+    const result = transformProduct(product, mapping, 'G')
+    const bytes = new TextEncoder().encode(result.itemBasicInfo.goodsName.kor).length
+    expect(bytes).toBeLessThanOrEqual(100)
+    // 한글 1자 = 3byte → 100/3 = 33자.
+    expect(result.itemBasicInfo.goodsName.kor).toHaveLength(33)
   })
 })
 
-describe('E5: transformProduct site 임베드 + 이미지 MAIN/EXTRA', () => {
-  it('site=G 임베드 + images[0]=MAIN, images[1]=EXTRA', () => {
-    const product = { name: '상품', priceKrw: 1000, stock: 1 }
+describe('E5: transformProduct site=G → siteType 2 / basic+추가 이미지 / price.Gmkt', () => {
+  it('siteType 2, basicImgURL + addtionalImg1URL, dispatchPolicyNo.gmkt', () => {
+    const product = { name: '상품', priceKrw: 1000, stock: 5 }
     const urls = ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg']
-    const mapping = { categoryId: 'cat-1', transformedImageUrls: urls }
-    const result = transformProduct(product, mapping, 'G', SELLER_ID)
-    expect(result.site).toBe('G')
-    expect(result.sellerId).toBe(SELLER_ID)
-    expect(result.images[0]?.imageType).toBe('MAIN')
-    expect(result.images[1]?.imageType).toBe('EXTRA')
-    expect(result.images[0]?.order).toBe(0)
-    expect(result.images[1]?.imageUrl).toBe(urls[1])
+    const mapping = { categoryId: '200001234', transformedImageUrls: urls, extra: SAMPLE_EXTRA }
+    const result = transformProduct(product, mapping, 'G')
+    expect(result.itemBasicInfo.category.site[0]?.siteType).toBe(2)
+    expect(result.itemBasicInfo.category.site[0]?.catCode).toBe('200001234')
+    expect(result.itemAddtionalInfo.price).toEqual({ Gmkt: 1000 })
+    expect(result.itemAddtionalInfo.stock).toEqual({ Gmkt: 5 })
+    expect(result.itemAddtionalInfo.images.basicImgURL).toBe(urls[0])
+    expect(result.itemAddtionalInfo.images.addtionalImg1URL).toBe(urls[1])
+    expect(result.itemAddtionalInfo.shipping.policy.placeNo).toBe('PLACE-001')
+    expect(result.itemAddtionalInfo.shipping.dispatchPolicyNo).toEqual({
+      gmkt: 'DISPATCH-001',
+    })
   })
 })
 

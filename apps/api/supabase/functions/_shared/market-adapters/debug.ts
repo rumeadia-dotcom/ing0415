@@ -24,8 +24,10 @@ import { MarketError } from '../errors.ts'
 import {
   CategoryNodeSchema,
   CreateProductResultSchema,
+  EsmGoodsCreateRequestSchema,
   EsmGoodsCreateResponseSchema,
   EsmSiteCatSchema,
+  EsmTransformExtraSchema,
   StoredCredentialSchema,
   TokenSetSchema,
   type AuthInput,
@@ -148,6 +150,60 @@ function buildEsmMockCreateResult(
             },
           ]
         : [],
+  })
+}
+
+/**
+ * ESM(G마켓·옥션) mock transformProduct → 중첩 EsmGoodsCreateRequest 통과 검증.
+ * Web 미러(createMockAdapter.buildEsmMockGoodsPayload)와 동형. debug 모드엔 실제
+ * 배송 프로필 번호가 없으므로 extra 누락 시 mock 더미를 채운다(real 은 오케스트레이터 주입).
+ */
+function buildEsmMockGoodsPayload(
+  market: MarketId,
+  product: Product,
+  mapping: MarketMapping,
+): unknown {
+  const site = market === 'gmarket' ? 'G' : 'A'
+  const siteType = site === 'G' ? 2 : 1
+  const extra = EsmTransformExtraSchema.parse(mapping.extra ?? {})
+
+  const placeNo = extra.placeNo ?? 'MOCK-PLACE-001'
+  const dispatchPolicyNo = extra.dispatchPolicyNo ?? 'MOCK-DISPATCH-001'
+  const officialNotice = extra.officialNotice ?? {
+    officialNoticeNo: 'MOCK-NOTICE-01',
+    details: [{ code: 'material', value: '면 100%' }],
+  }
+
+  const urls = mapping.transformedImageUrls
+  const images: Record<string, string> = { basicImgURL: urls[0] ?? '' }
+  urls.slice(1, 15).forEach((url, idx) => {
+    images[`addtionalImg${idx + 1}URL`] = url
+  })
+
+  const price = site === 'G' ? { Gmkt: product.priceKrw } : { Iac: product.priceKrw }
+  const stock = site === 'G' ? { Gmkt: product.stock || 1 } : { Iac: product.stock || 1 }
+  const sellingPeriod = site === 'G' ? { Gmkt: -1 } : { Iac: -1 }
+  const dispatchPolicyNoObj =
+    site === 'G' ? { gmkt: dispatchPolicyNo } : { iac: dispatchPolicyNo }
+
+  return EsmGoodsCreateRequestSchema.parse({
+    itemBasicInfo: {
+      goodsName: { kor: product.name },
+      category: { site: [{ siteType, catCode: mapping.categoryId }] },
+    },
+    itemAddtionalInfo: {
+      price,
+      stock,
+      sellingPeriod,
+      shipping: {
+        type: 1,
+        policy: { placeNo },
+        dispatchPolicyNo: dispatchPolicyNoObj,
+      },
+      images,
+      officialNotice,
+      isVatFree: extra.isVatFree ?? false,
+    },
   })
 }
 
@@ -320,6 +376,10 @@ export function createMockAdapter(
       product: Product,
       mapping: MarketMapping,
     ): MarketPayload {
+      // ESM(G마켓·옥션) 은 real(buildEsmGoodsPayload)과 동형 중첩 페이로드 반환 — parity.
+      if (isEsmMarket(market)) {
+        return { market, raw: buildEsmMockGoodsPayload(market, product, mapping) }
+      }
       return {
         market,
         raw: {

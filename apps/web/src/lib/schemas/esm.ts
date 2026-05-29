@@ -218,6 +218,32 @@ export const EsmGoodsCreateRequestSchema = EsmItemBasicInfoSchema.pick({})
 export type EsmGoodsCreateRequest = z.infer<typeof EsmGoodsCreateRequestSchema>
 
 // ─────────────────────────────────────────────
+// transformProduct 입력 보조 — ESM 전용 extra (mapping.extra 로 전달)
+//   esm.md §7 PR-4: transformProduct 는 순수 함수. 배송 프로필 번호(placeNo/
+//   dispatchPolicyNo)·officialNotice 등 ESM 고유 입력은 등록 오케스트레이터가
+//   esm_shipping_profiles 조회·mapping 적재 결과로 mapping.extra 에 주입한다.
+//   본 스키마는 그 extra 의 ESM 관련 부분만 안전 파싱한다(나머지 extra 키는 무시).
+//   passthrough — 미지 extra 키(타 도메인)는 보존하되 검증 대상 아님.
+// ─────────────────────────────────────────────
+export const EsmTransformExtraSchema = z
+  .object({
+    // 배송 프로필에서 온 번호 (오케스트레이터가 shippingProfileId 로 조회 후 주입).
+    placeNo: z.string().min(1).optional(),
+    dispatchPolicyNo: z.string().min(1).optional(),
+    bundlePolicyNo: z.string().min(1).optional(),
+    // 상품정보고시 (PR-5 가 셀러 입력 → mapping 적재. PR-4 는 받으면 매핑만).
+    officialNotice: EsmOfficialNoticeSchema.optional(),
+    // 등록 옵션 — 미지정 시 transformProduct 가 기본값 적용.
+    sellingPeriod: EsmSellingPeriodSchema.optional(),
+    shippingType: EsmShippingTypeSchema.optional(),
+    isVatFree: z.boolean().optional(),
+    // 재고/판매가 override (미지정 시 Product 도메인 값 사용).
+    stock: z.number().int().min(1).max(99_999).optional(),
+  })
+  .passthrough()
+export type EsmTransformExtra = z.infer<typeof EsmTransformExtraSchema>
+
+// ─────────────────────────────────────────────
 // 4.2 createProduct 응답 (EsmGoodsCreateResponseSchema)
 //   esm.md §4.2 / esm-api/product/20.md — passthrough 로 미지 필드 보존
 //

@@ -45,6 +45,21 @@ export function sampleProduct(): Product {
 }
 
 export function sampleMapping(market: MarketId): MarketMapping {
+  // ESM(gmarket/auction) real transformProduct 는 배송 프로필 번호 + officialNotice 가
+  // mapping.extra 에 주입돼 있어야 한다(PR-4). 오케스트레이터가 esm_shipping_profiles 조회로
+  // 채우는 값을 fixture 로 모사 — mock 도 동일 extra 를 받아 동형 검증(parity).
+  const isEsm = market === 'gmarket' || market === 'auction'
+  const extra: Record<string, unknown> = isEsm
+    ? {
+        shippingProfileId: '00000000-0000-4000-8000-0000000000aa',
+        placeNo: 'PLACE-001',
+        dispatchPolicyNo: 'DISPATCH-001',
+        officialNotice: {
+          officialNoticeNo: 'NOTICE-FASHION-01',
+          details: [{ code: 'material', value: '면 100%' }],
+        },
+      }
+    : {}
   return {
     market,
     categoryId: '50000167',
@@ -52,7 +67,7 @@ export function sampleMapping(market: MarketId): MarketMapping {
       'https://cdn.example.com/p/naver/1.jpg',
       'https://cdn.example.com/p/naver/2.jpg',
     ],
-    extra: {},
+    extra,
   }
 }
 
