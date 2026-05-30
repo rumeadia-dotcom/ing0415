@@ -72,6 +72,25 @@ describe('createMockSupabase.functions.invoke', () => {
     expect(data.marketResults[0].marketAccountId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('esm-shipping-list — gmarket 계정은 site=G 출하지/발송정책 반환 (PR-E2 조회형)', async () => {
+    const { data, error } = await supabase.functions.invoke('esm-shipping-list', {
+      body: { marketAccountId: '00000000-0000-4000-8000-000000001003' },
+    })
+    expect(error).toBeNull()
+    expect(data.site).toBe('G')
+    expect(data.places.length).toBeGreaterThan(0)
+    expect(data.places[0]).toMatchObject({ placeNo: expect.any(String), placeName: expect.any(String) })
+    expect(data.dispatchPolicies[0]).toMatchObject({ site: 'G', dispatchPolicyNo: expect.any(String) })
+  })
+
+  it('esm-shipping-list — auction 계정은 site=A 로 태깅 (site 분기)', async () => {
+    const { data } = await supabase.functions.invoke('esm-shipping-list', {
+      body: { marketAccountId: '00000000-0000-4000-8000-000000001004' },
+    })
+    expect(data.site).toBe('A')
+    expect(data.dispatchPolicies[0].site).toBe('A')
+  })
+
   it('unknown name — { data: { ok: true }, error: null } fallback', async () => {
     const { data, error } = await supabase.functions.invoke('something-unknown', {
       body: {},

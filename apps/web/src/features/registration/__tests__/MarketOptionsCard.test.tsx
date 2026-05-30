@@ -1,12 +1,14 @@
 /**
- * MarketOptionsCard 동적 등록필드 렌더 테스트 (PR-3.5).
+ * MarketOptionsCard 동적 등록필드 렌더 테스트.
  *
- * 마스터: docs/architecture/v1/features/esm.md §4.6 / §5 / §7(PR-3.5 수락기준).
+ * 마스터: docs/architecture/v1/features/esm.md "전환 결정 2026-05-30"(조회형 PR-E2) / §4.6 / §5.
  * 검증:
- *   - ESM(gmarket) 카드: 카테고리 + 배송 프로필 select 렌더 (active 프로필만 옵션).
- *   - 프로필 없음 → "배송 프로필 만들러 가기" deep link CTA (/settings/shipping/esm-profiles).
- *   - 프로필 선택 시 onChange 가 marketOptions.shippingProfileId 에 적재.
- *   - 타 마켓(naver) 카드: 카테고리만 — 배송 프로필 select 미노출 (하위호환 회귀).
+ *   - ESM(gmarket) 카드: 카테고리 + 출하지 select + 발송정책 select(조회형) + officialNotice.
+ *   - 출하지/발송정책 없음 → ESM Plus 등록 안내 + 외부 링크 CTA (생성 진입점 없음, empty).
+ *   - 선택 시 onChange 가 marketOptions.shippingPlaceNo / dispatchPolicyNo 에 적재.
+ *   - 발송정책은 site별(G/A) — useEsmShippingOptions 가 계정 site 분만 내려준다(site 분기).
+ *   - 11번가(11st): 출고지/반품지 select (PR-2 영역 — 회귀).
+ *   - 타 마켓(naver) 카드: 카테고리만 — ESM 필드 미노출 (하위호환 회귀).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -14,11 +16,12 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui'
-import type { EsmShippingProfile } from '@/lib/schemas/esm'
+import type { EsmShippingListResponse } from '@/lib/schemas/esm'
 import type { CategoryMapping } from '@/lib/schemas/registration'
 
 const esmProfilesMock = vi.fn()
 const elevenStAddressesMock = vi.fn()
+const esmShippingOptionsMock = vi.fn()
 
 vi.mock('@/features/auth', () => ({
   useAuth: () => ({ user: { id: 'seller-1' } }),
@@ -29,6 +32,8 @@ vi.mock('@/features/settings/shipping', () => ({
     esmProfilesMock(marketAccountId),
   useElevenStShippingAddresses: (marketAccountId?: string) =>
     elevenStAddressesMock(marketAccountId),
+  useEsmShippingOptions: (marketAccountId?: string) =>
+    esmShippingOptionsMock(marketAccountId),
 }))
 
 vi.mock('../hooks/useMarketCategoryTree', () => ({
@@ -61,29 +66,31 @@ import { MarketOptionsCard } from '../components/MarketOptionsCard'
 
 const ACCOUNT_ID = '00000000-0000-0000-0000-0000000000a1'
 
-function profile(over: Partial<EsmShippingProfile>): EsmShippingProfile {
+/** ESM 조회형 응답(useEsmShippingOptions) 기본 fixture — site='G'. */
+function esmOptions(
+  over: Partial<EsmShippingListResponse> = {},
+): EsmShippingListResponse {
   return {
-    id: 'p1',
-    sellerId: 'seller-1',
-    marketAccountId: ACCOUNT_ID,
     site: 'G',
-    profileLabel: '기본 출고지',
-    addrNo: 'A1',
-    placeNo: 'PL1',
-    bundlePolicyNo: null,
-    dispatchPolicyNo: 'D1',
-    dispatchType: 'A',
-    shippingFee: 0,
-    feeType: 1,
-    status: 'active',
-    createdAt: '2026-05-30T00:00:00.000+09:00',
-    updatedAt: '2026-05-30T00:00:00.000+09:00',
+    places: [
+      { placeNo: '1001', placeName: '기본 출하지', isDefault: true },
+      { placeNo: '1002', placeName: '제2 출하지', isDefault: false },
+    ],
+    dispatchPolicies: [
+      {
+        site: 'G',
+        dispatchPolicyNo: '2001',
+        dispatchPolicyName: '오늘출발 발송정책',
+        dispatchType: 'A',
+        isDefault: true,
+      },
+    ],
     ...over,
   }
 }
 
 function renderCard(
-  marketId: 'gmarket' | 'naver' | '11st',
+  marketId: 'gmarket' | 'auction' | 'naver' | '11st',
   onChange = vi.fn(),
   mapping: CategoryMapping | null = null,
 ): { onChange: ReturnType<typeof vi.fn> } {
@@ -112,90 +119,137 @@ function renderCard(
   return { onChange }
 }
 
-describe('MarketOptionsCard — ESM(gmarket) 동적 필드', () => {
+describe('MarketOptionsCard — ESM(gmarket) 조회형 출하지/발송정책 (PR-E2)', () => {
   beforeEach(() => {
     esmProfilesMock.mockReset()
+    esmShippingOptionsMock.mockReset()
   })
 
-  it('active 배송 프로필을 select 옵션으로 렌더한다', () => {
-    esmProfilesMock.mockReturnValue({
+  it('출하지/발송정책 select 를 이름 표시·번호 값으로 렌더한다 (data)', () => {
+    esmShippingOptionsMock.mockReturnValue({
       isLoading: false,
       isError: false,
-      data: [profile({ id: 'p1', profileLabel: '기본 출고지' })],
+      data: esmOptions(),
     })
     renderCard('gmarket')
-    expect(
-      screen.getByLabelText('G마켓·옥션 배송 프로필'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('option', { name: '기본 출고지' }),
-    ).toBeInTheDocument()
+    expect(screen.getByLabelText('G마켓·옥션 출하지')).toBeInTheDocument()
+    expect(screen.getByLabelText('G마켓·옥션 발송정책')).toBeInTheDocument()
+    // placeName 표시 + placeNo 값.
+    const opt = screen.getByRole('option', {
+      name: '기본 출하지',
+    }) as HTMLOptionElement
+    expect(opt.value).toBe('1001')
+    const dispatchOpt = screen.getByRole('option', {
+      name: '오늘출발 발송정책',
+    }) as HTMLOptionElement
+    expect(dispatchOpt.value).toBe('2001')
+    // 생성형 훅(useEsmShippingProfiles)은 호출되지 않는다(조회형 전환).
+    expect(esmProfilesMock).not.toHaveBeenCalled()
   })
 
-  it('status=error 프로필은 선택지에서 제외된다', () => {
-    esmProfilesMock.mockReturnValue({
-      isLoading: false,
-      isError: false,
-      data: [
-        profile({ id: 'p1', profileLabel: '정상', status: 'active' }),
-        profile({ id: 'p2', profileLabel: '고아', status: 'error' }),
-      ],
-    })
-    renderCard('gmarket')
-    expect(screen.getByRole('option', { name: '정상' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: '고아' })).not.toBeInTheDocument()
-  })
-
-  it('프로필이 없으면 "만들러 가기" deep link 로 이동한다 (empty)', async () => {
+  it('출하지 선택 시 onChange 가 marketOptions.shippingPlaceNo 에 placeNo 적재', async () => {
     const user = userEvent.setup()
-    esmProfilesMock.mockReturnValue({
+    esmShippingOptionsMock.mockReturnValue({
       isLoading: false,
       isError: false,
-      data: [],
+      data: esmOptions(),
     })
-    renderCard('gmarket')
-    const cta = screen.getByRole('button', { name: /배송 프로필 만들러 가기/ })
-    await user.click(cta)
-    expect(await screen.findByText('esm-profiles-page')).toBeInTheDocument()
+    const { onChange } = renderCard('gmarket')
+    await user.selectOptions(screen.getByLabelText('G마켓·옥션 출하지'), '1002')
+    const last = onChange.mock.calls.at(-1)?.[0] as CategoryMapping
+    expect(last.marketOptions.shippingPlaceNo).toBe('1002')
   })
 
-  it('프로필 선택 시 onChange 가 marketOptions.shippingProfileId 에 적재한다', async () => {
+  it('발송정책 선택 시 onChange 가 marketOptions.dispatchPolicyNo 에 적재', async () => {
     const user = userEvent.setup()
-    esmProfilesMock.mockReturnValue({
+    esmShippingOptionsMock.mockReturnValue({
       isLoading: false,
       isError: false,
-      data: [profile({ id: 'p1', profileLabel: '기본 출고지' })],
+      data: esmOptions(),
     })
     const { onChange } = renderCard('gmarket')
     await user.selectOptions(
-      screen.getByLabelText('G마켓·옥션 배송 프로필'),
-      'p1',
+      screen.getByLabelText('G마켓·옥션 발송정책'),
+      '2001',
     )
-    expect(onChange).toHaveBeenCalled()
     const last = onChange.mock.calls.at(-1)?.[0] as CategoryMapping
-    expect(last.marketOptions).toEqual({ shippingProfileId: 'p1' })
+    expect(last.marketOptions.dispatchPolicyNo).toBe('2001')
   })
 
-  it('로드 실패 시 에러 문구를 노출한다 (error 상태)', () => {
-    esmProfilesMock.mockReturnValue({
+  it('옥션(auction) 카드는 site=A 발송정책만 노출한다 (site 분기)', () => {
+    // useEsmShippingOptions(Edge)가 계정 site 분(A)만 태깅해 내려준다 — 카드는 받은 목록 그대로 노출.
+    esmShippingOptionsMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: esmOptions({
+        site: 'A',
+        dispatchPolicies: [
+          {
+            site: 'A',
+            dispatchPolicyNo: '3001',
+            dispatchPolicyName: '옥션 발송정책',
+            dispatchType: 'B',
+            isDefault: true,
+          },
+        ],
+      }),
+    })
+    renderCard('auction')
+    const dispatchOpt = screen.getByRole('option', {
+      name: '옥션 발송정책',
+    }) as HTMLOptionElement
+    expect(dispatchOpt.value).toBe('3001')
+    // G마켓 발송정책은 내려오지 않았으므로 옵션에 없다.
+    expect(
+      screen.queryByRole('option', { name: '오늘출발 발송정책' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('loading 상태 — skeleton(배송 설정 불러오는 중) 노출', () => {
+    esmShippingOptionsMock.mockReturnValue({
+      isLoading: true,
+      isError: false,
+      data: undefined,
+    })
+    renderCard('gmarket')
+    expect(
+      screen.getAllByLabelText('배송 설정 불러오는 중…').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('error 상태 — 조회 실패 문구 노출', () => {
+    esmShippingOptionsMock.mockReturnValue({
       isLoading: false,
       isError: true,
       data: undefined,
     })
     renderCard('gmarket')
     expect(
-      screen.getByText('배송 프로필을 불러오지 못했습니다.'),
-    ).toBeInTheDocument()
+      screen.getAllByText(/출하지\/발송정책을 불러오지 못했습니다/).length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('empty 상태 — ESM Plus 등록 안내 + 외부 링크 CTA (생성 진입점 없음)', () => {
+    esmShippingOptionsMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: esmOptions({ places: [], dispatchPolicies: [] }),
+    })
+    renderCard('gmarket')
+    expect(screen.getByText('등록된 출하지가 없습니다')).toBeInTheDocument()
+    expect(screen.getByText('등록된 발송정책이 없습니다')).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /ESM Plus 열기/ }).length,
+    ).toBe(2)
   })
 
   it('상품정보고시(officialNotice) 입력 필드도 함께 렌더한다 (PR-5)', () => {
-    esmProfilesMock.mockReturnValue({
+    esmShippingOptionsMock.mockReturnValue({
       isLoading: false,
       isError: false,
-      data: [profile({ id: 'p1', profileLabel: '기본 출고지' })],
+      data: esmOptions(),
     })
     renderCard('gmarket')
-    // 상품군 select (officialNotice 필드).
     expect(
       screen.getByLabelText('G마켓·옥션 상품정보고시'),
     ).toBeInTheDocument()
@@ -204,10 +258,10 @@ describe('MarketOptionsCard — ESM(gmarket) 동적 필드', () => {
 
   it('상품군 선택 시 marketOptions.officialNotice 에 적재한다 (PR-5)', async () => {
     const user = userEvent.setup()
-    esmProfilesMock.mockReturnValue({
+    esmShippingOptionsMock.mockReturnValue({
       isLoading: false,
       isError: false,
-      data: [profile({ id: 'p1', profileLabel: '기본 출고지' })],
+      data: esmOptions(),
     })
     const { onChange } = renderCard('gmarket')
     await user.selectOptions(
@@ -225,6 +279,7 @@ describe('MarketOptionsCard — ESM(gmarket) 동적 필드', () => {
 describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () => {
   beforeEach(() => {
     esmProfilesMock.mockReset()
+    esmShippingOptionsMock.mockReset()
     elevenStAddressesMock.mockReset()
   })
 
@@ -245,6 +300,7 @@ describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () 
     expect(opt.value).toBe('14')
     // ESM 훅은 호출되지 않는다(11번가 카드).
     expect(esmProfilesMock).not.toHaveBeenCalled()
+    expect(esmShippingOptionsMock).not.toHaveBeenCalled()
   })
 
   it('출고지 선택 시 onChange 가 marketOptions.outboundAddrSeq 에 addrSeq 적재', async () => {
@@ -303,19 +359,21 @@ describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () 
 describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {
   beforeEach(() => {
     esmProfilesMock.mockReset()
+    esmShippingOptionsMock.mockReset()
     elevenStAddressesMock.mockReset()
   })
 
-  it('네이버 카드는 카테고리만 — 배송 프로필 필드 미노출', () => {
+  it('네이버 카드는 카테고리만 — ESM/11번가 필드 미노출', () => {
     renderCard('naver')
     expect(
       screen.getByLabelText(/네이버 스마트스토어 카테고리 선택/),
     ).toBeInTheDocument()
     expect(
-      screen.queryByLabelText('G마켓·옥션 배송 프로필'),
+      screen.queryByLabelText('G마켓·옥션 출하지'),
     ).not.toBeInTheDocument()
-    // useEsmShippingProfiles / useElevenStShippingAddresses 호출조차 안 됨(추가 필드 0개).
+    // ESM/11번가 조회 훅 호출조차 안 됨(추가 필드 0개).
     expect(esmProfilesMock).not.toHaveBeenCalled()
+    expect(esmShippingOptionsMock).not.toHaveBeenCalled()
     expect(elevenStAddressesMock).not.toHaveBeenCalled()
   })
 })

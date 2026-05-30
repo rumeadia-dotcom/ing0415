@@ -82,22 +82,29 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
         }
       })
 
-      it('getRegistrationFields 정책 일치 — ESM(PR-5) / 11번가(PR-2) / 그 외 미정의', () => {
+      it('getRegistrationFields 정책 일치 — ESM(PR-E2 조회형) / 11번가(PR-2) / 그 외 미정의', () => {
         const isEsm = market === 'gmarket' || market === 'auction'
         const isElevenSt = market === '11st'
         if (isEsm) {
-          // mock ↔ real 동형: 둘 다 함수로 노출 + [배송 프로필, 상품정보고시] 2필드 반환 (PR-5).
+          // mock ↔ real 동형: 둘 다 함수로 노출 + [출하지, 발송정책, 상품정보고시] 3필드 (조회형 PR-E2).
+          //   생성형 shippingProfile → 조회형 출하지(select)+발송정책(select)로 전환.
           expect(typeof mock.getRegistrationFields).toBe('function')
           expect(typeof real.getRegistrationFields).toBe('function')
           const mockFields = mock.getRegistrationFields?.() ?? []
           const realFields = real.getRegistrationFields?.() ?? []
           expect(mockFields).toEqual(realFields)
           expect(mockFields.map((f) => f.key)).toEqual([
-            'shippingProfileId',
+            'shippingPlaceNo',
+            'dispatchPolicyNo',
             'officialNotice',
           ])
-          expect(mockFields[0]?.kind).toBe('shippingProfile')
-          expect(mockFields[1]?.kind).toBe('officialNotice')
+          expect(mockFields[0]?.kind).toBe('select')
+          expect(mockFields[0]?.optionsSource).toBe('esmShippingPlace')
+          expect(mockFields[1]?.kind).toBe('select')
+          expect(mockFields[1]?.optionsSource).toBe('esmDispatchPolicy')
+          expect(mockFields[2]?.kind).toBe('officialNotice')
+          // 생성형 잔존 제거 검증 — shippingProfile kind 미노출.
+          expect(mockFields.some((f) => f.kind === 'shippingProfile')).toBe(false)
         } else if (isElevenSt) {
           // mock ↔ real 동형: 둘 다 함수로 노출 + [출고지, 반품/교환지] select 2필드 (11st.md §4.6 / PR-2).
           //   officialNotice 는 PR-4 — 본 PR 미포함.

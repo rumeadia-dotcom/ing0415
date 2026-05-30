@@ -700,6 +700,36 @@ function makeFunctions() {
             error: null,
           }
         }
+        case 'esm-shipping-list': {
+          // ESM(G마켓·옥션) 출하지/발송정책 조회 (PR-E2, 조회형) — Edge 17/19 정규화 결과 시뮬레이션.
+          // 응답은 EsmShippingListResponseSchema 형태 (placeNo/placeName + dispatchPolicyNo/...,
+          //   PII 0). 발송정책은 사이트별 — 요청 계정 site 분만 태깅해 내려준다.
+          const accountId =
+            typeof body.marketAccountId === 'string' ? body.marketAccountId : null
+          const account = (TABLES.market_accounts ?? []).find(
+            (r: any) => r.id === accountId,
+          )
+          const site = account?.market_id === 'auction' ? 'A' : 'G'
+          return {
+            data: {
+              site,
+              places: [
+                { placeNo: '1001', placeName: '기본 출하지', isDefault: true },
+                { placeNo: '1002', placeName: '제2 출하지', isDefault: false },
+              ],
+              dispatchPolicies: [
+                {
+                  site,
+                  dispatchPolicyNo: '2001',
+                  dispatchPolicyName: '오늘출발 발송정책',
+                  dispatchType: 'A',
+                  isDefault: true,
+                },
+              ],
+            },
+            error: null,
+          }
+        }
         default:
           return { data: { ok: true }, error: null }
       }

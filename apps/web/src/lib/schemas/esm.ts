@@ -456,12 +456,19 @@ export const RegistrationFieldKindSchema = z.enum(REGISTRATION_FIELD_KINDS)
 export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
 
 export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
+  // ⚠ 생성형 잔존 — 'shippingProfiles' 는 PR-E3/E5 에서 제거한다. PR-E2 에서 제거 금지
+  //   (생성형 UI/훅/테스트가 아직 참조 → 빌드 green 유지).
   'shippingProfiles',
   'static',
   // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2). additive — ESM 영역(위 2개) 미접촉.
   //   UI(MarketOptionsCard)가 useElevenStShippingAddresses 로 출고지/반품지 목록을 채운다.
   'elevenStOutbound',
   'elevenStReturn',
+  // ESM Layer 2 조회형(esmShippingLookup) select 옵션 출처 (esm.md "전환 결정 2026-05-30" / PR-E2). additive.
+  //   UI(MarketOptionsCard)가 useEsmShippingOptions 로 출하지(places)·발송정책(dispatchPolicies, site별)을 채운다.
+  //   출하지/발송정책 2종이라 11번가(out/return)와 동일하게 옵션 출처를 2개로 나눈다.
+  'esmShippingPlace',
+  'esmDispatchPolicy',
 ] as const
 export const RegistrationFieldOptionsSourceSchema = z.enum(
   REGISTRATION_FIELD_OPTIONS_SOURCES,

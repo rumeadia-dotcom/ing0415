@@ -12,9 +12,9 @@
  *   셀러가 ESM Plus 에서 만든 것을 GET 으로 가져와 정규화 반환한다(11번가/네이버/쿠팡과
  *   동일한 Layer 2 조회형 단일 표준). 상품등록 3단계 카드(PR-E2)가 이 결과를 select 로 노출.
  *
- * 처리 시퀀스 (GET ?marketAccountId=...):
+ * 처리 시퀀스 (POST { marketAccountId } — supabase-js functions.invoke body 규약):
  *   1. authenticated 셀러 JWT 검증 → sellerId
- *   2. query = { marketAccountId } 검증
+ *   2. body = { marketAccountId } 검증
  *   3. market_account 소유권 검증 (seller_id 일치 + market_id gmarket/auction) → site('G'|'A')
  *   4. ESM 자격증명 복호화(loadCredential, esm_jwt) → site 토큰 JWT 발급
  *   5. 두 조회를 Lightsail Gateway 경유로 호출:
@@ -44,7 +44,7 @@ import {
   getUserClient,
   loadCredential,
   ok,
-  parseQuery,
+  parseBody,
   requireBearer,
   withRequest,
   type Logger,
@@ -67,7 +67,7 @@ const SITE_BY_MARKET: Record<string, EsmProfileSite> = {
   auction: 'A',
 }
 
-const QuerySchema = z.object({
+const RequestSchema = z.object({
   marketAccountId: z.string().uuid(),
 })
 
@@ -209,16 +209,16 @@ async function esmGet(opts: {
 
 export default Deno.serve(
   withRequest('esm-shipping-list', async ({ req, logger, correlationId }) => {
-    if (req.method !== 'GET') {
-      throw HttpErrors.badRequest('method_not_allowed', 'GET required')
+    if (req.method !== 'POST') {
+      throw HttpErrors.badRequest('method_not_allowed', 'POST required')
     }
 
-    const query = parseQuery(req, QuerySchema)
+    const body = await parseBody(req, RequestSchema)
     const sellerId = await resolveSellerId(req)
 
     // 1) market_account 소유권 + site 해석.
     const account = await resolveMarketAccount({
-      marketAccountId: query.marketAccountId,
+      marketAccountId: body.marketAccountId,
       sellerId,
     })
     const market = account.marketId // 'gmarket' | 'auction'

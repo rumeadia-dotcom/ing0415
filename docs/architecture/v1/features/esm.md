@@ -22,7 +22,7 @@
 - 마켓별 Layer 2 모델이 둘(ESM 생성형 vs 나머지 조회형)로 갈려 유지·테스트 부담 + 신규 마켓이 잘못된 템플릿을 따를 위험. 조회형으로 단일화.
 
 **전환 후 동작**:
-- `getRegistrationFields()` 의 ESM 배송 필드 `optionsSource` = `esm_shipping_profiles`(우리 테이블) → **`esmShippingLookup`(ESM GET API 직접 조회)**.
+- `getRegistrationFields()` 의 ESM 배송 필드 `optionsSource` = `shippingProfiles`(생성형) → **`esmShippingLookup`** 조회형. 출하지/발송정책 2종이라 enum 값은 `esmShippingPlace` + `esmDispatchPolicy` 둘로 구현(11번가 `elevenStOutbound`/`elevenStReturn` 와 동일 패턴). UI(MarketOptionsCard)가 `useEsmShippingOptions` 로 Edge `esm-shipping-list`(POST `{ marketAccountId }`)를 조회해 채운다. (PR-E2 구현 완료.)
 - ESM 카드 = 출하지(`placeNo`) select + **발송정책(`dispatchPolicyNo`, 사이트별 G/A) select** + officialNotice. (발송정책이 사이트별이라 site 별 매칭 유지 — `dispatchPolicyNo.{gmkt|iac}`.)
 - 셀러가 ESM Plus 에 배송 설정이 없으면 → "ESM Plus 에서 출하지·발송정책 등록 후 새로고침" 안내(우리 앱 생성 진입점 제거).
 - 우리 DB 에 배송 참조 저장 없음(조회 결과는 호출측 24h 캐시).
@@ -33,8 +33,8 @@
 
 | PR | 작업 | 대상 파일 |
 |---|---|---|
-| **PR-E1** | ESM 배송 리소스 **조회** Edge + 스키마 | (신규) `functions/esm-shipping-list/` (GET places + dispatch-policies 정규화). (변경) `lib/schemas/esm.ts` + `_shared/schemas.ts` — `EsmShippingProfile*`(테이블형) 제거, `EsmShippingPlace`/`EsmDispatchPolicy` 조회 응답 스키마 신설 |
-| **PR-E2** | 어댑터 메타 `optionsSource` 전환 + select 데이터 소스 교체 | `lib/markets/real/esm/registration-fields.ts` + `_shared/market-adapters/esm-registration-fields.ts`(`shippingProfiles`→`esmShippingLookup`, 출하지+발송정책 2필드) · `lib/markets/registration-fields.ts` · `lib/markets/types.ts`(optionsSource enum) · `lib/markets/real/esm/shared-adapter.ts` · `features/registration/components/MarketOptionsCard.tsx` + 신규 훅 `useEsmShippingOptions` · `MarketOptionsCard.test.tsx` |
+| **PR-E1** ✅ | ESM 배송 리소스 **조회** Edge + 스키마 | (신규) `functions/esm-shipping-list/` (places + dispatch-policies 정규화). (변경) `lib/schemas/esm.ts` + `_shared/schemas.ts` — `EsmShippingPlace`/`EsmDispatchPolicy` 조회 응답 스키마 신설. ⚠️ PR-E2 에서 Edge 호출 규약을 GET → **POST `{ marketAccountId }` body**(supabase-js `functions.invoke` 규약, 11번가 `eleven-st-shipping-list` 와 정합)로 정정. |
+| **PR-E2** ✅ | 어댑터 메타 `optionsSource` 전환 + select 데이터 소스 교체 | (변경) `lib/schemas/esm.ts` + `_shared/schemas.ts` — `REGISTRATION_FIELD_OPTIONS_SOURCES` 에 `esmShippingPlace`/`esmDispatchPolicy` **additive** 추가(생성형 `shippingProfiles` 보존, E3/E5 제거). `lib/markets/real/esm/registration-fields.ts` + `_shared/market-adapters/esm-registration-fields.ts` — `shippingProfile`(생성형) → 출하지(`shippingPlaceNo`, select) + 발송정책(`dispatchPolicyNo`, select) + officialNotice 3필드. `features/registration/components/MarketOptionsCard.tsx`(+`__tests__`) — `EsmShippingSelect` 분기 + 신규 훅 `useEsmShippingOptions` · 신규 `api/esm-shipping-list-api.ts`(POST 호출). `esm-shipping-list/index.ts` GET → POST 정합. `locales/ko.ts`(esmShippingPlace/esmDispatchPolicy/esmShippingField) · `mock/createMockSupabase.ts`(esm-shipping-list 응답) · `parity.spec.ts`. ⚠️ 생성형 제거는 PR-E3/E4. |
 | **PR-E3** | 생성형 **제거** (UI/훅/API/라우트) | `features/settings/shipping/pages/SettingsShippingEsmProfilesPage.tsx`(+test) · `hooks/useCreateEsmShippingProfile.ts` · `hooks/useEsmShippingProfiles.ts` · `api/esm-shipping-profile-api.ts`(+test) · `pages/SettingsShippingPage.tsx`(카드 5 제거) · `app/router.tsx`(`/settings/shipping/esm-profiles` 제거) · `features/settings/index.ts` · `features/settings/shipping/index.ts` |
 | **PR-E4** | 생성형 **백엔드 제거** + DB drop | `functions/esm-shipping-profile/`(index + lib/error-row + tests 삭제) · 신규 마이그레이션 `DROP TABLE esm_shipping_profiles` (dev 적용됨 — WIP C1 이력 정합과 함께) · `tests/esm_shipping_profiles_rls.sql` 삭제 |
 | **PR-E5** | mock / parity / i18n 정합 | `lib/markets/debug/createMockAdapter.ts` · `_shared/market-adapters/debug.ts` · `lib/mock/createMockSupabase.ts`(esm_shipping_profiles mock 제거) · `__tests__/parity.spec.ts` · `tests/unit/adapters/_shared/parity.ts` · gmarket/auction/esm 어댑터 테스트 · `locales/ko.ts`(`markets.registrationFields.shippingProfile.*` 문구를 "ESM Plus 등록 안내" 로, settings 배송프로필 문구 제거) · `lib/i18n.ts` |
