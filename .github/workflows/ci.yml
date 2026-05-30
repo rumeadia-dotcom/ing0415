@@ -56,6 +56,7 @@ jobs:
       run_heavy: ${{ steps.scope.outputs.run_heavy }}
       app: ${{ steps.filter.outputs.app }}
       sql: ${{ steps.filter.outputs.sql }}
+      functions: ${{ steps.filter.outputs.functions }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,6 +92,9 @@ jobs:
             sql:
               - 'apps/api/supabase/migrations/**'
               - 'apps/api/supabase/tests/**'
+              - '.github/workflows/ci.yml'
+            functions:
+              - 'apps/api/supabase/functions/**'
               - '.github/workflows/ci.yml'
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -394,14 +398,41 @@ jobs:
         run: supabase stop --no-backup || true
 
   # ──────────────────────────────────────────────────────────────────────────
-  # 6. CI Gate — branch protection 의 단일 required check.
+  # 6. Deno Typecheck — Edge Functions(Deno 런타임) 타입 검증.
+  #    pnpm typecheck(tsc) 는 apps/web 만 본다. Edge 코드 타입은 deno check 로만 검증되며,
+  #    supabase functions deploy 가 check 를 안 거쳐 타입 에러가 운영까지 흘러갈 수 있다(C8).
+  #    2026-05-31: OAuth refresh 런타임 버그가 deno check 부재로 잠재했던 사고 후 도입(#294).
+  #    (무거운 잡: run_heavy && functions 경로 변경 시에만)
+  # ──────────────────────────────────────────────────────────────────────────
+  deno-check:
+    name: Deno Typecheck (Edge Functions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: setup
+    if: ${{ needs.setup.outputs.run_heavy == 'true' && needs.setup.outputs.functions == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # 각 Edge Function 의 entrypoint(index.ts)를 검사하면 의존 그래프(_shared 포함) 전체 타입 검증.
+      # --node-modules-dir=none: npm: 스펙을 deno 글로벌 캐시로 resolve (루트 pnpm node_modules 무시).
+      - name: Deno check Edge entrypoints
+        run: deno check --node-modules-dir=none apps/api/supabase/functions/*/index.ts
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 7. CI Gate — branch protection 의 단일 required check.
   #    needs 잡이 failure/cancelled 면 차단. skipped (경로필터·feature push)
   #    는 허용 — 조건부 잡이 required check 를 영구 pending 시키는 문제를 회피.
   # ──────────────────────────────────────────────────────────────────────────
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
-    needs: [setup, lint-and-typecheck, unit-test, build, e2e, pgtap-rls]
+    needs: [setup, lint-and-typecheck, unit-test, build, e2e, pgtap-rls, deno-check]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -416,6 +447,7 @@ jobs:
             [build]="${{ needs.build.result }}"
             [e2e]="${{ needs.e2e.result }}"
             [pgtap-rls]="${{ needs.pgtap-rls.result }}"
+            [deno-check]="${{ needs.deno-check.result }}"
           )
           fail=0
           for job in "${!results[@]}"; do
