@@ -10,6 +10,45 @@
 
 ---
 
+## ⚠ 전환 결정 (2026-05-30): 생성형 → 조회형 (B안, 사용자 승인)
+
+> **본 절은 §1 결정 3 / §3 (`esm_shipping_profiles` 테이블) / §5 배송 프로필 생성 UI / §7 PR-3 / §4.5 를 supersede 한다.** 아래 transition 로드맵이 우선이며, 위 절들은 "이미 구현된 생성형(deprecate 대상)" 의 기록으로만 읽는다.
+
+**결정**: ESM 배송 선행값(출고지·발송정책)을 **우리 앱이 생성하지 않고**, 셀러가 ESM Plus 에서 만든 것을 **조회 → select** 하는 **조회형으로 전환**한다. 11번가/네이버/쿠팡과 동일한 Layer 2 단일 표준(`cross-cutting/shipping-fee-model.md` §2)에 ESM 도 수렴시킨다.
+
+**근거**:
+- ESM 도 조회 API 가 전부 있다 — 출하지 `GET /item/v1/shipping/places`(17 전체조회 → `shippingPlaces[]`), 발송정책 `GET /item/v1/shipping/dispatch-policies`(19 전체조회), 주소록(16)/묶음배송비(18) 동일. 즉 **생성형은 API 강제가 아니라 제품 결정이었다.**
+- 생성형이 끌고 온 복잡도 전부 — 4단계 순차 생성(멱등 아님)·고아 리소스·`status='error'` 추적(QA-313)·테이블+RLS+마이그레이션·생성 UI — 가 조회형에선 사라진다.
+- 마켓별 Layer 2 모델이 둘(ESM 생성형 vs 나머지 조회형)로 갈려 유지·테스트 부담 + 신규 마켓이 잘못된 템플릿을 따를 위험. 조회형으로 단일화.
+
+**전환 후 동작**:
+- `getRegistrationFields()` 의 ESM 배송 필드 `optionsSource` = `esm_shipping_profiles`(우리 테이블) → **`esmShippingLookup`(ESM GET API 직접 조회)**.
+- ESM 카드 = 출하지(`placeNo`) select + **발송정책(`dispatchPolicyNo`, 사이트별 G/A) select** + officialNotice. (발송정책이 사이트별이라 site 별 매칭 유지 — `dispatchPolicyNo.{gmkt|iac}`.)
+- 셀러가 ESM Plus 에 배송 설정이 없으면 → "ESM Plus 에서 출하지·발송정책 등록 후 새로고침" 안내(우리 앱 생성 진입점 제거).
+- 우리 DB 에 배송 참조 저장 없음(조회 결과는 호출측 24h 캐시).
+
+### 전환 PR 로드맵 + 코드 blast radius
+
+> 본 문서(설계)만 지금 갱신한다. 아래 코드는 **전환 PR 에서** 손댄다(배포된 코드 무단 편집 금지).
+
+| PR | 작업 | 대상 파일 |
+|---|---|---|
+| **PR-E1** | ESM 배송 리소스 **조회** Edge + 스키마 | (신규) `functions/esm-shipping-list/` (GET places + dispatch-policies 정규화). (변경) `lib/schemas/esm.ts` + `_shared/schemas.ts` — `EsmShippingProfile*`(테이블형) 제거, `EsmShippingPlace`/`EsmDispatchPolicy` 조회 응답 스키마 신설 |
+| **PR-E2** | 어댑터 메타 `optionsSource` 전환 + select 데이터 소스 교체 | `lib/markets/real/esm/registration-fields.ts` + `_shared/market-adapters/esm-registration-fields.ts`(`shippingProfiles`→`esmShippingLookup`, 출하지+발송정책 2필드) · `lib/markets/registration-fields.ts` · `lib/markets/types.ts`(optionsSource enum) · `lib/markets/real/esm/shared-adapter.ts` · `features/registration/components/MarketOptionsCard.tsx` + 신규 훅 `useEsmShippingOptions` · `MarketOptionsCard.test.tsx` |
+| **PR-E3** | 생성형 **제거** (UI/훅/API/라우트) | `features/settings/shipping/pages/SettingsShippingEsmProfilesPage.tsx`(+test) · `hooks/useCreateEsmShippingProfile.ts` · `hooks/useEsmShippingProfiles.ts` · `api/esm-shipping-profile-api.ts`(+test) · `pages/SettingsShippingPage.tsx`(카드 5 제거) · `app/router.tsx`(`/settings/shipping/esm-profiles` 제거) · `features/settings/index.ts` · `features/settings/shipping/index.ts` |
+| **PR-E4** | 생성형 **백엔드 제거** + DB drop | `functions/esm-shipping-profile/`(index + lib/error-row + tests 삭제) · 신규 마이그레이션 `DROP TABLE esm_shipping_profiles` (dev 적용됨 — WIP C1 이력 정합과 함께) · `tests/esm_shipping_profiles_rls.sql` 삭제 |
+| **PR-E5** | mock / parity / i18n 정합 | `lib/markets/debug/createMockAdapter.ts` · `_shared/market-adapters/debug.ts` · `lib/mock/createMockSupabase.ts`(esm_shipping_profiles mock 제거) · `__tests__/parity.spec.ts` · `tests/unit/adapters/_shared/parity.ts` · gmarket/auction/esm 어댑터 테스트 · `locales/ko.ts`(`markets.registrationFields.shippingProfile.*` 문구를 "ESM Plus 등록 안내" 로, settings 배송프로필 문구 제거) · `lib/i18n.ts` |
+
+> **문서 동기 (지금 갱신 완료/예정)**: `cross-cutting/shipping-fee-model.md`(§2 Layer 2 조회형) · `features/11st.md §8` · `cross-cutting/market-adapter.md §9.8`(optionsSource) · `features/registration.md`(§3 동적필드) · `docs/spec/user_flow.md`(n61) · `docs/design-renewal/s9-settings.md`(카드5/§4.7) · `docs/design-renewal/s3-register.md`(ESM 카드) · `docs/handoff/WIP-5markets-mvp.md`.
+
+**리스크 / 주의**:
+- dev 에 `esm_shipping_profiles` 가 이미 적용돼 있다(WIP C1) → DROP 마이그레이션 + 이력 정합 동반.
+- 셀러 온보딩 friction 증가(ESM Plus 직접 설정 안내 필요) → s9/문구 보강.
+- ESM 발송정책은 사이트별(G/A) → 조회도 사이트별 토큰 호출. select·매칭에서 site 분기 유지.
+- 11번가 재구현(`features/11st.md`)은 처음부터 조회형 — 본 전환과 동일 패턴. **생성형을 신규 마켓 템플릿으로 삼지 않는다.**
+
+---
+
 ## 0. 배경 — 왜 재구현인가
 
 현재 코드의 ESM 어댑터는 **실제 ESM 스펙이 문서화되기 전에 만든 placeholder** 다. JWT 서명 골격(`aud: sa.esmplus.com`)만 맞고, 엔드포인트·페이로드·카테고리 체계·등록 모델이 공식 문서와 거의 전부 불일치한다.
@@ -35,7 +74,7 @@
 
 1. **사이트별 분리 유지** — gmarket/auction 을 별도 마켓으로 유지. 어댑터 내부에서 문서의 통합 API(`POST /item/v1/goods`)를 **`siteType` 하나만 채워** 호출한다(문서: "양사이트 동시 또는 사이트별 개별 등록 모두 가능", `esm-api/product/20.md`). `MARKET_IDS`·`RegistrationJob` 마켓별 독립성(한 마켓 실패가 다른 마켓 차단 금지)·s3 UI 그대로.
 2. **범위 = 상품등록 + 주문/배송**. 클레임·정산·CS(esm-api/claim, settlement, cs)는 v2.
-3. **배송 선행값은 "배송 프로필"로 사전 생성·재사용** — 마켓 계정/배송 설정에서 1회 생성(우리 앱이 4단계 생성 API 호출 → `placeNo`/`dispatchPolicyNo` 확보·저장), 상품등록 3단계에선 드롭다운 **선택만**. 등록 폼 안에서 생성 API 호출 금지(실패 시 고아 정책 방지).
+3. ~~**배송 선행값은 "배송 프로필"로 사전 생성·재사용** — 마켓 계정/배송 설정에서 1회 생성(우리 앱이 4단계 생성 API 호출 → `placeNo`/`dispatchPolicyNo` 확보·저장), 상품등록 3단계에선 드롭다운 **선택만**. 등록 폼 안에서 생성 API 호출 금지(실패 시 고아 정책 방지).~~ → **SUPERSEDED (2026-05-30, 상단 "전환 결정" 절)**: 생성형 폐기, **조회형**(셀러가 ESM Plus 에서 만든 출하지/발송정책을 GET 조회 → select)으로 전환.
 4. **상품정보고시(officialNotice)** 는 s3 등록 위저드 3단계 카드에 입력 섹션 추가.
 5. **마켓별 동적 등록필드** — `MarketAdapter` 에 마켓별 추가 등록필드 메타(zod + UI 메타)를 노출하는 `getRegistrationFields()` 를 추가하고, 3단계 `CategoryMappingCard` → `MarketOptionsCard` 로 일반화하여 동적 렌더. 컴포넌트 내 `if (marketId === ...)` 하드코딩 분기 금지. ESM 은 `[shippingProfile 선택, officialNotice]` 를 선언.
 6. **real 검증은 mock + parity 까지** — real 어댑터 코드는 문서 기준 작성하되, 검증은 mock 어댑터 + `parity.spec` 까지. 실제 `sa2.esmplus.com` 실호출 검증은 셀러 자격증명·IP 화이트리스트 확보 후 별도 라운드.
@@ -75,7 +114,10 @@ Wave 2 (병렬 3)
 
 ---
 
-## 3. 데이터 모델 — `esm_shipping_profiles` (PR-3 에서 마이그레이션, PR-0 에서 계약 확정)
+## 3. 데이터 모델 — `esm_shipping_profiles` (⚠ DEPRECATE 대상 — 상단 "전환 결정" 절 참조)
+
+> **이 테이블은 생성형 시절 산출물이며 조회형 전환으로 제거된다(PR-E4 `DROP TABLE`).** 아래는 구현 기록으로 보존한다. 신규 작업은 본 테이블에 의존하지 않는다.
+
 
 > 본 테이블은 배송의 **물류 참조(Layer 2)** 레이어 — 4 마켓 배송비 모델 비교 + 2-레이어(요금 의도 vs 물류 참조) 정립은 `cross-cutting/shipping-fee-model.md` 참조. 출고지/반품지 사전 생성 참조는 ESM 만이 아니라 모든 마켓의 보편 패턴이며, Layer 2 일반화는 후속 트랙.
 
@@ -232,7 +274,7 @@ CREATE POLICY esm_shipping_profiles_select_own
 | `label` | string | i18n key 또는 표시명 |
 | `kind` | enum | `select` / `text` / `number` / `officialNotice` / `shippingProfile` |
 | `required` | boolean | |
-| `optionsSource` | enum? | `shippingProfiles` / `static` — 동적 옵션 출처 |
+| `optionsSource` | enum? | 동적 옵션 출처. ⚠️ 조회형 전환(전환 결정 절): `esmShippingLookup`(ESM GET) / `elevenStOutbound`·`elevenStReturn`(11번가 GET) / `static`. 구 `shippingProfiles`(생성형 테이블)는 deprecate |
 | `helpText` | string? | |
 | `blockingReason` | string? | 미입력 시 3단계 다음 버튼 tooltip 문구 |
 
@@ -241,6 +283,8 @@ CREATE POLICY esm_shipping_profiles_select_own
 ---
 
 ## 5. 화면 흐름 (s3 3단계) — PR-3.5 / PR-5 에서 구현, PR-0 계약
+
+> ⚠ **부분 SUPERSEDED (전환 결정 절)**: 배송 프로필 **생성** 진입점(`/settings/shipping/esm-profiles`, `SettingsShippingEsmProfilesPage`)·user_flow n61 은 조회형 전환으로 **제거(PR-E3)**. 3단계 배송 select 는 유지하되 데이터 소스가 `esm_shipping_profiles` → ESM GET 조회(`esmShippingLookup`)로 바뀐다. officialNotice 부분은 그대로 유효.
 
 - **현재**: [StepMarketsCategoriesPage.tsx](apps/web/src/features/registration/pages/StepMarketsCategoriesPage.tsx) — 마켓 체크 → 선택 마켓마다 `CategoryMappingCard` 동적 렌더.
 - **변경(PR-3.5, 구현 완료)**: `CategoryMappingCard` → `MarketOptionsCard`. 카테고리 매핑 + 어댑터 메타가 선언한 필드를 동적 렌더.
@@ -276,7 +320,7 @@ CREATE POLICY esm_shipping_profiles_select_own
 - **PR-1**: `buildEsmJwt` payload 에 `kid`(마스터ID)/`iss`/`ssi`(site:sellerId 단일) 반영. 기존 jwt 단위테스트 갱신 + 신규 fail 케이스.
 - **PR-2**: `fetchCategoryTree` 가 `GET /item/v1/categories/site-cats` + `/{code}` 재귀, `isLeaf` 기반 leaf, `CategoryNode` 정규화. mock↔real parity.spec.
   - ⚠️ **Gateway allowlist (PR-2 가 첫 실호출이므로 여기서 필수)**: 새 base URL 호스트 `sa2.esmplus.com` 을 (a) `apps/api/supabase/functions/_shared/gateway-sign.ts` 의 `GATEWAY_ALLOWED_HOSTS` 에 추가, (b) Lightsail Gateway `infra/aws-lightsail-gateway/main.ts` 의 `ALLOWED_*` 미러 갱신·재배포, (c) `gateway-sign.test.ts` allowlist 케이스 갱신. 미반영 시 `assertGatewayUrl` 이 "host not in allow-list" 로 거부. (PR-0 에서 base URL 만 바꾸고 호스트 화이트리스트는 PR-2 로 의도적 분리 — PR-0 은 mock+parity 라 무해.)
-- **PR-3**: `esm_shipping_profiles` 마이그레이션 + RLS + `esm-shipping-profile` Edge Function(4단계 생성) + 설정 UI. RLS 본인 row 만 SELECT 검증. **부분 실패 시 `status='error'` row 적재(고아 추적, §3.2) — pgTAP 에서 error row RLS 본인 SELECT + nullable 번호 검증, Edge 단위테스트에서 단계별 실패 → error row payload(부분 번호 + PII-free raw_meta) 검증 (QA-313).**
+- **PR-3** (⚠ 구현 완료됐으나 전환 결정으로 DEPRECATE — PR-E3/E4 에서 제거): `esm_shipping_profiles` 마이그레이션 + RLS + `esm-shipping-profile` Edge Function(4단계 생성) + 설정 UI. RLS 본인 row 만 SELECT 검증. **부분 실패 시 `status='error'` row 적재(고아 추적, §3.2) — pgTAP 에서 error row RLS 본인 SELECT + nullable 번호 검증, Edge 단위테스트에서 단계별 실패 → error row payload(부분 번호 + PII-free raw_meta) 검증 (QA-313).**
 - **PR-3.5 (완료)**: `getRegistrationFields` + `MarketOptionsCard` 동적 렌더. 컴포넌트 마켓 하드코딩 0(메타 kind 분기만). 네이버/쿠팡/11st 회귀 없음.
   - [x] `MarketOptionsCard`(카테고리 + 동적 필드) — `CategoryMappingCard` 제거·일반화.
   - [x] 동기 resolver `getRegistrationFieldsForMarket` + i18n `resolveKoPath`.
@@ -306,3 +350,4 @@ CREATE POLICY esm_shipping_profiles_select_own
 ## 변경 이력
 
 - 2026-05-30: 초안 (PR-0). architect 주도, 사용자 결정 6개 반영. ESM 문서 기준 재구현 8개 PR 로드맵·zod 계약·`esm_shipping_profiles` 테이블·동적 등록필드 프레임워크 확정.
+- 2026-05-30: **전환 결정 (생성형→조회형, B안)**. 11번가 spec import 대조에서 출고지/반품지 사전참조가 5마켓 보편 패턴임이 확정되고, ESM 도 조회 API(17/19 전체조회)가 전부 있어 생성형이 API 강제가 아님이 드러남. ESM 배송 선행값을 조회형으로 전환 — `esm_shipping_profiles` 테이블·생성 Edge·생성 UI deprecate (PR-E1~E5 로드맵 + 코드 blast radius). 상단 "전환 결정" 절이 §1결정3/§3/§5/§7PR-3 supersede. Layer 2 단일 표준은 `cross-cutting/shipping-fee-model.md` §2.

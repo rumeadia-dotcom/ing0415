@@ -1224,8 +1224,8 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
 
 - **렌더**: 카테고리 매핑 row(기존) + 어댑터가 선언한 동적 등록필드를 카드 하단에 동적 렌더.
 - **마켓 하드코딩 분기 0**: UI 는 동기 resolver `getRegistrationFieldsForMarket(marketId)`(`apps/web/src/lib/markets/registration-fields.ts`)가 돌려준 `RegistrationFieldMeta[]` 의 `kind` 로만 분기. `getRegistrationFields()` 가 순수·정적(mock↔real parity 보장)이므로 무거운 async `getMarketAdapter` 를 await 하지 않는다.
-  - ESM(gmarket/auction) → `getEsmRegistrationFields()` = `shippingProfile` + `officialNotice` 2필드(PR-5). 그 외 → `[]`(카테고리만, 하위호환 회귀 없음).
-- **필드 kind 별 렌더**: `shippingProfile` → 배송 프로필 select(`useEsmShippingProfiles(marketAccountId)` 재사용, 4상태: loading/error/data(`status='active'`만)/empty(`/settings/shipping/esm-profiles` deep link CTA)). `officialNotice` → `OfficialNoticeField`(상품군 select + 군별 항목 동적 폼, PR-5 — 아래 §10.5.2). `number`/`text`/`select` → shadcn `Input` 기본 렌더(확장 대비).
+  - ESM(gmarket/auction) → 출하지·발송정책 select + `officialNotice`. 11번가 → 출고지·반품지 select + `officialNotice`(`features/11st.md`). naver/coupang → `[]`(카테고리만, 하위호환). ⚠️ **조회형 전환(2026-05-30)**: ESM 배송 select 는 `esm_shipping_profiles`(우리 테이블)가 아니라 **ESM GET 조회**(`esmShippingLookup`)에서 옵션을 채운다 — `esm.md` "전환 결정" 절.
+- **필드 kind 별 렌더**: 배송 리소스 select(`kind:'select'`/`shippingProfile`) → 마켓별 **조회형** 옵션 소스(ESM `useEsmShippingOptions` / 11번가 `useElevenStShippingAddresses`), 4상태: loading/error/data/empty(마켓 콘솔에서 등록 안내 CTA). `officialNotice` → `OfficialNoticeField`(상품군 select + 군별 항목 동적 폼, PR-5 — 아래 §10.5.2). `number`/`text`/`select` → shadcn `Input` 기본 렌더.
 - **값 적재**: 동적 필드 값은 `CategoryMapping.marketOptions[fieldKey]`(zod `z.record`)에 적재.
 - **검증(단일 소스)**: `Step3Schema` → `makeStep3Schema(requiredKeysFor)` 빌더. 어댑터가 `required` 로 선언한 fieldKey 가 비어있으면 zod fail. 비어있음 판정은 `isMarketOptionValuePresent`(단일 소스) — string/number 뿐 아니라 `officialNotice` 같은 **객체 형태**도 완성도(군 선택 + 모든 detail code/value 채움 + detail ≥1)로 판정한다. UI 페이지(`StepMarketsCategoriesPage`)는 `getRegistrationFieldsForMarket` 기반 provider 를 주입해 검증·blockingReasons·다음버튼 tooltip 에 공유(동일 `isMarketOptionValuePresent` 재사용). 기본 `Step3Schema`(provider 미주입)는 추가필드 검증 skip(하위호환).
 

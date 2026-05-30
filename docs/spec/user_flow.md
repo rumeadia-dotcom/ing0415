@@ -88,7 +88,7 @@
 - 상품 정보 입력 → 마켓 선택 / 이미지 업로드 / 템플릿 불러오기
 - 마켓 선택 → 카테고리 매핑
 - 카테고리 매핑 → 등록 미리보기
-- 카테고리 매핑(n19) → (deep link) G마켓·옥션 배송 프로필 관리(n61) — ESM(gmarket/auction) 카드에 배송 프로필 select 가 동적 렌더되며, 프로필이 없으면 "배송 프로필 만들러 가기"로 `/settings/shipping/esm-profiles` 진입 (PR-3.5). ESM 외 마켓은 카테고리만(하위호환).
+- 카테고리 매핑(n19) ESM(gmarket/auction)·11번가 카드에 **배송 리소스 select**(ESM=출하지/발송정책, 11번가=출고지/반품지)가 동적 렌더된다. ⚠️ **조회형 전환(2026-05-30)**: 셀러가 마켓 콘솔(ESM Plus / 셀러오피스)에서 만든 리소스를 GET 조회해 채운다. 없으면 "마켓 콘솔에서 등록 후 새로고침" 안내(우리 앱 생성 페이지 n61 제거 — `esm.md` 전환 결정 절). ~~deep link `/settings/shipping/esm-profiles`(n61)~~ deprecate. ESM 외 마켓은 카테고리만(하위호환).
 - 카테고리 매핑(n19) 내 ESM(gmarket/auction) 카드는 **상품정보고시 입력**도 동적 렌더한다(PR-5) — 상품군 select(41개 법정 표준) → 선택 군의 필수 고시 항목 동적 폼. 입력값은 `marketOptions.officialNotice`({officialNoticeNo, details[{code,value}]})로 수집되어 오케스트레이터가 `mapping.extra.officialNotice` 로 적재(PR-4 transformProduct 가 페이로드에 매핑). 군 미선택/항목 value 누락 시 blockingReason → 다음(미리보기) 버튼 비활성. ESM 외 마켓은 고시 입력 없음(하위호환). (노드 추가 아님 — n19 카드 내부 구조.)
 - 등록 미리보기 → 일괄 등록 실행
 - 일괄 등록 실행 → 등록 결과
@@ -199,13 +199,12 @@
 | n58 | main_page | 배송 설정 |
 | n59 | page | 로젠 API 연동 |
 | n60 | page | 발송인 정보 설정 |
-| n61 | page | G마켓·옥션 배송 프로필 관리 (ESM) |
+| n61 | page | ~~G마켓·옥션 배송 프로필 관리 (ESM)~~ ⚠️ **deprecate 예정** (조회형 전환, PR-E3 제거 — `esm.md` 전환 결정 절) |
 
 **Flow**
 - 배송 설정 → 로젠 API 연동 (userId / custCd 입력 → pgcrypto 암호화 저장 → 연결 테스트)
 - 배송 설정 → 발송인 정보 설정 (이름·주소·연락처·fareTy·dlvFare)
-- 배송 설정 → G마켓·옥션 배송 프로필 관리 (`/settings/shipping/esm-profiles`) — ESM 상품 등록 선행값(출하지·발송정책) 사전 생성·재사용. 생성 시 Edge `esm-shipping-profile` 가 ESM 4단계(주소록→출하지→묶음배송→발송정책) 호출 → 번호 저장. 상품 등록 3단계(s3)는 이 프로필을 select 만 (esm.md §1.3/§5, PR-3).
-  - ESM(G마켓/옥션) 계정 미연결 시 생성 불가 → 마켓 연결 유도 (n34 `/markets/connect`).
+- ~~배송 설정 → G마켓·옥션 배송 프로필 관리 (`/settings/shipping/esm-profiles`)~~ ⚠️ **deprecate 예정 (조회형 전환, 2026-05-30 — `esm.md` 전환 결정 절)**: ESM 배송 선행값을 우리 앱이 생성하지 않고, 셀러가 ESM Plus 에서 만든 출하지·발송정책을 상품등록 3단계에서 GET 조회·select 한다. 생성 페이지(n61)·Edge `esm-shipping-profile`·`esm_shipping_profiles` 테이블은 PR-E3/E4 에서 제거.
 - 로젠 미연동 상태에서 n47 진입 시 → 배송 설정 유도 배너
 
 ---
