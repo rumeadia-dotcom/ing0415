@@ -23,6 +23,7 @@ import { naverRealAdapter } from '../real/naver'
 import { coupangRealAdapter } from '../real/coupang'
 import { gmarketRealAdapter } from '../real/gmarket'
 import { auctionRealAdapter } from '../real/auction'
+import { elevenstRealAdapter } from '../real/11st'
 import type { MarketAdapter } from '../types'
 import type { MarketCredentialKind, MarketId } from '@/lib/schemas'
 
@@ -35,6 +36,8 @@ const ACTIVE_MARKETS: readonly {
   { market: 'coupang', kind: 'hmac', real: coupangRealAdapter },
   { market: 'gmarket', kind: 'esm_jwt', real: gmarketRealAdapter },
   { market: 'auction', kind: 'esm_jwt', real: auctionRealAdapter },
+  // 11번가 (api_key) — PR-5 에서 fetchOrders/submitTracking real 본체 동작 → parity 편입.
+  { market: '11st', kind: 'api_key', real: elevenstRealAdapter },
 ]
 
 describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => {

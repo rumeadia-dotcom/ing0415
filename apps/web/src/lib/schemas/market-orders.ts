@@ -93,6 +93,12 @@ export const MarketOrderSchema = z.object({
    * 쿠팡 외 마켓은 항상 omit.
    */
   vendorItemId: z.string().min(1).optional(),
+  /**
+   * 마켓별 발송처리 키 — 마켓 API 가 송장 제출 시 요구하는 추가 식별자(문자열맵).
+   * 예: 11번가 `dlvNo`(배송번호) — submitTracking 의 reqdelivery path 키 (11st.md §4.4/§4.5).
+   * 다른 마켓은 omit. PII 아님 (마켓 내부 식별자).
+   */
+  extra: z.record(z.string()).optional(),
   /** 마켓 ID — 호출측에서 어댑터 컨텍스트와 교차 검증. */
   market: MarketIdSchema,
 })

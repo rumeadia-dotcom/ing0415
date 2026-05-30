@@ -148,6 +148,75 @@ export function toElevenStDate(iso: string): string {
   )
 }
 
+/**
+ * ISO 8601 → 11번가 주문/발송 path variable (PR-5).
+ * spec(paid-1876 / dispatch-1888)은 **12자리 `YYYYMMDDhhmm`** (초 없음, UTC).
+ * `toElevenStDate`(14자리 GetOrderList 잔재)와 별개 — ordservices 계열 path 전용.
+ */
+export function toElevenStOrderDate(iso: string | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
+    `${p(d.getUTCHours())}${p(d.getUTCMinutes())}`
+  )
+}
+
+// ─────────────────────────────────────────────
+// 택배사 코드 매핑 (PR-5, §8-3)
+//   내부 CarrierCode(enum) → 11번가 dlvEtprsCd. 출처: dispatch-1888.md path variable enum.
+//   ⚠️ cross-market 공통 `_shared/carrier-codes.ts` 단일화는 PR-6 — 본 PR 은 11번가 어댑터
+//   내부 맵으로 구현하되, PR-6 추출이 쉽도록 한 곳(본 상수)에 모아둔다.
+//   v1 내부 enum(TRACKING_CARRIER_CODES)은 'LOGEN' 단일이나, 주요 택배사를 미리 매핑한다.
+// ─────────────────────────────────────────────
+export const ELEVEN_ST_CARRIER_CODES = {
+  LOGEN: '00002', // 로젠택배 (v1 내부 enum)
+  CJ: '00034', // CJ대한통운
+  HANJIN: '00011', // 한진택배
+  LOTTE: '00012', // 롯데(현대)택배
+  EPOST: '00007', // 우체국택배/등기
+  HABDONG: '00035', // 합동택배
+  KYUNGDONG: '00026', // 경동택배
+  DAESIN: '00021', // 대신택배
+  CHUNIL: '00027', // 천일택배
+  ETC: '00099', // 기타
+} as const
+export type ElevenStCarrierKey = keyof typeof ELEVEN_ST_CARRIER_CODES
+
+/**
+ * 내부 carrierCode → 11번가 dlvEtprsCd. 미매핑이면 undefined 반환
+ * (호출측 어댑터가 '택배사 코드 미지원' validation 처리). 순수 함수.
+ */
+export function toElevenStCarrierCode(carrierCode: string): string | undefined {
+  const key = carrierCode.toUpperCase() as ElevenStCarrierKey
+  return ELEVEN_ST_CARRIER_CODES[key]
+}
+
+// ─────────────────────────────────────────────
+// REST path 빌더 (PR-5) — ordservices 계열 path variable 조립
+// ─────────────────────────────────────────────
+
+/** 주문조회 path — `/ordservices/complete/{startTime}/{endTime}` (1876, 12자리). */
+export function buildElevenStOrderListPath(startTime: string, endTime: string): string {
+  return `${ELEVEN_ST_REST_PATHS.orderCompleteList}/${startTime}/${endTime}`
+}
+
+/**
+ * 발송처리 path — `/ordservices/reqdelivery/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}` (1888).
+ * dlvMthdCd 는 01(택배) 고정 (v1 범위 — 택배 발송만). body 없음.
+ */
+export function buildElevenStDispatchPath(input: {
+  sendDt: string
+  dlvEtprsCd: string
+  invcNo: string
+  dlvNo: string
+}): string {
+  const { sendDt, dlvEtprsCd, invcNo, dlvNo } = input
+  return `${ELEVEN_ST_REST_PATHS.dispatch}/${sendDt}/01/${dlvEtprsCd}/${invcNo}/${dlvNo}`
+}
+
 // ─────────────────────────────────────────────
 // 카테고리 매핑 (PR-1 재작성 — cateservice 1001/1617, ns2, parentDispNo 트리)
 //
@@ -378,41 +447,80 @@ export function normalizeElevenStStatus(raw: string): MarketOrderStatus {
   }
 }
 
-/** 파싱된 XML 객체 → MarketOrder[] (zod 검증은 호출측 어댑터가 수행). */
+/**
+ * 주문조회(1876) 결과를 분류 (PR-5). spec Error Response: `orders.result_code`.
+ *   - 0  = 조회된 결과 없음 (에러 아님 — empty)
+ *   - 음수(-3105 등) = 비즈니스 에러 (error + code/message)
+ *   - result_code 없음 = 정상 목록 (ok)
+ * 순수 함수. 입력은 stripNsPrefix 통과 후 객체.
+ */
+export function classifyElevenStOrdersResult(
+  parsed: Record<string, unknown>,
+):
+  | { kind: 'ok' }
+  | { kind: 'empty' }
+  | { kind: 'error'; code: string; message: string } {
+  const container =
+    (pick(parsed, ['orders', 'Orders', 'OrderList']) as Record<string, unknown> | undefined) ??
+    parsed
+  const code = str(pick(container, ['result_code', 'resultCode', 'code']))
+  if (code === '') return { kind: 'ok' }
+  if (code === '0') return { kind: 'empty' }
+  return {
+    kind: 'error',
+    code,
+    message: str(pick(container, ['result_text', 'resultMessage', 'message'])),
+  }
+}
+
+/**
+ * 파싱된 XML 객체 → MarketOrder[] (zod 검증은 호출측 어댑터가 수행).
+ *
+ * PR-5 재작성: spec paid-1876 (`ns2:orders > ns2:order[]`, stripNsPrefix 후 `orders.order`).
+ * complete(1876)는 "발주확인 대기" 목록만 반환하므로 status 는 항상 new_pay (ordStat 필드 없음).
+ * ⚠️ `dlvNo`(배송번호) 는 발송처리(1888)의 path 키 → `MarketOrder.extra.dlvNo` 로 반드시 수집.
+ */
 export function mapElevenStOrders(parsed: Record<string, unknown>): MarketOrder[] {
-  const container = pick(parsed, ['Orders', 'orders', 'OrderList']) as
+  const container = pick(parsed, ['orders', 'Orders', 'OrderList']) as
     | Record<string, unknown>
     | undefined
   let list: Record<string, unknown>[] = []
   if (container && typeof container === 'object') {
-    list = asArray(pick(container, ['Order', 'order']))
+    list = asArray(pick(container, ['order', 'Order']))
   } else {
-    list = asArray(pick(parsed, ['Order', 'order']))
+    list = asArray(pick(parsed, ['order', 'Order']))
   }
 
   return list.map((o) => {
-    const baseAddr = str(pick(o, ['RcvrBaseAddr', 'rcvrBaseAddr', 'rcvrMailAddr']))
-    const dtlAddr = str(pick(o, ['RcvrDtlsAddr', 'rcvrDtlsAddr', 'rcvrDetailAddr']))
+    const baseAddr = str(pick(o, ['rcvrBaseAddr', 'RcvrBaseAddr', 'rcvrMailAddr']))
+    const dtlAddr = str(pick(o, ['rcvrDtlsAddr', 'RcvrDtlsAddr', 'rcvrDetailAddr']))
     const addr = [baseAddr, dtlAddr].filter((s) => s.length > 0).join(' ')
-    const qty = intOr(pick(o, ['OrdQty', 'ordQty', 'orderQty']), 1)
-    const amount = intOr(pick(o, ['OrdAmt', 'ordAmt', 'selPrc', 'orderAmt']), 0)
+    const qty = intOr(pick(o, ['ordQty', 'OrdQty', 'orderQty']), 1)
+    // ordAmt(주문총액) 우선, 없으면 ordPayAmt(결제금액) fallback (spec §4.4).
+    const amount = intOr(pick(o, ['ordAmt', 'OrdAmt', 'ordPayAmt', 'selPrc']), 0)
+    const dlvNo = str(pick(o, ['dlvNo', 'DlvNo']))
+    // paidAt 은 결제완료일시(ordStlEndDt) 우선, 없으면 주문일시(ordDt).
+    const paidRaw =
+      str(pick(o, ['ordStlEndDt', 'OrdStlEndDt'])) ||
+      str(pick(o, ['ordDt', 'OrdDt'])) ||
+      undefined
     const order: MarketOrder = {
       market: MARKET,
-      externalOrderId: str(pick(o, ['OrdNo', 'ordNo', 'orderNo', 'ordPrdSeq'])) || 'unknown',
-      buyerName: str(pick(o, ['OrdNm', 'ordNm', 'buyerNm', 'memNm'])) || '미상',
-      receiverName: str(pick(o, ['RcvrNm', 'rcvrNm', 'receiverNm'])) || '미상',
+      externalOrderId: str(pick(o, ['ordNo', 'OrdNo', 'orderNo'])) || 'unknown',
+      buyerName: str(pick(o, ['ordNm', 'OrdNm', 'buyerNm', 'memNm'])) || '미상',
+      receiverName: str(pick(o, ['rcvrNm', 'RcvrNm', 'receiverNm'])) || '미상',
       receiverAddress: addr.length > 0 ? addr : '주소 없음',
       receiverPhone:
-        str(pick(o, ['RcvrPrtblNo', 'rcvrPrtblNo', 'rcvrMphnNo', 'rcvrTlphnNo'])) ||
+        str(pick(o, ['rcvrPrtblNo', 'RcvrPrtblNo', 'rcvrTlphn', 'rcvrTlphnNo'])) ||
         '연락처 없음',
-      productName: str(pick(o, ['PrdNm', 'prdNm', 'productNm'])) || '상품명 없음',
+      productName: str(pick(o, ['prdNm', 'PrdNm', 'productNm'])) || '상품명 없음',
       quantity: qty > 0 ? qty : 1,
       orderAmount: amount >= 0 ? amount : 0,
-      status: normalizeElevenStStatus(
-        str(pick(o, ['OrdStat', 'ordStat', 'orderStatus', 'shppgStatCd'])),
-      ),
-      paidAt: normalizeIsoOffset(str(pick(o, ['OrdDt', 'ordDt', 'payDt', 'PayDt'])) || undefined),
+      status: 'new_pay',
+      paidAt: normalizeIsoOffset(paidRaw),
     }
+    // dlvNo 가 있을 때만 extra 부착 (없으면 발송처리 불가 — 호출측이 판단).
+    if (dlvNo) order.extra = { dlvNo }
     return order
   })
 }
@@ -421,29 +529,44 @@ export function mapElevenStOrders(parsed: Record<string, unknown>): MarketOrder[
 // 발송 처리
 // ─────────────────────────────────────────────
 
-export function buildElevenStShipmentXml(input: {
-  ordPrdSeq: string
-  carrierCode: string
-  invoiceNumber: string
-}): string {
-  return buildXml('SendGoods', {
-    ordPrdSeq: input.ordPrdSeq,
-    dlvEtprsCd: input.carrierCode,
-    dlvNo: input.invoiceNumber,
-  })
-}
+/**
+ * 발송처리(1888) 정상 거부 코드 (market-adapter.md §9.7).
+ *   -3306 송장번호 형식 / -3320 중복 송장 / -3307 택배사 코드 오류.
+ *   Edge 어댑터는 throw-on-failure 계약이므로 'validation'(비재시도) MarketError 로 throw.
+ */
+export const ELEVEN_ST_DISPATCH_REJECT_CODES = ['-3306', '-3320', '-3307'] as const
 
-export function isElevenStShipmentOk(parsed: Record<string, unknown>): {
-  ok: boolean
-  code: string
-  message: string
-} {
+/**
+ * 발송처리(1888) 성공 간주 코드.
+ *   0 성공 / -3308 이미 발송처리됨 (묶음배송 멱등 — spec: 같은 dlvNo 재호출도 정상 처리로 간주).
+ */
+export const ELEVEN_ST_DISPATCH_OK_CODES = ['0', '-3308'] as const
+
+/**
+ * 발송처리(1888) 응답(`ResultOrder.result_code`)을 반환 정책(§9.7)으로 분류 (PR-5).
+ *   - ok        : 성공 (0 / -3308 멱등)
+ *   - rejected  : 정상 거부 (-3306/-3320/-3307)
+ *   - throwable : 횡단 실패 (-1000 점검중 / -3311 시스템장애 / 알 수 없는 음수)
+ * 순수 함수. 입력은 stripNsPrefix 통과 후 객체.
+ */
+export function classifyElevenStDispatchResult(
+  parsed: Record<string, unknown>,
+):
+  | { kind: 'ok'; code: string; message: string }
+  | { kind: 'rejected'; code: string; message: string }
+  | { kind: 'throwable'; code: string; message: string } {
   const container =
-    (pick(parsed, ['Result', 'result', 'SendGoods', 'Delivery']) as
+    (pick(parsed, ['ResultOrder', 'resultOrder', 'Result', 'result']) as
       | Record<string, unknown>
       | undefined) ?? parsed
   const code = str(pick(container, ['result_code', 'resultCode', 'code']))
   const message = str(pick(container, ['result_text', 'resultMessage', 'message']))
-  const ok = code === '' || code === '200' || code === '0' || code === 'Success'
-  return { ok, code, message }
+  if ((ELEVEN_ST_DISPATCH_OK_CODES as readonly string[]).includes(code)) {
+    return { kind: 'ok', code, message }
+  }
+  if ((ELEVEN_ST_DISPATCH_REJECT_CODES as readonly string[]).includes(code)) {
+    return { kind: 'rejected', code, message }
+  }
+  // 그 외 음수/미지 코드 = 횡단 실패로 보수적 처리 (-1000 점검중 / -3311 장애 / -1 비즈니스 등).
+  return { kind: 'throwable', code, message }
 }
