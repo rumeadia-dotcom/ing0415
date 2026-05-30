@@ -47,7 +47,19 @@ export const ELEVEN_ST_REST_PATHS = {
   dispatch: '/ordservices/reqdelivery', // GET 1888 — `/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}`
   outboundAddrList: '/areaservice/outboundarea', // GET 1014
   outboundAddrOne: '/areaservice/getOutAddressInfo', // POST 1691 — `/{addrSeq}`
+  inboundAddrList: '/areaservice/inboundarea', // GET 1015 (반품/교환지 목록)
 } as const
+
+/**
+ * 출고지(1014)/반품지(1015) 조회 절대 URL 조립 (PR-2). API Key 는 `openapikey` 헤더로만 — querystring 없음.
+ * 순수 함수 — Edge(eleven-st-shipping-list) 가 게이트웨이로 보낸다.
+ */
+export function buildElevenStOutboundAreaUrl(): string {
+  return `${ELEVEN_ST_REST_BASE}${ELEVEN_ST_REST_PATHS.outboundAddrList}`
+}
+export function buildElevenStInboundAreaUrl(): string {
+  return `${ELEVEN_ST_REST_BASE}${ELEVEN_ST_REST_PATHS.inboundAddrList}`
+}
 
 /**
  * 카테고리 조회 REST URL 조립 (PR-1). API Key 불필요(GET) — querystring 없음.

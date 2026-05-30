@@ -26,6 +26,7 @@
 
 import { MarketError } from '../../errors'
 import type { MarketAdapter } from '../../types'
+import { getElevenStRegistrationFields } from './registration-fields'
 import {
   ApiKeyAuthInputSchema,
   CategoryNodeSchema,
@@ -44,6 +45,7 @@ import {
   type MarketPayload,
   type MarketSubmitTrackingResult,
   type Product,
+  type RegistrationFieldMeta,
   type StoredCredential,
   type SubmitTrackingInput,
 } from '@/lib/schemas'
@@ -417,6 +419,15 @@ function createElevenStRealAdapter(): MarketAdapter {
         )
       }
       return { market: MARKET, raw: buildElevenStProductRaw(product, mapping) }
+    },
+
+    // ───────────────────────────────────────────
+    // getRegistrationFields — 출고지/반품지 select 2필드 (11st.md §4.6 / PR-2).
+    //   순수 동기 함수. UI(MarketOptionsCard)가 useElevenStShippingAddresses 로 옵션을 채운다.
+    //   officialNotice 는 PR-4. (구 동작: 미구현 → 카테고리만 → 본 PR 부터 select 2개 추가.)
+    // ───────────────────────────────────────────
+    getRegistrationFields(): RegistrationFieldMeta[] {
+      return getElevenStRegistrationFields()
     },
 
     // ───────────────────────────────────────────

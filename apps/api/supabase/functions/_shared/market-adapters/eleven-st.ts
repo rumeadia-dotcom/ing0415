@@ -33,9 +33,11 @@ import type {
   MarketMapping,
   MarketPayload,
   Product,
+  RegistrationFieldMeta,
   StoredCredential,
 } from '../schemas.ts'
 import type { MarketAdapter, SubmitTrackingResult } from '../market-adapter.ts'
+import { getElevenStRegistrationFields } from './eleven-st-registration-fields.ts'
 import type { FetchOrdersInput, MarketOrder } from '../market-orders.ts'
 import { FetchOrdersInputSchema, MarketOrderSchema } from '../market-orders.ts'
 import {
@@ -382,6 +384,12 @@ export function createElevenStAdapter(): MarketAdapter {
         )
       }
       return { market: MARKET, raw: buildElevenStProductRaw(product, mapping) }
+    },
+
+    // getRegistrationFields — 출고지/반품지 select 2필드 (11st.md §4.6 / PR-2).
+    //   순수 동기 함수. mock(debug)·real 동형(parity). officialNotice 는 PR-4.
+    getRegistrationFields(): RegistrationFieldMeta[] {
+      return getElevenStRegistrationFields()
     },
 
     async createProduct(payload: MarketPayload): Promise<CreateProductResult> {

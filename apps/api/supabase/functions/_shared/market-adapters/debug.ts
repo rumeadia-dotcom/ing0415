@@ -43,6 +43,7 @@ import {
 } from '../schemas.ts'
 import type { MarketAdapter } from '../market-adapter.ts'
 import { getEsmRegistrationFields } from './esm-registration-fields.ts'
+import { getElevenStRegistrationFields } from './eleven-st-registration-fields.ts'
 import { mapElevenStCategories } from './eleven-st-map.ts'
 
 export type MockScenario =
@@ -463,6 +464,10 @@ export function createMockAdapter(
   // ESM(G마켓·옥션) 만 동적 등록필드(배송 프로필 선택) 노출 — real 어댑터와 동형(parity).
   if (isEsmMarket(market)) {
     base.getRegistrationFields = () => getEsmRegistrationFields()
+  }
+  // 11번가 동적 등록필드(출고지/반품지 select 2개) — real 어댑터와 동형(parity, 11st.md §4.6 / PR-2).
+  if (market === '11st') {
+    base.getRegistrationFields = () => getElevenStRegistrationFields()
   }
 
   if (credentialKind === 'oauth') {

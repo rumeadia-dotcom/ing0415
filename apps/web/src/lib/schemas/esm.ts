@@ -458,6 +458,10 @@ export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
 export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
   'shippingProfiles',
   'static',
+  // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2). additive — ESM 영역(위 2개) 미접촉.
+  //   UI(MarketOptionsCard)가 useElevenStShippingAddresses 로 출고지/반품지 목록을 채운다.
+  'elevenStOutbound',
+  'elevenStReturn',
 ] as const
 export const RegistrationFieldOptionsSourceSchema = z.enum(
   REGISTRATION_FIELD_OPTIONS_SOURCES,

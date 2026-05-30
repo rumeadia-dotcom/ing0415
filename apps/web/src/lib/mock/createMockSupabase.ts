@@ -686,6 +686,20 @@ function makeFunctions() {
           })
           return { data: profile, error: null }
         }
+        case 'eleven-st-shipping-list': {
+          // 11번가 출고지/반품지 조회 (PR-2) — Edge 1014/1015 정규화 결과 시뮬레이션.
+          // 응답은 ElevenStShippingAddressListResponseSchema 형태 (addrSeq + addrNm 만, PII 0).
+          return {
+            data: {
+              outbound: [
+                { addrSeq: '14', addrNm: '본사 출고지' },
+                { addrSeq: '27', addrNm: '제2물류센터' },
+              ],
+              returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+            },
+            error: null,
+          }
+        }
         default:
           return { data: { ok: true }, error: null }
       }

@@ -153,6 +153,35 @@ export const ElevenStShippingAddressSchema = z
 export type ElevenStShippingAddress = z.infer<typeof ElevenStShippingAddressSchema>
 
 // ─────────────────────────────────────────────
+// §3 Layer 2 — 조회 Edge → Web 정규화 응답 (PR-2)
+//   ⚠️ PII 차단: 정규화/응답 단계는 addrSeq + addrNm 2필드만 통과시킨다.
+//   주소(addr)·수령자(rcvrNm)·전화(gnrlTlphnNo/prtblTlphnNo)는 우리 DB 미저장·미노출(11st.md §3).
+//   select 표시 = addrNm, payload 주입 = addrSeq (addrSeqOut/addrSeqIn).
+// ─────────────────────────────────────────────
+
+/** 출고지/반품지 select 옵션 — addrSeq(값) + addrNm(표시). PII 0. */
+export const ElevenStShippingAddressOptionSchema = z.object({
+  addrSeq: z.string().min(1),
+  addrNm: z.string().min(1),
+})
+export type ElevenStShippingAddressOption = z.infer<
+  typeof ElevenStShippingAddressOptionSchema
+>
+
+/**
+ * 조회 Edge(eleven-st-shipping-list) → Web 응답.
+ *   outbound = 출고지 목록(1014), returnAddrs = 반품/교환지 목록(1015).
+ * 빈 배열 = 셀러가 셀러오피스에 미등록(empty 상태) — 에러 아님.
+ */
+export const ElevenStShippingAddressListResponseSchema = z.object({
+  outbound: z.array(ElevenStShippingAddressOptionSchema),
+  returnAddrs: z.array(ElevenStShippingAddressOptionSchema),
+})
+export type ElevenStShippingAddressListResponse = z.infer<
+  typeof ElevenStShippingAddressListResponseSchema
+>
+
+// ─────────────────────────────────────────────
 // §4 상품정보고시 (ProductNotification) — type + item[{code,name}]
 //   ESM officialNotice 와 동형. 상품군 코드 마스터는 PR-4.
 // ─────────────────────────────────────────────

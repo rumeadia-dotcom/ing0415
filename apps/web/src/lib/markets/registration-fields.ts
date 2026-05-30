@@ -1,5 +1,6 @@
 import type { MarketId, RegistrationFieldMeta } from '@/lib/schemas'
 import { getEsmRegistrationFields } from './real/esm/registration-fields'
+import { getElevenStRegistrationFields } from './real/11st/registration-fields'
 
 /**
  * 마켓별 동적 등록필드 메타의 **동기 resolver** (s3 3단계 MarketOptionsCard 렌더용).
@@ -14,8 +15,9 @@ import { getEsmRegistrationFields } from './real/esm/registration-fields'
  *   - 따라서 UI 는 본 동기 resolver 로 메타만 즉시 얻는다(컴포넌트 내 마켓 하드코딩 분기 금지
  *     원칙은 유지 — UI 는 marketId → 메타 배열만 받고, 메타 kind 로만 렌더 분기).
  *
- * 하위호환: ESM(gmarket/auction) 외 마켓은 `[]` → 카테고리 매핑만(현 동작 불변).
- * officialNotice 필드는 PR-5 가 getEsmRegistrationFields 에 추가하면 자동 반영된다.
+ * 하위호환: 메타를 선언한 마켓(ESM=gmarket/auction, 11번가=11st) 외에는 `[]` → 카테고리 매핑만(현 동작 불변).
+ * ESM=[배송 프로필, 상품정보고시], 11번가=[출고지 select, 반품/교환지 select](11st.md §4.6 / PR-2).
+ * 11번가 officialNotice 는 PR-4 가 getElevenStRegistrationFields 에 추가하면 자동 반영된다.
  */
 export function getRegistrationFieldsForMarket(
   marketId: MarketId,
@@ -24,6 +26,8 @@ export function getRegistrationFieldsForMarket(
     case 'gmarket':
     case 'auction':
       return getEsmRegistrationFields()
+    case '11st':
+      return getElevenStRegistrationFields()
     default:
       return []
   }

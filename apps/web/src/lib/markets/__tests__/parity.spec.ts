@@ -82,8 +82,9 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
         }
       })
 
-      it('getRegistrationFields 정책 일치 — ESM(gmarket/auction) 한정 (PR-3.5)', () => {
+      it('getRegistrationFields 정책 일치 — ESM(PR-5) / 11번가(PR-2) / 그 외 미정의', () => {
         const isEsm = market === 'gmarket' || market === 'auction'
+        const isElevenSt = market === '11st'
         if (isEsm) {
           // mock ↔ real 동형: 둘 다 함수로 노출 + [배송 프로필, 상품정보고시] 2필드 반환 (PR-5).
           expect(typeof mock.getRegistrationFields).toBe('function')
@@ -97,8 +98,22 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
           ])
           expect(mockFields[0]?.kind).toBe('shippingProfile')
           expect(mockFields[1]?.kind).toBe('officialNotice')
+        } else if (isElevenSt) {
+          // mock ↔ real 동형: 둘 다 함수로 노출 + [출고지, 반품/교환지] select 2필드 (11st.md §4.6 / PR-2).
+          //   officialNotice 는 PR-4 — 본 PR 미포함.
+          expect(typeof mock.getRegistrationFields).toBe('function')
+          expect(typeof real.getRegistrationFields).toBe('function')
+          const mockFields = mock.getRegistrationFields?.() ?? []
+          const realFields = real.getRegistrationFields?.() ?? []
+          expect(mockFields).toEqual(realFields)
+          expect(mockFields.map((f) => f.key)).toEqual([
+            'outboundAddrSeq',
+            'returnAddrSeq',
+          ])
+          expect(mockFields.every((f) => f.kind === 'select')).toBe(true)
+          expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(false)
         } else {
-          // 하위호환: naver/coupang/11st 는 메서드 미정의 → 헬퍼 통해 [] 취급.
+          // 하위호환: naver/coupang 은 메서드 미정의 → 헬퍼 통해 [] 취급.
           expect(mock.getRegistrationFields).toBeUndefined()
           expect(real.getRegistrationFields === undefined).toBe(true)
         }

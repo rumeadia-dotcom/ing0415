@@ -11,10 +11,15 @@ export { SettingsShippingEsmProfilesPage } from './pages/SettingsShippingEsmProf
 export { useLogenCredentialsStatus } from './hooks/useLogenCredentialsStatus'
 export { useEsmShippingProfiles } from './hooks/useEsmShippingProfiles'
 export { useCreateEsmShippingProfile } from './hooks/useCreateEsmShippingProfile'
+export { useElevenStShippingAddresses } from './hooks/useElevenStShippingAddresses'
 export {
   EsmShippingProfileError,
   esmShippingProfileQueryKeys,
 } from './api/esm-shipping-profile-api'
+export {
+  ElevenStShippingListError,
+  elevenStShippingListQueryKeys,
+} from './api/eleven-st-shipping-list-api'
 export { useLogenVerifyCredential } from './hooks/useLogenVerifyCredential'
 export {
   useLogenSenderInfoUpdate,
