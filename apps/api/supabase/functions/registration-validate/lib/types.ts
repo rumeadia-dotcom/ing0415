@@ -51,6 +51,9 @@ export interface ProductRow {
   description_html: string | null
   base_category_id: string
   shipping_policy_id: string | null
+  // 로더가 shipping_policy_id → shipping_policies.fee 로 해소해 채운다
+  // (cross-cutting/shipping-fee-model.md §3-1). 정책 미지정 시 0.
+  shipping_fee: number
 }
 
 export interface MappingRow {

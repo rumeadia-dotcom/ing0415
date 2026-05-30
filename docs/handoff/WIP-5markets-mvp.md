@@ -37,6 +37,20 @@
 
 ---
 
+## 2026-05-30 세션 #3 — 배송비 모델 정립 + Layer 1 fee 해소 버그픽스 (진행 중)
+
+**계기**: 상품등록 1단계 "배송 정책"(`shipping_policies`) vs ESM "배송 프로필"(`esm_shipping_profiles`) 중복 의문. 4 마켓(쿠팡/ESM/네이버/11번가) 실제 배송비 API 조사 결과 → **중복 아님, 직교하는 2 레이어**로 결론.
+
+- **신규 설계문서**: `cross-cutting/shipping-fee-model.md` — 4 마켓 비교표 + 2-레이어 결정(Layer 1=배송 정책=요금 의도 / Layer 2=배송 프로필=물류 참조) + 마켓별 fee 필드 매핑 + 구현 5단계 + 출처. registration.md §3.2 / esm.md §3 에 역참조 추가.
+- **조사 핵심**: 4 마켓 전부 하이브리드 — 배송비 *금액*은 대부분 인라인(ESM 묶음만 정책 참조), **출고지/반품지 주소는 예외 없이 사전 생성 참조**(보편 패턴, ESM 만이 아님).
+- **Step 1 버그픽스 (TDD, feature/shipping-fee-resolve)**: 워커 `data-load.ts` + validate `check.ts` 가 `shippingFeeKrw: 0` 하드코딩 → `shipping_policy_id`→`shipping_policies.fee` 미해소. 셀러 배송비가 네이버/쿠팡/11번가 등록에 0 으로 나가던 버그.
+  - `_shared/shipping-fee.ts` `resolveShippingFee()` 신규 + barrel export. 워커/validate 양쪽 연결. vitest 3 케이스(`_shared/__tests__/shipping-fee.test.ts`).
+  - **전체 1141 passed** (1138+3) / typecheck·lint clean.
+
+**남은 단계 (shipping-fee-model.md §4)**: Step 2 배송 정책 enrich(feeType/조건부무료/반품비/도서산간) → Step 3 어댑터 인라인 매핑 → Step 4 Layer 2(출고지/반품지) 마켓 범용화 → Step 5 ESM fee 연결.
+
+---
+
 ## ⚠ carry-over 백로그 (전부 v1 머지 차단 아님)
 
 | # | 항목 | 출처 | 사유 / 진입 |
@@ -47,6 +61,9 @@
 | **C4** | **PR-5 라이브 codes API** — `/official-notice/groups/{no}/codes` 연동 + 정적 항목 검증 | PR-5 | 문서 161.md 가 41군 중 sample 2건만 제공 → 정적코드 없는 군은 셀러 free-form. C2/C3 후 동적 폼 |
 | **C5** | **PR-4 이미지 16장째 무음 드롭** — `urls.slice(1,15)` 16번째 warning 없이 누락 | PR-4 | `CreateProductResult.warnings` 에 `images_truncated` (v2) |
 | **C6** | **mcp_ro_dev `supabase_migrations` read GRANT** — 없어서 MCP 로 dev 마이그 이력 조회 불가(편의) | 세션#2 | esm.md §5.4 에 `grant usage on schema supabase_migrations` + `grant select on schema_migrations` 추가 고려 |
+| **C7** | **잠재 Deno 타입 에러 3건** — 세션#3 에서 deno 최초 설치 후 `deno check` 로 발견. ①`_shared/audit.ts:77/89` sellerId `string\|null`→`LogContext.sellerId?:string` ②`_shared/market-adapters/eleven-st.ts:228`+`schemas.ts:130` `expiresAt:null` vs `string` ③`registration-validate/lib/check.ts:106` `'description_html_unsafe'` 가 `ValidationIssueCode` enum 미포함 | 세션#3 | 전부 기존 버그(이번 변경 무관). deno 미설치라 그간 미검출. enum 누락(③)은 응답 직렬화 시 런타임 영향 가능 → 우선 점검 |
+| **C8** | **Deno 전용 테스트 CI 미실행** — `deno test`+deno.land import 쓰는 테스트(orders-sync/coupang-orders/esm-orders 등)는 vitest exclude + CI 에 deno 없음 → 사실상 미실행. | 세션#3 | 신규 Edge 테스트는 **vitest 호환**으로 작성(가능 시) 또는 CI 에 deno step 추가 결정 필요 |
+| **S2~S5** | **배송비 2-레이어 후속** — Step 2 배송정책 enrich / Step 3 어댑터 인라인 매핑 / Step 4 Layer 2(출고지·반품지) 범용화 / Step 5 ESM fee 연결 | 세션#3 | `shipping-fee-model.md §4`. Step 4 는 real 검증(C3) 연계. 쿠팡/네이버 어댑터 출고지·반품지 미전송 → real 거부 위험 동반 |
 
 ---
 

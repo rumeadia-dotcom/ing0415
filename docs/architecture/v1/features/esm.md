@@ -77,6 +77,8 @@ Wave 2 (병렬 3)
 
 ## 3. 데이터 모델 — `esm_shipping_profiles` (PR-3 에서 마이그레이션, PR-0 에서 계약 확정)
 
+> 본 테이블은 배송의 **물류 참조(Layer 2)** 레이어 — 4 마켓 배송비 모델 비교 + 2-레이어(요금 의도 vs 물류 참조) 정립은 `cross-cutting/shipping-fee-model.md` 참조. 출고지/반품지 사전 생성 참조는 ESM 만이 아니라 모든 마켓의 보편 패턴이며, Layer 2 일반화는 후속 트랙.
+
 배송 선행값(addrNo/placeNo/배송비정책/dispatchPolicyNo)을 마켓 계정별로 **1회 생성·재사용**하는 테이블. PR-3 에서 마이그레이션을 만들되, 컬럼·제약·RLS 계약은 PR-0 에서 고정한다.
 
 ```sql

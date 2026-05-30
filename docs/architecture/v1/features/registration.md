@@ -215,6 +215,8 @@ create type shipping_method as enum (
 
 ### 3.2 `shipping_policies`
 
+> 배송 정책 = 마켓 무관 **요금 의도(Layer 1)** 단일 소스. 마켓별 배송비 인라인 매핑 / ESM 프로필 연계 / 워커·validate 의 `shipping_policy_id`→`fee` 해소는 `cross-cutting/shipping-fee-model.md` 참조. (현재 `fee` flat 1개 — Layer 1 enrich 는 후속 PR.)
+
 ```sql
 create table public.shipping_policies (
   id              uuid primary key default gen_random_uuid(),

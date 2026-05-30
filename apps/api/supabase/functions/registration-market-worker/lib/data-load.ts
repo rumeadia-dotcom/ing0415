@@ -13,6 +13,7 @@ import {
   type MarketId,
   type MarketMapping,
   type Product,
+  resolveShippingFee,
 } from '../../_shared/index.ts'
 
 type Service = ReturnType<typeof getServiceClient>
@@ -167,6 +168,14 @@ export async function loadDomainProduct(
     throw new MarketError('validation', 'market mapping not found', { market: marketId })
   }
 
+  // 배송 정책(Layer 1) 의 fee 를 해소 — 기존엔 0 하드코딩 버그
+  // (cross-cutting/shipping-fee-model.md §3-1).
+  const shippingPolicyId =
+    typeof productRes.data.shipping_policy_id === 'string'
+      ? productRes.data.shipping_policy_id
+      : null
+  const shippingFeeKrw = await resolveShippingFee(service, shippingPolicyId, sellerId)
+
   const product: Product = {
     id: String(productRes.data.id),
     sellerId: String(productRes.data.seller_id),
@@ -178,7 +187,7 @@ export async function loadDomainProduct(
       ? String(productRes.data.description_html)
       : '',
     brand: productRes.data.brand ? String(productRes.data.brand) : undefined,
-    shippingFeeKrw: 0,
+    shippingFeeKrw,
   }
 
   const baseExtra = (mappingRes.data.market_options ?? {}) as Record<
