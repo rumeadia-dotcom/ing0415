@@ -623,3 +623,116 @@ export const RegistrationFieldMetaSchema = z.object({
   blockingReason: z.string().optional(),
 })
 export type RegistrationFieldMeta = z.infer<typeof RegistrationFieldMetaSchema>
+
+// ─────────────────────────────────────────────
+// 11번가(11st) 스키마 (src/lib/schemas/eleven-st.ts 미러, PR-0 — spec import #265)
+//   마스터: docs/architecture/v1/features/11st.md §4
+//   응답은 stripNsPrefix(eleven-st-map.ts) 로 ns2 제거 후 parse.
+// ─────────────────────────────────────────────
+
+const EstCode = z.string().min(1)
+const EstKrw = z.coerce.number().int().nonnegative()
+/** 문자열/숫자 → 문자열 (z.coerce.string 의 undefined→"undefined" 문제 회피, 필수용). */
+const EstNumOrStr = z.union([z.string(), z.number()]).transform((v) => String(v))
+
+export const ElevenStProductCreateSchema = z
+  .object({
+    selMthdCd: EstCode,
+    prdTypCd: EstCode,
+    prdStatCd: EstCode,
+    dispCtgrNo: EstCode,
+    prdNm: z.string().min(1).max(100),
+    brand: z.string().min(1),
+    selPrc: EstKrw.refine((v) => v % 10 === 0, '판매가는 10원 단위'),
+    prdSelQty: z.coerce.number().int().positive(),
+    prdImage01: z.string().url(),
+    htmlDetail: z.string().min(1),
+    minorSelCnYn: z.enum(['Y', 'N']),
+    suplDtyfrPrdClfCd: EstCode,
+    rmaterialTypCd: EstCode,
+    orgnTypCd: EstCode,
+    dlvCnAreaCd: EstCode,
+    dlvWyCd: EstCode,
+    dlvClf: EstCode,
+    dlvCstInstBasiCd: EstCode,
+    bndlDlvCnYn: z.enum(['Y', 'N']),
+    dlvCstPayTypCd: EstCode,
+    jejuDlvCst: EstKrw,
+    islandDlvCst: EstKrw,
+    rtngdDlvCst: EstKrw,
+    exchDlvCst: EstKrw,
+    addrSeqOut: EstCode,
+    addrSeqIn: EstCode,
+    asDetail: z.string().min(1),
+    rtngExchDetail: z.string().min(1),
+  })
+  .passthrough()
+export type ElevenStProductCreate = z.infer<typeof ElevenStProductCreateSchema>
+
+export const ELEVEN_ST_CREATE_SUCCESS_CODES = ['200', '210'] as const
+
+export const ElevenStProductCreateResponseSchema = z
+  .object({
+    productNo: EstNumOrStr.optional(),
+    resultCode: EstNumOrStr,
+    message: z.string().optional(),
+  })
+  .passthrough()
+export type ElevenStProductCreateResponse = z.infer<
+  typeof ElevenStProductCreateResponseSchema
+>
+
+export const ElevenStCategorySchema = z
+  .object({
+    dispNo: EstNumOrStr,
+    dispNm: z.string(),
+    depth: z.coerce.number().int().min(1),
+    parentDispNo: EstNumOrStr,
+    leafYn: z.enum(['Y', 'N']),
+    certType: EstNumOrStr.optional(),
+    requiredYn: z.enum(['Y', 'N']).optional(),
+  })
+  .passthrough()
+export type ElevenStCategory = z.infer<typeof ElevenStCategorySchema>
+
+export const ElevenStOrderSchema = z
+  .object({
+    ordNo: EstNumOrStr,
+    dlvNo: EstNumOrStr,
+    ordPrdSeq: EstNumOrStr.optional(),
+    ordNm: z.string().optional(),
+    rcvrNm: z.string().optional(),
+    rcvrBaseAddr: z.string().optional(),
+    rcvrDtlsAddr: z.string().optional(),
+    rcvrPrtblNo: z.string().optional(),
+    prdNm: z.string().optional(),
+    ordQty: z.coerce.number().int().nonnegative().optional(),
+    ordAmt: z.coerce.number().int().nonnegative().optional(),
+    ordPayAmt: z.coerce.number().int().nonnegative().optional(),
+    ordDt: z.string().optional(),
+    ordStlEndDt: z.string().optional(),
+  })
+  .passthrough()
+export type ElevenStOrder = z.infer<typeof ElevenStOrderSchema>
+
+export const ElevenStShippingAddressSchema = z
+  .object({
+    addrSeq: EstNumOrStr,
+    addrNm: z.string(),
+    addr: z.string().optional(),
+    rcvrNm: z.string().optional(),
+    gnrlTlphnNo: z.string().optional(),
+    prtblTlphnNo: z.string().optional(),
+  })
+  .passthrough()
+export type ElevenStShippingAddress = z.infer<typeof ElevenStShippingAddressSchema>
+
+export const ElevenStNoticeItemSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+})
+export const ElevenStOfficialNoticeSchema = z.object({
+  type: z.string().min(1),
+  item: z.array(ElevenStNoticeItemSchema).min(1),
+})
+export type ElevenStOfficialNotice = z.infer<typeof ElevenStOfficialNoticeSchema>
