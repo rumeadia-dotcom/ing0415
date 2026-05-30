@@ -117,7 +117,7 @@ v0.X — <한 줄 요약>. 직전 (`release/v0.X-1` → main) 이후 develop 누
 - 시크릿 변경 여부
 
 ## CI 게이트
-- Lint & Typecheck / Unit / Build (dev) / Build (real) / E2E Golden Path / E2E a11y / Zod Mirror 7개 통과 필수
+- required check 3개 통과 필수: **CI Gate** (전체 잡 result 집계) / Lint & Typecheck / Unit & Integration (Vitest). Build·E2E·pgTAP 은 CI Gate 가 대리 집계 (2026-05-30 빠른 레인 분리)
 
 ## Post-merge
 - main → develop 백머지 chore commit
@@ -267,21 +267,24 @@ git branch -D release/vX.Y chore/backmerge-vX.Y feature/<해당-feature>
 
 CI 워크플로우의 잡 이름과 branch protection 의 `required_status_checks` 가 어긋나면 영원히 BLOCKED. 예: `Build (debug)` → `Build (dev)` rename 후 protection 미갱신.
 
-```bash
-# 현재 protection 확인
-gh api repos/<owner>/<repo>/branches/develop/protection/required_status_checks --jq '.contexts'
-gh api repos/<owner>/<repo>/branches/main/protection/required_status_checks --jq '.contexts'
+> **이 레포는 classic branch protection 이 아니라 Rulesets 를 쓴다.** `branches/<b>/protection/...` 엔드포인트는 404 (`Branch not protected`). 반드시 **Rulesets API** 로 조회/갱신한다. (`.github/rulesets/develop.json` 은 백업.)
 
-# 갱신 (PUT)
-gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection/required_status_checks/contexts \
-  -f 'contexts[]=Lint & Typecheck' \
-  -f 'contexts[]=Unit & Integration (Vitest)' \
-  -f 'contexts[]=Build (dev)' \
-  -f 'contexts[]=Build (real)' \
-  -f 'contexts[]=E2E Golden Path (Chromium)'
+```bash
+# 1) ruleset id 조회 (target=branch)
+gh api repos/<owner>/<repo>/rulesets --jq '.[] | select(.target=="branch") | {id,name}'
+
+# 2) 현재 required check 확인
+gh api repos/<owner>/<repo>/rulesets/<ID> \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+
+# 3) 갱신 — Rulesets 업데이트는 PUT, rules 배열 전체를 보낸다 (PATCH 미정의 → 404).
+#    GET 결과를 받아 required_status_checks 의 context 만 교체 후 전체 rules 로 PUT.
+#    (PowerShell 은 jq 의 " 를 먹으므로 ConvertFrom-Json 후 객체 수정 → --input 파일 PUT 권장.)
+#    2026-05-30 부터 required 는 항상 실행되는 3개만: CI Gate / Lint & Typecheck / Unit & Integration (Vitest).
+#    무거운 잡(Build/E2E/pgTAP)은 CI Gate(if: always()) 가 result 를 대리 집계.
 ```
 
-protection 변경은 거버넌스 변경 — auto mode classifier 가 차단 가능. 명시 승인 요청.
+protection(ruleset) 변경은 거버넌스 변경 — auto mode classifier 가 차단 가능. 명시 승인 요청.
 
 ### Monitor 활용
 
