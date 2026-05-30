@@ -31,6 +31,7 @@ import {
 } from '../../_shared/index.ts'
 import type { ShippingErrorCode } from '../../shipping-dispatch-job/lib/types.ts'
 import { loadShippingResultsForMarket, type ShippingResultRow } from './data-load.ts'
+import { buildSubmitTrackingExtra } from './tracking-opts.ts'
 import {
   isFinalShippingErrorCode,
   mapMarketErrorToShippingCode,
@@ -237,8 +238,10 @@ async function processSingleOrder(args: {
   const externalOrderId: string = row.external_order_id
   const waybillNumber: string = row.waybill_number
   const carrierCode: string = row.carrier_code
+  // NEW-1: orders.extra → 마켓별 발송 보조키(11번가 dlvNo). 없으면 undefined → 어댑터가 fallback.
+  const trackingExtra = buildSubmitTrackingExtra(row.extra)
   const result = await withRetry(
-    () => submitFn.call(adapter, externalOrderId, waybillNumber, carrierCode),
+    () => submitFn.call(adapter, externalOrderId, waybillNumber, carrierCode, trackingExtra),
     {
       market: input.marketId,
       correlationId: input.correlationId,

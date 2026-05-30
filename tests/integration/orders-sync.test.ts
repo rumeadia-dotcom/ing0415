@@ -101,13 +101,20 @@ describe('orders-sync: Edge Function 산출물', () => {
     expect(src).toMatch(/OrderSyncAdapter/)
   })
 
-  it('orders-repo.ts 가 PRD §4 컬럼으로 매핑 + onConflict + ignoreDuplicates', () => {
+  it('orders-repo.ts 가 onConflict + ignoreDuplicates 로 upsert (payload jsonb 의존 제거)', () => {
     const src = read(path.join(FUNC_DIR, 'lib/orders-repo.ts'))
     // PRD §4 UNIQUE 키.
     expect(src).toMatch(
       /onConflict:\s*'market_id,external_order_id,seller_id'/,
     )
     expect(src).toMatch(/ignoreDuplicates:\s*true/)
+    // payload jsonb 의존 제거.
+    expect(src).not.toMatch(/payload:/)
+  })
+
+  it('orders-repo-row.ts 가 PRD §4 컬럼으로 매핑 (row 빌드 순수 함수 — NEW-1 extra 포함)', () => {
+    // row 빌드는 순수 함수(orders-repo-row.ts)로 분리 — extra(dlvNo) 단위 검증 가능화.
+    const src = read(path.join(FUNC_DIR, 'lib/orders-repo-row.ts'))
     // PRD §4 컬럼 매핑.
     expect(src).toMatch(/buyer_name/)
     expect(src).toMatch(/receiver_name/)
@@ -118,12 +125,12 @@ describe('orders-sync: Edge Function 산출물', () => {
     expect(src).toMatch(/collected_at/)
     // DB status 는 영문 ENUM 'collected' 로 정규화 (PRD §4).
     expect(src).toMatch(/status:\s*'collected'/)
-    // payload jsonb 의존 제거.
-    expect(src).not.toMatch(/payload:/)
     // 2026-05-29 정합: ordered_at / paid_at / vendor_item_id 신규 컬럼 (마이그 20260529000001).
     expect(src).toMatch(/ordered_at/)
     expect(src).toMatch(/paid_at/)
     expect(src).toMatch(/vendor_item_id/)
+    // NEW-1: extra(jsonb) — 11번가 dlvNo 등 마켓별 발송 보조키 (마이그 20260530000003).
+    expect(src).toMatch(/extra/)
   })
 })
 

@@ -30,6 +30,8 @@ export interface ShippingResultRow {
   waybill_number: string | null
   carrier_code: string | null
   external_order_id: string | null
+  // 마켓별 발송 보조키 (NEW-1) — 11번가 dlvNo. orders.extra(jsonb).
+  extra: Record<string, string> | null
 }
 
 export async function loadShippingJobContext(
@@ -102,7 +104,7 @@ export async function loadShippingResultsForMarket(
   const orderIdsForJoin = resultRows.map((r) => String(r.order_id))
   const { data: orderRows, error: orderErr } = await service
     .from('orders')
-    .select('id, external_order_id')
+    .select('id, external_order_id, extra')
     .eq('seller_id', sellerId)
     .in('id', orderIdsForJoin)
 
@@ -118,8 +120,17 @@ export async function loadShippingResultsForMarket(
   }
 
   const externalById = new Map<string, string>()
+  const extraById = new Map<string, Record<string, string>>()
   for (const o of orderRows ?? []) {
     externalById.set(String(o.id), String(o.external_order_id))
+    // extra(jsonb): 마켓별 발송 보조키 (NEW-1). string 값만 보존 (PII 아님 — 마켓 내부 식별자).
+    if (o.extra && typeof o.extra === 'object') {
+      const flat: Record<string, string> = {}
+      for (const [k, v] of Object.entries(o.extra as Record<string, unknown>)) {
+        if (typeof v === 'string') flat[k] = v
+      }
+      extraById.set(String(o.id), flat)
+    }
   }
 
   return resultRows.map((r) => ({
@@ -132,5 +143,6 @@ export async function loadShippingResultsForMarket(
     waybill_number: r.waybill_number ? String(r.waybill_number) : null,
     carrier_code: r.carrier_code ? String(r.carrier_code) : null,
     external_order_id: externalById.get(String(r.order_id)) ?? null,
+    extra: extraById.get(String(r.order_id)) ?? null,
   }))
 }

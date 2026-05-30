@@ -89,10 +89,20 @@ export interface MarketAdapter {
    * 마켓별 외부 주문 ID + 운송장번호 + 택배사 코드 → 마켓 API 호출.
    * 마켓 거부(검증 실패 / 이미 발송 등) 포함 모든 실패는 MarketError throw.
    * (재시도 / 결과 적재 / 로깅은 호출측 process.ts withRetry 오케스트레이터.)
+   *
+   * opts: 마켓별 발송 보조키 (NEW-1). 11번가는 opts.dlvNo(배송번호 = 발송처리 path 키,
+   * ordNo 와 별개)를 워커가 orders.extra.dlvNo 에서 전달. 다른 마켓은 opts 무시.
    */
   submitTracking?(
     externalOrderId: string,
     waybillNumber: string,
     carrierCode: string,
+    opts?: SubmitTrackingExtra,
   ): Promise<SubmitTrackingResult>
+}
+
+/** submitTracking 마켓별 발송 보조키 (NEW-1). 현재 11번가 dlvNo 만 사용. */
+export interface SubmitTrackingExtra {
+  /** 11번가 배송번호 — 발송처리(1888) path 키. orders.extra.dlvNo. */
+  dlvNo?: string
 }
