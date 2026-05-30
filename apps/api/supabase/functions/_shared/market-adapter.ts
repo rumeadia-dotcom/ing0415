@@ -62,6 +62,16 @@ export interface MarketAdapter {
   hydrate(stored: StoredCredential): void
   refreshToken?(refresh: string): Promise<TokenSet>
   fetchCategoryTree(): Promise<CategoryNode[]>
+
+  /**
+   * 카테고리 KC인증 메타 조회 (NEW-2, optional — 서버 워커 전용).
+   * 11번가만 구현(cateservice 1617 — 조회 카테고리 자신 포함 하위 트리의 certType/requiredYn).
+   * 오케스트레이터(registration-market-worker)가 transformProduct 전에 호출해
+   * categoryId 의 requiredYn 을 mapping.extra.certRequiredYn 로 주입(`cert-inject.ts`).
+   * 다른 마켓은 메서드 생략 → 주입 단계 스킵. 반환 키 = dispNo. API Key 불필요.
+   */
+  fetchCategoryCertMeta?(dispCtgrNo: string): Promise<Record<string, CategoryCertMeta>>
+
   transformProduct(product: Product, mapping: MarketMapping): MarketPayload
   createProduct(payload: MarketPayload): Promise<CreateProductResult>
 
@@ -105,4 +115,12 @@ export interface MarketAdapter {
 export interface SubmitTrackingExtra {
   /** 11번가 배송번호 — 발송처리(1888) path 키. orders.extra.dlvNo. */
   dlvNo?: string
+}
+
+/** 카테고리 KC인증 메타 (NEW-2 — fetchCategoryCertMeta 반환 항목). 11번가 1617. */
+export interface CategoryCertMeta {
+  /** 인증유형 (11번가: 1=식품관련, 2=생활/어린이/전기용품관련). */
+  certType?: string
+  /** 인증필수여부 (Y=필수, N=비필수). */
+  requiredYn?: 'Y' | 'N'
 }
