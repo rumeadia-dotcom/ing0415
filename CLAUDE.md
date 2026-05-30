@@ -106,6 +106,7 @@ React + Vite + TS strict (`noUncheckedIndexedAccess`) / pnpm / React Router v6 +
 - 색상·spacing·radius = `apps/web/src/styles/globals.css` CSS 변수 또는 `tailwind.config.ts` 키만. raw HEX·임의 px 금지.
 - RHF + Supabase insert + 서버 응답 parse 는 동일 zod 스키마 3중 재사용 (단일 ground truth).
 - RLS 없는 테이블 거부. OAuth access/refresh 토큰 클라이언트 직접 SELECT 차단 (Edge Function 전용 + pgcrypto / Vault).
+- **owner 컬럼(`seller_id`) default `auth.uid()` 필수** — 클라이언트가 직접 INSERT 하는 RLS 테이블(`seller_id not null` + `with check (seller_id = auth.uid())`)은 컬럼 default 를 `auth.uid()` 로 둔다. 프론트 insert payload 에서 seller_id 를 생략해도 인증 호출자 uid 로 자동 채워지며, WITH CHECK 가 그대로라 spoofing 은 차단된다. default 누락 시 NULL = auth.uid() → RLS 위반 PostgREST 42501 (2026-05-31 shipping_policies/products 운영 사고. 마이그 20260531000001).
 - 골든패스 (s1→s5→s3→s6) Playwright 1개 강제. 우회 PR 거부.
 - Sentry `beforeSend` 에서 OAuth 토큰·셀러 PII 자동 마스킹 (security.md §6.2).
 
