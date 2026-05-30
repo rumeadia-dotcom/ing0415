@@ -52,7 +52,7 @@ real(lfrny) 이 `20260527000001` 까지만 적용된 드리프트를 정합: `20
 
 ---
 
-## 스택 한눈에
+---
 
 ```
 프론트:  React 18 + Vite + TS strict + shadcn + Tailwind + TanStack Query + RHF + zod + Tiptap + Daum Postcode + DOMPurify
@@ -66,7 +66,7 @@ CI/CD:   GitHub Actions — 빠른레인(feature push=Lint&Typecheck/Unit) + 풀
 MCP 호스팅: Lightsail 3.36.239.243 docker-compose (supabase-dev=뭄바이풀러 / supabase-real=서울풀러 / playwright / sentry)
 ```
 
-## 도메인 모델
+직전 세션의 설계(11번가 spec 재검토·Layer 2 조회형 단일화·11번가 PR-0)를 코드로 완성. worktree 격리 + ing-* 구현 + qa/security 검수 패턴. develop strict 순차 머지(공통파일 rebase 충돌 해소).
 
 ```
 상품 등록 (s1~s6)
