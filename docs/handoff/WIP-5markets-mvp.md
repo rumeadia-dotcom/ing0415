@@ -1,292 +1,98 @@
-# MarketCast — WIP 핸드오프 (쿠팡 drift 3건 hotfix 완료 + v5 후속 정합 3 PR develop 누적)
+# MarketCast — WIP 핸드오프 (ESM 문서 기준 재구현 8 PR develop 완료 + dev 검증)
 
-**develop HEAD**: `2e5db22` — feat(orders): SubmitTrackingInput 확장 + 결제/주문 시각 컬럼 분리 (drift #3 잔여 해소) (#250)
-**main HEAD**: `262c778` — hotfix: v0.15.1 — deploy.yml setup-cli rate-limit 회피 (#237)
-**테스트**: 961 passed / 31 todo (sanitize-parity 1 파일 Deno `npm:` 스킴 환경 이슈로 fail — 신규 PR 영향 아님)
-**최근 운영 배포**: v0.15.1 (2026-05-27 hotfix) — 11번가 real 어댑터 + coupang/gmarket/auction fetchOrders + orders-sync 5마켓
-**최근 develop 머지**: #248 안심번호 UI / #249 nextToken 페이징 / #250 SubmitTrackingInput 확장 + 결제·주문 시각 컬럼 분리
+**develop HEAD**: `2bf4c80` — feat(esm): 상품정보고시 입력단계 (PR-5) (#262)
+**main HEAD**: `262c778` — hotfix: v0.15.1 (#237) · main 미배포 누적 = 쿠팡 drift 6 PR + ESM 8 PR (**release 는 사용자 결정 — 실호출 검증 전 배포 금지**)
+**테스트**: 1138 passed / 1 skipped / 31 todo
+**최근 머지**: ESM 재구현 #255~#262
 
-## 2026-05-28 세션 결과 (운영 사고 + Gateway IP 마이그레이션)
+---
 
-**증상**: #240(MCP 호스팅 도입) 배포 후 게이트웨이 다운 — 외부 https://43-201-83-78.sslip.io/healthz 무응답. 게이트웨이는 5개 마켓 모든 outbound 의 단일 경유점이라 실 마켓 호출 전면 차단.
+## 2026-05-30 세션 #1 — ESM(G마켓·옥션) 문서 기준 재구현 8 PR
 
-**근본 원인**: 512MB nano 인스턴스에 docker + headless chromium(playwright MCP) 스택이 자동기동 → **OOM-lock**. 커널은 살아 80/443 SYN 받지만 Caddy 가 응답 못 함, sshd 도 응답 못 해 브라우저 SSH UPSTREAM_ERROR 515. `mcp-hosting.md §9.2` 가 명시 경고한 시나리오.
+기존 ESM 어댑터가 **실제 스펙 이전 placeholder** 였던 것을 `docs/architecture/v1/features/esm-api/` 119문서 기준으로 전면 재작성. Wave 0 → 1(4 병렬) → 2(순차 3), 각 PR worktree 격리 + ing-* 구현 + qa/security 검수.
 
-**복구 중 추가 발견**: 게이트웨이의 "고정 IP `43.201.83.78`" 가 **정식 Lightsail Static IP 가 아니라 인스턴스 기본(동적) 공인 IP** 였음. Lightsail 콘솔 최상위 Networking → Static IPs 목록에 부재. Stop → IP release → 회수 불가. 설계문서(`market-gateway.md §2`)가 "Static IP" 로 잘못 기록돼 있던 latent 버그.
+| PR | 내용 | merge |
+|---|---|---|
+| #255 | **PR-0** 스키마 계약 + base URL (`sa.esmplus.com/api/v1`→`sa2.esmplus.com/item/v1`) + 설계문서 `features/esm.md` | `c4c983e` |
+| #256 | **PR-1** JWT payload 정합 (kid/iss/ssi `{site}:{sellerId}` 단일) | `32191f1` |
+| #257 | **PR-2** 카테고리 site-cats 재작성 + gateway allowlist `sa2.esmplus.com` | `4356ea9` |
+| #258 | **PR-6** 주문/배송 fetchOrders·submitTracking 문서 기준 정정 | `c22a34b` |
+| #259 | **PR-3** 배송 프로필 — `esm_shipping_profiles` + RLS + 4단계 생성 Edge + 설정 UI | `daa24ae` |
+| #260 | **PR-3.5** 동적 등록필드 — `getRegistrationFields` + `MarketOptionsCard` | `38e68f4` |
+| #261 | **PR-4** 상품등록 재작성 — transformProduct 중첩 + createProduct `POST /item/v1/goods` | `edd1674` |
+| #262 | **PR-5** 상품정보고시 — 41 상품군 + officialNotice 입력 UI | `2bf4c80` |
 
-**조치**:
-1. 스냅샷 → 2GB plan ($10) 신규 인스턴스 생성, **정식 Static IP `3.36.239.243` 할당** (재발 방지).
-2. 박스 `/etc/caddy/Caddyfile`·`/etc/caddy/mcp.caddy` 도메인 → `3-36-239-243.sslip.io` 치환, `systemctl reload caddy` (Let's Encrypt 새 인증서 자동 발급).
-3. Edge Function 시크릿 `MARKET_GATEWAY_BASE_URL` / `MARKET_GATEWAY_URL` dev+real 모두 신규 도메인으로 갱신.
-4. GitHub Actions secrets `LIGHTSAIL_HOST` / `GATEWAY_DOMAIN` 갱신 — 다음 게이트웨이 deploy 가 구 IP 로 SSH 시도 차단.
-5. 앱 사용자 노출 IP (`apps/web/src/locales/ko.ts:255` 셀러 안내) + `CLAUDE.md` 온보딩 전제 + infra/handoff/마스터 설계문서 IP 참조 일괄 갱신.
-6. `systemctl disable mcp-hosting` 으로 부팅 자동기동 차단 — 재활성화는 mem_limit 강제 + playwright on-demand 정책 확정 후.
+**핵심 결정** (esm.md §1): ①사이트별 분리(어댑터 내부 siteType 단일 호출) ②범위=상품등록+주문/배송 ③배송 선행값=배송 프로필 사전 생성·재사용 ④고시 입력단계 ⑤마켓별 동적 등록필드(어댑터 메타, 하드코딩 0) ⑥real 검증=mock+parity 까지.
+**범위 한계**: **mock+parity 까지만 검증됨.** real sa2.esmplus.com 실호출은 미검증 (C2/C3 선행).
 
-**잔여 사용자 액션** (이게 끝나야 실 마켓 호출 성공):
-- 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리(G·옥션) / 11번가 셀러오피스 화이트리스트 IP 를 `43.201.83.78` → **`3.36.239.243`** 으로 재등록. 마켓에 따라 키 재발급 필요 시 앱에서 자격증명 재입력.
-- 마켓 1건 실호출 검증 후 구 인스턴스 + 구 스냅샷 정리.
-- MCP 재활성화 정책 확정 (옵션: 2GB 에서 mem_limit + 평시 playwright stop, 또는 1GB+온디맨드).
+## 2026-05-30 세션 #2 — dev MCP 운영 사고 복구 + dev DB 검증
 
-**재발 방지 룰**: 인스턴스의 "고정 IP" 라 부르는 값이 콘솔 **최상위 Networking → Static IPs** 목록에 실제 객체로 존재하는지 명시 검증 후에만 "Static" 으로 기록할 것. 신규 인스턴스 생성 시 즉시 Static IP attach (snapshot-restore 시에도 동일).
+**증상**: MCP `supabase-dev` 가 `select 1` 도 30s 타임아웃 (real 은 정상).
+**근본 원인**: dev 무료 프로젝트 풀러 호스트가 **뭄바이(`aws-1-ap-south-1`)** 인데 `/etc/mcp-hosting/env` 의 `DATABASE_URI_DEV` 가 real 과 같은 **서울(`aws-1-ap-northeast-2`)** 로 오설정 → 서울 풀러에 dev 테넌트 없음 → `FATAL: (ENOTFOUND) tenant/user not found`. `mcp_ro_dev` role 유실도 동반. (dev DB·호스팅·real MCP 는 전부 정상이었음.)
+**복구 (완료)**: ① env `DATABASE_URI_DEV` 호스트 region 정정(real 보호) ② `mcp_ro_dev` role 재생성(esm.md §5.4) ③ env-source 재기동 ④ `/mcp` 재연결. → 정상. 상세 트러블슈팅은 `mcp-hosting.md §9.3.1` 에 박음.
 
-## 2026-05-28 세션 결과 #2 (쿠팡 OpenAPI 인덱싱 + 어댑터 drift 발견)
+**dev DB 검증 (B)**: `esm_shipping_profiles` 마이그를 dev **SQL Editor 로 직접 적용** → MCP 로 정합 검증 완료:
+- 테이블 ✅ / RLS `seller_id=auth.uid()` ✅ / partial CHECK(active_nums) ✅ / 6 checks·4 indexes ✅ / GRANT(`authenticated=SELECT`, `service_role=ALL`) ✅ / `audit_log` category `shipping` 추가 ✅ / Realtime ✅
+- → dev 스키마·RLS·보안 경계가 esm.md §3 계약과 100% 일치.
 
-쿠팡 Open API 공식 docs (`developers.coupangcorp.com/hc/ko`, Zendesk Help Center 기반) 99 article 11 섹션 전체를 영구 산출물로 박은 뒤, 우리 쿠팡 어댑터 코드의 path 와 비교 → **drift 3건 + 미구현 endpoint 다수** 발견.
+---
 
-**산출물 (신규)**:
-- `docs/handoff/coupang-api-index.md` — 전체 인덱스 (섹션별 article 링크)
-- `docs/architecture/v1/features/coupang-api/<section>/*.md` — 99 article 마크다운 변환본 (메타 헤더 + body)
-- `.claude/skills/market-api-docs-import/` — 본 작업을 재현하는 스킬 (Zendesk Help Center → md 변환). 추후 11번가/네이버/G마켓 docs 도 동일 패턴이면 이 스킬로 import.
+## ⚠ carry-over 백로그 (전부 v1 머지 차단 아님)
 
-**Drift (운영 영향 가능)**:
-
-| # | 우리 코드 | 공식 문서 | 상태 |
+| # | 항목 | 출처 | 사유 / 진입 |
 |---|---|---|---|
-| 1 | `seller_api/.../categorization/display-categories/{id}` | `seller_api/.../marketplace/meta/display-categories/{code}` | ✅ **해소** (PR #245) — `categorization` 제거 + `{id}` → `{code}` |
-| 2 | `openapi/apis/api/v4/vendors/{vendorId}/ordersheets` | `openapi/apis/api/v5/vendors/{vendorId}/ordersheets` | ✅ **해소** (PR #246) — v5 path + nested orderer/receiver/Money 매핑 + v4 flat fallback |
-| 3 | `openapi/apis/api/v4/vendors/{vendorId}/orders/{externalOrderId}/ordersheets/shipments` | `openapi/apis/api/v4/vendors/{vendorId}/orders/invoices` | ✅ **해소** (PR #246) — POST `/orders/invoices` + `orderSheetInvoiceApplyDtos[]` body + `responseList[].succeed/resultCode` 응답 parse |
+| **C1** | dev 마이그 **히스토리 정합** — `esm_shipping_profiles` 는 SQL Editor 직접 적용(테이블·RLS 검증 완료)이라 `supabase_migrations` 이력에 **미기록**. 이월 마이그(20260523~29)도 적용 여부 미확인 | 세션#2 | login 후 `pnpm db:push:dev` 시 esm 마이그가 "이미 존재" 충돌 → `--include-all` 또는 해당 버전 applied 마킹. `functions:deploy:dev` 로 esm-shipping-profile 배포 |
+| **C2** | **Lightsail Gateway 재배포** — `gateway-sign.ts` 엔 `sa2.esmplus.com` 추가됨, 박스 `infra/aws-lightsail-gateway/main.ts` `ALLOWED_*` 미러 + 재배포 필요 | PR-2 | ops. 미반영 시 real ESM 호출 게이트웨이 거부 |
+| **C3** | **real ESM 실호출 검증** — mock+parity 까지만. 셀러 자격증명(masterId/secretKey/sellerId) + IP 화이트리스트 `3.36.239.243` 필요 | 전반 | ESM 셀러관리(G·옥션) IP 등록 → 키 발급 → 1회 실호출로 createProduct·site-cats·배송프로필 4단계 검증. parity §5 captured-real 활성 |
+| **C4** | **PR-5 라이브 codes API** — `/official-notice/groups/{no}/codes` 연동 + 정적 항목 검증 | PR-5 | 문서 161.md 가 41군 중 sample 2건만 제공 → 정적코드 없는 군은 셀러 free-form. C2/C3 후 동적 폼 |
+| **C5** | **PR-4 이미지 16장째 무음 드롭** — `urls.slice(1,15)` 16번째 warning 없이 누락 | PR-4 | `CreateProductResult.warnings` 에 `images_truncated` (v2) |
+| **C6** | **mcp_ro_dev `supabase_migrations` read GRANT** — 없어서 MCP 로 dev 마이그 이력 조회 불가(편의) | 세션#2 | esm.md §5.4 에 `grant usage on schema supabase_migrations` + `grant select on schema_migrations` 추가 고려 |
 
-**Drift #2/#3 잔여 한계**: ✅ **해소** (PR #250) — `SubmitTrackingInputSchema` 에 `orderId` / `vendorItemId` 추가 + 쿠팡 어댑터에서 input 값 그대로 전송. 임시 `0` 하드코드 제거.
-
-**미구현 endpoint (article 존재, 코드 없음 — 향후 백로그)**:
-- 출고지 생성/수정/조회 (셀러 onboarding 핵심)
-- 반품지 생성/수정/조회
-- 상품 수정 (가격/재고/상태)
-- 상품 조회, 상품 목록 페이징 조회
-- 상품 삭제
-- 배송 상태 전이 (상품준비중 / 이미출고 / 출고중지완료)
-- 반품/취소 요청 목록 조회
-- 카테고리 추천
-
-**다음 액션**:
-- drift 1/2/3 운영 회귀 검증 — release/v0.16 묶음 머지 후 셀러 시드 실호출로 v5 응답 매핑 + 송장 업로드 정상 동작 확인.
-- 미구현 endpoint — v2 로드맵 정리 시 우선순위 결정.
-
-## 2026-05-29 세션 결과 (쿠팡 drift hotfix + v5 후속 정합 3 PR)
-
-drift 3건 전부 develop 머지 + v5 후속 정합 (페이징·schema·UI) 3 PR 추가 머지. 모두 운영 배포 (main) 전 단계 — 다음 release 묶음 후보.
-
-### drift hotfix (이전 세션 외 본 세션 머지)
-
-| PR | 내용 | merge SHA |
-|---|---|---|
-| #245 | drift #1 카테고리 path 정정 (`categorization` → `marketplace/meta`) | `5eb6822` |
-| #246 | drift #2 발주서 v4→v5 + drift #3 송장 path 정정 (hybrid schema) | `b6898d4` |
-
-### v5 후속 정합 3 PR (병렬 dispatch → 순차 머지)
-
-| PR | 내용 | merge SHA |
-|---|---|---|
-| #248 | 쿠팡 v5 안심번호 UI 안내 — `SafeNumberBadge` + i18n 3 key + `isSafeNumberMarket` helper (1차 `['coupang']`) | `0b33260` |
-| #249 | ordersheets v5 nextToken 페이징 follow-up (5 페이지 cap + 무한루프 가드 + `truncated_due_to_max_pages` 로깅) | `a237fa2` |
-| #250 | SubmitTrackingInput 확장 (`orderId`/`vendorItemId`) + DB 컬럼 분리 (`paid_at` / `ordered_at` / `vendor_item_id`) + orders-sync 매핑 정합 | `2e5db22` |
-
-### v5 매핑 영향 매트릭스 (도메인 모델)
-
-| 도메인 필드 | v5 source | v4 source | 영향 |
-|---|---|---|---|
-| `buyerName` / `receiverName` / `receiverAddress` | `orderer.*` / `receiver.*` nested | flat | hybrid fallback 처리 — 무영향 |
-| `receiverPhone` | `receiver.safeNumber > receiverNumber` | `receiverPhoneNumber` | 🟡 v5 부터 안심번호 우선 — UI 안내 (#248) 적용. 택배사 호환 별도 트랙 |
-| `orderAmount` | `orderPrice.units` (Money) | scalar number | `moneyToKrw()` union 처리 — 무영향 (KRW nanos 무시) |
-| `ordered_at` | `orderedAt` (주문시각) | (없음) | DB 신규 컬럼 (#250) |
-| `paid_at` | `paidAt` (결제완료) | `orderedAt` (의미상 주문시각) | DB 신규 컬럼 (#250) — v4 적재분은 별도 백필 필요 |
-
-### 잠재 한계 / 후속 백로그
-
-- **택배사 시스템 안심번호 호환** — 로젠 등 송장 인쇄·통화 연결 검증 미진행. 별도 트랙.
-- **paid_at / ordered_at 백필** — v0.15 이전 적재된 `collected_at` 만 채워진 row 들. 운영 데이터 분석 시점에 백필 정책 결정.
-- **WIP 갱신 정합** — 본 PR 1건으로 통합 (각 agent 가 별 commit 으로 갱신했던 분량 revert 후 sweep).
-
-## 2026-05-27 세션 결과 (release v0.15 — 11번가 v1 정식 + 5마켓 주문 수집)
-
-11번가가 v1 정식 5마켓인데 코드·주석·문서가 stub/제외/"v2 예정"으로 drift돼 있던 것을 전수 정합하고, 미구현분을 실구현 후 운영 배포.
-
-| PR | 내용 | 영향 |
-|---|---|---|
-| #233 | feat(11st) — 11번가 real 어댑터(카테고리/상품등록/주문조회/발송, XML·EUC-KR, 게이트웨이) + coupang/gmarket/auction `fetchOrders` Deno 포팅 + `orders-sync` 5마켓 배선(credential hydrate) + 게이트 해제 + UI/문서 16종 v1 정식 정합 | feature → develop |
-| #234 | release/v0.15 → main | deploy.yml 트리거 (GitHub Pages + Edge Functions 재배포). DB 마이그·시크릿 변경 0 |
-| #235 | main → develop 백머지 | orphan 가드 PASS, content parity 확인 |
-
-- **순수 매핑 분리**: `eleven-st-map.ts`(Deno) / `real/11st/map.ts`(FE) — npm/Deno specifier 없는 순수 함수로 Vitest 검증(11번가 21건 + parity).
-- **naver**: 주문수집 fetchOrders 미구현(Wave 5) → `hasFetchOrders` graceful skip. 11번가는 정상 폴링.
-- **잔여 검증 권장**: 11번가 `apiCode`/XML 엘리먼트는 개발자포털 IP 화이트리스트(403)로 미검증 best-effort. `eleven-st-map.ts` 상수 격리 — 셀러 발급 키로 게이트웨이 고정 IP(`3.36.239.243`) 경유 1회 실호출 검증 권장. 마켓별 try/catch 격리로 11번가 실패가 타 마켓 차단 안 함.
-- **운영 확인 필요**: deploy.yml 4잡(Build real / Deploy Pages / Deploy Edge Functions / Finalize Sentry) 성공 여부는 Actions 탭에서 확인.
-
-## 2026-05-25 세션 결과 (release v0.11 + 11번가 scaffold)
-
-### 2026-05-25 전반 (release/v0.11)
-5 PR 묶음으로 운영 안전망 3종 출시. FE/BE 코드 변경 0, DB 마이그 변경 0 — 순수 CI / 테스트 / 운영 안전망 강화 release.
-
-| PR | 내용 | 영향 |
-|---|---|---|
-| #142 | ruleset 백업 JSON | 사고 복원용. approval=0 (1인 셀러 모델) |
-| #143 | deploy.yml `verify-vault-secrets` 잡 | **v0.11 부터 자동 게이트** — vault drift 차단 |
-| #147 | parity.spec.ts 5종 | qa-matrix #3 부분 해소 |
-| #148 | WIP 갱신 | — |
-| #149 | release/v0.11 → main | deploy.yml 5잡 success |
-| #150 | main → develop 백머지 | orphan 가드 PASS |
-| #151 | WIP 갱신 (v0.11 후) | — |
-
-### 11번가 v1 real 어댑터 — 본격 구현 완료
-CLAUDE.md s5 "v1 정식 = 5 마켓 전부" 결정의 코드 활성화 완료. 11번가 real 어댑터가 **5메서드 (authenticate / fetchCategoryTree / transformProduct / createProduct) + 주문 확장 2메서드 (fetchOrders / submitTracking) 전부 본 동작** — 11번가 Open API (XML, EUC-KR) 를 Lightsail 게이트웨이 경유로 호출.
-
-| 카테고리 | 산출물 |
-|---|---|
-| **A** | Host 정정 — `api.11st.co.kr` → `openapi.11st.co.kr`. gateway / sign / adapter 5 파일 |
-| **B** | `apps/web/src/lib/markets/real/11st/index.ts` — 5메서드 + fetchOrders / submitTracking 본체. XML(EUC-KR) 직렬화·파싱 |
-| **C** | `markets/index.ts` wiring — `await import('./real/11st')` |
-| **D** | `createMockAdapter` api_key 분기 활성. `ElevenstDebugAdapter` → wrapper 통합 |
-| **E** | UI 활성 — `MARKET_CATALOG['11st']` status='ready', authMode='api_key'. `ApiKeyForm`. `markets-feature.ts` zod 확장. `markets-connect` Edge Function 5마켓 통합 (다른 4 마켓과 동일하게 `category_ping` 검증) |
-| **F** | `tests/unit/adapters/11st/parity.spec.ts` — §1/§2/§4 활성, §3 mock/real 분리 |
-| **G** | `markets.md` drift 정합 — §3 / §3.2 / §5 / §7.2 정합 |
-
-> **잔여 검증 권장**: 정확한 `apiCode` / 요청·응답 XML 엘리먼트명은 셀러 발급 API Key 의 실호출로 최종 검증 권장 (11번가 개발자포털이 IP 화이트리스트 등록 후에야 정식 문서·apiCode 노출). 게이트웨이 고정 IP `3.36.239.243` 등록 후 발급 키로 1회 실호출 검증.
-
-### 11번가 Open API 정보 수집 결과
-
-| 항목 | 상태 | 출처 |
-|---|---|---|
-| 공식 포털 | `http://openapi.11st.co.kr/openapi/OpenApiFrontMain.tmall` | 다수 ref |
-| API endpoint base | `https://openapi.11st.co.kr/openapi/OpenApiService.tmall` | 공식 + 블로그 |
-| 호출 형식 | `?key=<API_KEY>&apiCode=<CODE>&<params>` 또는 `openapikey` 헤더 | 블로그 |
-| 응답 format | XML (CP949 인코딩) | 공식 |
-| 인증 모델 | 영구 API Key (refresh 없음) | 공식 |
-| IP 화이트리스트 | 셀러가 사전 등록 후 키 발급 — Lightsail `3.36.239.243` 등록 | 다수 ref |
-| Seller API apiCode 이름 | 구현 반영됨 — 발급 키 실호출로 최종 검증 권장 (개발자포털 IP 화이트리스트) | 어댑터 |
-| 요청·응답 XML schema | 구현 반영됨 — 발급 키 실호출로 엘리먼트명 최종 검증 권장 | 어댑터 |
+---
 
 ## 스택 한눈에
 
 ```
-프론트:  React 18 + Vite + TS strict + shadcn + Tailwind + TanStack Query + RHF + zod
-         + Tiptap (WYSIWYG) + Daum Postcode SDK + DOMPurify (client) + isomorphic-dompurify (server)
+프론트:  React 18 + Vite + TS strict + shadcn + Tailwind + TanStack Query + RHF + zod + Tiptap + Daum Postcode + DOMPurify
 백엔드:  Supabase (Postgres + RLS + Auth + Storage + Realtime + Edge Functions Deno + pg_cron + Vault)
          + AWS Lightsail Market Gateway (서울, 3.36.239.243, HMAC + 호스트 화이트리스트)
-호스팅:  GitHub Pages (정적 SPA + 404.html fallback) + Supabase Cloud
+호스팅:  GitHub Pages (정적 SPA + 404.html) + Supabase Cloud
 모니터링: Sentry (PII 마스킹 강제)
-CI/CD:   GitHub Actions (PR 8잡 + main 분리, auto-merge 활성)
-         deploy.yml = build-real / verify-vault-secrets / deploy-pages / deploy-edge-functions / notify-sentry
+CI/CD:   GitHub Actions (PR 8잡: Lint&Typecheck / Unit / Build dev·real / E2E Golden·a11y / Zod Mirror / pgTAP RLS)
 브랜치:  Git Flow (main / develop / release/* / feature/* / hotfix/*) — feature base = develop
-         develop ruleset = PR + 0 approval + thread resolution + 8 status checks + squash-only
+         develop ruleset = PR + 0 approval + thread resolution + 8 status checks + squash-only + strict(up-to-date)
 빌드모드: VITE_APP_MODE=dev|real + VITE_USE_MOCK=true|false
+MCP 호스팅: Lightsail 3.36.239.243 docker-compose (supabase-dev=뭄바이풀러 / supabase-real=서울풀러 / playwright / sentry)
 ```
 
 ## 도메인 모델
 
-v1 출시 범위 = 상품 등록(s1~s6) + 주문·배송 자동화(s7~s9) + 알림(s10) + v1.4 order-grouping Phase 1.
-
 ```
 상품 등록 (s1~s6)
-Seller (auth.users) ─┬─ MarketAccount ─── credential_payload jsonb + pgcrypto
+Seller (auth.users) ─┬─ MarketAccount ─┬─ credential_payload jsonb + pgcrypto
+                     │                 └─ esm_shipping_profiles (ESM 배송 선행값: addr/place/dispatch 번호) ★
                      ├─ Product ─┬─ ProductImage ─ ImageTransform (마켓별 N)
-                     │           └─ ProductMarketMapping (카테고리/규격)
+                     │           └─ ProductMarketMapping (카테고리 + marketOptions: 배송프로필·officialNotice) ★
                      ├─ RegistrationJob ─── JobMarketResult (1:N)
-                     │       └─ fn_registration_job_transition() — 상태 전이 single source
                      └─ ShippingPolicy
-
-주문·배송 (s7~s9, v1.4 grouping)
-Seller ─┬─ Order ── order_group_id → OrderGroup (1박스=1송장, Phase 1 backfill 1:1)
-        │   status: collected → logen_registered → waybill_printed → tracking_submitted
-        ├─ ShippingJob ─── ShippingJobResult (1:N)
-        └─ LogenCredentials (pgcrypto — userId/custCd + 발송인/지)
+주문·배송 (s7~s9): Order → OrderGroup / ShippingJob → ShippingJobResult / LogenCredentials
 ```
 
 ## 완료된 작업 (요약)
 
 | 단계 | 내용 | 비고 |
 |---|---|---|
-| Stage A~H | 부트스트랩 | — |
-| B-1~B-5 | 인증·대시보드·상품등록·마켓계정·이력 본구현 + 브랜드 리스킨 | — |
-| C-1~C-4 | 4마켓 OAuth/HMAC/ESM real 어댑터 + fan-out 통합 12종 mock | — |
-| D-A~D-D | axe E2E / pgTAP RLS / 법적 페이지 / Sentry 마스킹 | — |
-| v0.4~v0.10 | 주문·배송 자동화 / WYSIWYG / Market Gateway / qa-matrix / order-grouping | 운영 배포 |
-| 2026-05-25 전반 | **release v0.11** 운영 안전망 3종 | #142~#151 |
-| **2026-05-25 후반** | **11번가 v1 scaffold (단계 1 A~G)** | **#152** |
+| Stage A~D / v0.4~v0.11 | 부트스트랩 + s1~s6 + 4마켓 어댑터 + 주문배송 자동화 + WYSIWYG + Gateway + 운영안전망 | 운영 배포 |
+| v0.15 (#233~#235) | 11번가 v1 real 어댑터 + 5마켓 주문 수집 | 운영 배포 v0.15.1 |
+| 쿠팡 drift (#245/#246/#248~#250) | 카테고리·발주서 v5·송장·안심번호·페이징 | develop 누적 (미배포) |
+| **ESM 재구현 (#255~#262)** | **G마켓·옥션 문서 기준 8 PR (mock+parity 완성)** | **develop 누적 (미배포)** |
 
 ## 운영 현황
 
-- **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/`
-- **최근 deploy**: v0.11 (2026-05-25). deploy.yml 5잡 success.
-- **real Supabase** (`lfrnythcujxdhehvkmtg`): v0.10.1 마이그 3개 + Vault 두 secret 등록 완료.
-- **dev Supabase** (`eqoywqoalwkwbrdsulfl`): **v0.10.1 마이그 3개 미적용** ⚠
-
----
-
-## ⚠ 즉시 필요한 운영 액션 (사용자 작업)
-
-### 1. dev DB 마이그 적용 (이월 3개 + 신규 1개)
-```bash
-pnpm supabase:link:dev
-pnpm db:push:dev
-```
-대상:
-- `20260523000003_order_groups.sql`
-- `20260524000001_rpc_fn_prefix_fix.sql`
-- `20260524000002_registration_job_state_machine.sql`
-- **신규**: `20260529000001_orders_vendor_item_and_ordered_at.sql` (PR #250 — idempotent, nullable 컬럼 3개 추가만)
-
-### 2. dev Edge Function 재배포 (이월)
-```bash
-pnpm functions:deploy:dev
-```
-
-### 3. real DB 마이그 적용 (release/v0.16 머지 전)
-```bash
-pnpm supabase:link:real
-pnpm db:push:real   # 신규 1건만 — 20260529000001
-```
-
-### 4. 마이그 immutability 검증 (다음 release 전)
-```bash
-pnpm supabase:link:dev   # 또는 :real
-supabase db push --linked --dry-run
-```
-
-### 5. 11번가 발급 키 실호출 최종 검증 (어댑터는 본격 구현 완료)
-- 11번가 셀러오피스 (seller.11st.co.kr) 또는 OPEN API 센터 (openapi.11st.co.kr) 로그인 → Seller API 발급 양식
-- IP 화이트리스트에 Lightsail 고정 IP `3.36.239.243` 등록 → 정식 API Key 발급
-- 발급 키로 1회 실호출 → 어댑터의 `apiCode` / 요청·응답 XML 엘리먼트명 최종 검증 (불일치 시 어댑터 미세 보정)
-- 사내 vault 에 저장 후 사용자 신호
-
----
-
-## 다음 세션 (예약된 작업)
-
-### 1. 11번가 실호출 검증 후 미세 보정 (어댑터 본체는 구현 완료)
-- 서버 어댑터 `apps/api/supabase/functions/_shared/market-adapters/eleven-st.ts` — 5메서드 + fetchOrders / submitTracking 본체 구현 완료
-- 클라이언트 어댑터 `apps/web/src/lib/markets/real/11st/index.ts` — 동일 메서드 본체 구현 완료
-- EUC-KR ↔ UTF-8 디코딩 + XML 파싱 구현 반영됨
-- 발급 키 실호출로 `apiCode` / XML 엘리먼트명 / 에러 코드 매핑 최종 검증 후 필요 시 보정
-- parity §5 (captured-real fixture) 활성 — sandbox/실키 응답 캡처 시
-
-### 2. release/v0.12 검토 (사용자 결정 2026-05-25: develop 까지만 — 보류)
-develop 누적: #152 (11번가 real 어댑터). 변경 양 작아 추가 누적 (알림 / CSV / 이미지 WebP 등) 후 묶음 release.
-
-### 3. P0 qa-matrix 갭 잔여
-| 항목 | 차단 |
-|---|---|
-| **partial / retry / skip-market E2E 3종** | 셀러 시드 + 어댑터 시뮬레이션 |
-| **captured-real fixture (parity §5)** | sandbox 마켓 API 접근 |
-
-### 4. 미진입 v1 스코프
-| PRD § | 항목 |
-|---|---|
-| §1.4.3 + §2.3.4 | 알림 도메인 |
-| §1.4.2 + §4.4.3 | CSV 내보내기 |
-| §2.4.x | 정기 보안 감사 |
-| §4.2.x / §4.4.2 | 오류 통계 차트 |
-| §5.4.1 | 이미지 WebP |
-
----
-
-## 백로그 (v1 이후 / 영구 보류)
-
-- 로젠 외 택배사 (CJ / 한진) — v2
-- 마켓 주문 웹훅(push) → 폴링 대체 — v2
-- s4 템플릿 / 소셜 로그인 / 2FA — v2
-- 멀티유저 권한 — 영구 보류
-- Stripe·PG 연동 — v2
-- dependabot major bump 재시도 — 별도 트랙
+- **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/` · 최근 deploy v0.15.1
+- **dev Supabase** (`eqoyw`, 뭄바이): `esm_shipping_profiles` **적용·검증됨** (SQL Editor 직접 — 이력 미기록, C1). 이월 마이그 적용 여부 미확인.
+- **real Supabase** (`lfrny`, 서울): ESM 마이그 미적용.
+- **MCP supabase-dev**: 복구 완료 (env region 정정 + role 재생성).
 
 ---
 
@@ -295,37 +101,47 @@ develop 누적: #152 (11번가 real 어댑터). 변경 양 작아 추가 누적 
 ```bash
 git pull origin develop && pnpm install && pnpm test -- --run
 ```
-
-**961 passed / 31 todo** 확인 후 진입 (sanitize-parity 1 파일은 Deno `npm:` 스킴 환경 이슈 — 본 트랙 영향 아님).
+**1138 passed** 확인 후 진입.
 
 ### 우선 순위
-1. **release/v0.16 묶음 운영 배포** — develop 누적: drift hotfix 3건 (#245/#246) + v5 후속 정합 3 PR (#248/#249/#250). 모두 운영 영향 있어 묶어 main 배포 권장. 사전 액션: real DB 마이그 (#250 의 `20260529000001`) push.
-2. **dev DB 마이그 4건 적용 (이월 3 + 신규 1)** + Edge Function 재배포.
-3. **11번가 발급 키 실호출** → `apiCode` / XML 엘리먼트 최종 검증 (어댑터는 본격 구현 완료).
-4. **셀러 시드 실호출로 v5 응답 매핑 회귀 검증** — 운영 배포 후 1건 실호출로 v5 nested orderer/receiver + Money 매핑 + nextToken 페이징 + 안심번호 UI 정상 동작 확인.
-5. **택배사 안심번호 호환 검증 트랙 신설** — 로젠 송장 인쇄·통화 안내가 050 가상번호로 정상 처리되는지.
+1. **C2 Gateway 재배포** — `infra/aws-lightsail-gateway/main.ts` `ALLOWED_*` 에 `sa2.esmplus.com` 미러 + 재배포. C3/C4 전제.
+2. **C3 real ESM 실호출 검증** — 셀러 키 + IP `3.36.239.243` 등록 후 1회 실호출로 createProduct(`/item/v1/goods`)·site-cats·배송프로필 4단계 검증. parity §5 captured-real 활성. **"완벽 개발+테스트" 의 핵심 게이트.**
+3. **C1 dev 마이그 이력 정합** — login 후 `db:push:dev`(`--include-all`) + `functions:deploy:dev`.
+4. **C4 PR-5 라이브 codes API** — 정적 항목 검증 refine.
+5. **C5 이미지 16장째 warnings** (v2 여유).
 
-### ⚠ Git Flow 룰 강제 (CLAUDE.md §Rules)
-- 새 feature/* 브랜치는 **반드시 `develop` 에서 분기**. `main` 금지.
-- Agent isolation: "worktree" default base = main — prompt 에서 `git fetch origin develop && git checkout -B feature/X origin/develop` 강제.
+> release(main 배포)는 위 실호출 검증이 끝난 뒤 **사용자가 결정**. WIP 가 임의로 권하지 않는다.
 
-### ⚠ PR strict mode "behind" 패턴 (v0.11 / 11번가 #152 사례)
-- ruleset 의 `strict_required_status_checks_policy: true` 가 PR 브랜치에 develop HEAD lineage 포함 강제.
-- 동일 시점에 다른 PR 이 develop 에 머지되면 본 PR 이 "behind" 로 분류 — auto-merge 발동 안 함 → 머지 안 됨 → webhook 이벤트 미발생.
-- 해소: `mcp__github__update_pull_request_branch` 또는 GitHub UI 의 "Update branch" 버튼 → CI 재실행 → strict 충족 → auto-merge 발동.
+---
 
-### ⚠ release PR 충돌 흔한 패턴 (v0.11 사례)
-- release/* → main PR 생성 시 `docs/handoff/WIP-*.md` 와 `docs/architecture/v1/qa/qa-matrix.md` 가 자주 충돌.
-- 해소: `git checkout --ours <file>` 로 develop 측 (최신) 채택.
+## 백로그 (v1 이후 / 영구 보류)
 
-### ⚠ ruleset 사고 복원 절차 (`.github/rulesets/README.md`)
-- develop branch protection rule 이 또 실수로 날아가면 `.github/rulesets/develop.json` 을 GitHub UI 의 `Settings → Rules → Rulesets → Import a ruleset` 로 1분 복원.
+- 11번가 발급 키 실호출 최종 검증 (어댑터 본체 완료) / 택배사 안심번호 호환 / paid_at·ordered_at 백필 — v2
+- 알림 / CSV / 오류 통계 차트 / 이미지 WebP — 미진입 v1 스코프
+- 쿠팡 미구현 endpoint(출고지/반품지/상품수정·조회·삭제/배송전이) — v2
+- s4 템플릿 / 소셜 / 2FA / Stripe·PG / 멀티유저 권한 — v2~보류
 
-### ⚠ verify-vault-secrets 게이트 (#143, v0.11 부터 작동)
-- main 배포 시 운영 vault 의 `supabase_functions_url` / `service_role_key` 존재 자동 검증.
-- 미등록 시 deploy 차단. release 전 사용자가 Supabase dashboard → Vault 등록 상태 확인 필수.
+---
 
-### ⚠ 11번가 real 어댑터 상태 (본격 구현 완료)
-- 5메서드 (authenticate / fetchCategoryTree / transformProduct / createProduct) + fetchOrders / submitTracking 전부 본 동작 — 11번가 Open API (XML, EUC-KR) 게이트웨이 경유.
-- `markets-connect` 는 다른 4 마켓과 동일하게 `category_ping` 으로 자격증명 검증 후 active 표시.
-- 잔여: 발급 키 실호출로 `apiCode` / 요청·응답 XML 엘리먼트명 최종 검증 (개발자포털 IP 화이트리스트 등록 후) → 불일치 시 어댑터 미세 보정.
+## ⚠ 룰 강제 메모
+
+### Git Flow (CLAUDE.md §Rules)
+- 새 feature/* 는 **반드시 develop 분기**. Agent isolation:"worktree" default base=main → `git fetch origin develop && git checkout -B feature/X origin/develop` 강제.
+
+### develop strict "behind" — 순차 머지 시 rebase 필수 (ESM Wave 1 사례)
+- 한 PR 머지로 develop advance 시 나머지 PR 이 "8 of 8 required status checks are expected" 로 머지 거부.
+- 해소: 다음 PR worktree `git fetch origin && git rebase origin/develop` → 충돌 해소(gateway-sign.ts·esm.md 등 공통파일 흔함) → `git push --force-with-lease` → **새 CI run 등록 30s 대기 후** watch (force push 직후 watch 는 옛 run 캐시를 잡아 머지 거부).
+
+### MCP supabase-dev 풀러 region (세션#2 사고)
+- dev=**뭄바이 `aws-1-ap-south-1`**, real=**서울 `aws-1-ap-northeast-2`** — 호스트 다름. `DATABASE_URI_*` 통일 금지. `tenant/user not found` 시 호스트 region 의심. 진단·복구는 `mcp-hosting.md §9.3.1`.
+- 박스 MCP 재기동은 env-source 필요: `sudo bash -c 'set -a; . /etc/mcp-hosting/env; set +a; cd /opt/mcp-hosting && docker compose up -d postgres-mcp-dev'`. 단독 `up -d` 는 `${DATABASE_URI_DEV}` 보간 실패로 컨테이너 죽음.
+
+### worktree 디렉토리 Windows 삭제 이슈
+- `git worktree remove --force` 가 "Invalid argument"(파일 점유) — `prune`/`branch -D` 로 git 등록은 정리되나 `../ing0415-wt/*` 폴더 잔재. 점유 해제 후 수동 `rm -rf`.
+
+### gh CLI / SSH
+- gh: `C:\Program Files\GitHub CLI\gh.exe` (PATH 미등록 — 절대경로). 인증됨(rumeadia-dotcom, repo scope).
+- 박스 SSH: `ssh ubuntu@3.36.239.243` (`~/.ssh/config` 에 IP→`LightsailDefaultKey-ap-northeast-2.pem` 등록 완료, BOM 없는 UTF-8).
+
+### 신규 스킬 (세션#1)
+- `.claude/skills/dev-preview/` — 로컬 Vite(mock) 서버 + 사용자 Chrome 띄우기 (포트 폴백 자동, 원격 Playwright 의 localhost 미접근 제약 반영).
