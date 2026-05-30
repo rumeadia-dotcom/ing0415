@@ -51,11 +51,25 @@
 
 ---
 
+## 2026-05-30 세션 #4 — 11번가 spec import 대조 + Layer 2 조회형 단일화 결정 (설계문서만)
+
+11번가 셀러 OpenAPI spec import(#265, 145 API) 와 현 어댑터 대조 → **11번가 어댑터도 ESM 처럼 placeholder, 5메서드 전부 실제 spec 불일치** 확정. 이어 배송 Layer 2 모델을 전면 재정립. **코드 변경 없이 설계문서 9개만 정정.**
+
+- **11번가 재검토**: 어댑터(`eleven-st*.ts`)가 `OpenApiService.tmall?apiCode=` 레거시 추정 호출 — 실제는 `api.11st.co.kr/rest/<service>`. 카테고리/상품등록/주문/발송 전부 URL·필드·응답root(`ns2:`/`ClientMessage`) 불일치. 상품등록 필수필드 대량 누락 → real 100% 실패. (`market-adapter.md §9.9` 마스터.)
+- **신규 설계문서**: `features/11st.md` — ESM `esm.md` 패턴, 6 PR 재구현 로드맵 + zod 계약 + Layer 2 + cross-market 공통화(출고지·고시·택배사코드·ns2).
+- **Layer 2 조회형 단일화 (B안, 사용자 승인)**: 출고지/반품지 사전참조가 5마켓 보편 패턴임이 확정되고, ESM 도 조회 API(출하지 17/발송정책 19 전체조회 GET)가 전부 있어 **생성형이 API 강제가 아님**이 드러남. → **5마켓 전부 "마켓 콘솔 등록분 GET 조회 → select" 조회형으로 통일.** ESM 생성형(`esm_shipping_profiles` 테이블 + 생성 Edge + 생성 UI)은 **deprecate** (PR-E1~E5 로드맵, `esm.md` 전환 결정 절).
+- **정정한 설계문서 9개**: `market-adapter.md`(§9.0 base URL 오기·§9.9 신설·§9.8 optionsSource·O-11), `markets.md §3.2`(11번가 placeholder), `shipping-fee-model.md`(Layer 2 조회형·11번가 필드 확정), `features/11st.md`(신규), `features/esm.md`(전환 결정 절+supersede), `registration.md §10.5`(조회형), `user_flow.md`(n61 deprecate), `design-renewal/{s9-settings,s3-register}.md`.
+- **CLAUDE.md 규칙 추가**: 존댓말 / "수정 작업 전 전체 영향범위 전수조사(누락 금지)" / 메모리 포터블(레포) 우선.
+
+> **코드는 미변경** — 11번가 재구현(PR-0~6)·ESM 조회형 전환(PR-E1~E5)은 후속 트랙. real 검증(C3) 일정과 함께 사용자 결정.
+
 ## ⚠ carry-over 백로그 (전부 v1 머지 차단 아님)
 
 | # | 항목 | 출처 | 사유 / 진입 |
 |---|---|---|---|
-| **C1** | dev 마이그 **히스토리 정합** — `esm_shipping_profiles` 는 SQL Editor 직접 적용(테이블·RLS 검증 완료)이라 `supabase_migrations` 이력에 **미기록**. 이월 마이그(20260523~29)도 적용 여부 미확인 | 세션#2 | login 후 `pnpm db:push:dev` 시 esm 마이그가 "이미 존재" 충돌 → `--include-all` 또는 해당 버전 applied 마킹. `functions:deploy:dev` 로 esm-shipping-profile 배포 |
+| **C1** | dev 마이그 **히스토리 정합** — `esm_shipping_profiles` 는 SQL Editor 직접 적용이라 `supabase_migrations` 이력 **미기록**. 이월 마이그(20260523~29) 적용 여부 미확인 | 세션#2 | ⚠️ **조회형 전환(세션#4)으로 `esm_shipping_profiles` 는 DROP 대상**(PR-E4) → dev 이력 정합은 DROP 마이그와 함께 처리. login 후 `db:push:dev --include-all` |
+| **C9** | **11번가 어댑터 전면 재구현** — 현 placeholder, 5메서드 실제 spec 불일치. `features/11st.md` PR-0~6 (base URL·필수필드·출고지/반품지 조회형·고시·택배사 코드·ns2 파서). real 실호출 검증(C3 계열) 동반 | 세션#4 | `features/11st.md`. 설계 완료, 코드 미착수. 11번가 상품군(officialNotice) 코드 마스터 추출 선행(§9 backlog) |
+| **C10** | **ESM 생성형 → 조회형 전환** — `esm_shipping_profiles` 테이블+생성 Edge(`esm-shipping-profile`)+생성 UI(`SettingsShippingEsmProfilesPage` 등) deprecate, ESM GET 조회(`/shipping/places`·`/dispatch-policies`)로 select. n61 노드 제거 | 세션#4 | `esm.md` 전환 결정 절 PR-E1~E5(코드 blast radius 열거). dev `esm_shipping_profiles` DROP(C1 연계). 셀러 온보딩 friction(ESM Plus 직접 설정 안내) 보강 |
 | **C2** | **Lightsail Gateway 재배포** — `gateway-sign.ts` 엔 `sa2.esmplus.com` 추가됨, 박스 `infra/aws-lightsail-gateway/main.ts` `ALLOWED_*` 미러 + 재배포 필요 | PR-2 | ops. 미반영 시 real ESM 호출 게이트웨이 거부 |
 | **C3** | **real ESM 실호출 검증** — mock+parity 까지만. 셀러 자격증명(masterId/secretKey/sellerId) + IP 화이트리스트 `3.36.239.243` 필요 | 전반 | ESM 셀러관리(G·옥션) IP 등록 → 키 발급 → 1회 실호출로 createProduct·site-cats·배송프로필 4단계 검증. parity §5 captured-real 활성 |
 | **C4** | **PR-5 라이브 codes API** — `/official-notice/groups/{no}/codes` 연동 + 정적 항목 검증 | PR-5 | 문서 161.md 가 41군 중 sample 2건만 제공 → 정적코드 없는 군은 셀러 free-form. C2/C3 후 동적 폼 |
@@ -63,7 +77,7 @@
 | **C6** | **mcp_ro_dev `supabase_migrations` read GRANT** — 없어서 MCP 로 dev 마이그 이력 조회 불가(편의) | 세션#2 | esm.md §5.4 에 `grant usage on schema supabase_migrations` + `grant select on schema_migrations` 추가 고려 |
 | **C7** | **잠재 Deno 타입 에러 3건** — 세션#3 에서 deno 최초 설치 후 `deno check` 로 발견. ①`_shared/audit.ts:77/89` sellerId `string\|null`→`LogContext.sellerId?:string` ②`_shared/market-adapters/eleven-st.ts:228`+`schemas.ts:130` `expiresAt:null` vs `string` ③`registration-validate/lib/check.ts:106` `'description_html_unsafe'` 가 `ValidationIssueCode` enum 미포함 | 세션#3 | 전부 기존 버그(이번 변경 무관). deno 미설치라 그간 미검출. enum 누락(③)은 응답 직렬화 시 런타임 영향 가능 → 우선 점검 |
 | **C8** | **Deno 전용 테스트 CI 미실행** — `deno test`+deno.land import 쓰는 테스트(orders-sync/coupang-orders/esm-orders 등)는 vitest exclude + CI 에 deno 없음 → 사실상 미실행. | 세션#3 | 신규 Edge 테스트는 **vitest 호환**으로 작성(가능 시) 또는 CI 에 deno step 추가 결정 필요 |
-| **S2~S5** | **배송비 2-레이어 후속** — Step 2 배송정책 enrich / Step 3 어댑터 인라인 매핑 / Step 4 Layer 2(출고지·반품지) 범용화 / Step 5 ESM fee 연결 | 세션#3 | `shipping-fee-model.md §4`. Step 4 는 real 검증(C3) 연계. 쿠팡/네이버 어댑터 출고지·반품지 미전송 → real 거부 위험 동반 |
+| **S2~S5** | **배송비 2-레이어 후속** — Step 2 배송정책 enrich / Step 3 어댑터 인라인 매핑(쿠팡·네이버·11번가) / Step 4 **Layer 2 조회형 단일화**(5마켓 출고지·반품지 GET 조회 select, 테이블 없음 — 세션#4 결정) / Step 5 ESM fee 는 정책에 묶여 비적용(정보성) | 세션#3·#4 | `shipping-fee-model.md §2/§4`. Step 4 는 real 검증(C3)·C9(11번가)·C10(ESM 전환) 연계. 쿠팡/네이버 어댑터 출고지·반품지 미전송 → real 거부 위험 동반 |
 
 ---
 

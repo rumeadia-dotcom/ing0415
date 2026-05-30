@@ -245,11 +245,14 @@ SELECT cron.schedule(
 | 옥션 (`auction`) | `esm_jwt` | masterId / secretKey / sellerId + `site='A'` | fetchCategoryTree | ESM Plus 통합 인증 (G마켓과 어댑터 공유) |
 | 11번가 (`11st`) | `api_key` | apiKey | fetchCategoryTree | 11번가 Open API (XML, EUC-KR). 게이트웨이 경유 |
 
-**11번가 real 어댑터 상태 (정식 활성)**:
-- `authenticate` — API Key 저장 + 검증 ping.
-- `fetchCategoryTree` / `transformProduct` / `createProduct` / `fetchOrders` / `submitTracking` 모두 11번가 Open API(XML, EUC-KR) 를 Lightsail 게이트웨이 경유로 호출하여 본 동작한다.
-- `markets-connect` 는 다른 4 마켓과 동일하게 category_ping 으로 자격증명을 검증한 뒤 active 표시한다.
-- parity §5 활성 — mock ↔ real 어댑터 동등성 테스트 대상.
+**11번가 real 어댑터 상태 (⚠️ placeholder — 재구현 대상, 2026-05-30 정정)**:
+- `authenticate` — API Key 저장 + 검증 ping. (자격증명 저장 경로는 정상.)
+- `fetchCategoryTree` / `transformProduct` / `createProduct` / `fetchOrders` / `submitTracking` — **현재 구현(`_shared/market-adapters/eleven-st*.ts`)은 실제 11번가 spec 이전의 placeholder 다.** #265 spec import 대조 결과 5메서드 전부 endpoint·페이로드·응답 파싱이 불일치(`market-adapter.md` §9.9):
+  - 구 코드는 `openapi.11st.co.kr/.../OpenApiService.tmall?apiCode=` 를 호출하지만 실제 11번가는 `api.11st.co.kr/rest/<service>` (apiCode 개념 없음).
+  - 상품등록은 필수필드 대량 누락 + 응답 root(`ClientMessage`) 미매칭으로 **real 호출 시 100% 실패**.
+- 재구현 마스터: **`features/11st.md`** (ESM `esm.md` 패턴, PR 분할 로드맵). 재구현 + real 실호출 검증 전까지 "본 동작" 으로 간주 금지.
+- `markets-connect` 의 category_ping 검증·active 표시 흐름 자체는 다른 4 마켓과 동일(재구현 후에도 유지).
+- parity §5 — 재구현 시 mock ↔ real 어댑터 동등성 테스트 대상.
 
 ---
 

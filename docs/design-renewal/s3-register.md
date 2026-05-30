@@ -55,7 +55,7 @@
 | n16 | 상품 정보 입력 | Step 1 (`StepInfoPage`) | |
 | n17 | 마켓 선택 | Step 3 전반부 (`MarketSelectGrid`) | n17/n19 통합 페이지 |
 | n18 | 이미지 업로드 | Step 2 (`StepImagesPage`) | 구현은 이미지를 마켓보다 앞에 둠 |
-| n19 | 카테고리 매핑 + 마켓별 등록옵션 | Step 3 후반부 (`MarketOptionsCard`) | n17 과 동일 페이지. ESM(gmarket/auction)은 배송 프로필 select + 상품정보고시 입력(`OfficialNoticeField`, PR-5) 추가 |
+| n19 | 카테고리 매핑 + 마켓별 등록옵션 | Step 3 후반부 (`MarketOptionsCard`) | n17 과 동일 페이지. ESM(gmarket/auction)=출하지·발송정책 select + 상품정보고시, 11번가=출고지·반품지 select + 상품정보고시. ⚠️ 배송 select 는 **조회형**(마켓 콘솔 등록분 GET 조회 — `esm.md` 전환 결정 절 / `features/11st.md`) |
 | n20 | 등록 미리보기 | Step 4 (`StepPreviewPage`) | |
 | n21 | 등록 결과 | Step 5 (`StepResultPage`) | |
 | n22 | action 템플릿 불러오기 | (v2) | s4 템플릿 도메인 v2 보류 |
@@ -215,7 +215,7 @@
 | "다음: 미리보기" | `Step3Schema.safeParse` 통과 시 `/register/preview` navigate |
 
 **주요 컴포넌트**:
-- 자체: `MarketSelectGrid` (v1 5마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `MarketOptionsCard` (마켓별 카테고리 트리 + 어댑터 메타 기반 동적 등록필드. ESM=배송 프로필 select + 상품정보고시), `OfficialNoticeField` (상품정보고시 상품군 select + 군별 항목 동적 폼, PR-5)
+- 자체: `MarketSelectGrid` (v1 5마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `MarketOptionsCard` (마켓별 카테고리 트리 + 어댑터 메타 기반 동적 등록필드. ESM=출하지·발송정책 조회형 select + 상품정보고시 / 11번가=출고지·반품지 조회형 select + 상품정보고시), `OfficialNoticeField` (상품정보고시 상품군 select + 군별 항목 동적 폼, PR-5)
 - shadcn: `Card` / `Button` / `Input` / `Skeleton` / `ErrorMessage` / `Tooltip`
 - **동적 등록필드 (PR-3.5)**: `MarketOptionsCard` 는 `getRegistrationFieldsForMarket(marketId)` 가 돌려준 `RegistrationFieldMeta[]` 를 `kind` 별로 렌더(마켓 하드코딩 분기 없음). ESM(gmarket/auction)은 `shippingProfile` 필드(배송 프로필 select, 옵션 출처 `esm_shipping_profiles`, 없으면 `/settings/shipping/esm-profiles` deep link) + `officialNotice` 필드. 그 외 마켓은 필드 0개 → 카테고리만. required 필드 미입력 시 `makeStep3Schema` fail + 다음 버튼 비활성 tooltip.
 - **상품정보고시 (PR-5)**: `kind='officialNotice'` 필드는 `OfficialNoticeField` 로 렌더. 상품군 select(41개 법정 표준 상품군, `ESM_OFFICIAL_NOTICE_GROUPS`) → 선택 군의 필수 고시 항목 동적 폼(군의 정적 `requiredItemCodes` 는 코드 잠금 행으로 seed, 그 외 군은 셀러가 `{code,value}` 행 추가). 입력값은 `EsmOfficialNotice`({officialNoticeNo, details[{code,value}]}) 형태로 `marketOptions.officialNotice` 에 적재 → 오케스트레이터가 `mapping.extra.officialNotice` 로 흘려 PR-4 `transformProduct` 가 페이로드(`itemAddtionalInfo.officialNotice`)에 매핑. 군 미선택/항목 value 누락은 `makeStep3Schema`(객체 형태 완성도 판정 `isMarketOptionValuePresent`) fail → blockingReason "상품정보고시 입력 필요" tooltip + 다음 버튼 비활성.
