@@ -68,6 +68,11 @@ export const MarketOrderSchema = z.object({
    * 쿠팡 외 마켓은 항상 omit.
    */
   vendorItemId: z.string().min(1).optional(),
+  /**
+   * 마켓별 발송처리 키 — 11번가 `dlvNo`(배송번호) 등 마켓 API 가 송장 제출 시 요구하는
+   * 추가 식별자. 다른 마켓은 omit. PII 아님 (마켓 내부 식별자). (11st.md §4.4/§4.5)
+   */
+  extra: z.record(z.string()).optional(),
   market: MarketIdSchema,
 })
 export type MarketOrder = z.infer<typeof MarketOrderSchema>

@@ -9,7 +9,6 @@ import {
   buildElevenStProductXml,
   escapeXml,
   extractElevenStProductNo,
-  isElevenStShipmentOk,
   mapElevenStCategories,
   mapElevenStCategoryCertMeta,
   mapElevenStOrders,
@@ -106,22 +105,22 @@ describe('normalizeElevenStStatus', () => {
   })
 })
 
-describe('mapElevenStOrders', () => {
-  it('단일 주문(Order 객체) → MarketOrder 1건, PII/금액 매핑', () => {
+describe('mapElevenStOrders (PR-5 — ns2:orders/order, dlvNo 수집)', () => {
+  it('단일 주문(order 객체) → MarketOrder 1건, PII/금액/dlvNo 매핑', () => {
     const parsed = {
-      Orders: {
-        Order: {
-          OrdNo: 202605270001,
-          OrdNm: '홍길동',
-          RcvrNm: '김수령',
-          RcvrBaseAddr: '서울시 강남구',
-          RcvrDtlsAddr: '101동 202호',
-          RcvrPrtblNo: '010-1234-5678',
-          PrdNm: '테스트 상품',
-          OrdQty: 2,
-          OrdAmt: 25000,
-          OrdStat: '101',
-          OrdDt: '2026-05-27 10:00:00',
+      orders: {
+        order: {
+          ordNo: 202605270001,
+          dlvNo: 40860365,
+          ordNm: '홍길동',
+          rcvrNm: '김수령',
+          rcvrBaseAddr: '서울시 강남구',
+          rcvrDtlsAddr: '101동 202호',
+          rcvrPrtblNo: '010-1234-5678',
+          prdNm: '테스트 상품',
+          ordQty: 2,
+          ordAmt: 25000,
+          ordStlEndDt: '2026-05-27 10:00:00',
         },
       },
     }
@@ -139,25 +138,26 @@ describe('mapElevenStOrders', () => {
       orderAmount: 25000,
       status: 'new_pay',
     })
+    expect(orders[0]?.extra?.dlvNo).toBe('40860365')
     expect(orders[0]?.paidAt).toMatch(/\+00:00$/)
   })
 
-  it('다중 주문(Order 배열) → 각각 매핑', () => {
+  it('다중 주문(order 배열) → 각각 dlvNo 수집', () => {
     const parsed = {
-      Orders: { Order: [{ OrdNo: 'A', OrdStat: '201' }, { OrdNo: 'B', OrdStat: '301' }] },
+      orders: { order: [{ ordNo: 'A', dlvNo: '111' }, { ordNo: 'B', dlvNo: '222' }] },
     }
     const orders = mapElevenStOrders(parsed)
     expect(orders.map((o) => o.externalOrderId)).toEqual(['A', 'B'])
-    expect(orders.map((o) => o.status)).toEqual(['dispatched', 'delivered'])
+    expect(orders.map((o) => o.extra?.dlvNo)).toEqual(['111', '222'])
   })
 
   it('빈 응답 → 빈 배열 (엣지)', () => {
     expect(mapElevenStOrders({})).toEqual([])
-    expect(mapElevenStOrders({ Orders: {} })).toEqual([])
+    expect(mapElevenStOrders({ orders: {} })).toEqual([])
   })
 
-  it('누락 필드 → 안전 기본값 (미상/주소 없음/연락처 없음/상품명 없음, qty>=1)', () => {
-    const orders = mapElevenStOrders({ Orders: { Order: { OrdNo: 'X' } } })
+  it('누락 필드 → 안전 기본값 (미상/주소 없음/연락처 없음/상품명 없음, qty>=1, dlvNo 없으면 extra 생략)', () => {
+    const orders = mapElevenStOrders({ orders: { order: { ordNo: 'X' } } })
     expect(orders[0]).toMatchObject({
       buyerName: '미상',
       receiverName: '미상',
@@ -166,8 +166,9 @@ describe('mapElevenStOrders', () => {
       productName: '상품명 없음',
       quantity: 1,
       orderAmount: 0,
-      status: 'unknown',
+      status: 'new_pay',
     })
+    expect(orders[0]?.extra).toBeUndefined()
   })
 })
 
@@ -319,19 +320,8 @@ describe('상품 등록 빌드/응답', () => {
   })
 })
 
-describe('발송 처리', () => {
-  it('isElevenStShipmentOk — 성공 코드(200/0/빈값) → ok', () => {
-    expect(isElevenStShipmentOk({ Result: { result_code: '200' } }).ok).toBe(true)
-    expect(isElevenStShipmentOk({}).ok).toBe(true)
-  })
-  it('isElevenStShipmentOk — 에러 코드 → ok=false + 메시지', () => {
-    const r = isElevenStShipmentOk({
-      Result: { result_code: '500', result_text: '이미 발송됨' },
-    })
-    expect(r.ok).toBe(false)
-    expect(r.message).toBe('이미 발송됨')
-  })
-})
+// 발송처리 분류(classifyElevenStDispatchResult)/주문조회 분류/택배사 코드 매핑/path 빌더
+// 단위 테스트는 PR-5 전용 eleven-st-orders.test.ts (Edge map 미러) 로 분리.
 
 describe('toElevenStDate', () => {
   it('ISO → YYYYMMDDHHmmss (UTC)', () => {
