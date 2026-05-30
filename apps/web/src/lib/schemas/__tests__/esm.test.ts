@@ -6,6 +6,9 @@ import {
   EsmOfficialNoticeSchema,
   EsmShippingProfileSchema,
   EsmShippingProfileCreateInputSchema,
+  EsmShippingPlaceSchema,
+  EsmDispatchPolicySchema,
+  EsmShippingListResponseSchema,
   RegistrationFieldMetaSchema,
 } from '@/lib/schemas/esm'
 
@@ -437,6 +440,120 @@ describe('RegistrationFieldMetaSchema', () => {
         label: 'x',
         kind: 'checkbox',
         required: false,
+      }).success,
+    ).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────
+// 4.7 조회형 배송 리소스 (PR-E1 — 생성형→조회형 전환)
+//   esm.md "전환 결정 2026-05-30" / esm-api/product/17.md / 19.md
+// ─────────────────────────────────────────────
+
+describe('EsmShippingPlaceSchema (출하지 조회 정규화)', () => {
+  it('placeNo + placeName + isDefault 통과', () => {
+    expect(
+      EsmShippingPlaceSchema.safeParse({
+        placeNo: '177067',
+        placeName: '테스트001',
+        isDefault: false,
+      }).success,
+    ).toBe(true)
+  })
+
+  it('placeName 빈 문자열이면 실패 (min 1)', () => {
+    expect(
+      EsmShippingPlaceSchema.safeParse({
+        placeNo: '177067',
+        placeName: '',
+        isDefault: false,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('placeNo 누락이면 실패', () => {
+    expect(
+      EsmShippingPlaceSchema.safeParse({
+        placeName: '테스트001',
+        isDefault: true,
+      }).success,
+    ).toBe(false)
+  })
+})
+
+describe('EsmDispatchPolicySchema (발송정책 조회 정규화)', () => {
+  it('site + 번호 + 이름 + dispatchType 통과', () => {
+    expect(
+      EsmDispatchPolicySchema.safeParse({
+        site: 'G',
+        dispatchPolicyNo: '910',
+        dispatchPolicyName: '당일발송',
+        dispatchType: 'A',
+        isDefault: true,
+      }).success,
+    ).toBe(true)
+  })
+
+  it('dispatchType 이 enum(A~F) 외면 실패', () => {
+    expect(
+      EsmDispatchPolicySchema.safeParse({
+        site: 'A',
+        dispatchPolicyNo: '910',
+        dispatchPolicyName: '당일발송',
+        dispatchType: 'Z',
+        isDefault: false,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('site 가 G/A 외면 실패', () => {
+    expect(
+      EsmDispatchPolicySchema.safeParse({
+        site: 'X',
+        dispatchPolicyNo: '910',
+        dispatchPolicyName: '당일발송',
+        dispatchType: 'A',
+        isDefault: false,
+      }).success,
+    ).toBe(false)
+  })
+})
+
+describe('EsmShippingListResponseSchema (조회 Edge 200 응답)', () => {
+  it('빈 목록도 통과 (셀러가 ESM Plus 에 설정 없음)', () => {
+    expect(
+      EsmShippingListResponseSchema.safeParse({
+        site: 'G',
+        places: [],
+        dispatchPolicies: [],
+      }).success,
+    ).toBe(true)
+  })
+
+  it('places + dispatchPolicies 채워진 응답 통과', () => {
+    expect(
+      EsmShippingListResponseSchema.safeParse({
+        site: 'A',
+        places: [{ placeNo: '1', placeName: '기본출하지', isDefault: true }],
+        dispatchPolicies: [
+          {
+            site: 'A',
+            dispatchPolicyNo: '910',
+            dispatchPolicyName: '당일발송',
+            dispatchType: 'A',
+            isDefault: true,
+          },
+        ],
+      }).success,
+    ).toBe(true)
+  })
+
+  it('places 항목 형식 오류면 실패', () => {
+    expect(
+      EsmShippingListResponseSchema.safeParse({
+        site: 'G',
+        places: [{ placeNo: '1' }], // placeName/isDefault 누락
+        dispatchPolicies: [],
       }).success,
     ).toBe(false)
   })
