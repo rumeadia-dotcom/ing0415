@@ -592,6 +592,39 @@ export type EsmShippingProfileCreateInput = z.infer<
   typeof EsmShippingProfileCreateInputSchema
 >
 
+// ─────────────────────────────────────────────
+// 조회형 배송 리소스 (생성형→조회형 전환, esm.md "전환 결정 2026-05-30")
+//   PR-E1 — apps/web/src/lib/schemas/esm.ts 4.7 절 미러 (구조 동일).
+//   원문: esm-api/product/17.md (출하지 전체조회) / 19.md (발송정책 전체조회).
+//   PII 경계: select 노출용 이름/번호만 정규화. 주소/연락처는 통과시키지 않는다.
+//   ⚠️ 생성형 EsmShippingProfile* 스키마는 제거하지 않는다 (E3/E4 담당).
+// ─────────────────────────────────────────────
+
+export const EsmShippingPlaceSchema = z.object({
+  placeNo: z.string().min(1),
+  placeName: z.string().min(1),
+  isDefault: z.boolean(),
+})
+export type EsmShippingPlace = z.infer<typeof EsmShippingPlaceSchema>
+
+export const EsmDispatchPolicySchema = z.object({
+  site: EsmProfileSiteSchema,
+  dispatchPolicyNo: z.string().min(1),
+  dispatchPolicyName: z.string().min(1),
+  dispatchType: EsmDispatchTypeSchema,
+  isDefault: z.boolean(),
+})
+export type EsmDispatchPolicy = z.infer<typeof EsmDispatchPolicySchema>
+
+export const EsmShippingListResponseSchema = z.object({
+  site: EsmProfileSiteSchema,
+  places: z.array(EsmShippingPlaceSchema),
+  dispatchPolicies: z.array(EsmDispatchPolicySchema),
+})
+export type EsmShippingListResponse = z.infer<
+  typeof EsmShippingListResponseSchema
+>
+
 export const REGISTRATION_FIELD_KINDS = [
   'select',
   'text',

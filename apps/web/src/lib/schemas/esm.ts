@@ -384,6 +384,62 @@ export type EsmShippingProfileCreateInput = z.infer<
 >
 
 // ─────────────────────────────────────────────
+// 4.7 조회형 배송 리소스 (생성형→조회형 전환, esm.md "전환 결정 2026-05-30")
+//   PR-E1 — 셀러가 ESM Plus 에서 만든 출하지/발송정책을 GET 조회 → select.
+//   우리 앱은 생성하지 않는다(생성형 EsmShippingProfile* 는 deprecate, E3/E4 제거).
+//   원문: esm-api/product/17.md (출하지 전체조회 → shippingPlaces[])
+//        esm-api/product/19.md (발송정책 전체조회 → dispatchPolicies[])
+//
+// 정규화 응답 — Edge esm-shipping-list 가 raw ESM 응답을 정규화해 반환하는 모양.
+// PII 경계(security.md §2): 출하지엔 주소·연락처가 ESM 측에 있으나, 우리는 저장 안 하고
+//   select 노출용으로 이름/번호(placeNo/placeName, dispatchPolicyNo/name)만 통과시킨다.
+// ─────────────────────────────────────────────
+
+/**
+ * 정규화 출하지 — esm-api/product/17.md shippingPlaces[].
+ *   placeNo(int) → 문자열 식별자(우리 도메인은 번호를 문자열로 다룸, profile 과 동일).
+ *   placeName(string) → select 라벨.
+ *   isDefaultShippingPlace → 기본 출하지(select 기본값 힌트).
+ * 주소/추가배송비 등은 select 노출에 불필요 + PII 인접 → 정규화에서 제외.
+ */
+export const EsmShippingPlaceSchema = z.object({
+  placeNo: z.string().min(1),
+  placeName: z.string().min(1),
+  isDefault: z.boolean(),
+})
+export type EsmShippingPlace = z.infer<typeof EsmShippingPlaceSchema>
+
+/**
+ * 정규화 발송정책 — esm-api/product/19.md dispatchPolicies[].
+ *   발송정책은 G마켓/옥션 사이트별로 별도 → site 구분 유지(dispatchPolicyNo.{gmkt|iac} 매칭용).
+ *   dispatchPolicyNo(int) → 문자열 식별자.
+ *   dispatchPolicyName(string) → select 라벨.
+ *   dispatchType(A~F) → 발송유형(이미 정의된 EsmDispatchTypeSchema 재사용).
+ */
+export const EsmDispatchPolicySchema = z.object({
+  site: EsmProfileSiteSchema,
+  dispatchPolicyNo: z.string().min(1),
+  dispatchPolicyName: z.string().min(1),
+  dispatchType: EsmDispatchTypeSchema,
+  isDefault: z.boolean(),
+})
+export type EsmDispatchPolicy = z.infer<typeof EsmDispatchPolicySchema>
+
+/**
+ * esm-shipping-list Edge Function 의 200 응답.
+ *   출하지(공통) + 발송정책(요청 계정 site 분) 정규화 목록.
+ *   site 는 요청한 market_account 의 사이트('G'|'A') — 호출측이 어느 사이트 분인지 안다.
+ */
+export const EsmShippingListResponseSchema = z.object({
+  site: EsmProfileSiteSchema,
+  places: z.array(EsmShippingPlaceSchema),
+  dispatchPolicies: z.array(EsmDispatchPolicySchema),
+})
+export type EsmShippingListResponse = z.infer<
+  typeof EsmShippingListResponseSchema
+>
+
+// ─────────────────────────────────────────────
 // 4.6 마켓별 동적 등록필드 메타 (RegistrationFieldMetaSchema)
 //   esm.md §4.6 — MarketAdapter.getRegistrationFields() 반환 타입.
 //   PR-0 은 타입 계약만. 어댑터 메서드 실제 추가는 PR-3.5.
