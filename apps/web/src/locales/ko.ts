@@ -95,6 +95,14 @@ export const ko = {
           '상품군을 선택하고 해당 상품군의 필수 고시 항목을 입력하세요. 전자상거래법상 필수입니다.',
         blockingReason: '상품정보고시 입력 필요',
       },
+      // 11번가 상품정보고시(ProductNotification) — ESM officialNotice 프레임 재사용 (11st.md §4.6 / PR-4).
+      //   상품군 마스터(ELEVEN_ST_NOTICE_GROUPS)는 spec 첨부파일 미확보로 1군(891011)만 정적 + 셀러 free-form(C4).
+      elevenStOfficialNotice: {
+        label: '11번가 상품정보고시',
+        helpText:
+          '상품군 유형(type)을 선택하거나 직접 입력하고, 고시 항목 코드·내용을 입력하세요. 전자상거래법상 필수입니다.',
+        blockingReason: '상품정보고시 입력 필요',
+      },
       // 11번가 출고지/반품지 select (조회형 Layer 2, 11st.md §4.6 / PR-2).
       elevenStOutbound: {
         label: '11번가 출고지',
@@ -155,9 +163,14 @@ export const ko = {
         emptyCta: '11번가 셀러오피스 열기',
         sellerOfficeUrl: 'https://soffice.11st.co.kr',
       },
-      // 상품정보고시 입력(OfficialNoticeField, PR-5) — 상품군 select + 군별 항목 동적 폼.
+      // 상품정보고시 입력(OfficialNoticeField, PR-5/PR-4) — 상품군 select + 군별 항목 동적 폼.
+      //   ESM(41군 select) + 11번가(1군 select + free-form type 직접입력) 공용. groups 는 prop 으로 주입.
       officialNoticeField: {
         groupPlaceholder: '— 상품군 선택 —',
+        // 11번가 등 미확보 군(C4) free-form: 마스터에 없는 상품군 유형코드를 직접 입력하는 진입.
+        freeformOption: '직접 입력 (마스터에 없는 상품군)',
+        freeformTypeAria: '상품군 유형코드 직접 입력',
+        freeformTypePlaceholder: '상품군 유형코드 (예: 891011)',
         itemsTitle: '필수 고시 항목',
         itemsEmpty:
           '이 상품군의 고시 항목을 추가하세요. 항목 코드와 내용을 입력합니다.',

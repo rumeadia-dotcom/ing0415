@@ -7,7 +7,7 @@
  *   - 출하지/발송정책 없음 → ESM Plus 등록 안내 + 외부 링크 CTA (생성 진입점 없음, empty).
  *   - 선택 시 onChange 가 marketOptions.shippingPlaceNo / dispatchPolicyNo 에 적재.
  *   - 발송정책은 site별(G/A) — useEsmShippingOptions 가 계정 site 분만 내려준다(site 분기).
- *   - 11번가(11st): 출고지/반품지 select (PR-2 영역 — 회귀).
+ *   - 11번가(11st): 출고지/반품지 select (PR-2 회귀) + 상품정보고시(PR-4, 11번가 마스터 1군+free-form).
  *   - 타 마켓(naver) 카드: 카테고리만 — ESM 필드 미노출 (하위호환 회귀).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -342,6 +342,70 @@ describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () 
     expect(
       screen.getAllByRole('button', { name: /11번가 셀러오피스 열기/ }).length,
     ).toBe(2)
+  })
+
+  it('상품정보고시(officialNotice) 필드를 11번가 마스터(1군 + 직접입력)로 렌더한다 (PR-4)', () => {
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        outbound: [{ addrSeq: '14', addrNm: '본사 출고지' }],
+        returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+      },
+    })
+    renderCard('11st')
+    expect(screen.getByLabelText('11번가 상품정보고시')).toBeInTheDocument()
+    // 11번가 마스터 = 확보 군 1개(891011) + free-form 직접입력 옵션 (ESM 41군 아님).
+    expect(
+      screen.getByRole('option', { name: '일반 상품 (예시 군 · 891011)' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: '직접 입력 (마스터에 없는 상품군)' }),
+    ).toBeInTheDocument()
+    // ESM 41군(의류)은 11번가 카드에 노출되지 않는다.
+    expect(screen.queryByRole('option', { name: '의류' })).not.toBeInTheDocument()
+  })
+
+  it('상품군 선택 시 marketOptions.officialNotice 에 generic 형태로 적재 (PR-4)', async () => {
+    const user = userEvent.setup()
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        outbound: [{ addrSeq: '14', addrNm: '본사 출고지' }],
+        returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+      },
+    })
+    const { onChange } = renderCard('11st')
+    await user.selectOptions(screen.getByLabelText('11번가 상품정보고시'), '891011')
+    const last = onChange.mock.calls.at(-1)?.[0] as CategoryMapping
+    // UI 값은 generic 형태({officialNoticeNo, details}) — 11번가 {type,item} 변환은 transformProduct.
+    expect(last.marketOptions.officialNotice).toEqual({
+      officialNoticeNo: '891011',
+      details: [],
+    })
+  })
+
+  it('free-form 직접입력 선택 시 type 빈 값 + 항목 1행으로 시작한다 (C4 미확보 군)', async () => {
+    const user = userEvent.setup()
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        outbound: [{ addrSeq: '14', addrNm: '본사 출고지' }],
+        returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+      },
+    })
+    const { onChange } = renderCard('11st')
+    await user.selectOptions(
+      screen.getByLabelText('11번가 상품정보고시'),
+      '__freeform__',
+    )
+    const last = onChange.mock.calls.at(-1)?.[0] as CategoryMapping
+    expect(last.marketOptions.officialNotice).toEqual({
+      officialNoticeNo: '',
+      details: [{ code: '', value: '' }],
+    })
   })
 })
 

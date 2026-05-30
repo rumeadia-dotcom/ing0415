@@ -12,6 +12,7 @@ import {
   mapElevenStCategories,
   mapElevenStCategoryCertMeta,
   mapElevenStOrders,
+  normalizeElevenStOfficialNotice,
   normalizeElevenStStatus,
   stripNsPrefix,
   toElevenStDate,
@@ -397,6 +398,36 @@ describe('PR-3 이미지 truncate warning', () => {
     expect(
       buildElevenStProductRaw(makeProduct(), makeMapping({ transformedImageUrls: urls })).warnings,
     ).toEqual([])
+  })
+})
+
+describe('PR-4 officialNotice(ProductNotification) — Web map 미러 (parity)', () => {
+  it('extra 없으면 미부착', () => {
+    expect(
+      buildElevenStProductRaw(makeProduct(), makeMapping()).fields.ProductNotification,
+    ).toBeUndefined()
+  })
+  it('11번가 형태({type,item}) passthrough', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({ extra: { officialNotice: { type: '891011', item: [{ code: '1', name: '면' }] } } }),
+    )
+    expect(fields.ProductNotification).toEqual({ type: '891011', item: [{ code: '1', name: '면' }] })
+  })
+  it('UI generic({officialNoticeNo,details}) → {type,item:[{code,name}]} 변환', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({
+        extra: {
+          officialNotice: { officialNoticeNo: '891011', details: [{ code: 'C', value: '나일론' }] },
+        },
+      }),
+    )
+    expect(fields.ProductNotification).toEqual({ type: '891011', item: [{ code: 'C', name: '나일론' }] })
+  })
+  it('normalizeElevenStOfficialNotice — fail(불완전) → undefined', () => {
+    expect(normalizeElevenStOfficialNotice({ officialNoticeNo: '', details: [] })).toBeUndefined()
+    expect(normalizeElevenStOfficialNotice(null)).toBeUndefined()
   })
 })
 
