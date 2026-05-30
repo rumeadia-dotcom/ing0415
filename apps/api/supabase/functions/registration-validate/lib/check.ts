@@ -35,7 +35,7 @@ function toDomainProduct(p: ProductRow, images: ImageRow[]): Product {
     })),
     descriptionHtml: p.description_html ?? '',
     brand: p.brand ?? undefined,
-    shippingFeeKrw: 0,
+    shippingFeeKrw: p.shipping_fee,
   }
 }
 
