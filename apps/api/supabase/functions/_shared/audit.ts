@@ -74,7 +74,7 @@ export async function appendAudit(input: AppendAuditInput): Promise<void> {
       {
         category: input.category,
         event: input.event,
-        sellerId: input.sellerId,
+        sellerId: input.sellerId ?? undefined,
         rpcError: error.code ?? 'unknown',
         correlationId: input.correlationId,
       },
@@ -86,7 +86,8 @@ export async function appendAudit(input: AppendAuditInput): Promise<void> {
     {
       category: input.category,
       event: input.event,
-      sellerId: input.sellerId,
+      // LogContext.sellerId 는 string|undefined — null 은 undefined 로 정규화 (deno check).
+      sellerId: input.sellerId ?? undefined,
       correlationId: input.correlationId,
     },
     '← audit insert ok',

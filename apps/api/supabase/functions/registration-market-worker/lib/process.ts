@@ -88,7 +88,8 @@ export async function processMarket(
     correlationId: input.correlationId,
     logger,
   })
-  const expMs = Date.parse(cred.tokenExpiresAt)
+  // tokenExpiresAt 은 oauth kind 만 값 존재 — null(영구키)이면 refresh 불필요(NaN → skip).
+  const expMs = cred.tokenExpiresAt ? Date.parse(cred.tokenExpiresAt) : NaN
   if (Number.isFinite(expMs) && expMs - Date.now() < 60_000) {
     const refreshed = await tryRefreshCredential({
       service,
