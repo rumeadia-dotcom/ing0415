@@ -220,7 +220,9 @@ create type shipping_method as enum (
 ```sql
 create table public.shipping_policies (
   id              uuid primary key default gen_random_uuid(),
-  seller_id       uuid not null references auth.users(id) on delete cascade,
+  -- default auth.uid(): 클라이언트 직접 INSERT 시 seller_id 생략 허용
+  -- (RLS WITH CHECK(seller_id = auth.uid()) 는 유지 → spoofing 차단). 마이그 20260531000001.
+  seller_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name            text not null,
   fee             integer not null check (fee >= 0),     -- 원
   method          shipping_method not null,
@@ -266,7 +268,8 @@ create policy shipping_policies_delete_own
 ```sql
 create table public.products (
   id                  uuid primary key default gen_random_uuid(),
-  seller_id           uuid not null references auth.users(id) on delete cascade,
+  -- default auth.uid(): 클라이언트 직접 INSERT 시 seller_id 생략 허용 (마이그 20260531000001).
+  seller_id           uuid not null default auth.uid() references auth.users(id) on delete cascade,
 
   -- 기본 정보
   name                text not null,
