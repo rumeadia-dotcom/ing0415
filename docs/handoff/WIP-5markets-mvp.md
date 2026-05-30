@@ -1,10 +1,10 @@
-# MarketCast — WIP 핸드오프 (11번가 plumbing + deno check 정합 · v0.16 운영 배포본)
+# MarketCast — WIP 핸드오프 (v0.17 릴리즈 진행 · 11번가 plumbing + deno check + RLS fix)
 
-**develop HEAD**: `8d6bed5` — ci: Edge Functions deno check 잡 추가 (#296)
-**main HEAD**: `3e4db98` — release: v0.16 (#280) · **Deploy (real) success (2026-05-30 09:36)** — 운영 배포본
+**develop HEAD**: `325de66` — chore(tooling): supabase 스크립트 npx 포터블화 (#297)
+**main HEAD**: `3e4db98` — release: v0.16 (#280) · **v0.17 release → main 머지 진행 중**
 **테스트**: 1370 passed / 1 skipped / 31 todo (122 files) · **deno check 25 entrypoint green**
-**갱신일**: 2026-05-31 (11번가 NEW-1/NEW-2 plumbing + deno check 도입·타입 정합 반영)
-**develop 누적(미릴리즈)**: NEW-1 #291 · NEW-2 #292 · deno 타입수정 #294 · CI deno check #296
+**갱신일**: 2026-05-31 (v0.17 — RLS seller_id default fix + npx 포터블화 추가)
+**develop 누적(→v0.17)**: NEW-1 #291 · NEW-2 #292 · deno 타입수정 #294 · CI deno check #296 · RLS fix #295 · npx #297
 
 ---
 
@@ -27,17 +27,15 @@ v0.16 carry-over(NEW-1·NEW-2) 완주 + deno 도입으로 Edge 타입 사각 해
 
 ---
 
-## ⚠ 즉시 필요한 운영 액션 (사용자 작업)
+## ⚠ 운영 액션 상태 (2026-05-31 v0.17 — 해소)
 
-### 1. dev DB 마이그 적용 (NEW-1 — `orders.extra`)
-```
-cd apps/api && npx supabase@latest db push   # 이 머신 supabase CLI 미설치 → npx
-```
-→ 마이그 `20260530000003_orders_extra_jsonb.sql` dev(eqoyw) 적용. **dev:db 모드 11번가 주문 수집·발송 검증 전 필수**(mock 모드 무관). 미적용 시 orders insert 가 extra 컬럼 부재로 실패할 수 있음. **파괴적/공유 인프라라 사용자 직접 실행.**
+### ✅ dev DB 마이그 — 완료
+`20260530000003_orders_extra_jsonb` + `20260531000001_seller_id_default_auth_uid` dev(eqoyw) push 완료. `seller_id default auth.uid()` 검증.
 
-### 2. real DB 마이그 적용 (운영 게이트)
-Actions UI → "Deploy (real)" → workflow_dispatch → `apply_db_migrations=true`
-→ `20260530000003` real(lfrny) 적용. **다음 release 배포 시 동반.**
+### ✅ real DB 마이그 — 완료 (드리프트 정합)
+real(lfrny) 이 `20260527000001` 까지만 적용된 드리프트를 정합: `20260529000001`·`20260530000001~3`·`20260531000001` 5개 `supabase db push` 직접 적용.
+- **운영 사고 해소**: `shipping_policies`/`products` INSERT 가 `seller_id` 누락으로 RLS WITH CHECK 위반(PostgREST 42501) → owner 컬럼 `default auth.uid()` 로 차단. 운영 배송정책 추가 정상 확인 (#295).
+- 이미 real 적용 완료이므로 본 v0.17 deploy 의 `apply_db_migrations` 는 **불필요** (코드/레포 정합 목적 릴리즈).
 
 ---
 
