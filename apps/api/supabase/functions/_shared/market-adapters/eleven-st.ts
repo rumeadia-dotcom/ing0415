@@ -286,7 +286,8 @@ export function createElevenStAdapter(): MarketAdapter {
       return {
         kind: 'api_key',
         payload: { apiKey: input.apiKey },
-        expiresAt: null,
+        // api_key variant 의 expiresAt 은 optional (만료 없음) — 필드 생략.
+        // StoredCredentialSchema.api_key 는 `string | undefined` 만 허용(null 불가).
       }
     },
 

@@ -76,6 +76,7 @@ const ISSUE_MESSAGE_MAP: Record<string, string> = {
   image_main_missing: '대표 이미지가 누락되었습니다.',
   image_size_too_small: '이미지 해상도가 마켓 기준보다 작습니다.',
   description_required: '상품 상세 설명이 필요합니다.',
+  description_html_unsafe: '상세 설명에 허용되지 않은 HTML 태그·속성이 포함되어 있습니다.',
   market_options_missing: '마켓별 옵션 입력이 필요합니다.',
   token_expired: '마켓 인증이 만료되었습니다. 재인증이 필요합니다.',
   token_revoked: '마켓 인증이 해제되었습니다. 다시 연결해 주세요.',
