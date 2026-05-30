@@ -15,6 +15,12 @@
 
 import type { CategoryNode, MarketMapping, Product } from '../schemas.ts'
 import type { MarketOrder, MarketOrderStatus } from '../market-orders.ts'
+import {
+  ELEVEN_ST_CARRIER_CODES,
+  toElevenStCarrierCode,
+  type CarrierCode,
+} from '../carrier-codes.ts'
+import { stripNsPrefix } from '../xml.ts'
 
 export const MARKET = '11st' as const
 
@@ -111,25 +117,12 @@ function asArray(node: unknown): Record<string, unknown>[] {
 }
 
 /**
- * XML 네임스페이스 prefix 제거 (PR-0). 11번가 REST 응답은 `ns2:categorys` / `ns2:order` /
- * `ns2:inOutAddress` 처럼 `ns{n}:` prefix 를 단다(spec import #265 — `features/11st.md` §4.3/§4.4).
- * fast-xml-parser(Edge) / DOMParser(Web) 모두 prefix 를 키에 그대로 남기므로, 파싱 결과 객체를
- * 재귀적으로 훑어 단일 선행 `prefix:` 를 제거한다. 매핑 로직(`pick`)이 prefix 없는 키만 보게 한다.
- * 순수 함수 — 입력 비변형(새 객체 반환).
+ * XML 네임스페이스 prefix 제거 (PR-0 도입, PR-6 에서 cross-market `_shared/xml.ts` 로 추출).
+ * 11번가 REST 응답은 `ns2:categorys` / `ns2:order` / `ns2:inOutAddress` 처럼 `ns{n}:` prefix 를
+ * 단다(spec import #265 — `features/11st.md` §4.3/§4.4). 본 파일은 기존 import 경로 호환을 위해
+ * 공용 유틸을 re-export 만 한다.
  */
-export function stripNsPrefix(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(stripNsPrefix)
-  if (node && typeof node === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-      // `ns2:categorys` → `categorys`. 선행 영숫자 prefix + 콜론 1개만 제거.
-      const key = /^[A-Za-z][A-Za-z0-9]*:/.test(k) ? k.slice(k.indexOf(':') + 1) : k
-      out[key] = stripNsPrefix(v)
-    }
-    return out
-  }
-  return node
-}
+export { stripNsPrefix }
 
 function pick(obj: Record<string, unknown>, keys: string[]): unknown {
   for (const k of keys) {
@@ -177,34 +170,14 @@ export function toElevenStOrderDate(iso: string | undefined): string {
 }
 
 // ─────────────────────────────────────────────
-// 택배사 코드 매핑 (PR-5, §8-3)
-//   내부 CarrierCode(enum) → 11번가 dlvEtprsCd. 출처: dispatch-1888.md path variable enum.
-//   ⚠️ cross-market 공통 `_shared/carrier-codes.ts` 단일화는 PR-6 — 본 PR 은 11번가 어댑터
-//   내부 맵으로 구현하되, PR-6 추출이 쉽도록 한 곳(본 상수)에 모아둔다.
-//   v1 내부 enum(TRACKING_CARRIER_CODES)은 'LOGEN' 단일이나, 주요 택배사를 미리 매핑한다.
+// 택배사 코드 매핑 (PR-6, §8-3 — cross-market 단일 소스로 추출)
+//   내부 CarrierCode(enum) → 11번가 dlvEtprsCd 는 `_shared/carrier-codes.ts` 단일 소스에서
+//   정의·매핑한다. 본 파일은 11번가 어댑터의 기존 import 경로 호환을 위해 re-export 만 한다.
+//   (PR-5 까지는 본 파일 내부 맵이었으나 ESM(`ESM_CARRIER_CODE`)과 분산돼 PR-6 에서 단일화.)
 // ─────────────────────────────────────────────
-export const ELEVEN_ST_CARRIER_CODES = {
-  LOGEN: '00002', // 로젠택배 (v1 내부 enum)
-  CJ: '00034', // CJ대한통운
-  HANJIN: '00011', // 한진택배
-  LOTTE: '00012', // 롯데(현대)택배
-  EPOST: '00007', // 우체국택배/등기
-  HABDONG: '00035', // 합동택배
-  KYUNGDONG: '00026', // 경동택배
-  DAESIN: '00021', // 대신택배
-  CHUNIL: '00027', // 천일택배
-  ETC: '00099', // 기타
-} as const
-export type ElevenStCarrierKey = keyof typeof ELEVEN_ST_CARRIER_CODES
-
-/**
- * 내부 carrierCode → 11번가 dlvEtprsCd. 미매핑이면 undefined 반환
- * (호출측 어댑터가 '택배사 코드 미지원' validation 처리). 순수 함수.
- */
-export function toElevenStCarrierCode(carrierCode: string): string | undefined {
-  const key = carrierCode.toUpperCase() as ElevenStCarrierKey
-  return ELEVEN_ST_CARRIER_CODES[key]
-}
+export { ELEVEN_ST_CARRIER_CODES, toElevenStCarrierCode }
+/** @deprecated 내부 enum 키는 cross-market `CarrierCode`. 본 alias 는 호환용. */
+export type ElevenStCarrierKey = CarrierCode
 
 // ─────────────────────────────────────────────
 // REST path 빌더 (PR-5) — ordservices 계열 path variable 조립
