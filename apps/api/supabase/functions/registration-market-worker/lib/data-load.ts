@@ -195,12 +195,14 @@ export async function loadDomainProduct(
     unknown
   >
 
-  // ESM(gmarket/auction): marketOptions.shippingProfileId 로 esm_shipping_profiles
-  // (service_role) 조회 → 배송 프로필 번호(placeNo/dispatchPolicyNo/bundlePolicyNo)를
-  // mapping.extra 에 주입. transformProduct 는 순수 함수이므로 조회는 오케스트레이터가 맡는다
-  // (esm.md §7 PR-4). PR-5 가 적재하는 officialNotice 는 marketOptions 에 이미 있으면 보존.
+  // ESM(gmarket/auction): 조회형 전환(esm.md "전환 결정 2026-05-30" / PR-E2·E3·E4) 후
+  // 셀러가 3단계 카드(MarketOptionsCard)에서 ESM Plus 의 출하지/발송정책을 조회·선택해
+  // marketOptions.shippingPlaceNo / marketOptions.dispatchPolicyNo 로 적재한다.
+  // 우리 앱은 더 이상 배송 프로필을 생성·저장하지 않으므로(esm_shipping_profiles DROP),
+  // 오케스트레이터는 DB 조회 없이 선택값을 transformProduct 가 읽는 extra(placeNo/
+  // dispatchPolicyNo)로 매핑만 한다. PR-5 가 적재하는 officialNotice 는 보존.
   const extra = isEsmMarket(marketId)
-    ? await injectEsmShippingProfile(service, sellerId, marketId, baseExtra)
+    ? mapEsmShippingOptions(baseExtra)
     : baseExtra
 
   const mapping: MarketMapping = {
@@ -218,61 +220,29 @@ function isEsmMarket(market: MarketId): boolean {
 }
 
 /**
- * marketOptions.shippingProfileId → esm_shipping_profiles 조회 후 번호를 extra 에 주입.
+ * 조회형(esm.md "전환 결정 2026-05-30" / PR-E2~E4) ESM 배송 선택값을 extra 로 매핑.
  *
- * - service_role 조회 + seller_id WHERE 강제 (cross-tenant 차단).
- * - status='active' 프로필만 사용 (error/부분 실패 row 는 등록 차단).
- * - place_no / dispatch_policy_no 누락(active 인데 NULL — partial CHECK 가 막지만 방어) 시 validation.
- * - shippingProfileId 자체가 없으면 placeNo 미주입 → transformProduct 가 validation 으로 차단.
+ * 셀러가 3단계 카드(MarketOptionsCard / EsmShippingSelect)에서 ESM Plus 의 출하지·발송정책을
+ * 조회·선택하면 marketOptions 에 shippingPlaceNo / dispatchPolicyNo (둘 다 string 번호) 가 적재된다.
+ * transformProduct(순수 함수)는 extra.placeNo / extra.dispatchPolicyNo 를 읽으므로, 오케스트레이터는
+ * 키 이름만 매핑한다. DB 조회 없음(생성형 esm_shipping_profiles 테이블 제거).
+ *
+ * - 선택값 미입력 시 placeNo 미주입 → transformProduct 가 validation 으로 차단(3단계
+ *   makeStep3Schema 가 required 로 막지만 서버에서도 방어).
+ * - 이미 placeNo/dispatchPolicyNo 가 extra 에 있으면(테스트 fixture 등) 보존한다.
  */
-async function injectEsmShippingProfile(
-  service: Service,
-  sellerId: string,
-  marketId: MarketId,
+function mapEsmShippingOptions(
   baseExtra: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const shippingProfileId = baseExtra['shippingProfileId']
-  if (typeof shippingProfileId !== 'string' || shippingProfileId.length === 0) {
-    // 프로필 미선택 — 번호 주입 없이 그대로. transformProduct 가 누락을 validation 으로 차단.
-    return baseExtra
-  }
+): Record<string, unknown> {
+  const shippingPlaceNo = baseExtra['shippingPlaceNo']
+  const dispatchPolicyNo = baseExtra['dispatchPolicyNo']
 
-  const { data, error } = await service
-    .from('esm_shipping_profiles')
-    .select('place_no, dispatch_policy_no, bundle_policy_no, status')
-    .eq('id', shippingProfileId)
-    .eq('seller_id', sellerId)
-    .maybeSingle()
-
-  if (error || !data) {
-    throw new MarketError('validation', 'esm shipping profile not found', {
-      market: marketId,
-    })
+  const next = { ...baseExtra }
+  if (typeof shippingPlaceNo === 'string' && shippingPlaceNo.length > 0) {
+    next.placeNo = shippingPlaceNo
   }
-  if (data.status !== 'active') {
-    throw new MarketError(
-      'validation',
-      'esm shipping profile not active (부분 실패 프로필)',
-      { market: marketId },
-    )
+  if (typeof dispatchPolicyNo === 'string' && dispatchPolicyNo.length > 0) {
+    next.dispatchPolicyNo = dispatchPolicyNo
   }
-  const placeNo = typeof data.place_no === 'string' ? data.place_no : null
-  const dispatchPolicyNo =
-    typeof data.dispatch_policy_no === 'string' ? data.dispatch_policy_no : null
-  if (!placeNo || !dispatchPolicyNo) {
-    throw new MarketError(
-      'validation',
-      'esm shipping profile missing place_no/dispatch_policy_no',
-      { market: marketId },
-    )
-  }
-
-  return {
-    ...baseExtra,
-    placeNo,
-    dispatchPolicyNo,
-    ...(typeof data.bundle_policy_no === 'string'
-      ? { bundlePolicyNo: data.bundle_policy_no }
-      : {}),
-  }
+  return next
 }

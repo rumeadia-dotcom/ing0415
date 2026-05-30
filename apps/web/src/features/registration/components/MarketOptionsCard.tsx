@@ -1,10 +1,8 @@
-import { useNavigate } from 'react-router-dom'
 import { Check, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui'
 import { useMarketCategoryTree } from '../hooks/useMarketCategoryTree'
 import { OfficialNoticeField } from './OfficialNoticeField'
 import {
-  useEsmShippingProfiles,
   useElevenStShippingAddresses,
   useEsmShippingOptions,
 } from '@/features/settings/shipping'
@@ -19,7 +17,7 @@ import { cn } from '@/lib/utils'
 
 interface MarketOptionsCardProps {
   marketId: MarketId
-  /** 선택된 마켓 계정 — shippingProfile 필드의 옵션 출처(useEsmShippingProfiles)에 사용. */
+  /** 선택된 마켓 계정 — 동적 배송 필드의 조회형 옵션 출처(useEsmShippingOptions / useElevenStShippingAddresses)에 사용. */
   marketAccountId: string
   mapping: CategoryMapping | null
   onChange: (mapping: CategoryMapping) => void
@@ -171,7 +169,7 @@ interface MarketOptionFieldProps {
 
 /**
  * 단일 동적 필드 렌더 — kind 별 분기. marketId 하드코딩 없이 메타로만 결정.
- * 확장 대비: select/text/number 기본 렌더 지원, shippingProfile 특수 렌더.
+ * 확장 대비: select/text/number 기본 렌더 + 조회형 select(11번가 출고지·반품지 / ESM 출하지·발송정책) 특수 렌더.
  */
 function MarketOptionField({
   field,
@@ -195,15 +193,7 @@ function MarketOptionField({
           </span>
         )}
       </label>
-      {field.kind === 'shippingProfile' ? (
-        <ShippingProfileSelect
-          fieldId={`mof-${field.key}`}
-          fieldLabel={fieldLabel}
-          marketAccountId={marketAccountId}
-          value={typeof value === 'string' ? value : ''}
-          onChange={onChange}
-        />
-      ) : field.kind === 'select' &&
+      {field.kind === 'select' &&
         (field.optionsSource === 'elevenStOutbound' ||
           field.optionsSource === 'elevenStReturn') ? (
         <ElevenStAddressSelect
@@ -255,75 +245,6 @@ function MarketOptionField({
       )}
       {helpText && <p className="text-[11px] text-text-tertiary">{helpText}</p>}
     </div>
-  )
-}
-
-interface ShippingProfileSelectProps {
-  fieldId: string
-  fieldLabel: string
-  marketAccountId: string
-  value: string
-  onChange: (value: string) => void
-}
-
-/**
- * 배송 프로필 select — useEsmShippingProfiles(marketAccountId) 로 옵션 로드.
- * 4상태: loading / error / data(active 프로필 select) / empty("만들러 가기" deep link).
- */
-function ShippingProfileSelect({
-  fieldId,
-  fieldLabel,
-  marketAccountId,
-  value,
-  onChange,
-}: ShippingProfileSelectProps): JSX.Element {
-  const navigate = useNavigate()
-  const t = ko.markets.registrationFields.shippingProfileField
-  const { data, isLoading, isError } = useEsmShippingProfiles(marketAccountId)
-
-  if (isLoading) {
-    return <Skeleton className="h-9 w-full" aria-label={t.loading} />
-  }
-  if (isError) {
-    return <p className="text-[12px] text-danger-on-soft">{t.error}</p>
-  }
-
-  // 사용 가능 프로필 = status='active' 만 (생성 중 오류 row 는 선택 불가).
-  const usable = (data ?? []).filter((p) => p.status === 'active')
-
-  if (usable.length === 0) {
-    return (
-      <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border-strong bg-surface-subtle p-3">
-        <p className="text-[12px] font-semibold text-text-secondary">{t.emptyTitle}</p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="border border-border"
-          onClick={() => navigate('/settings/shipping/esm-profiles')}
-        >
-          <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-          {t.emptyCta}
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <select
-      id={fieldId}
-      aria-label={fieldLabel}
-      className={SELECT_CLASS}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">{t.placeholder}</option>
-      {usable.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.profileLabel}
-        </option>
-      ))}
-    </select>
   )
 }
 

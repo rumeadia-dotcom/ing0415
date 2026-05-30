@@ -532,6 +532,11 @@ export const EsmSiteCatSchema: z.ZodType<EsmSiteCat> = z.lazy(() =>
   }),
 )
 
+// ─────────────────────────────────────────────
+// 공용 enum — 사이트/발송유형 (조회형 배송 리소스가 재사용).
+//   ⚠ 생성형 배송 프로필(EsmShippingProfile* / EsmFeeType / EsmShippingProfileStatus)은
+//     조회형 전환으로 제거됨(esm.md "전환 결정 2026-05-30" / PR-E3·E4). site/dispatchType 만 유지.
+// ─────────────────────────────────────────────
 export const ESM_PROFILE_SITES = ['G', 'A'] as const
 export const EsmProfileSiteSchema = z.enum(ESM_PROFILE_SITES)
 export type EsmProfileSite = z.infer<typeof EsmProfileSiteSchema>
@@ -540,64 +545,11 @@ export const ESM_DISPATCH_TYPES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 export const EsmDispatchTypeSchema = z.enum(ESM_DISPATCH_TYPES)
 export type EsmDispatchType = z.infer<typeof EsmDispatchTypeSchema>
 
-export const EsmFeeTypeSchema = z.union([z.literal(1), z.literal(2)])
-export type EsmFeeType = z.infer<typeof EsmFeeTypeSchema>
-
-export const ESM_SHIPPING_PROFILE_STATUSES = ['active', 'error'] as const
-export const EsmShippingProfileStatusSchema = z.enum(
-  ESM_SHIPPING_PROFILE_STATUSES,
-)
-export type EsmShippingProfileStatus = z.infer<
-  typeof EsmShippingProfileStatusSchema
->
-
-// PII 경계(security.md §2 / esm.md §3): 저장형엔 주소·전화·이름 PII 미포함.
-// 번호(addrNo/placeNo/dispatchPolicyNo)만 저장. raw_meta(jsonb)는 타입 계약에서
-// 제외 — 임의 jsonb 가 PII 유입 통로가 되지 않도록. PII 는 CreateInput.address 만.
-export const EsmShippingProfileSchema = z.object({
-  id: UuidSchema,
-  sellerId: UuidSchema,
-  marketAccountId: UuidSchema,
-  site: EsmProfileSiteSchema,
-  profileLabel: z.string().min(1),
-  addrNo: z.string().min(1),
-  placeNo: z.string().min(1),
-  bundlePolicyNo: z.string().nullable().optional(),
-  dispatchPolicyNo: z.string().min(1),
-  dispatchType: EsmDispatchTypeSchema,
-  shippingFee: MoneyKrwSchema,
-  feeType: EsmFeeTypeSchema,
-  status: EsmShippingProfileStatusSchema,
-  createdAt: IsoDateTimeOffsetSchema,
-  updatedAt: IsoDateTimeOffsetSchema,
-})
-export type EsmShippingProfile = z.infer<typeof EsmShippingProfileSchema>
-
-export const EsmShippingProfileCreateInputSchema = z.object({
-  marketAccountId: UuidSchema,
-  site: EsmProfileSiteSchema,
-  profileLabel: z.string().min(1),
-  dispatchType: EsmDispatchTypeSchema,
-  shippingFee: MoneyKrwSchema,
-  feeType: EsmFeeTypeSchema,
-  address: z.object({
-    zipCode: z.string().min(1),
-    addressMain: z.string().min(1),
-    addressDetail: z.string().optional(),
-    contactName: z.string().min(1),
-    contactPhone: z.string().min(1),
-  }),
-})
-export type EsmShippingProfileCreateInput = z.infer<
-  typeof EsmShippingProfileCreateInputSchema
->
-
 // ─────────────────────────────────────────────
 // 조회형 배송 리소스 (생성형→조회형 전환, esm.md "전환 결정 2026-05-30")
-//   PR-E1 — apps/web/src/lib/schemas/esm.ts 4.7 절 미러 (구조 동일).
+//   apps/web/src/lib/schemas/esm.ts §4.7 절 미러 (구조 동일).
 //   원문: esm-api/product/17.md (출하지 전체조회) / 19.md (발송정책 전체조회).
 //   PII 경계: select 노출용 이름/번호만 정규화. 주소/연락처는 통과시키지 않는다.
-//   ⚠️ 생성형 EsmShippingProfile* 스키마는 제거하지 않는다 (E3/E4 담당).
 // ─────────────────────────────────────────────
 
 export const EsmShippingPlaceSchema = z.object({
@@ -630,13 +582,15 @@ export const REGISTRATION_FIELD_KINDS = [
   'text',
   'number',
   'officialNotice',
+  // ⚠ 생성형 잔존 — 'shippingProfile' kind 는 PR-E5 에서 제거(PR-E3/E4 미제거).
+  //   negative-assertion 테스트가 리터럴 비교로 참조 → enum 값만 PR-E5 까지 보존(TS2367 회피).
   'shippingProfile',
 ] as const
 export const RegistrationFieldKindSchema = z.enum(REGISTRATION_FIELD_KINDS)
 export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
 
 export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
-  // ⚠ 생성형 잔존 — 'shippingProfiles' 는 PR-E3/E5 제거. PR-E2 에서 제거 금지.
+  // ⚠ 생성형 잔존 — 'shippingProfiles' 는 PR-E5 에서 제거(PR-E3/E4 미제거, 위 kind 와 동일 사유).
   'shippingProfiles',
   'static',
   // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2). additive — ESM 영역(위 2개) 미접촉.

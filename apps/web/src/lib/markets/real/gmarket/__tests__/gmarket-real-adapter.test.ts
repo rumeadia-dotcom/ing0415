@@ -81,8 +81,9 @@ const VALID_PRODUCT: Product = {
   shippingFeeKrw: 3_000,
 }
 
-// PR-4: ESM transformProduct 는 배송 프로필 번호 + officialNotice 가 extra 에
-// 주입돼 있어야 한다(오케스트레이터가 esm_shipping_profiles 조회로 채움).
+// PR-4: ESM transformProduct 는 출하지(placeNo)·발송정책(dispatchPolicyNo) 번호 + officialNotice
+// 가 extra 에 주입돼 있어야 한다(조회형 전환 후 오케스트레이터가 marketOptions 의
+// shippingPlaceNo/dispatchPolicyNo 를 매핑해 채움 — esm.md "전환 결정 2026-05-30" / PR-E2~E4).
 const VALID_MAPPING: MarketMapping = {
   market: 'gmarket',
   categoryId: '200001234',

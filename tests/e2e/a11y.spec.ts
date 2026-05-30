@@ -45,7 +45,6 @@ const ROUTES = [
   '/settings/shipping',
   '/settings/shipping/logen',
   '/settings/shipping/sender',
-  '/settings/shipping/esm-profiles',
   // D-C: 비인증 정적 페이지 (약관 / 개인정보처리방침 / 매뉴얼)
   '/legal/terms',
   '/legal/privacy',

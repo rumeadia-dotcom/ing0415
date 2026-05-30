@@ -4,8 +4,6 @@ import {
   EsmGoodsCreateResponseSchema,
   EsmSiteCatSchema,
   EsmOfficialNoticeSchema,
-  EsmShippingProfileSchema,
-  EsmShippingProfileCreateInputSchema,
   EsmShippingPlaceSchema,
   EsmDispatchPolicySchema,
   EsmShippingListResponseSchema,
@@ -328,82 +326,10 @@ describe('EsmSiteCatSchema', () => {
 })
 
 // ─────────────────────────────────────────────
-// 4.5 EsmShippingProfileSchema / CreateInput
+// 4.5 배송 프로필 생성형(EsmShippingProfileSchema / CreateInput)은 조회형 전환으로 제거됨
+//   (esm.md "전환 결정 2026-05-30" / PR-E3·E4). 관련 단위테스트도 함께 제거.
+//   조회형 대체 스키마(EsmShippingPlace/EsmDispatchPolicy/EsmShippingListResponse)는 §4.7 에서 검증.
 // ─────────────────────────────────────────────
-describe('EsmShippingProfileSchema', () => {
-  const valid = {
-    id: '11111111-1111-1111-1111-111111111111',
-    sellerId: '22222222-2222-2222-2222-222222222222',
-    marketAccountId: '33333333-3333-3333-3333-333333333333',
-    site: 'G' as const,
-    profileLabel: '기본 출고지/택배',
-    addrNo: 'ADDR-1',
-    placeNo: 'PLACE-1',
-    bundlePolicyNo: 'BUNDLE-1',
-    dispatchPolicyNo: 'DISPATCH-G-1',
-    dispatchType: 'A' as const,
-    shippingFee: 3000,
-    feeType: 1 as const,
-    status: 'active' as const,
-    createdAt: '2026-05-30T03:00:00+09:00',
-    updatedAt: '2026-05-30T03:00:00+09:00',
-  }
-
-  it('유효 저장형 프로필 통과 (bundlePolicyNo 생략 가능)', () => {
-    const { bundlePolicyNo: _omit, ...rest } = valid
-    void _omit
-    expect(EsmShippingProfileSchema.safeParse(rest).success).toBe(true)
-  })
-
-  it('dispatchType 가 enum 외면 실패', () => {
-    expect(
-      EsmShippingProfileSchema.safeParse({ ...valid, dispatchType: 'Z' })
-        .success,
-    ).toBe(false)
-  })
-
-  it('feeType 가 1/2 외면 실패', () => {
-    expect(
-      EsmShippingProfileSchema.safeParse({ ...valid, feeType: 3 }).success,
-    ).toBe(false)
-  })
-})
-
-describe('EsmShippingProfileCreateInputSchema', () => {
-  const validInput = {
-    marketAccountId: '33333333-3333-3333-3333-333333333333',
-    site: 'A' as const,
-    profileLabel: '옥션 기본',
-    dispatchType: 'B' as const,
-    shippingFee: 0,
-    feeType: 2 as const,
-    address: {
-      zipCode: '06236',
-      addressMain: '서울 강남구 테헤란로 1',
-      addressDetail: '5F',
-      contactName: '홍길동',
-      contactPhone: '010-1234-5678',
-    },
-  }
-
-  it('유효 생성 입력 통과', () => {
-    expect(
-      EsmShippingProfileCreateInputSchema.safeParse(validInput).success,
-    ).toBe(true)
-  })
-
-  it('address.contactName 누락이면 실패', () => {
-    const { address, ...rest } = validInput
-    const { contactName: _omit, ...addrRest } = address
-    void _omit
-    expect(
-      EsmShippingProfileCreateInputSchema.safeParse({
-        ...rest,
-        address: addrRest,
-      }).success,
-    ).toBe(false)
-  })
-})
 
 // ─────────────────────────────────────────────
 // 4.6 RegistrationFieldMetaSchema

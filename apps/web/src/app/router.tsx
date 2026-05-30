@@ -87,10 +87,6 @@ const SettingsShippingLogenPage = lazy(
 const SettingsShippingSenderPage = lazy(
   () => import('@/features/settings/shipping/pages/SettingsShippingSenderPage'),
 )
-const SettingsShippingEsmProfilesPage = lazy(
-  () =>
-    import('@/features/settings/shipping/pages/SettingsShippingEsmProfilesPage'),
-)
 const SettingsPoliciesPage = lazy(
   () => import('@/features/settings/policies/pages/SettingsPoliciesPage'),
 )
@@ -239,10 +235,6 @@ const routes: RouteObject[] = [
               { index: true, element: withSuspense(<SettingsShippingPage />) },
               { path: 'logen', element: withSuspense(<SettingsShippingLogenPage />) },
               { path: 'sender', element: withSuspense(<SettingsShippingSenderPage />) },
-              {
-                path: 'esm-profiles',
-                element: withSuspense(<SettingsShippingEsmProfilesPage />),
-              },
             ],
           },
         ],
