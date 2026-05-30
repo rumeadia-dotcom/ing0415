@@ -114,6 +114,34 @@ export const ko = {
           '11번가 셀러오피스에 등록한 반품/교환지를 선택하세요. 반품·교환 상품이 이 주소로 회수됩니다.',
         blockingReason: '반품/교환지 선택 필요',
       },
+      // ESM(G마켓·옥션) 출하지/발송정책 select (조회형 Layer 2, esm.md "전환 결정" / PR-E2).
+      //   생성형 shippingProfile 을 대체 — 셀러가 ESM Plus 에 만든 것을 조회·선택만 한다.
+      esmShippingPlace: {
+        label: 'G마켓·옥션 출하지',
+        helpText:
+          'ESM Plus 에 등록한 출하지를 선택하세요. 상품은 이 출하지에서 발송됩니다.',
+        blockingReason: '출하지 선택 필요',
+      },
+      esmDispatchPolicy: {
+        label: 'G마켓·옥션 발송정책',
+        helpText:
+          'ESM Plus 에 등록한 발송정책을 선택하세요. 발송정책은 G마켓·옥션 사이트별로 별도입니다.',
+        blockingReason: '발송정책 선택 필요',
+      },
+      // ESM 출하지/발송정책 select(EsmShippingSelect, PR-E2) — 4상태 + ESM Plus 등록 안내.
+      //   ESM 도 우리 앱에서 생성하지 않음(생성형 폐기) — empty 시 ESM Plus 등록 후 새로고침 안내.
+      esmShippingField: {
+        placePlaceholder: '— 출하지 선택 —',
+        dispatchPlaceholder: '— 발송정책 선택 —',
+        loading: '배송 설정 불러오는 중…',
+        error: '출하지/발송정책을 불러오지 못했습니다. 마켓 연결 상태를 확인하세요.',
+        placeEmptyTitle: '등록된 출하지가 없습니다',
+        dispatchEmptyTitle: '등록된 발송정책이 없습니다',
+        // ESM 은 우리 앱에서 생성하지 않음 — ESM Plus 에서 등록 후 새로고침 안내(생성 진입점 없음).
+        emptyHint: 'ESM Plus 에서 출하지·발송정책을 먼저 등록한 뒤 새로고침하세요.',
+        emptyCta: 'ESM Plus 열기',
+        sellerOfficeUrl: 'https://www.esmplus.com',
+      },
       // MarketOptionsCard(PR-3.5) UI chrome — 동적 필드 렌더 공통 문구.
       card: {
         sectionTitle: '마켓별 등록 옵션',

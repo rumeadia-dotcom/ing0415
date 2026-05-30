@@ -433,6 +433,32 @@ describe('RegistrationFieldMetaSchema', () => {
     ).toBe(true)
   })
 
+  it('ESM 조회형 출하지/발송정책 optionsSource 메타 통과 (PR-E2 additive)', () => {
+    for (const optionsSource of ['esmShippingPlace', 'esmDispatchPolicy'] as const) {
+      expect(
+        RegistrationFieldMetaSchema.safeParse({
+          key: optionsSource === 'esmShippingPlace' ? 'shippingPlaceNo' : 'dispatchPolicyNo',
+          label: 'markets.registrationFields.x.label',
+          kind: 'select',
+          required: true,
+          optionsSource,
+        }).success,
+      ).toBe(true)
+    }
+  })
+
+  it('알 수 없는 optionsSource(esmShippingLookup 우산값)는 실패', () => {
+    expect(
+      RegistrationFieldMetaSchema.safeParse({
+        key: 'shippingPlaceNo',
+        label: 'x',
+        kind: 'select',
+        required: true,
+        optionsSource: 'esmShippingLookup',
+      }).success,
+    ).toBe(false)
+  })
+
   it('kind 가 enum 외면 실패', () => {
     expect(
       RegistrationFieldMetaSchema.safeParse({

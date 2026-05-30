@@ -18,28 +18,50 @@ import { naverRealAdapter } from '../../../real/naver'
 import { coupangRealAdapter } from '../../../real/coupang'
 import { createMockAdapter } from '../../../debug/createMockAdapter'
 
-describe('getEsmRegistrationFields — 빌더', () => {
-  it('shippingProfile + officialNotice 2필드를 반환한다 (PR-5)', () => {
+describe('getEsmRegistrationFields — 빌더 (조회형 전환 PR-E2)', () => {
+  it('출하지 + 발송정책 + officialNotice 3필드를 반환한다', () => {
     const fields = getEsmRegistrationFields()
-    expect(fields).toHaveLength(2)
+    expect(fields).toHaveLength(3)
     expect(fields.map((f) => f.key)).toEqual([
-      'shippingProfileId',
+      'shippingPlaceNo',
+      'dispatchPolicyNo',
       'officialNotice',
     ])
   })
 
-  it('shippingProfile 필드 (required, optionsSource=shippingProfiles, i18n key)', () => {
+  it('출하지(shippingPlaceNo) 필드 (kind=select, required, optionsSource=esmShippingPlace, i18n key)', () => {
     const f = getEsmRegistrationFields().find(
-      (x) => x.key === 'shippingProfileId',
+      (x) => x.key === 'shippingPlaceNo',
     )
-    expect(f?.kind).toBe('shippingProfile')
+    expect(f?.kind).toBe('select')
     expect(f?.required).toBe(true)
-    expect(f?.optionsSource).toBe('shippingProfiles')
+    expect(f?.optionsSource).toBe('esmShippingPlace')
     // label / blockingReason 은 i18n key (하드코딩 문구 아님).
-    expect(f?.label).toBe('markets.registrationFields.shippingProfile.label')
+    expect(f?.label).toBe('markets.registrationFields.esmShippingPlace.label')
     expect(f?.blockingReason).toBe(
-      'markets.registrationFields.shippingProfile.blockingReason',
+      'markets.registrationFields.esmShippingPlace.blockingReason',
     )
+  })
+
+  it('발송정책(dispatchPolicyNo) 필드 (kind=select, required, optionsSource=esmDispatchPolicy, i18n key)', () => {
+    const f = getEsmRegistrationFields().find(
+      (x) => x.key === 'dispatchPolicyNo',
+    )
+    expect(f?.kind).toBe('select')
+    expect(f?.required).toBe(true)
+    expect(f?.optionsSource).toBe('esmDispatchPolicy')
+    expect(f?.label).toBe('markets.registrationFields.esmDispatchPolicy.label')
+    expect(f?.blockingReason).toBe(
+      'markets.registrationFields.esmDispatchPolicy.blockingReason',
+    )
+  })
+
+  it('더 이상 생성형 shippingProfile(optionsSource=shippingProfiles)을 노출하지 않는다 (전환)', () => {
+    const fields = getEsmRegistrationFields()
+    expect(fields.find((f) => f.kind === 'shippingProfile')).toBeUndefined()
+    expect(
+      fields.find((f) => f.optionsSource === 'shippingProfiles'),
+    ).toBeUndefined()
   })
 
   it('officialNotice 필드 (kind=officialNotice, required, optionsSource=static, i18n key)', () => {
@@ -61,24 +83,37 @@ describe('getEsmRegistrationFields — 빌더', () => {
   })
 
   it('잘못된 메타(kind 미지정)는 스키마가 거부한다 (fail)', () => {
-    const bad = { key: 'shippingProfileId', label: 'x', required: true }
+    const bad = { key: 'shippingPlaceNo', label: 'x', required: true }
+    expect(RegistrationFieldMetaSchema.safeParse(bad).success).toBe(false)
+  })
+
+  it('알 수 없는 optionsSource 는 스키마가 거부한다 (fail)', () => {
+    const bad = {
+      key: 'shippingPlaceNo',
+      label: 'x',
+      kind: 'select',
+      required: true,
+      optionsSource: 'esmShippingLookup', // 우산 개념 — 실제 enum 값 아님
+    }
     expect(RegistrationFieldMetaSchema.safeParse(bad).success).toBe(false)
   })
 })
 
 describe('MarketAdapter.getRegistrationFields — 마켓별 정책', () => {
-  it('gmarket real 어댑터가 shippingProfile + officialNotice 2필드 반환', () => {
+  it('gmarket real 어댑터가 출하지+발송정책+officialNotice 3필드 반환', () => {
     const fields = gmarketRealAdapter.getRegistrationFields?.() ?? []
     expect(fields.map((f) => f.key)).toEqual([
-      'shippingProfileId',
+      'shippingPlaceNo',
+      'dispatchPolicyNo',
       'officialNotice',
     ])
   })
 
-  it('auction real 어댑터가 shippingProfile + officialNotice 2필드 반환', () => {
+  it('auction real 어댑터가 출하지+발송정책+officialNotice 3필드 반환', () => {
     const fields = auctionRealAdapter.getRegistrationFields?.() ?? []
     expect(fields.map((f) => f.key)).toEqual([
-      'shippingProfileId',
+      'shippingPlaceNo',
+      'dispatchPolicyNo',
       'officialNotice',
     ])
   })

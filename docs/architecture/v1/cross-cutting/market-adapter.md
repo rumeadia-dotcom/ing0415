@@ -1002,12 +1002,12 @@ getRegistrationFields?(): RegistrationFieldMeta[];
 
 - **하위호환 (핵심)**: optional 메서드 + "기본 동작 = `[]`". naver/coupang 어댑터는 **메서드 자체를 생략** → 코드 0줄 수정. (11st·gmarket·auction 은 정의.) 호출측은 `getRegistrationFields(adapter)` 헬퍼(없으면 `[]`)로 접근한다.
 - **순수 동기 함수** — 외부 호출 / Date.now / Math.random 금지(렌더 시점 동기 호출). 옵션 데이터(출하지·발송정책·출고지 목록)는 어댑터가 아니라 UI 가 마켓별 조회 훅(ESM `useEsmShippingOptions` / 11번가 `useElevenStShippingAddresses`)으로 채운다(`optionsSource` 가 출처만 지정).
-- **ESM 선언 (조회형 전환 후)**: gmarket/auction 은 공용 어댑터에서 출하지(`placeNo`)·발송정책(`dispatchPolicyNo`, 사이트별) select + officialNotice 를 `optionsSource:'esmShippingLookup'` 으로 반환. (구 `shippingProfileId`/`shippingProfiles` 는 생성형 잔재 — PR-E2 에서 교체.)
+- **ESM 선언 (조회형 전환 후 — PR-E2 완료)**: gmarket/auction 은 공용 어댑터에서 출하지(`shippingPlaceNo`)·발송정책(`dispatchPolicyNo`, 사이트별) select + officialNotice 를 반환. `esmShippingLookup` 은 우산 개념이고 enum 값은 출하지/발송정책 2종이라 `optionsSource:'esmShippingPlace'` + `optionsSource:'esmDispatchPolicy'` 둘로 구현(11번가 out/return 와 동일 패턴). UI 가 `useEsmShippingOptions`(Edge `esm-shipping-list` POST `{ marketAccountId }`)로 옵션을 채운다. (구 `shippingProfileId`/`shippingProfiles` 는 생성형 잔재 — additive 보존, PR-E3/E5 제거.)
 - **단일 소스**: 필드 빌더는 Web `apps/web/src/lib/markets/real/esm/registration-fields.ts` / Edge `_shared/market-adapters/esm-registration-fields.ts` 두 미러에 동일 구조(`getEsmRegistrationFields()`). mock 어댑터(Web `createMockAdapter` / Edge `debug.ts`)도 ESM 마켓에 한해 동일 빌더를 재사용해 parity 를 보장한다.
 - **개정 분류**: 5메서드 핵심 인터페이스가 아니라 v2 Extension 계열의 **optional 메서드 추가**(fetchOrders/submitTracking 과 동일 패턴) — 기존 어댑터 무영향. backend + architect 합의(PR-3.5), security 검수 대상은 아님(외부 호출·자격증명 무관, i18n key 만 노출).
 
 **테스트 (R-006 회귀 강제):**
-- ESM(gmarket/auction) 어댑터: `getRegistrationFields()` 가 출하지·발송정책 select(optionsSource='esmShippingLookup') + officialNotice 반환.
+- ESM(gmarket/auction) 어댑터: `getRegistrationFields()` 가 출하지(optionsSource='esmShippingPlace')·발송정책(optionsSource='esmDispatchPolicy') select + officialNotice 3필드 반환.
 - 11번가 어댑터: 출고지·반품지 select(optionsSource='elevenStOutbound'/'elevenStReturn') + officialNotice 반환.
 - naver/coupang: `getRegistrationFields` 미정의 → 헬퍼 통해 `[]`(하위호환 회귀).
 

@@ -6,6 +6,7 @@ import { OfficialNoticeField } from './OfficialNoticeField'
 import {
   useEsmShippingProfiles,
   useElevenStShippingAddresses,
+  useEsmShippingOptions,
 } from '@/features/settings/shipping'
 import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
@@ -42,9 +43,10 @@ const SELECT_CLASS =
  * CategoryMappingCard 의 일반화 버전:
  *  - 카테고리 매핑(기존 동작) + `getRegistrationFieldsForMarket(marketId)` 가 선언한 필드를 동적 렌더.
  *  - 컴포넌트 내 `if (marketId === 'gmarket')` 같은 하드코딩 분기 없음 — 어댑터 메타 kind 로만 분기.
- *  - ESM(gmarket/auction): 카테고리 + 배송 프로필 select. 그 외: 메타 빈 배열 → 카테고리만(회귀 없음).
+ *  - ESM(gmarket/auction): 카테고리 + 출하지·발송정책 select(조회형, PR-E2). 11번가: 출고지·반품지 select.
+ *    그 외: 메타 빈 배열 → 카테고리만(회귀 없음).
  *
- * 동적 옵션값(shippingProfileId 등)은 mapping.marketOptions[fieldKey] 에 적재.
+ * 동적 옵션값(shippingPlaceNo/dispatchPolicyNo/outboundAddrSeq 등)은 mapping.marketOptions[fieldKey] 에 적재.
  * required 미입력 검증·다음버튼 차단은 상위 페이지(makeStep3Schema + blockingReasons).
  */
 export function MarketOptionsCard({
@@ -205,6 +207,17 @@ function MarketOptionField({
         (field.optionsSource === 'elevenStOutbound' ||
           field.optionsSource === 'elevenStReturn') ? (
         <ElevenStAddressSelect
+          fieldId={`mof-${field.key}`}
+          fieldLabel={fieldLabel}
+          marketAccountId={marketAccountId}
+          kind={field.optionsSource}
+          value={typeof value === 'string' ? value : ''}
+          onChange={onChange}
+        />
+      ) : field.kind === 'select' &&
+        (field.optionsSource === 'esmShippingPlace' ||
+          field.optionsSource === 'esmDispatchPolicy') ? (
+        <EsmShippingSelect
           fieldId={`mof-${field.key}`}
           fieldLabel={fieldLabel}
           marketAccountId={marketAccountId}
@@ -383,6 +396,89 @@ function ElevenStAddressSelect({
       {options.map((opt) => (
         <option key={opt.addrSeq} value={opt.addrSeq}>
           {opt.addrNm}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+interface EsmShippingSelectProps {
+  fieldId: string
+  fieldLabel: string
+  marketAccountId: string
+  /** 출하지(esmShippingPlace) vs 발송정책(esmDispatchPolicy) — 동일 훅의 다른 목록을 선택. */
+  kind: 'esmShippingPlace' | 'esmDispatchPolicy'
+  value: string
+  onChange: (value: string) => void
+}
+
+/**
+ * ESM(G마켓·옥션) 출하지/발송정책 select — useEsmShippingOptions(marketAccountId) 로 옵션 로드
+ * (esm.md "전환 결정 2026-05-30" 조회형 / PR-E2).
+ * 4상태: loading / error / data(placeName·placeNo / dispatchPolicyName·dispatchPolicyNo) /
+ *   empty(ESM Plus 등록 안내 + 외부 링크).
+ * 발송정책은 사이트별(G/A) — Edge 가 계정 site 분만 태깅해 내려주므로 카드는 받은 목록을 그대로 노출.
+ * 출하지/발송정책은 우리 앱이 생성하지 않음(생성형 폐기) — empty 시 ESM Plus 로 안내(생성 화면 없음).
+ */
+function EsmShippingSelect({
+  fieldId,
+  fieldLabel,
+  marketAccountId,
+  kind,
+  value,
+  onChange,
+}: EsmShippingSelectProps): JSX.Element {
+  const t = ko.markets.registrationFields.esmShippingField
+  const { data, isLoading, isError } = useEsmShippingOptions(marketAccountId)
+
+  if (isLoading) {
+    return <Skeleton className="h-9 w-full" aria-label={t.loading} />
+  }
+  if (isError) {
+    return <p className="text-[12px] text-danger-on-soft">{t.error}</p>
+  }
+
+  const isPlace = kind === 'esmShippingPlace'
+  const options = isPlace
+    ? (data?.places ?? []).map((p) => ({ value: p.placeNo, label: p.placeName }))
+    : (data?.dispatchPolicies ?? []).map((d) => ({
+        value: d.dispatchPolicyNo,
+        label: d.dispatchPolicyName,
+      }))
+  const placeholder = isPlace ? t.placePlaceholder : t.dispatchPlaceholder
+  const emptyTitle = isPlace ? t.placeEmptyTitle : t.dispatchEmptyTitle
+
+  if (options.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border-strong bg-surface-subtle p-3">
+        <p className="text-[12px] font-semibold text-text-secondary">{emptyTitle}</p>
+        <p className="text-[11px] text-text-tertiary">{t.emptyHint}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="border border-border"
+          onClick={() => window.open(t.sellerOfficeUrl, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          {t.emptyCta}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <select
+      id={fieldId}
+      aria-label={fieldLabel}
+      className={SELECT_CLASS}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
         </option>
       ))}
     </select>
