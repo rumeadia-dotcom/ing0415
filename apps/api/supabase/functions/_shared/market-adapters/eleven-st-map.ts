@@ -30,6 +30,25 @@ export const ELEVEN_ST_API_CODES = {
   shipment: 'SendGoods',
 } as const
 
+/**
+ * 11번가 실제 REST base (PR-0 — spec import #265, `features/11st.md` §4 / market-adapter.md §9.9).
+ * ⚠️ 구 `ELEVEN_ST_API_BASE`(OpenApiService.tmall?apiCode=) 는 추정값 placeholder — 실제 11번가는
+ * `apiCode` 개념이 없고 서비스별 REST path 를 쓴다. 호출부(fetchCategoryTree/createProduct 등)
+ * 재작성은 PR-1~5 이므로, PR-0 에선 본 상수를 **additive** 로만 추가하고 구 상수는 유지(build-green).
+ */
+export const ELEVEN_ST_REST_BASE = 'https://api.11st.co.kr/rest'
+
+/** 서비스별 REST path (base 뒤에 붙음). path variable 은 호출부에서 조립(PR-1~5). */
+export const ELEVEN_ST_REST_PATHS = {
+  categoryAll: '/cateservice/category', // GET 1001 (전체)
+  categorySub: '/cateservice/category', // GET 1617 — `${...}/{dispCtgrNo}`
+  productCreate: '/prodservices/product', // POST 1003
+  orderCompleteList: '/ordservices/complete', // GET 1876 — `/{startTime}/{endTime}`
+  dispatch: '/ordservices/reqdelivery', // GET 1888 — `/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}`
+  outboundAddrList: '/areaservice/outboundarea', // GET 1014
+  outboundAddrOne: '/areaservice/getOutAddressInfo', // POST 1691 — `/{addrSeq}`
+} as const
+
 // ─────────────────────────────────────────────
 // 공통 유틸 (순수)
 // ─────────────────────────────────────────────
@@ -66,6 +85,27 @@ function asArray(node: unknown): Record<string, unknown>[] {
   if (Array.isArray(node)) return node as Record<string, unknown>[]
   if (node && typeof node === 'object') return [node as Record<string, unknown>]
   return []
+}
+
+/**
+ * XML 네임스페이스 prefix 제거 (PR-0). 11번가 REST 응답은 `ns2:categorys` / `ns2:order` /
+ * `ns2:inOutAddress` 처럼 `ns{n}:` prefix 를 단다(spec import #265 — `features/11st.md` §4.3/§4.4).
+ * fast-xml-parser(Edge) / DOMParser(Web) 모두 prefix 를 키에 그대로 남기므로, 파싱 결과 객체를
+ * 재귀적으로 훑어 단일 선행 `prefix:` 를 제거한다. 매핑 로직(`pick`)이 prefix 없는 키만 보게 한다.
+ * 순수 함수 — 입력 비변형(새 객체 반환).
+ */
+export function stripNsPrefix(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(stripNsPrefix)
+  if (node && typeof node === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      // `ns2:categorys` → `categorys`. 선행 영숫자 prefix + 콜론 1개만 제거.
+      const key = /^[A-Za-z][A-Za-z0-9]*:/.test(k) ? k.slice(k.indexOf(':') + 1) : k
+      out[key] = stripNsPrefix(v)
+    }
+    return out
+  }
+  return node
 }
 
 function pick(obj: Record<string, unknown>, keys: string[]): unknown {

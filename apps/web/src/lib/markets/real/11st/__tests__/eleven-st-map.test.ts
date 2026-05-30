@@ -10,6 +10,7 @@ import {
   mapElevenStCategories,
   mapElevenStOrders,
   normalizeElevenStStatus,
+  stripNsPrefix,
   toElevenStDate,
   xmlDocToObject,
 } from '../map'
@@ -26,6 +27,49 @@ import {
  *
  * R-001: 성공 + 실패/엣지 시나리오 동반.
  */
+describe('stripNsPrefix — ns2 네임스페이스 제거 (PR-0)', () => {
+  it('성공: 중첩 객체/배열의 ns2: prefix 를 재귀 제거', () => {
+    const input = {
+      'ns2:categorys': {
+        'ns2:category': [
+          { 'ns2:dispNo': '1033', 'ns2:dispNm': '주방', leafYn: 'N' },
+          { 'ns2:dispNo': '1097', 'ns2:dispNm': '가전', leafYn: 'Y' },
+        ],
+      },
+    }
+    expect(stripNsPrefix(input)).toEqual({
+      categorys: {
+        category: [
+          { dispNo: '1033', dispNm: '주방', leafYn: 'N' },
+          { dispNo: '1097', dispNm: '가전', leafYn: 'Y' },
+        ],
+      },
+    })
+  })
+
+  it('성공: prefix 없는 키는 그대로 보존', () => {
+    expect(stripNsPrefix({ productNo: '52844137', resultCode: '200' })).toEqual({
+      productNo: '52844137',
+      resultCode: '200',
+    })
+  })
+
+  it('엣지: 원본 비변형 + 스칼라/빈 입력 안전', () => {
+    const src = { 'ns2:a': 1 }
+    stripNsPrefix(src)
+    expect(Object.keys(src)).toEqual(['ns2:a']) // 입력 불변
+    expect(stripNsPrefix('SUCCESS')).toBe('SUCCESS')
+    expect(stripNsPrefix(null)).toBe(null)
+    expect(stripNsPrefix([])).toEqual([])
+  })
+
+  it('엣지: 콜론 1개만 제거 (선행 prefix 한정)', () => {
+    expect(stripNsPrefix({ 'ns2:result_message': 'SUCCESS' })).toEqual({
+      result_message: 'SUCCESS',
+    })
+  })
+})
+
 describe('eleven-st-map — 상수', () => {
   it('ELEVEN_ST_API_BASE 게이트웨이 화이트리스트 정합', () => {
     expect(ELEVEN_ST_API_BASE).toBe(

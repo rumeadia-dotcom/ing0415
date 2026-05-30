@@ -79,6 +79,9 @@ export const GATEWAY_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   // NOTE: Lightsail Gateway main.ts 의 ALLOWED_* 미러 + gateway 재배포는 ops 작업 (esm.md §7 PR-2 항).
   'sa2.esmplus.com',
   'sa.esmplus.com',
+  // 11번가: 실제 REST base(api.11st.co.kr, PR-0~). openapi.11st.co.kr 는 구 placeholder 호출용 —
+  // 호출부 재작성(PR-1~5) 완료 후 제거 예정. NOTE: Lightsail Gateway main.ts ALLOWED_* 미러 + 재배포는 ops.
+  'api.11st.co.kr',
   'openapi.11st.co.kr',
 ])
 

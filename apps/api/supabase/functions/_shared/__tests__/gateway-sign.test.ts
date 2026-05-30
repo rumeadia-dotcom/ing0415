@@ -104,6 +104,9 @@ describe('gateway-sign / assertGatewayUrl', () => {
     ).not.toThrow()
     expect(() => assertGatewayUrl('https://sa2.esmplus.com/item/v1/sellers/address')).not.toThrow()
     expect(() => assertGatewayUrl('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')).not.toThrow()
+    // 11번가 실제 REST base (PR-0, spec import #265) — features/11st.md §4.
+    expect(() => assertGatewayUrl('https://api.11st.co.kr/rest/cateservice/category')).not.toThrow()
+    expect(() => assertGatewayUrl('https://api.11st.co.kr/rest/prodservices/product')).not.toThrow()
   })
 
   it('invalid URL → throw', () => {
@@ -120,11 +123,13 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com.evil.com/x')).toThrow(/host not in allow-list/)
   })
 
-  it('GATEWAY_ALLOWED_HOSTS 는 정확히 5종 (naver/coupang/11st + ESM sa2·sa)', () => {
-    // ESM 은 sa2(현행 base, G+옥션 공유)·sa(레거시 호환) 2개 호스트 → 5마켓이지만 호스트는 5종.
-    // 전환 완료 전까지 sa 병존 — PR-2/4 가 전 호출을 sa2 로 옮긴 뒤 sa 제거 예정 (esm.md §0/§7).
-    expect(GATEWAY_ALLOWED_HOSTS.size).toBe(5)
+  it('GATEWAY_ALLOWED_HOSTS 는 정확히 6종 (naver/coupang + ESM sa2·sa + 11번가 api·openapi)', () => {
+    // ESM 은 sa2(현행 base, G+옥션 공유)·sa(레거시 호환) 2개 호스트.
+    // 11번가는 api.11st.co.kr(실제 REST base, PR-0~)·openapi.11st.co.kr(구 placeholder) 2개 병존 —
+    // 호출부 재작성(PR-1~5) 완료 후 openapi 제거 예정 (features/11st.md §4).
+    expect(GATEWAY_ALLOWED_HOSTS.size).toBe(6)
     expect(GATEWAY_ALLOWED_HOSTS.has('sa2.esmplus.com')).toBe(true)
+    expect(GATEWAY_ALLOWED_HOSTS.has('api.11st.co.kr')).toBe(true)
   })
 })
 
