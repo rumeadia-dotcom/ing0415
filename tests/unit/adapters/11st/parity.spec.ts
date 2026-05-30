@@ -15,15 +15,18 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  CategoryNodeSchema,
   CreateProductResultSchema,
   MarketPayloadSchema,
   StoredCredentialSchema,
   type AuthInput,
+  type CategoryNode,
   type MarketMapping,
   type Product,
 } from '@/lib/schemas'
 import { elevenstDebugAdapter } from '@/lib/markets/debug/ElevenstDebugAdapter'
 import { elevenstRealAdapter } from '@/lib/markets/real/11st'
+import { mapElevenStCategories } from '@/lib/markets/real/11st/map'
 import { MarketError } from '@/lib/markets/errors'
 
 const SAMPLE_API_KEY_INPUT: AuthInput = {
@@ -74,6 +77,33 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(typeof elevenstRealAdapter.refreshToken).toBe('undefined')
   })
 
+  it('§2-b: getRegistrationFields 정합 (PR-2·PR-4) — 출고지/반품지 select + 상품정보고시 3필드, mock = real', () => {
+    expect(typeof elevenstDebugAdapter.getRegistrationFields).toBe('function')
+    expect(typeof elevenstRealAdapter.getRegistrationFields).toBe('function')
+    const mockFields = elevenstDebugAdapter.getRegistrationFields?.() ?? []
+    const realFields = elevenstRealAdapter.getRegistrationFields?.() ?? []
+    expect(mockFields).toEqual(realFields)
+    expect(mockFields.map((f) => f.key)).toEqual([
+      'outboundAddrSeq',
+      'returnAddrSeq',
+      'officialNotice',
+    ])
+    // 출고지/반품지=조회형 select, officialNotice=공용 kind. 셋 다 required.
+    expect(mockFields.map((f) => f.kind)).toEqual([
+      'select',
+      'select',
+      'officialNotice',
+    ])
+    expect(mockFields.every((f) => f.required)).toBe(true)
+    expect(mockFields.map((f) => f.optionsSource)).toEqual([
+      'elevenStOutbound',
+      'elevenStReturn',
+      'static',
+    ])
+    // officialNotice 필드가 PR-4 로 추가됨 (이전엔 부재).
+    expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(true)
+  })
+
   it('§3-mock: mock transformProduct → { market, raw } / MarketPayloadSchema 통과', () => {
     const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
     expect(() => MarketPayloadSchema.parse(payload)).not.toThrow()
@@ -114,6 +144,22 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(result.market).toBe('11st')
   })
 
+  it('§4-d2: mock createProduct (PR-3) → ClientMessage 성공 구조 통과 + 11번가 productUrl', async () => {
+    const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+    const result = await elevenstDebugAdapter.createProduct(payload)
+    expect(result.status).toBe('succeeded')
+    expect(result.externalId).toMatch(/^\d+$/)
+    expect(result.productUrl).toBe(`https://www.11st.co.kr/products/${result.externalId}`)
+  })
+
+  it('§4-d3: mock createProduct — 이미지 13장 transform warning(images_truncated) 결과 전달', async () => {
+    const manyImages = Array.from({ length: 13 }, (_, i) => `https://cdn.example.com/${i}.jpg`)
+    const mapping: MarketMapping = { ...SAMPLE_MAPPING, transformedImageUrls: manyImages }
+    const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, mapping)
+    const result = await elevenstDebugAdapter.createProduct(payload)
+    expect(result.warnings.some((w) => w.code === 'images_truncated')).toBe(true)
+  })
+
   it('§4-e: real createProduct — 네트워크 실패 시 MarketError 분류 (에러 계약, fetch stub)', async () => {
     await elevenstRealAdapter.authenticate(SAMPLE_API_KEY_INPUT)
     const origFetch = globalThis.fetch
@@ -137,6 +183,37 @@ describe('11st adapter parity (debug ↔ real)', () => {
     }
     await expect(elevenstRealAdapter.authenticate(wrongKind)).rejects.toThrow()
     await expect(elevenstDebugAdapter.authenticate(wrongKind)).rejects.toThrow()
+  })
+
+  // ─────────────────────────────────────────────
+  // §6: 카테고리 parity (PR-1) — mock fetchCategoryTree 가 real 파서
+  // (mapElevenStCategories)로 만든 트리와 동형(CategoryNodeSchema 통과 + 트리 구조).
+  // real fetchCategoryTree 는 네트워크(cateservice GET)라 단위 비교 대신 파서 동형성으로 검증.
+  // ─────────────────────────────────────────────
+  it('§6-a: mock fetchCategoryTree → CategoryNodeSchema 재귀 통과 + 트리(자식 보유)', async () => {
+    const tree = await elevenstDebugAdapter.fetchCategoryTree()
+    expect(tree.length).toBeGreaterThan(0)
+    for (const node of tree) {
+      expect(() => CategoryNodeSchema.parse(node)).not.toThrow()
+    }
+    // 최소 1개 루트가 자식을 가진 트리 (평탄 아님 — PR-1 정정 검증).
+    const hasNested = tree.some((n) => n.children.length > 0)
+    expect(hasNested).toBe(true)
+  })
+
+  it('§6-b: mock 카테고리 = real 파서(mapElevenStCategories) ns2 응답 트리와 동형', async () => {
+    const mockTree = await elevenstDebugAdapter.fetchCategoryTree()
+    const realParsed: CategoryNode[] = mapElevenStCategories({
+      'ns2:categorys': {
+        'ns2:category': [
+          { dispNo: '1001', dispNm: '패션의류', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+          { dispNo: '1002', dispNm: '여성의류', depth: '2', parentDispNo: '1001', leafYn: 'Y' },
+          { dispNo: '1003', dispNm: '블라우스/셔츠', depth: '3', parentDispNo: '1002', leafYn: 'N' },
+        ],
+      },
+    })
+    // mock 은 real 파서를 그대로 통과시키므로 동일 구조여야 한다 (id/parentId/leaf).
+    expect(mockTree).toEqual(realParsed)
   })
 
   // §5 — 셀러 발급 키로 캡처한 실 11번가 XML 응답 fixture ↔ mock 응답 schema 격차 비교.

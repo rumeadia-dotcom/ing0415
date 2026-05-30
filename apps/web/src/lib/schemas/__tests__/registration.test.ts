@@ -5,6 +5,8 @@ import {
   Step1Schema,
   Step2Schema,
   Step3Schema,
+  makeStep3Schema,
+  isMarketOptionValuePresent,
   ProductDraftSchema,
   JOB_STATUSES,
   MARKET_RESULT_STATUSES,
@@ -234,6 +236,169 @@ describe('Step3Schema — 마켓 선택 + 카테고리 매핑 (n17 + n19)', () =
       mappings: [map],
     })
     expect(res.success).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────
+// makeStep3Schema — 마켓별 동적 required 등록필드 (PR-3.5, esm.md §4.6)
+// ─────────────────────────────────────────────
+describe('makeStep3Schema — 마켓별 required marketOptions', () => {
+  const gmarketSel = {
+    marketId: 'gmarket' as const,
+    marketAccountId: '33333333-3333-3333-3333-333333333333',
+  }
+  const baseMapping = {
+    marketId: 'gmarket' as const,
+    marketCategoryCode: 'G-CAT-1',
+    marketNameOverride: null,
+    marketPriceOverride: null,
+  }
+  // gmarket 만 shippingProfileId 를 required 로 선언하는 provider.
+  const provider = (marketId: string): string[] =>
+    marketId === 'gmarket' ? ['shippingProfileId'] : []
+  const schema = makeStep3Schema(provider)
+
+  it('required 필드 값이 있으면 통과 (pass)', () => {
+    const res = schema.safeParse({
+      selections: [gmarketSel],
+      mappings: [{ ...baseMapping, marketOptions: { shippingProfileId: 'p1' } }],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('required 필드 미입력이면 실패 (fail)', () => {
+    const res = schema.safeParse({
+      selections: [gmarketSel],
+      mappings: [{ ...baseMapping, marketOptions: {} }],
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it('required 필드가 공백 문자열이면 실패 (fail)', () => {
+    const res = schema.safeParse({
+      selections: [gmarketSel],
+      mappings: [{ ...baseMapping, marketOptions: { shippingProfileId: '  ' } }],
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it('provider 가 required 0개인 마켓(naver)은 marketOptions 검증 skip (회귀)', () => {
+    const res = schema.safeParse({
+      selections: [
+        { marketId: 'naver' as const, marketAccountId: gmarketSel.marketAccountId },
+      ],
+      mappings: [
+        {
+          marketId: 'naver' as const,
+          marketCategoryCode: 'N-CAT-1',
+          marketNameOverride: null,
+          marketPriceOverride: null,
+          marketOptions: {},
+        },
+      ],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('기본 Step3Schema(provider 미주입)는 추가필드 검증을 하지 않는다 (하위호환)', () => {
+    const res = Step3Schema.safeParse({
+      selections: [gmarketSel],
+      mappings: [{ ...baseMapping, marketOptions: {} }],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  // officialNotice 는 객체 형태 — 부분 입력(군만 선택, 항목 value 누락)은 미완성으로 차단 (PR-5).
+  const onProvider = (marketId: string): string[] =>
+    marketId === 'gmarket' ? ['officialNotice'] : []
+  const onSchema = makeStep3Schema(onProvider)
+
+  it('officialNotice 완성(군+모든 항목 value)이면 통과 (pass)', () => {
+    const res = onSchema.safeParse({
+      selections: [gmarketSel],
+      mappings: [
+        {
+          ...baseMapping,
+          marketOptions: {
+            officialNotice: {
+              officialNoticeNo: '41',
+              details: [{ code: '41-1', value: '살균제' }],
+            },
+          },
+        },
+      ],
+    })
+    expect(res.success).toBe(true)
+  })
+
+  it('officialNotice 군만 선택하고 항목 value 가 비면 실패 (fail)', () => {
+    const res = onSchema.safeParse({
+      selections: [gmarketSel],
+      mappings: [
+        {
+          ...baseMapping,
+          marketOptions: {
+            officialNotice: {
+              officialNoticeNo: '41',
+              details: [{ code: '41-1', value: '' }],
+            },
+          },
+        },
+      ],
+    })
+    expect(res.success).toBe(false)
+  })
+
+  it('officialNotice 군 선택했지만 details 빈 배열이면 실패 (fail)', () => {
+    const res = onSchema.safeParse({
+      selections: [gmarketSel],
+      mappings: [
+        {
+          ...baseMapping,
+          marketOptions: {
+            officialNotice: { officialNoticeNo: '1', details: [] },
+          },
+        },
+      ],
+    })
+    expect(res.success).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────
+// isMarketOptionValuePresent — required 판정 단일 소스 (PR-5)
+// ─────────────────────────────────────────────
+describe('isMarketOptionValuePresent', () => {
+  it('string/number 는 비어있지 않으면 present', () => {
+    expect(isMarketOptionValuePresent('p1')).toBe(true)
+    expect(isMarketOptionValuePresent('  ')).toBe(false)
+    expect(isMarketOptionValuePresent(undefined)).toBe(false)
+    expect(isMarketOptionValuePresent(null)).toBe(false)
+    expect(isMarketOptionValuePresent(0)).toBe(true)
+  })
+
+  it('officialNotice 객체는 군+모든 항목 value 가 채워져야 present', () => {
+    expect(
+      isMarketOptionValuePresent({
+        officialNoticeNo: '41',
+        details: [{ code: '41-1', value: '살균제' }],
+      }),
+    ).toBe(true)
+    // 항목 value 누락 → 미완성.
+    expect(
+      isMarketOptionValuePresent({
+        officialNoticeNo: '41',
+        details: [{ code: '41-1', value: '' }],
+      }),
+    ).toBe(false)
+    // details 빈 배열 → 미완성.
+    expect(
+      isMarketOptionValuePresent({ officialNoticeNo: '1', details: [] }),
+    ).toBe(false)
+    // 군 미선택 → 미완성.
+    expect(
+      isMarketOptionValuePresent({ officialNoticeNo: '', details: [] }),
+    ).toBe(false)
   })
 })
 

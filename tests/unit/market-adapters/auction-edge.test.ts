@@ -12,11 +12,11 @@
  *   - 옥션용 상품 URL fallback 패턴
  *
  * 테스트 카테고리:
- *   E1.  authenticate(esm_jwt, site=A) → valid + payload.site='A'
+ *   E1.  authenticate(esm_jwt, site=A) → valid
  *   E2.  authenticate(site 불일치 G→A) → 'validation'
  *   E3.  transformProduct site='A' 임베드
  *   E4.  옥션 itemNo → DetailView.aspx URL fallback
- *   E5.  JWT payload.site = 'A' (옥션 분기 확인)
+ *   E5.  JWT payload.ssi = 'A:<sellerId>' (옥션 분기 확인)
  *   E6.  market 식별자 = 'auction'
  */
 
@@ -26,7 +26,7 @@ import { describe, it, expect } from 'vitest'
 // 인라인 재구현 (Edge esm-shared.ts 의 옥션 분기)
 // ─────────────────────────────────────────────
 
-const PRODUCT_NAME_MAX_LENGTH = 80
+const GOODS_NAME_MAX_BYTES = 100
 
 type MarketErrorCode =
   | 'unauthorized'
@@ -58,28 +58,48 @@ function validateEsmCredential(
   return { valid: true }
 }
 
+// PR-4: 중첩 EsmGoodsCreateRequest 빌드 (옥션 분기 — siteType 1 / price.Iac / dispatchPolicyNo.iac).
+function truncateToBytes(value: string, maxBytes: number): string {
+  const enc = new TextEncoder()
+  if (enc.encode(value).length <= maxBytes) return value
+  let r = value
+  while (enc.encode(r).length > maxBytes && r.length > 0) r = r.slice(0, -1)
+  return r
+}
 function transformProduct(
   product: { name: string; priceKrw: number; stock: number },
-  mapping: { categoryId: string; transformedImageUrls: string[] },
+  mapping: {
+    categoryId: string
+    transformedImageUrls: string[]
+    extra: { placeNo: string; dispatchPolicyNo: string; officialNotice: unknown }
+  },
   site: 'G' | 'A',
-  sellerId: string,
 ) {
-  const truncatedName =
-    product.name.length > PRODUCT_NAME_MAX_LENGTH
-      ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
-      : product.name
+  const siteType = site === 'G' ? 2 : 1
+  const urls = mapping.transformedImageUrls
+  const images: Record<string, string> = { basicImgURL: urls[0] ?? '' }
+  urls.slice(1, 15).forEach((url, idx) => {
+    images[`addtionalImg${idx + 1}URL`] = url
+  })
   return {
-    site,
-    sellerId,
-    itemName: truncatedName,
-    sellPrice: product.priceKrw,
-    stockQty: product.stock,
-    images: mapping.transformedImageUrls.map((url, idx) => ({
-      order: idx,
-      imageUrl: url,
-      imageType: idx === 0 ? 'MAIN' : 'EXTRA',
-    })),
-    categoryCode: mapping.categoryId,
+    itemBasicInfo: {
+      goodsName: { kor: truncateToBytes(product.name, GOODS_NAME_MAX_BYTES) },
+      category: { site: [{ siteType, catCode: mapping.categoryId }] },
+    },
+    itemAddtionalInfo: {
+      price: site === 'G' ? { Gmkt: product.priceKrw } : { Iac: product.priceKrw },
+      stock: site === 'G' ? { Gmkt: product.stock } : { Iac: product.stock },
+      shipping: {
+        type: 1,
+        policy: { placeNo: mapping.extra.placeNo },
+        dispatchPolicyNo:
+          site === 'G'
+            ? { gmkt: mapping.extra.dispatchPolicyNo }
+            : { iac: mapping.extra.dispatchPolicyNo },
+      },
+      images,
+      officialNotice: mapping.extra.officialNotice,
+    },
   }
 }
 
@@ -102,13 +122,21 @@ async function buildJwt(opts: {
   masterId: string
   secretKey: string
   site: 'G' | 'A'
+  sellerId?: string
   iat: number
 }): Promise<string> {
-  const { masterId, secretKey, site, iat } = opts
+  const { masterId, secretKey, site, sellerId = SELLER_ID, iat } = opts
   const exp = iat + 300
   const headerB64 = strToBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT', kid: masterId }))
   const payloadB64 = strToBase64Url(
-    JSON.stringify({ iss: 'esm', sub: 'sell', aud: 'sa.esmplus.com', iat, exp, site }),
+    JSON.stringify({
+      iss: 'www.esmplus.com',
+      sub: 'sell',
+      aud: 'sa.esmplus.com',
+      iat,
+      exp,
+      ssi: `${site}:${sellerId}`,
+    }),
   )
   const signingInput = `${headerB64}.${payloadB64}`
   const enc = new TextEncoder()
@@ -162,13 +190,25 @@ describe('E2: authenticate(site 불일치 G→A) → validation', () => {
   })
 })
 
-describe('E3: transformProduct site="A" 임베드', () => {
-  it('payload.site = "A"', () => {
+describe('E3: transformProduct site="A" → siteType 1 / price.Iac / dispatchPolicyNo.iac', () => {
+  it('옥션 분기 매핑', () => {
     const product = { name: '옥션상품', priceKrw: 1000, stock: 1 }
-    const mapping = { categoryId: 'cat-A', transformedImageUrls: ['https://cdn.example.com/x.jpg'] }
-    const result = transformProduct(product, mapping, 'A', SELLER_ID)
-    expect(result.site).toBe('A')
-    expect(result.itemName).toBe('옥션상품')
+    const mapping = {
+      categoryId: 'cat-A',
+      transformedImageUrls: ['https://cdn.example.com/x.jpg'],
+      extra: {
+        placeNo: 'PLACE-A',
+        dispatchPolicyNo: 'DISPATCH-A',
+        officialNotice: { officialNoticeNo: 'N-1', details: [{ code: 'c', value: 'v' }] },
+      },
+    }
+    const result = transformProduct(product, mapping, 'A')
+    expect(result.itemBasicInfo.category.site[0]?.siteType).toBe(1)
+    expect(result.itemBasicInfo.goodsName.kor).toBe('옥션상품')
+    expect(result.itemAddtionalInfo.price).toEqual({ Iac: 1000 })
+    expect(result.itemAddtionalInfo.shipping.dispatchPolicyNo).toEqual({
+      iac: 'DISPATCH-A',
+    })
   })
 })
 
@@ -188,19 +228,20 @@ describe('E4: 옥션 상품 URL fallback', () => {
   })
 })
 
-describe('E5: JWT payload.site = "A" (옥션 분기)', () => {
-  it('JWT 디코드 → payload.site = "A"', async () => {
+describe('E5: JWT payload.ssi = "A:<sellerId>" (옥션 분기)', () => {
+  it('JWT 디코드 → payload.ssi = "A:<sellerId>"', async () => {
     const token = await buildJwt({
       masterId: MASTER_ID,
       secretKey: SECRET_KEY,
       site: 'A',
+      sellerId: SELLER_ID,
       iat: 1747734645,
     })
     const parts = token.split('.')
     const payloadB64 = parts[1]
     if (payloadB64 === undefined) throw new Error('JWT payload segment missing')
-    const payload = JSON.parse(base64UrlDecode(payloadB64)) as { site: string; aud: string }
-    expect(payload.site).toBe('A')
+    const payload = JSON.parse(base64UrlDecode(payloadB64)) as { ssi: string; aud: string }
+    expect(payload.ssi).toBe(`A:${SELLER_ID}`)
     expect(payload.aud).toBe('sa.esmplus.com')
   })
 })

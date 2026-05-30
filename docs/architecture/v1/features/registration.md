@@ -215,6 +215,8 @@ create type shipping_method as enum (
 
 ### 3.2 `shipping_policies`
 
+> 배송 정책 = 마켓 무관 **요금 의도(Layer 1)** 단일 소스. 마켓별 배송비 인라인 매핑 / ESM 프로필 연계 / 워커·validate 의 `shipping_policy_id`→`fee` 해소는 `cross-cutting/shipping-fee-model.md` 참조. (현재 `fee` flat 1개 — Layer 1 enrich 는 후속 PR.)
+
 ```sql
 create table public.shipping_policies (
   id              uuid primary key default gen_random_uuid(),
@@ -1213,6 +1215,30 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
 - 선택 마켓 0 → "마켓을 1개 이상 선택해주세요"
 - 선택 마켓 중 카테고리 미지정 → "<MarketName> 카테고리를 선택해주세요"
 - 선택 마켓의 `market_accounts.status` ≠ 'active' → "<MarketName> 연결이 만료되었어요. 다시 연결해주세요" + 마켓 연결 페이지 deep link
+- (PR-3.5) 마켓별 동적 required 등록필드 미입력 → 어댑터 메타의 `blockingReason` 문구 (예: ESM "배송 프로필 선택 필요")
+
+#### 10.5.1 MarketOptionsCard — 카테고리 + 마켓별 동적 등록필드 (PR-3.5, 구현 완료)
+
+기존 `CategoryMappingCard` 를 **`MarketOptionsCard`** 로 일반화했다(`CategoryMappingCard` 제거).
+마스터: `docs/architecture/v1/features/esm.md §4.6 / §5 / §6`, `cross-cutting/market-adapter.md §9.8`.
+
+- **렌더**: 카테고리 매핑 row(기존) + 어댑터가 선언한 동적 등록필드를 카드 하단에 동적 렌더.
+- **마켓 하드코딩 분기 0**: UI 는 동기 resolver `getRegistrationFieldsForMarket(marketId)`(`apps/web/src/lib/markets/registration-fields.ts`)가 돌려준 `RegistrationFieldMeta[]` 의 `kind` 로만 분기. `getRegistrationFields()` 가 순수·정적(mock↔real parity 보장)이므로 무거운 async `getMarketAdapter` 를 await 하지 않는다.
+  - ESM(gmarket/auction) → 출하지·발송정책 select + `officialNotice`. 11번가 → 출고지·반품지 select + `officialNotice`(`features/11st.md`). naver/coupang → `[]`(카테고리만, 하위호환). ⚠️ **조회형 전환(2026-05-30)**: ESM 배송 select 는 `esm_shipping_profiles`(우리 테이블)가 아니라 **ESM GET 조회**(`esmShippingLookup`)에서 옵션을 채운다 — `esm.md` "전환 결정" 절.
+- **필드 kind 별 렌더**: 배송 리소스 select(`kind:'select'`, optionsSource `esmShippingPlace`/`esmDispatchPolicy`/`elevenStOutbound`/`elevenStReturn`) → 마켓별 **조회형** 옵션 소스(ESM `useEsmShippingOptions` / 11번가 `useElevenStShippingAddresses`), 4상태: loading/error/data/empty(마켓 콘솔에서 등록 안내 CTA). `officialNotice` → `OfficialNoticeField`(상품군 select + 군별 항목 동적 폼, PR-5 — 아래 §10.5.2). `number`/`text`/`select` → shadcn `Input` 기본 렌더. (구 `shippingProfile` kind 는 PR-E5 에서 제거.)
+- **값 적재**: 동적 필드 값은 `CategoryMapping.marketOptions[fieldKey]`(zod `z.record`)에 적재.
+- **검증(단일 소스)**: `Step3Schema` → `makeStep3Schema(requiredKeysFor)` 빌더. 어댑터가 `required` 로 선언한 fieldKey 가 비어있으면 zod fail. 비어있음 판정은 `isMarketOptionValuePresent`(단일 소스) — string/number 뿐 아니라 `officialNotice` 같은 **객체 형태**도 완성도(군 선택 + 모든 detail code/value 채움 + detail ≥1)로 판정한다. UI 페이지(`StepMarketsCategoriesPage`)는 `getRegistrationFieldsForMarket` 기반 provider 를 주입해 검증·blockingReasons·다음버튼 tooltip 에 공유(동일 `isMarketOptionValuePresent` 재사용). 기본 `Step3Schema`(provider 미주입)는 추가필드 검증 skip(하위호환).
+
+#### 10.5.2 OfficialNoticeField — 상품정보고시 입력 (PR-5, 구현 완료)
+
+마스터: `docs/architecture/v1/features/esm.md §4.4 / §5`, `esm-api/product/161.md`.
+
+- **상품군 select**: `ESM_OFFICIAL_NOTICE_GROUPS`(41개 법정 표준 상품군, `apps/web/src/lib/markets/real/esm/official-notice-groups.ts`) → `getEsmOfficialNoticeOptions()` 로 옵션 생성. Edge 미러: `_shared/market-adapters/esm-official-notice-groups.ts`.
+- **항목 동적 폼**: 선택 군의 정적 `requiredItemCodes`(문서 161.md 확인분, 예: 군 41 의 `41-1`)는 코드 잠금(읽기전용) 행으로 seed. 군 항목 마스터가 라이브 API(`/groups/{no}/codes`, `hasStaticItems=false`) 대상이라 정적 코드가 없으면, 셀러가 `{code,value}` 행을 직접 추가(코드 날조 금지 — esm.md "근거 없는 결정 금지"). 라이브 codes API 연동은 후속(real 호출 라운드).
+- **값 적재**: 입력값을 `EsmOfficialNotice`({officialNoticeNo, details[{code,value}]}, `schemas/esm.ts`) 형태로 모아 `marketOptions.officialNotice` 에 적재. 등록 오케스트레이터가 `mapping.extra.officialNotice` 로 흘려(조회형 select 값 `placeNo`/`dispatchPolicyNo` 와 동일 경로) PR-4 `transformProduct` 가 `itemAddtionalInfo.officialNotice` 페이로드에 매핑.
+- **required/blocking**: 군 미선택 또는 항목 value 누락(미완성)이면 `makeStep3Schema`(객체 완성도 판정) fail → blockingReason "상품정보고시 입력 필요" tooltip + 다음 버튼 비활성.
+- **i18n**: 상품군명은 상수 마스터(법정 표준), UI chrome 문구는 `markets.registrationFields.officialNoticeField.*`(ko.ts). 하드코딩 금지.
+- **i18n**: `RegistrationFieldMeta.label`/`helpText`/`blockingReason` 은 i18n key(`markets.registrationFields.*`) → `resolveKoPath()`(`apps/web/src/lib/i18n.ts`)로 해석. 하드코딩 금지.
 
 ### 10.6 Step 4 — 등록 미리보기 (n20)
 

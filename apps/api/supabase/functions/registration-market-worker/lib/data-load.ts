@@ -13,6 +13,7 @@ import {
   type MarketId,
   type MarketMapping,
   type Product,
+  resolveShippingFee,
 } from '../../_shared/index.ts'
 
 type Service = ReturnType<typeof getServiceClient>
@@ -167,6 +168,14 @@ export async function loadDomainProduct(
     throw new MarketError('validation', 'market mapping not found', { market: marketId })
   }
 
+  // 배송 정책(Layer 1) 의 fee 를 해소 — 기존엔 0 하드코딩 버그
+  // (cross-cutting/shipping-fee-model.md §3-1).
+  const shippingPolicyId =
+    typeof productRes.data.shipping_policy_id === 'string'
+      ? productRes.data.shipping_policy_id
+      : null
+  const shippingFeeKrw = await resolveShippingFee(service, shippingPolicyId, sellerId)
+
   const product: Product = {
     id: String(productRes.data.id),
     sellerId: String(productRes.data.seller_id),
@@ -178,15 +187,62 @@ export async function loadDomainProduct(
       ? String(productRes.data.description_html)
       : '',
     brand: productRes.data.brand ? String(productRes.data.brand) : undefined,
-    shippingFeeKrw: 0,
+    shippingFeeKrw,
   }
+
+  const baseExtra = (mappingRes.data.market_options ?? {}) as Record<
+    string,
+    unknown
+  >
+
+  // ESM(gmarket/auction): 조회형 전환(esm.md "전환 결정 2026-05-30" / PR-E2·E3·E4) 후
+  // 셀러가 3단계 카드(MarketOptionsCard)에서 ESM Plus 의 출하지/발송정책을 조회·선택해
+  // marketOptions.shippingPlaceNo / marketOptions.dispatchPolicyNo 로 적재한다.
+  // 우리 앱은 더 이상 배송 프로필을 생성·저장하지 않으므로(esm_shipping_profiles DROP),
+  // 오케스트레이터는 DB 조회 없이 선택값을 transformProduct 가 읽는 extra(placeNo/
+  // dispatchPolicyNo)로 매핑만 한다. PR-5 가 적재하는 officialNotice 는 보존.
+  const extra = isEsmMarket(marketId)
+    ? mapEsmShippingOptions(baseExtra)
+    : baseExtra
 
   const mapping: MarketMapping = {
     market: marketId,
     categoryId: String(mappingRes.data.market_category_code),
     transformedImageUrls: transformedUrls,
-    extra: (mappingRes.data.market_options ?? {}) as Record<string, unknown>,
+    extra,
   }
 
   return { product, mapping }
+}
+
+function isEsmMarket(market: MarketId): boolean {
+  return market === 'gmarket' || market === 'auction'
+}
+
+/**
+ * 조회형(esm.md "전환 결정 2026-05-30" / PR-E2~E4) ESM 배송 선택값을 extra 로 매핑.
+ *
+ * 셀러가 3단계 카드(MarketOptionsCard / EsmShippingSelect)에서 ESM Plus 의 출하지·발송정책을
+ * 조회·선택하면 marketOptions 에 shippingPlaceNo / dispatchPolicyNo (둘 다 string 번호) 가 적재된다.
+ * transformProduct(순수 함수)는 extra.placeNo / extra.dispatchPolicyNo 를 읽으므로, 오케스트레이터는
+ * 키 이름만 매핑한다. DB 조회 없음(생성형 esm_shipping_profiles 테이블 제거).
+ *
+ * - 선택값 미입력 시 placeNo 미주입 → transformProduct 가 validation 으로 차단(3단계
+ *   makeStep3Schema 가 required 로 막지만 서버에서도 방어).
+ * - 이미 placeNo/dispatchPolicyNo 가 extra 에 있으면(테스트 fixture 등) 보존한다.
+ */
+function mapEsmShippingOptions(
+  baseExtra: Record<string, unknown>,
+): Record<string, unknown> {
+  const shippingPlaceNo = baseExtra['shippingPlaceNo']
+  const dispatchPolicyNo = baseExtra['dispatchPolicyNo']
+
+  const next = { ...baseExtra }
+  if (typeof shippingPlaceNo === 'string' && shippingPlaceNo.length > 0) {
+    next.placeNo = shippingPlaceNo
+  }
+  if (typeof dispatchPolicyNo === 'string' && dispatchPolicyNo.length > 0) {
+    next.dispatchPolicyNo = dispatchPolicyNo
+  }
+  return next
 }

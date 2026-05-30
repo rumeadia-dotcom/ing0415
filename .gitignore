@@ -45,6 +45,10 @@ test-results/
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
+# MCP hosting client config — 평문 토큰 커밋 방지 (mcp-hosting.md §10).
+# 예시는 infra/mcp-hosting/mcp.json.example 로 커밋.
+.mcp.json
+
 # Design canvas editor state + duplicate uploads (mirror of docs/design-renewal/s*.md)
 docs/design-renewal/designFile/.design-canvas.state.json
 docs/design-renewal/designFile/uploads/
@@ -52,5 +56,6 @@ docs/design-renewal/designFile/uploads/
 # Manual verification artifacts (scripts/verify-mock-flow.mjs 출력)
 verify-out/
 
-# Manual verification artifacts (scripts/verify-mock-flow.mjs 출력)
-verify-out/
+# Deno lockfile — Edge Function deps 는 각 functions/* deno.json 이 관리.
+# 루트에서 deno test 실행 시 생성되는 부산물. CI 는 deno 미사용 (ci-cd.md).
+deno.lock

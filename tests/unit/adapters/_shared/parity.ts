@@ -45,6 +45,22 @@ export function sampleProduct(): Product {
 }
 
 export function sampleMapping(market: MarketId): MarketMapping {
+  // ESM(gmarket/auction) real transformProduct 는 출하지(placeNo)·발송정책(dispatchPolicyNo)
+  // 번호 + officialNotice 가 mapping.extra 에 주입돼 있어야 한다(PR-4). 조회형 전환 후
+  // (esm.md "전환 결정 2026-05-30" / PR-E2~E4) 오케스트레이터가 marketOptions 의
+  // shippingPlaceNo/dispatchPolicyNo 를 extra 로 매핑한 결과를 fixture 로 모사 — mock 도
+  // 동일 extra 를 받아 동형 검증(parity).
+  const isEsm = market === 'gmarket' || market === 'auction'
+  const extra: Record<string, unknown> = isEsm
+    ? {
+        placeNo: 'PLACE-001',
+        dispatchPolicyNo: 'DISPATCH-001',
+        officialNotice: {
+          officialNoticeNo: 'NOTICE-FASHION-01',
+          details: [{ code: 'material', value: '면 100%' }],
+        },
+      }
+    : {}
   return {
     market,
     categoryId: '50000167',
@@ -52,7 +68,7 @@ export function sampleMapping(market: MarketId): MarketMapping {
       'https://cdn.example.com/p/naver/1.jpg',
       'https://cdn.example.com/p/naver/2.jpg',
     ],
-    extra: {},
+    extra,
   }
 }
 

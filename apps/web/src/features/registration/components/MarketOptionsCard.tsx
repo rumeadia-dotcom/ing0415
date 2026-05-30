@@ -1,0 +1,463 @@
+import { Check, AlertCircle, ExternalLink } from 'lucide-react'
+import { Button, Input, Skeleton } from '@/components/ui'
+import { useMarketCategoryTree } from '../hooks/useMarketCategoryTree'
+import {
+  OfficialNoticeField,
+  type OfficialNoticeConfig,
+} from './OfficialNoticeField'
+import {
+  useElevenStShippingAddresses,
+  useEsmShippingOptions,
+} from '@/features/settings/shipping'
+import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
+import {
+  ELEVEN_ST_NOTICE_ALLOW_FREEFORM,
+  getElevenStNoticeOptions,
+} from '@/lib/markets/real/11st/official-notice-groups'
+import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
+import { resolveKoPath } from '@/lib/i18n'
+import { ko } from '@/locales/ko'
+import type { CategoryNode, EsmOfficialNotice } from '@/lib/schemas'
+import type { CategoryMapping } from '@/lib/schemas/registration'
+import type { RegistrationFieldMeta } from '@/lib/schemas'
+import { cn } from '@/lib/utils'
+
+/**
+ * 11번가 상품정보고시 마스터 설정 (OfficialNoticeField 주입용) — 11st.md §4.1 / §7 PR-4.
+ *   확보 군은 1개(891011)뿐(C4) + 셀러 free-form 허용. 정적 필수항목은 첨부파일 미확보로 없음.
+ * 컴포넌트는 marketId → 설정 조회만 한다(render-kind 하드코딩 아님 — kind 분기는 'officialNotice' 단일).
+ */
+const ELEVEN_ST_NOTICE_CONFIG: OfficialNoticeConfig = {
+  options: getElevenStNoticeOptions(),
+  staticItemCodes: () => [],
+  allowFreeform: ELEVEN_ST_NOTICE_ALLOW_FREEFORM,
+}
+
+/** 마켓별 officialNotice 설정 조회 — 11번가만 주입, 그 외(ESM)는 undefined → 컴포넌트 기본(ESM 41군). */
+function getOfficialNoticeConfig(
+  marketId: MarketId,
+): OfficialNoticeConfig | undefined {
+  return marketId === '11st' ? ELEVEN_ST_NOTICE_CONFIG : undefined
+}
+
+interface MarketOptionsCardProps {
+  marketId: MarketId
+  /** 선택된 마켓 계정 — 동적 배송 필드의 조회형 옵션 출처(useEsmShippingOptions / useElevenStShippingAddresses)에 사용. */
+  marketAccountId: string
+  mapping: CategoryMapping | null
+  onChange: (mapping: CategoryMapping) => void
+}
+
+const BRAND_COLOR: Record<MarketId, string> = {
+  naver: '#03C75A',
+  coupang: '#F11F44',
+  gmarket: '#00B147',
+  auction: '#E73936',
+  '11st': '#FF0038',
+}
+
+const SELECT_CLASS =
+  'flex h-9 w-full rounded-md border border-border bg-surface px-3 py-1 text-[12.5px] text-text shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+
+/**
+ * MarketOptionsCard — 마켓별 카테고리 매핑 + 어댑터가 선언한 동적 등록필드 렌더 (s3 3단계).
+ * 마스터: docs/architecture/v1/features/esm.md §4.6 / §5, registration.md §10.5, market-adapter.md §9.8.
+ *
+ * CategoryMappingCard 의 일반화 버전:
+ *  - 카테고리 매핑(기존 동작) + `getRegistrationFieldsForMarket(marketId)` 가 선언한 필드를 동적 렌더.
+ *  - 컴포넌트 내 `if (marketId === 'gmarket')` 같은 하드코딩 분기 없음 — 어댑터 메타 kind 로만 분기.
+ *  - ESM(gmarket/auction): 카테고리 + 출하지·발송정책 select(조회형, PR-E2). 11번가: 출고지·반품지 select.
+ *    그 외: 메타 빈 배열 → 카테고리만(회귀 없음).
+ *
+ * 동적 옵션값(shippingPlaceNo/dispatchPolicyNo/outboundAddrSeq 등)은 mapping.marketOptions[fieldKey] 에 적재.
+ * required 미입력 검증·다음버튼 차단은 상위 페이지(makeStep3Schema + blockingReasons).
+ */
+export function MarketOptionsCard({
+  marketId,
+  marketAccountId,
+  mapping,
+  onChange,
+}: MarketOptionsCardProps): JSX.Element {
+  const { data, isLoading, isError } = useMarketCategoryTree(marketId)
+  const label = MARKET_CATALOG[marketId].label
+  const flatOptions = data ? flatten(data, []) : []
+  const isMapped = Boolean(mapping?.marketCategoryCode)
+
+  const fields = getRegistrationFieldsForMarket(marketId)
+  const marketOptions = mapping?.marketOptions ?? {}
+
+  const selected = flatOptions.find((o) => o.code === mapping?.marketCategoryCode) ?? null
+  const path = selected ? selected.path.join(' › ') : '— 카테고리 미선택'
+
+  const emitMapping = (patch: Partial<CategoryMapping>): void => {
+    onChange({
+      marketId,
+      marketCategoryCode: mapping?.marketCategoryCode ?? '',
+      marketNameOverride: mapping?.marketNameOverride ?? null,
+      marketPriceOverride: mapping?.marketPriceOverride ?? null,
+      marketOptions: mapping?.marketOptions ?? {},
+      ...patch,
+    })
+  }
+
+  const setOption = (key: string, value: unknown): void => {
+    emitMapping({ marketOptions: { ...marketOptions, [key]: value } })
+  }
+
+  return (
+    <div
+      className={cn(
+        'rounded-xl border p-4 transition-colors',
+        isMapped ? 'border-border bg-surface' : 'border-warning/30 bg-warning-soft/40',
+      )}
+    >
+      {/* 카테고리 매핑 row (기존 CategoryMappingCard 레이아웃 유지) */}
+      <div className="grid items-center gap-3 md:grid-cols-[auto_1fr_240px_auto]">
+        <span
+          aria-hidden
+          className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white"
+          style={{ backgroundColor: BRAND_COLOR[marketId] }}
+        >
+          {label.slice(0, 1)}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13.5px] font-bold text-text">{label}</p>
+          <p
+            className={cn(
+              'mt-0.5 truncate text-[11.5px]',
+              isMapped ? 'text-text-tertiary' : 'font-semibold text-warning-on-soft',
+            )}
+          >
+            {path}
+          </p>
+        </div>
+        {isLoading && <Skeleton className="h-9 w-full" />}
+        {isError && (
+          <p className="text-sm text-danger-on-soft">카테고리를 불러오지 못했습니다.</p>
+        )}
+        {!isLoading && !isError && (
+          <select
+            aria-label={`${label} 카테고리 선택`}
+            className={SELECT_CLASS}
+            value={mapping?.marketCategoryCode ?? ''}
+            onChange={(e) => emitMapping({ marketCategoryCode: e.target.value })}
+          >
+            <option value="">— 카테고리 선택 —</option>
+            {flatOptions.map((opt) => (
+              <option key={opt.code} value={opt.code}>
+                {opt.path.join(' > ')}
+              </option>
+            ))}
+          </select>
+        )}
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold',
+            isMapped
+              ? 'bg-success-soft text-success-on-soft'
+              : 'bg-warning-soft text-warning-on-soft',
+          )}
+        >
+          {isMapped ? (
+            <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+          ) : (
+            <AlertCircle className="h-3 w-3" aria-hidden />
+          )}
+          {isMapped ? '매핑 완료' : '선택 필요'}
+        </span>
+      </div>
+
+      {/* 동적 등록필드 — 어댑터 메타 기반 (ESM=배송 프로필 등). 메타 0개면 렌더 없음(회귀). */}
+      {fields.length > 0 && (
+        <div className="mt-3.5 flex flex-col gap-3 border-t border-border pt-3.5">
+          {fields.map((field) => (
+            <MarketOptionField
+              key={field.key}
+              field={field}
+              marketId={marketId}
+              marketAccountId={marketAccountId}
+              value={marketOptions[field.key]}
+              onChange={(value) => setOption(field.key, value)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface MarketOptionFieldProps {
+  field: RegistrationFieldMeta
+  /** officialNotice 마스터(상품군) 설정을 마켓별로 주입하기 위한 식별자 — 데이터 조회용(render-kind 분기 아님). */
+  marketId: MarketId
+  marketAccountId: string
+  value: unknown
+  onChange: (value: unknown) => void
+}
+
+/**
+ * 단일 동적 필드 렌더 — kind 별 분기. render 분기는 메타 kind 로만 결정(마켓 하드코딩 없음).
+ * marketId 는 officialNotice 의 상품군 마스터 설정(ESM 41군 / 11번가 1군+free-form) 조회에만 쓴다.
+ * 확장 대비: select/text/number 기본 렌더 + 조회형 select(11번가 출고지·반품지 / ESM 출하지·발송정책) 특수 렌더.
+ */
+function MarketOptionField({
+  field,
+  marketId,
+  marketAccountId,
+  value,
+  onChange,
+}: MarketOptionFieldProps): JSX.Element {
+  const fieldLabel = resolveKoPath(field.label)
+  const helpText = field.helpText ? resolveKoPath(field.helpText) : null
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label
+        className="text-[12px] font-semibold text-text-secondary"
+        htmlFor={`mof-${field.key}`}
+      >
+        {fieldLabel}
+        {field.required && (
+          <span className="ml-1 text-danger-on-soft" aria-hidden>
+            *
+          </span>
+        )}
+      </label>
+      {field.kind === 'select' &&
+        (field.optionsSource === 'elevenStOutbound' ||
+          field.optionsSource === 'elevenStReturn') ? (
+        <ElevenStAddressSelect
+          fieldId={`mof-${field.key}`}
+          fieldLabel={fieldLabel}
+          marketAccountId={marketAccountId}
+          kind={field.optionsSource}
+          value={typeof value === 'string' ? value : ''}
+          onChange={onChange}
+        />
+      ) : field.kind === 'select' &&
+        (field.optionsSource === 'esmShippingPlace' ||
+          field.optionsSource === 'esmDispatchPolicy') ? (
+        <EsmShippingSelect
+          fieldId={`mof-${field.key}`}
+          fieldLabel={fieldLabel}
+          marketAccountId={marketAccountId}
+          kind={field.optionsSource}
+          value={typeof value === 'string' ? value : ''}
+          onChange={onChange}
+        />
+      ) : field.kind === 'officialNotice' ? (
+        <OfficialNoticeField
+          fieldId={`mof-${field.key}`}
+          fieldLabel={fieldLabel}
+          value={isOfficialNotice(value) ? value : undefined}
+          onChange={onChange}
+          config={getOfficialNoticeConfig(marketId)}
+        />
+      ) : field.kind === 'number' ? (
+        <Input
+          id={`mof-${field.key}`}
+          type="number"
+          aria-label={fieldLabel}
+          value={typeof value === 'number' ? value : ''}
+          onChange={(e) =>
+            onChange(e.target.value === '' ? undefined : Number(e.target.value))
+          }
+        />
+      ) : (
+        // 'text' / 'select' — 기본 text 입력.
+        // 'select' 의 동적 옵션 출처는 후속 PR 에서 optionsSource 별 분기 추가.
+        <Input
+          id={`mof-${field.key}`}
+          type="text"
+          aria-label={fieldLabel}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+      {helpText && <p className="text-[11px] text-text-tertiary">{helpText}</p>}
+    </div>
+  )
+}
+
+interface ElevenStAddressSelectProps {
+  fieldId: string
+  fieldLabel: string
+  marketAccountId: string
+  /** 출고지(elevenStOutbound) vs 반품/교환지(elevenStReturn) — 동일 훅의 다른 목록을 선택. */
+  kind: 'elevenStOutbound' | 'elevenStReturn'
+  value: string
+  onChange: (value: string) => void
+}
+
+/**
+ * 11번가 출고지/반품지 select — useElevenStShippingAddresses(marketAccountId) 로 옵션 로드 (11st.md §3 / §5).
+ * 4상태: loading / error / data(addrNm 표시·addrSeq 값) / empty(셀러오피스 외부 링크 안내).
+ * 출고지/반품지는 우리 앱이 생성하지 않음 — empty 시 11번가 셀러오피스로 안내(생성 화면 없음).
+ */
+function ElevenStAddressSelect({
+  fieldId,
+  fieldLabel,
+  marketAccountId,
+  kind,
+  value,
+  onChange,
+}: ElevenStAddressSelectProps): JSX.Element {
+  const t = ko.markets.registrationFields.elevenStAddressField
+  const { data, isLoading, isError } = useElevenStShippingAddresses(marketAccountId)
+
+  if (isLoading) {
+    return <Skeleton className="h-9 w-full" aria-label={t.loading} />
+  }
+  if (isError) {
+    return <p className="text-[12px] text-danger-on-soft">{t.error}</p>
+  }
+
+  const isOutbound = kind === 'elevenStOutbound'
+  const options = isOutbound ? (data?.outbound ?? []) : (data?.returnAddrs ?? [])
+  const placeholder = isOutbound ? t.outboundPlaceholder : t.returnPlaceholder
+  const emptyTitle = isOutbound ? t.outboundEmptyTitle : t.returnEmptyTitle
+
+  if (options.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border-strong bg-surface-subtle p-3">
+        <p className="text-[12px] font-semibold text-text-secondary">{emptyTitle}</p>
+        <p className="text-[11px] text-text-tertiary">{t.emptyHint}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="border border-border"
+          onClick={() => window.open(t.sellerOfficeUrl, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          {t.emptyCta}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <select
+      id={fieldId}
+      aria-label={fieldLabel}
+      className={SELECT_CLASS}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt.addrSeq} value={opt.addrSeq}>
+          {opt.addrNm}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+interface EsmShippingSelectProps {
+  fieldId: string
+  fieldLabel: string
+  marketAccountId: string
+  /** 출하지(esmShippingPlace) vs 발송정책(esmDispatchPolicy) — 동일 훅의 다른 목록을 선택. */
+  kind: 'esmShippingPlace' | 'esmDispatchPolicy'
+  value: string
+  onChange: (value: string) => void
+}
+
+/**
+ * ESM(G마켓·옥션) 출하지/발송정책 select — useEsmShippingOptions(marketAccountId) 로 옵션 로드
+ * (esm.md "전환 결정 2026-05-30" 조회형 / PR-E2).
+ * 4상태: loading / error / data(placeName·placeNo / dispatchPolicyName·dispatchPolicyNo) /
+ *   empty(ESM Plus 등록 안내 + 외부 링크).
+ * 발송정책은 사이트별(G/A) — Edge 가 계정 site 분만 태깅해 내려주므로 카드는 받은 목록을 그대로 노출.
+ * 출하지/발송정책은 우리 앱이 생성하지 않음(생성형 폐기) — empty 시 ESM Plus 로 안내(생성 화면 없음).
+ */
+function EsmShippingSelect({
+  fieldId,
+  fieldLabel,
+  marketAccountId,
+  kind,
+  value,
+  onChange,
+}: EsmShippingSelectProps): JSX.Element {
+  const t = ko.markets.registrationFields.esmShippingField
+  const { data, isLoading, isError } = useEsmShippingOptions(marketAccountId)
+
+  if (isLoading) {
+    return <Skeleton className="h-9 w-full" aria-label={t.loading} />
+  }
+  if (isError) {
+    return <p className="text-[12px] text-danger-on-soft">{t.error}</p>
+  }
+
+  const isPlace = kind === 'esmShippingPlace'
+  const options = isPlace
+    ? (data?.places ?? []).map((p) => ({ value: p.placeNo, label: p.placeName }))
+    : (data?.dispatchPolicies ?? []).map((d) => ({
+        value: d.dispatchPolicyNo,
+        label: d.dispatchPolicyName,
+      }))
+  const placeholder = isPlace ? t.placePlaceholder : t.dispatchPlaceholder
+  const emptyTitle = isPlace ? t.placeEmptyTitle : t.dispatchEmptyTitle
+
+  if (options.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border-strong bg-surface-subtle p-3">
+        <p className="text-[12px] font-semibold text-text-secondary">{emptyTitle}</p>
+        <p className="text-[11px] text-text-tertiary">{t.emptyHint}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="border border-border"
+          onClick={() => window.open(t.sellerOfficeUrl, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          {t.emptyCta}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <select
+      id={fieldId}
+      aria-label={fieldLabel}
+      className={SELECT_CLASS}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** marketOptions[key] 의 unknown 값이 officialNotice 형태인지 좁힌다(부분입력 포함). */
+function isOfficialNotice(value: unknown): value is EsmOfficialNotice {
+  if (typeof value !== 'object' || value === null) return false
+  const obj = value as Record<string, unknown>
+  return typeof obj.officialNoticeNo === 'string' && Array.isArray(obj.details)
+}
+
+interface FlatOption {
+  code: string
+  path: string[]
+}
+
+function flatten(nodes: CategoryNode[], parentPath: string[]): FlatOption[] {
+  const acc: FlatOption[] = []
+  for (const n of nodes) {
+    const path = [...parentPath, n.name]
+    if (n.leaf || !n.children || n.children.length === 0) {
+      acc.push({ code: n.id, path })
+    } else {
+      acc.push(...flatten(n.children, path))
+    }
+  }
+  return acc
+}

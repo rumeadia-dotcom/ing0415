@@ -11,10 +11,24 @@ import {
 import { useMarketAccounts } from '@/features/markets/hooks/useMarketAccounts'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
 import { MarketSelectGrid } from '../components/MarketSelectGrid'
-import { CategoryMappingCard } from '../components/CategoryMappingCard'
-import { Step3Schema } from '@/lib/schemas/registration'
+import { MarketOptionsCard } from '../components/MarketOptionsCard'
+import { makeStep3Schema, isMarketOptionValuePresent } from '@/lib/schemas/registration'
 import type { MarketSelection, CategoryMapping } from '@/lib/schemas/registration'
+import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
+import { resolveKoPath } from '@/lib/i18n'
+import { ko } from '@/locales/ko'
 import type { MarketId } from '@/features/markets/types'
+
+/**
+ * 마켓별 required 동적 등록필드 key provider — Step3Schema 검증과 blockingReasons 에 공유.
+ * 어댑터 메타(getRegistrationFieldsForMarket)에서 required=true 필드 key 만 추린다.
+ */
+const requiredFieldKeysFor = (marketId: MarketId): string[] =>
+  getRegistrationFieldsForMarket(marketId)
+    .filter((f) => f.required)
+    .map((f) => f.key)
+
+const Step3Schema = makeStep3Schema(requiredFieldKeysFor)
 
 /**
  * StepMarketsCategoriesPage — n17 + n19 통합 (3/5). Studio 룩.
@@ -66,6 +80,19 @@ export function StepMarketsCategoriesPage(): JSX.Element {
   if (selections.some((s) => !mappingByMarket.get(s.marketId)?.marketCategoryCode))
     blockingReasons.push('선택한 마켓의 카테고리를 모두 선택하세요')
 
+  // 마켓별 동적 required 필드 미입력 → 어댑터 메타의 blockingReason 문구를 노출(중복 제거).
+  for (const s of selections) {
+    const opts = mappingByMarket.get(s.marketId)?.marketOptions ?? {}
+    for (const field of getRegistrationFieldsForMarket(s.marketId)) {
+      if (!field.required) continue
+      const empty = !isMarketOptionValuePresent(opts[field.key])
+      if (empty && field.blockingReason) {
+        const reason = resolveKoPath(field.blockingReason)
+        if (!blockingReasons.includes(reason)) blockingReasons.push(reason)
+      }
+    }
+  }
+
   return (
     <>
       {isLoading && (
@@ -89,16 +116,19 @@ export function StepMarketsCategoriesPage(): JSX.Element {
           {selections.length > 0 ? (
             <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
               <header className="mb-3.5">
-                <h2 className="text-[15px] font-bold text-text">마켓별 카테고리 매핑</h2>
+                <h2 className="text-[15px] font-bold text-text">
+                  {ko.markets.registrationFields.card.sectionTitle}
+                </h2>
                 <p className="mt-1 text-[12.5px] text-text-tertiary">
-                  선택한 마켓마다 등록할 카테고리를 지정하세요. 미선택 마켓은 등록이 차단됩니다.
+                  {ko.markets.registrationFields.card.sectionDescription}
                 </p>
               </header>
               <div className="flex flex-col gap-2.5">
                 {selections.map((s) => (
-                  <CategoryMappingCard
+                  <MarketOptionsCard
                     key={s.marketId}
                     marketId={s.marketId}
+                    marketAccountId={s.marketAccountId}
                     mapping={mappingByMarket.get(s.marketId) ?? null}
                     onChange={upsertMapping}
                   />

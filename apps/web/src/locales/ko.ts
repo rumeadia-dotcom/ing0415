@@ -22,6 +22,7 @@ export const ko = {
     noOrdersToProcess: '대상 주문이 없습니다.',
     noOrdersToDispatch: '제출 가능한 주문이 없습니다. 운송장 출력을 먼저 진행해주세요.',
     popupBlocked: '팝업이 차단되었습니다. 브라우저 팝업 허용을 확인해주세요.',
+    popupHint: '출력 팝업을 열었습니다. 팝업이 보이지 않으면 브라우저 주소창의 팝업 허용 아이콘을 확인해주세요.',
   },
   nav: {
     main: '메인',
@@ -84,6 +85,103 @@ export const ko = {
     connect: '연결하기',
   },
   markets: {
+    // 마켓별 동적 등록필드 (MarketAdapter.getRegistrationFields, esm.md §4.6 / §6).
+    // 어댑터가 반환하는 RegistrationFieldMeta.label / blockingReason 의 i18n 출처.
+    // MarketOptionsCard(PR-3.5) 가 이 path 를 t() 로 해석해 렌더한다.
+    registrationFields: {
+      officialNotice: {
+        label: 'G마켓·옥션 상품정보고시',
+        helpText:
+          '상품군을 선택하고 해당 상품군의 필수 고시 항목을 입력하세요. 전자상거래법상 필수입니다.',
+        blockingReason: '상품정보고시 입력 필요',
+      },
+      // 11번가 상품정보고시(ProductNotification) — ESM officialNotice 프레임 재사용 (11st.md §4.6 / PR-4).
+      //   상품군 마스터(ELEVEN_ST_NOTICE_GROUPS)는 spec 첨부파일 미확보로 1군(891011)만 정적 + 셀러 free-form(C4).
+      elevenStOfficialNotice: {
+        label: '11번가 상품정보고시',
+        helpText:
+          '상품군 유형(type)을 선택하거나 직접 입력하고, 고시 항목 코드·내용을 입력하세요. 전자상거래법상 필수입니다.',
+        blockingReason: '상품정보고시 입력 필요',
+      },
+      // 11번가 출고지/반품지 select (조회형 Layer 2, 11st.md §4.6 / PR-2).
+      elevenStOutbound: {
+        label: '11번가 출고지',
+        helpText:
+          '11번가 셀러오피스에 등록한 출고지를 선택하세요. 상품은 이 출고지에서 발송됩니다.',
+        blockingReason: '출고지 선택 필요',
+      },
+      elevenStReturn: {
+        label: '11번가 반품/교환지',
+        helpText:
+          '11번가 셀러오피스에 등록한 반품/교환지를 선택하세요. 반품·교환 상품이 이 주소로 회수됩니다.',
+        blockingReason: '반품/교환지 선택 필요',
+      },
+      // ESM(G마켓·옥션) 출하지/발송정책 select (조회형 Layer 2, esm.md "전환 결정" / PR-E2).
+      //   생성형 shippingProfile 을 대체 — 셀러가 ESM Plus 에 만든 것을 조회·선택만 한다.
+      esmShippingPlace: {
+        label: 'G마켓·옥션 출하지',
+        helpText:
+          'ESM Plus 에 등록한 출하지를 선택하세요. 상품은 이 출하지에서 발송됩니다.',
+        blockingReason: '출하지 선택 필요',
+      },
+      esmDispatchPolicy: {
+        label: 'G마켓·옥션 발송정책',
+        helpText:
+          'ESM Plus 에 등록한 발송정책을 선택하세요. 발송정책은 G마켓·옥션 사이트별로 별도입니다.',
+        blockingReason: '발송정책 선택 필요',
+      },
+      // ESM 출하지/발송정책 select(EsmShippingSelect, PR-E2) — 4상태 + ESM Plus 등록 안내.
+      //   ESM 도 우리 앱에서 생성하지 않음(생성형 폐기) — empty 시 ESM Plus 등록 후 새로고침 안내.
+      esmShippingField: {
+        placePlaceholder: '— 출하지 선택 —',
+        dispatchPlaceholder: '— 발송정책 선택 —',
+        loading: '배송 설정 불러오는 중…',
+        error: '출하지/발송정책을 불러오지 못했습니다. 마켓 연결 상태를 확인하세요.',
+        placeEmptyTitle: '등록된 출하지가 없습니다',
+        dispatchEmptyTitle: '등록된 발송정책이 없습니다',
+        // ESM 은 우리 앱에서 생성하지 않음 — ESM Plus 에서 등록 후 새로고침 안내(생성 진입점 없음).
+        emptyHint: 'ESM Plus 에서 출하지·발송정책을 먼저 등록한 뒤 새로고침하세요.',
+        emptyCta: 'ESM Plus 열기',
+        sellerOfficeUrl: 'https://www.esmplus.com',
+      },
+      // MarketOptionsCard(PR-3.5) UI chrome — 동적 필드 렌더 공통 문구.
+      card: {
+        sectionTitle: '마켓별 등록 옵션',
+        sectionDescription:
+          '선택한 마켓마다 카테고리와 마켓별 추가 등록 항목을 지정하세요. 미입력 마켓은 등록이 차단됩니다.',
+      },
+      // 11번가 출고지/반품지 select(ElevenStAddressSelect, PR-2) — 4상태 + 셀러오피스 안내.
+      elevenStAddressField: {
+        outboundPlaceholder: '— 출고지 선택 —',
+        returnPlaceholder: '— 반품/교환지 선택 —',
+        loading: '주소 목록 불러오는 중…',
+        error: '출고지/반품지를 불러오지 못했습니다. 마켓 연결 상태를 확인하세요.',
+        outboundEmptyTitle: '등록된 출고지가 없습니다',
+        returnEmptyTitle: '등록된 반품/교환지가 없습니다',
+        // 11번가는 우리 앱에서 생성하지 않음 — 셀러오피스 외부 링크로 안내.
+        emptyHint: '11번가 셀러오피스에서 먼저 등록한 뒤 새로고침하세요.',
+        emptyCta: '11번가 셀러오피스 열기',
+        sellerOfficeUrl: 'https://soffice.11st.co.kr',
+      },
+      // 상품정보고시 입력(OfficialNoticeField, PR-5/PR-4) — 상품군 select + 군별 항목 동적 폼.
+      //   ESM(41군 select) + 11번가(1군 select + free-form type 직접입력) 공용. groups 는 prop 으로 주입.
+      officialNoticeField: {
+        groupPlaceholder: '— 상품군 선택 —',
+        // 11번가 등 미확보 군(C4) free-form: 마스터에 없는 상품군 유형코드를 직접 입력하는 진입.
+        freeformOption: '직접 입력 (마스터에 없는 상품군)',
+        freeformTypeAria: '상품군 유형코드 직접 입력',
+        freeformTypePlaceholder: '상품군 유형코드 (예: 891011)',
+        itemsTitle: '필수 고시 항목',
+        itemsEmpty:
+          '이 상품군의 고시 항목을 추가하세요. 항목 코드와 내용을 입력합니다.',
+        itemCodePlaceholder: '항목 코드 (예: 41-1)',
+        itemValuePlaceholder: '내용 입력',
+        itemAdd: '항목 추가',
+        itemCodeAria: (n: number) => `고시 항목 ${n} 코드`,
+        itemValueAria: (n: number) => `고시 항목 ${n} 내용`,
+        itemRemoveAria: (n: number) => `고시 항목 ${n} 삭제`,
+      },
+    },
     page: {
       title: '마켓 계정',
       subtitleLine1: '연결된 마켓을 관리하고 새 마켓을 연결합니다',
@@ -252,7 +350,7 @@ export const ko = {
         guideSteps: [
           '11번가 셀러오피스(seller.11st.co.kr) 또는 OPEN API 센터(openapi.11st.co.kr)에 판매자 계정으로 로그인합니다',
           '메인 페이지 하단 [OPEN API] 또는 셀러오피스 [API 발급] 메뉴로 진입합니다',
-          'Seller API 발급 양식에서 IP 화이트리스트에 `43.201.83.78` (MarketCast Lightsail Gateway 고정 IP) 를 등록합니다',
+          'Seller API 발급 양식에서 IP 화이트리스트에 `3.36.239.243` (MarketCast Lightsail Gateway 고정 IP) 를 등록합니다',
           '사용 용도에 "11번가 상품 관리 및 주문관리" 를 입력하고 발급 신청합니다',
           '발급된 영구 API Key 를 안전한 곳에 즉시 복사해 보관합니다 (재확인 불가)',
           '입력한 API Key 로 11번가 계정이 연결되며, 다른 마켓과 동일하게 상품 등록 대상으로 선택할 수 있습니다',
@@ -426,6 +524,10 @@ export const ko = {
       dispatchHint: '운송장 발급 후 자동으로 마켓 송장 API에 제출됩니다.',
       errorLoad: '주문 상세를 불러오지 못했습니다',
       notFound: '주문을 찾을 수 없습니다',
+      safeNumberBadge: '안심번호',
+      safeNumberAriaLabel: '안심번호 안내',
+      safeNumberNote:
+        '쿠팡은 셀러 보호 정책에 따라 안심번호(050…)를 제공합니다. 통화 시 자동으로 수취인 연락처로 연결됩니다.',
     },
     timeline: {
       collected: '수집됨',

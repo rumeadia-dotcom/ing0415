@@ -92,6 +92,15 @@ export interface MarketAdapter {
    * 부분 성공이 마켓 측에서 있을 수 있으면 status='partial' + warnings 채움.
    */
   createProduct(payload: MarketPayload): Promise<CreateProductResult>;
+
+  /**
+   * 마켓별 동적 등록필드 메타 (optional, §9.8). s3 3단계 MarketOptionsCard 가
+   * 마켓을 몰라도 동적 렌더할 수 있게 RegistrationFieldMeta[] 를 노출.
+   * 하위호환: 미구현(undefined) = 추가 등록필드 없음(= []). naver/coupang/11st 는
+   * 메서드 생략 → 카테고리 매핑만. ESM(gmarket/auction)만 배송 프로필 선택 필드 선언.
+   * 순수 동기 함수 — 외부 호출 없음.
+   */
+  getRegistrationFields?(): RegistrationFieldMeta[];
 }
 ```
 
@@ -845,7 +854,7 @@ export class MarketError extends Error {
 | 쿠팡 (`coupang`) | `hmac` | `hmac_key` | `https://api-gateway.coupang.com` (HMAC-SHA256 헤더 서명) | 없음 (영구 키) | 불필요 | **v1** |
 | G마켓 (`gmarket`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='G'`) | JWT `iat` 만료 시 어댑터가 매 호출 직전 자체 재생성 | 불필요 | **v1** |
 | 옥션 (`auction`) | `esm_jwt` | `esm_jwt` | `https://sa.esmplus.com/api/v1` (`site='A'` — 동일 ESM Single Account API) | 동일 (JWT 자체 재생성) | 불필요 | **v1** |
-| 11번가 (`11st`) | `api_key` | `api_key` | `https://openapi.11st.co.kr/openapi/OpenApiService.tmall` (XML CP949) | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
+| 11번가 (`11st`) | `api_key` | `api_key` | `https://api.11st.co.kr/rest/<service>/…` (서비스별 REST path, XML EUC-KR). ⚠️ 구 표기 `openapi.11st.co.kr/.../OpenApiService.tmall?apiCode=` 는 **오기** — 실제 11번가는 `apiCode` 개념이 없고 서비스별 path (`cateservice`/`prodservices`/`ordservices`/`areaservice`) 를 쓴다 (2026-05-30 spec import 로 확정, §9.9 / `features/11st.md`) | 없음 | **필요** (AWS Lightsail Gateway 고정 IP 등록으로 해소) | **v1** |
 
 **확장 정책 (v1 부터 4-way union)**: 본 표의 5 마켓이 4 가지 `AuthInput.kind` 를 모두 커버한다 (oauth_code / hmac_key / esm_jwt / api_key). 신규 인증 방식 추가 시:
 
@@ -978,6 +987,56 @@ submitTracking(
 - v1 코드 (registration-run / market-connect / OAuth callback) 는 본 확장의 영향 없음. 어댑터 인스턴스에 메서드 2개가 추가되었을 뿐 v1 호출 경로 변경 X.
 - `getMarketAdapter()` 진입은 그대로. 신규 호출자 (`orders-sync` / `shipping-dispatch-job`) 는 동일 진입을 사용한다.
 
+### 9.8 getRegistrationFields — 마켓별 동적 등록필드 (2026-05-30, PR-3.5 도입)
+
+ESM(G마켓·옥션) 재구현(`features/esm.md` §4.6 / §5 / §6)에서 상품등록 3단계가 마켓별 추가 입력(배송 프로필 선택, 이후 PR-5 의 officialNotice)을 요구하게 됨에 따라, 컴포넌트 내 `if (marketId === ...)` 하드코딩 분기를 막기 위해 어댑터가 등록필드 메타를 선언하는 **optional 메서드**를 추가한다.
+
+```ts
+getRegistrationFields?(): RegistrationFieldMeta[];
+```
+
+- **반환 타입**: `RegistrationFieldMeta`(zod 단일 소스 `apps/web/src/lib/schemas/esm.ts` §4.6 / Edge 미러 `_shared/schemas.ts`).
+  필드: `key` / `label`(i18n key) / `kind`(`select`|`text`|`number`|`officialNotice`) / `required` / `optionsSource?` / `helpText?` / `blockingReason?`(미입력 시 3단계 다음 버튼 tooltip).
+
+> ⚠ **2026-05-30 (Layer 2 조회형 단일화 완료 — `shipping-fee-model.md §2`)**: 배송 리소스 select 의 `optionsSource` 는 **마켓별 조회형 lookup** 으로 단일화됐다. 값: `esmShippingPlace`·`esmDispatchPolicy`(ESM `/shipping/places`·`/dispatch-policies` GET) / `elevenStOutbound`·`elevenStReturn`(11번가 `outboundarea`·반품지 GET) / 쿠팡·네이버 lookup. 구 `shippingProfiles`(ESM 생성형 전용) 는 ESM 생성형과 함께 **제거 완료**(PR-E5, `esm.md` 전환 결정 절). 또한 **11번가도 `getRegistrationFields` 를 정의**한다(출고지/반품지 select + officialNotice) — 아래 "메서드 생략" 은 naver/coupang 한정으로 축소.
+
+- **하위호환 (핵심)**: optional 메서드 + "기본 동작 = `[]`". naver/coupang 어댑터는 **메서드 자체를 생략** → 코드 0줄 수정. (11st·gmarket·auction 은 정의.) 호출측은 `getRegistrationFields(adapter)` 헬퍼(없으면 `[]`)로 접근한다.
+- **순수 동기 함수** — 외부 호출 / Date.now / Math.random 금지(렌더 시점 동기 호출). 옵션 데이터(출하지·발송정책·출고지 목록)는 어댑터가 아니라 UI 가 마켓별 조회 훅(ESM `useEsmShippingOptions` / 11번가 `useElevenStShippingAddresses`)으로 채운다(`optionsSource` 가 출처만 지정).
+- **ESM 선언 (조회형 전환 후 — PR-E2 완료)**: gmarket/auction 은 공용 어댑터에서 출하지(`shippingPlaceNo`)·발송정책(`dispatchPolicyNo`, 사이트별) select + officialNotice 를 반환. `esmShippingLookup` 은 우산 개념이고 enum 값은 출하지/발송정책 2종이라 `optionsSource:'esmShippingPlace'` + `optionsSource:'esmDispatchPolicy'` 둘로 구현(11번가 out/return 와 동일 패턴). UI 가 `useEsmShippingOptions`(Edge `esm-shipping-list` POST `{ marketAccountId }`)로 옵션을 채운다. (구 `shippingProfileId`/`shippingProfiles` 생성형 잔재는 PR-E5 에서 제거 완료.)
+- **단일 소스**: 필드 빌더는 Web `apps/web/src/lib/markets/real/esm/registration-fields.ts` / Edge `_shared/market-adapters/esm-registration-fields.ts` 두 미러에 동일 구조(`getEsmRegistrationFields()`). mock 어댑터(Web `createMockAdapter` / Edge `debug.ts`)도 ESM 마켓에 한해 동일 빌더를 재사용해 parity 를 보장한다.
+- **개정 분류**: 5메서드 핵심 인터페이스가 아니라 v2 Extension 계열의 **optional 메서드 추가**(fetchOrders/submitTracking 과 동일 패턴) — 기존 어댑터 무영향. backend + architect 합의(PR-3.5), security 검수 대상은 아님(외부 호출·자격증명 무관, i18n key 만 노출).
+
+**테스트 (R-006 회귀 강제):**
+- ESM(gmarket/auction) 어댑터: `getRegistrationFields()` 가 출하지(optionsSource='esmShippingPlace')·발송정책(optionsSource='esmDispatchPolicy') select + officialNotice 3필드 반환.
+- 11번가 어댑터: 출고지·반품지 select(optionsSource='elevenStOutbound'/'elevenStReturn') + officialNotice 반환.
+- naver/coupang: `getRegistrationFields` 미정의 → 헬퍼 통해 `[]`(하위호환 회귀).
+
+### 9.9 11번가 실제 API 사양 (2026-05-30 셀러 OpenAPI spec import 반영)
+
+> **계기**: #265 로 11번가 셀러 OpenAPI 145 API 를 `features/11st-api/` 에 영구화. 대조 결과 **현재 11번가 어댑터(`_shared/market-adapters/eleven-st*.ts`)는 실제 spec 이전의 placeholder 로, 5메서드 전부 불일치**임이 확정됐다. §9.0~§9.4 의 11번가 "잠정/Phase 2 실측" 셀은 본 절이 우선한다. 전면 재구현 설계·PR 로드맵은 **`features/11st.md`** (ESM 의 `esm.md` 패턴) 가 마스터.
+
+**호출 구조 (apiCode 개념 없음, 서비스별 REST path):**
+
+| 메서드 | 실제 endpoint (apiSeq) | 전달 | 응답 root | 비고 |
+|---|---|---|---|---|
+| `fetchCategoryTree` | `GET /rest/cateservice/category` (1001 전체) / `/rest/cateservice/category/{dispCtgrNo}` (1617 하위) | path variable. **API Key 불필요** | `ns2:categorys > ns2:category[]` | 필드 `dispNo`/`dispNm`/`leafYn`/`depth`/`parentDispNo`. 1617 은 `certType`/`requiredYn`(카테고리별 KC인증 필수여부)도 반환 |
+| `createProduct` | `POST /rest/prodservices/product` (1003) | header `openapikey` + body `<Product>` (XML EUC-KR) | `ClientMessage > productNo + resultCode` | `resultCode` 200=일반 / 210=신규 / 400=일 500개 한도 / 500=실패. 필수필드 §9.9 하단 |
+| `fetchOrders` | `GET /rest/ordservices/complete/{startTime}/{endTime}` (1876, 발주확인할 내역) | path variable, **12자리** `YYYYMMDDhhmm`, 최대 7일·3000건 | `ns2:orders > ns2:order[]` | 발송에 필요한 `dlvNo`(배송번호) 수집 필수 |
+| `submitTracking` | `GET /rest/ordservices/reqdelivery/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}` (1888) | **GET + path variable, body 없음** | `ResultOrder > result_code` (0=성공) | 키 = `dlvNo`(주문조회의 배송번호), `dlvMthdCd`=01(택배), `dlvEtprsCd`=11번가 택배사 코드 |
+| 출고지/반품지 조회 | 출고지 목록 `GET /rest/areaservice/outboundarea` (1014) / 단건 `POST /rest/areaservice/getOutAddressInfo/{addrSeq}` (1691) / 반품지 1015·1692 / 등록 6701·6702 | — | `ns2:inOutAddresss > ns2:inOutAddress[]` | `addrSeq`(주소 순번) 가 상품등록의 `addrSeqOut`/`addrSeqIn` 에 들어감 |
+
+**상품등록(1003) 필수필드** (현재 어댑터 누락·오용 다수):
+- 판매: `selMthdCd`(판매방식 01=고정가) · `prdTypCd`(01=일반배송) · `prdStatCd`(상품상태) · `prdNm`(≤100자) · `brand`(없으면 "알수없음") · `selPrc`(10원 단위) · `prdImage01`(대표) · `htmlDetail` · `minorSelCnYn` · `suplDtyfrPrdClfCd`(부가세 01/02/03)
+- 원산지/원재료: `rmaterialTypCd` · `orgnTypCd`(+ 지역코드/원산지명)
+- 인증: `ProductCertGroup`(KC인증그룹, 카테고리 `requiredYn=Y` 시) — `crtfGrpTypCd`/`crtfGrpObjClfCd`/`ProductCert[certTypeCd,certKey]`
+- 배송: `dlvCnAreaCd`(배송지역) · `dlvWyCd`(01=택배) · `dlvClf`(배송주체 02=업체배송) · `dlvCstInstBasiCd`(배송비종류 01무료/02고정/03조건부무료/04수량차등/05개당) + `dlvCst1`/`dlvCst3` · `bndlDlvCnYn`(묶음) · `dlvCstPayTypCd` · `jejuDlvCst`/`islandDlvCst`(제주/도서산간) · `rtngdDlvCst`(반품비)/`exchDlvCst`(교환비) · **`addrSeqOut`/`addrSeqIn`(출고지/반품지 시퀀스 — 선행 조회 필요)** · `asDetail`/`rtngExchDetail`(A/S·반품교환 안내)
+- 고시: **`ProductNotification`**(상품정보제공고시, `type` + `item[code,name]`) — ESM `officialNotice` 와 동형
+- ⚠️ 어댑터 오용: `selPrdClfCd:'01'` 은 실제로 **판매기간코드**(예 `120:108`)지 판매상품구분이 아님. `dlvCst` 단일 필드는 존재하지 않음(위 `dlvCstInstBasiCd`+`dlvCst1/3/4`).
+
+**XML/인코딩**: 요청·응답 모두 XML, EUC-KR(CP949). 응답은 `ns2:` 네임스페이스 prefix 사용 → 파서가 prefix 제거 필요. `stripNsPrefix` 는 cross-market 공용 유틸 `_shared/xml.ts`(+ Web `lib/markets/xml.ts` 미러) 단일 소스다(2026-05-30 11번가 PR-6, `features/11st.md` §8-4 — 향후 XML 마켓 대비).
+
+**택배사 코드 (단일 소스)**: 마켓별 코드 체계 상이 — 11번가 `dlvEtprsCd`(00034=CJ / 00002=로젠 / 00011=한진 / 00012=롯데 / 00007=우체국 …) · ESM `DeliveryCompanyCode`(10003=로젠, 숫자) · 쿠팡/네이버는 영문 코드(`'LOGEN'`) 그대로. 내부 `CarrierCode` enum(`CARRIER_CODES`, default LOGEN) → 마켓별 매핑 테이블은 **`_shared/carrier-codes.ts`(+ Web `lib/markets/carrier-codes.ts` 미러) 단일 소스**다(2026-05-30 11번가 PR-6, `features/11st.md` §8-3). 어댑터는 `toElevenStCarrierCode`/`toEsmCarrierCode` 참조만 — 미매핑은 `undefined` → 호출측 `unsupported_carrier`(코드 날조 금지). v2 다중 택배사 진입 시 본 모듈 확장.
+
 ---
 
 ## 10. 신규 마켓 추가 절차
@@ -1049,6 +1108,7 @@ submitTracking(
 | O-8 | 부분 성공(partial) 정의 — 마켓별 적용 범위 | §7.1 `CreateProductResult.status` | Phase 2 |
 | O-9 | 11번가 IP 화이트리스트 정책 해결책 | §9.0 / `features/markets.md` §3.2 / 11st 어댑터 활성화 | **결정 완료** (2026-05-22, v1.3) — AWS Lightsail Market Gateway 고정 IP 등록. `market-gateway.md` 참조 |
 | O-10 | ESM 2.0 JWT 의 `iat` 클럭 스큐 허용치 / 어댑터 내부 재생성 정책 | §9.1 gmarket / auction 어댑터 | Phase 2 |
+| O-11 | **11번가 어댑터 전면 재구현** — 현재 placeholder, 5메서드 전부 실제 spec 불일치 (§9.9). base URL·필수필드·출고지/반품지·고시·택배사 코드 매핑 재작성 + real 실호출 검증 | §9.9 / `features/11st.md` | **설계 진행** (2026-05-30, spec import #265 후 `features/11st.md` 재구현 로드맵) |
 
 ---
 
@@ -1071,3 +1131,4 @@ submitTracking(
 | 2026-05-18 | v1.0 | 최초 작성. MarketAdapter 5메서드 / 공용 zod / mock-real 동등성 / 재시도·rate-limit 외부 위임 / 에러 매핑 / OAuth 시퀀스 / 마켓별 차이 매트릭스 / 테스트 매트릭스 정의. | backend |
 | 2026-05-19 | v1.1 | **5마켓 MVP 확장 Wave 1**. `authenticate(input)` 의 input 을 4-way `AuthInput` discriminated union 으로 확장 (oauth_code / hmac_key / esm_jwt / api_key). `refreshToken` optional 명시. 반환 타입 `TokenSet` → `StoredCredential`. v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 4개 활성, 11번가 = v2 (IP 화이트리스트). §9 마켓별 차이 매트릭스 5마켓 표로 확장. | backend + architect |
 | 2026-05-22 | v1.3 | **11번가 v1 정식 진입**. AWS Lightsail Market Gateway (서울 리전, 고정 IP) 도입 결정으로 IP 화이트리스트 정책 해소 (`market-gateway.md`). v1 정식 = 5 마켓 전부. 모든 마켓 호출이 `_shared/gatewayFetch()` 경유. §9 매트릭스 11번가 컬럼 v1 정식화. O-9 미해결 사안 종결. | architect |
+| 2026-05-30 | v1.4 | **11번가 실제 API 사양 정정**(#265 spec import). §9.0 base URL 오기 정정(`OpenApiService.tmall?apiCode=` → `api.11st.co.kr/rest/<service>`). §9.9 신설 — 5메서드 실제 endpoint·필수필드·ns2 네임스페이스·택배사 코드. 현 어댑터가 placeholder 임을 명시(O-11). 재구현 마스터 = `features/11st.md`. | architect |

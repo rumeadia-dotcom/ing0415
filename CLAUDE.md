@@ -115,13 +115,13 @@ React + Vite + TS strict (`noUncheckedIndexedAccess`) / pnpm / React Router v6 +
 플래그 2개로 분리 (2026-05-22):
 
 - **`VITE_APP_MODE`** (`dev` | `real`) — DB / Edge Function 타겟 + Sentry 환경 라벨
-- **`VITE_USE_MOCK`** (`true` | `false`) — 마켓 어댑터 소스 (mock vs real)
+- **`VITE_USE_MOCK`** (`true` | `false`) — **마켓 어댑터 + Supabase 클라이언트 전체** 소스 (mock vs real). true 면 `getSupabase()` 가 mock supabase 반환 (Auth/DB/Storage/Functions/Realtime 전부 mock). dev-supabase 에는 붙지 않음.
 
 두 플래그 모두 **빌드 타임 분기**. 런타임 토글 아님.
 
 | 조합 | 명령 | 데이터 소스 | 마켓 API | 인증 |
 |---|---|---|---|---|
-| `dev` + `useMock=true` | `pnpm dev` | dev-supabase (eqo...) | mock 어댑터 | dev Supabase Auth |
+| `dev` + `useMock=true` | `pnpm dev` | **mock supabase** (in-memory, 자동 로그인) | mock 어댑터 | mock auto-login (MOCK_SELLER_ID) |
 | `dev` + `useMock=false` | `pnpm dev:db` | dev-supabase (eqo...) | 실 마켓 API | dev Supabase Auth |
 | `real` + `useMock=false` | `pnpm dev:real` / `build:real` | real-supabase (lfr...) | 실 마켓 API | real Supabase Auth |
 | `real` + `useMock=true` | (금지) | — | — | 부트스트랩 시 throw |
@@ -187,7 +187,7 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 - **s5 마켓 계정** — **v1 정식 = 네이버 / 쿠팡 / G마켓 / 옥션 / 11번가 5개 전부** (real 어댑터까지 동작). 모든 마켓 호출은 **AWS Lightsail Market Gateway (서울 리전, 고정 IP)** 경유 (`docs/architecture/v1/cross-cutting/market-gateway.md`). 어댑터 인터페이스는 **AuthInput 4-way discriminated union** (`oauth_code` | `hmac_key` | `esm_jwt` | `api_key`). `refreshToken` 은 OAuth(네이버)만 사용 — optional. credential 저장은 `credential_payload jsonb` 단일 컬럼 + pgcrypto 암호화.
   - PRD §2.2.1 OAuth 인증 플로우, §2.2.2 API 연결 상태 실시간 표시, §2.2.3 OAuth 토큰 갱신 자동화, §2.3.1 연결 계정 목록 조회, §2.3.2 마켓 계정 추가/수정/삭제, §2.3.3 연결 상태 실시간 표시.
   - 자격증명 보안: §2.4.1 정기 보안 감사, §2.4.2 인증 정보 백업/복구.
-  - **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 셀러의 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 Lightsail Gateway 의 고정 IP (`43.201.83.78`) 를 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리 / 11번가 셀러오피스 모두에 등록 후 키 발급. 미등록 시 키 발급 자체가 거부되거나 API 호출 시 거부 (`docs/handoff/lightsail-setup-guide.md §7` / `§A.8`).
+  - **셀러 onboarding 전제 (2026-05-23 정정)**: **5개 마켓 전부** 가 셀러의 access key / secret key / OAuth client 발급 단계에서 **고정 IP 화이트리스트 등록**을 요구. 셀러는 Lightsail Gateway 의 고정 IP (`3.36.239.243`) 를 네이버 커머스 API 센터 / 쿠팡 Wing / ESM 셀러관리 / 11번가 셀러오피스 모두에 등록 후 키 발급. 미등록 시 키 발급 자체가 거부되거나 API 호출 시 거부 (`docs/handoff/lightsail-setup-guide.md §7` / `§A.8`).
   - 근거: 5개 마켓 모두 v1 출시 가능. **5개 마켓 모두 IP 화이트리스트 정책이 있음** (이전에 11번가만 있다고 잘못 기재) — Lightsail 인스턴스 고정 IP 1개를 모든 마켓 셀러 콘솔에 등록하는 방식으로 일괄 해소 (2026-05-22 결정 / 2026-05-23 정정, O-9 종결).
 
 - **s6 등록 이력** — 목록 + 기본 필터 + 재시도/마켓 제외 후 등록.
@@ -266,6 +266,15 @@ PRD 70여 세부 기능 중 **v1 에 들어가는 항목만** 아래에 추림. 
 
 *(주: 로컬 hook 이 위 룰을 매 prompt 마다 자동 주입한다 — 사용자 머신 한정 토큰 절감 규약.)*
 
+### 수정 작업 — 전체 영향범위 먼저 전수 조사 (누락 금지)
+
+리팩터·결정 반영·이름변경·모델 변경을 지시받으면 **편집을 시작하기 전에 그 변경이 닿는 모든 문서·코드를 grep 으로 먼저 전수 조사**해 blast radius 를 열거하고, 그다음 빠짐없이 일괄 처리한다. 일부만 고치고 "끝났다" 하지 않는다.
+
+- 핵심 토큰(테이블명·함수명·필드명·노드 ID·도메인 용어)으로 `docs/` + `apps/` 전체 grep → 영향 파일 목록부터 확정.
+- 설계문서(`architecture/v1/`)뿐 아니라 `docs/spec/user_flow.md` / `docs/design-renewal/` / `docs/handoff/WIP-*.md` / 코드(어댑터·Edge·훅·스키마·테스트)·`locales/ko.ts` 까지 포함했는지 확인. ("2개 산출물 동기화" 와 연계.)
+- 배포된 코드를 건드리는 변경이면 "지금 편집할 문서" vs "전환 PR 에서 손댈 코드" 를 명시적으로 분리하고, 후자는 로드맵에 정확히 열거(무단 편집 금지).
+- **근거**: 2026-05-30 사용자 지적 — 수정 지시 시 다른 곳의 관련 문서·코드를 반복 누락. "정확하고 클린한 일 처리" 요구.
+
 ### 외부 API 로깅 패턴
 
 외부 마켓 API (스마트스토어 / 쿠팡 / 11번가 / G마켓 / 옥션) 및 Supabase RPC 등 외부 호출 시 반드시 구조화 로그를 남긴다. Edge Functions 는 Deno + TypeScript:
@@ -282,6 +291,7 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 
 ### 의사소통 방식
 
+- **대화·설명은 존댓말로 한다.** (커밋 메시지·문서는 기존 간결체 유지. 코드 식별자·기술 용어 원어는 그대로.)
 - **선택지를 물어볼 때는 자신의 의견(추천)을 먼저 말할 것.** 추천 옵션을 첫 번째 자리에 두고 "(추천)" 표기.
 - 사용자가 의견을 제시하면 **무조건 수용하지 않는다** — 좋은지 나쁜지 자체 판단을 함께 제시한 다음 진행.
 - **사용자 질문에 동의하면** → 의견 + 바로 수정.
@@ -295,10 +305,13 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 
 ### 메모리 저장 원칙
 
-무언가를 기록할 때, **CLAUDE.md vs memory 중 어디에 남길지** 의견과 함께 사용자에게 확인한다:
+**포터블 우선 — 어느 컴퓨터에서든 동일한 작업환경을 위해, 항상 적용되는 규칙·결정은 git 으로 따라다니는 레포 내부에 둔다.** 하니스 기본 메모리(`~/.claude/projects/.../memory/`)는 **머신 한정·커밋 안 됨 → 다른 컴퓨터로 안 따라감** → 원칙적으로 쓰지 않는다 (2026-05-30 결정).
 
-- **CLAUDE.md** — 프로젝트 규칙, 명령어, 아키텍처 결정, 도메인 정의 등 **모든 세션에서 항상 적용**되는 내용.
-- **memory** (`~/.claude/projects/.../memory/`) — 일회성 프로젝트 상황, 외부 참조, 시점에 따라 달라질 수 있는 컨텍스트.
+무언가를 기록할 때 아래 우선순위로 위치를 정하고, 의견과 함께 사용자에게 확인한다:
+
+- **CLAUDE.md (1순위)** — 프로젝트 규칙, 명령어, 아키텍처 결정, 도메인 정의, **작업 스타일·의사소통 규약** 등 **모든 세션에서 항상 적용**되는 내용. 커밋되며 어느 머신에서든 자동 로드 → 포터블.
+- **레포 내 문서** (`docs/handoff/WIP-*.md`, `docs/architecture/v1/`) — 시점에 따라 달라지는 진행 상황·외부 참조. 커밋되어 포터블.
+- **하니스 메모리** (`~/.claude/.../memory/`) — 사용하지 않음. (자동 recall 은 되지만 머신 종속이라 "동일 작업환경" 요구와 충돌.)
 
 ### 프론트엔드 UI 일관성
 
@@ -333,6 +346,28 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 진단 시작 시 사용자에게 묶음 명령 (여러 가설을 동시에 검증할 SQL / 로그 쿼리 / DevTools 한 줄 / 게이트웨이 journalctl) 을 한 번에 전달하고, 사용자가 1~2회 재시도로 결과 전체를 보내도록 한다.
 
 **근거**: 2026-05-23 markets-connect 운영 검증에서 위 chain 의 5개 단계 — PG GRANT / audit category constraint / `HttpErrors.internal` 시그니처 누락 / `error.context.body` ReadableStream parse / 가이드 IP 화이트리스트 정정 — 의 버그가 동시에 잠재했으나 한 단계씩 진단하여 hotfix 8개 (v0.9.1 ~ v0.9.9) 로 쪼개졌고 사용자가 같은 자격증명 등록을 7회 반복함.
+
+### MCP 적극 사용 (2026-05-28 추가)
+
+원격 MCP 호스팅 (AWS Lightsail `3.36.239.243`) 에 supabase-dev / supabase-real / playwright / sentry 4개 서버 (총 64 tools) 가 항상 떠 있다. 아래 상황에서는 사용자 SQL 요청·로그 캡처·DevTools 작업을 반복 요구하지 말고 **MCP 도구를 먼저 호출한다**.
+
+| 상황 | 1순위 MCP | 보조 동작 |
+|---|---|---|
+| 스키마 / 테이블 / RLS 정책 확인 | `mcp__supabase-dev__list_objects` / `list_schemas` / `get_object_details` | 마이그레이션 파일 grep 은 보조 |
+| dev DB 데이터 조회·디버깅 | `mcp__supabase-dev__execute_sql` | 사용자 cli psql 요청 금지 |
+| 운영(real) 영향 확인 | `mcp__supabase-real__execute_sql` (mcp_ro 뷰 only) | write 시도 금지 — read-only 강제 |
+| 인덱스·쿼리 성능 분석 | `mcp__supabase-dev__analyze_query_indexes` / `explain_query` / `get_top_queries` | EXPLAIN 수동 명령 대체 |
+| 운영 사고 / 에러 빈도 분석 | `mcp__sentry__search_issues` / `search_events` / `search_issue_events` | Sentry 웹 콘솔 캡처 요청 대체 |
+| 릴리즈·DSN·프로젝트 조회 | `mcp__sentry__find_releases` / `find_projects` / `find_dsns` | — |
+| 배포 후 UI 동작 검증·스크린샷 | `mcp__playwright__browser_navigate` + `browser_snapshot` / `browser_take_screenshot` | 사용자 수동 캡처 요청 대체. 작업 종료 시 `browser_close` |
+| 운영 화면 a11y / 콘솔 에러 회귀 | `mcp__playwright__browser_console_messages` / `browser_network_requests` | — |
+
+**룰**:
+- MCP 호출은 **사용자 승인 불필요한 read-only 도구 우선** — 진단 chain 의 1단계로 자연스럽게 배치.
+- `supabase-real` 은 **mcp_ro 뷰 + read-only role** 로 제한돼 있다. `INSERT/UPDATE/DELETE` 시도 금지 — 에러 + audit 로그 + 운영 알람 트리거.
+- `playwright` 는 chromium peak ~800MB. 사용 후 반드시 `browser_close`. 같은 conversation 에서 5회 이상 반복 nav 시 한 번에 묶어 처리.
+- MCP 가 실패 (서버 disconnected / 401 / 5xx) 시에만 사용자에게 수동 작업 요청. "MCP 가 있다는 사실" 을 잊고 사용자에게 명령 복붙 요청하는 패턴 금지.
+- 미커밋 변경 / 로컬 파일 / git 작업은 MCP 범위 밖 — 기존 Bash·Read·Edit 도구 사용.
 
 ## Design Documents
 

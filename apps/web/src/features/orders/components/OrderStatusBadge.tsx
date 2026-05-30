@@ -27,7 +27,7 @@ const TONE_MAP: Record<OrderShippingStatus, Tone> = {
 const TONE_CLASS: Record<Tone, { wrap: string; dot: string }> = {
   info: { wrap: 'bg-info-soft text-info-on-soft', dot: 'bg-info' },
   success: { wrap: 'bg-success-soft text-success-on-soft', dot: 'bg-success' },
-  accent: { wrap: 'bg-accent-soft text-accent', dot: 'bg-accent' },
+  accent: { wrap: 'bg-accent-soft text-accent-onlight', dot: 'bg-accent' },
   muted: { wrap: 'bg-surface-muted text-text-secondary', dot: 'bg-text-tertiary' },
   danger: { wrap: 'bg-danger-soft text-danger-on-soft', dot: 'bg-danger' },
 }

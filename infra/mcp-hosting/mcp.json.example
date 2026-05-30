@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "supabase-dev": {
+      "type": "sse",
+      "url": "https://supabase-dev.3-36-239-243.sslip.io/sse",
+      "headers": { "Authorization": "Bearer ${MCP_TOKEN_SUPABASE_DEV}" }
+    },
+    "supabase-real": {
+      "type": "sse",
+      "url": "https://supabase-real.3-36-239-243.sslip.io/sse",
+      "headers": { "Authorization": "Bearer ${MCP_TOKEN_SUPABASE_REAL}" }
+    },
+    "playwright": {
+      "type": "http",
+      "url": "https://playwright.3-36-239-243.sslip.io/mcp",
+      "headers": { "Authorization": "Bearer ${MCP_TOKEN_PLAYWRIGHT}" }
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://sentry.3-36-239-243.sslip.io/mcp",
+      "headers": { "Authorization": "Bearer ${MCP_TOKEN_SENTRY}" }
+    }
+  }
+}

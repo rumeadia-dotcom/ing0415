@@ -30,6 +30,15 @@ vi.mock('../hooks/useMarkWaybillPrinted', () => ({
   > => ({ mutate: markMutate, isPending: false }),
 }))
 
+// logen 자격증명 status hook 모킹 — 기본은 hasCredentials=true (경고 미표시).
+vi.mock('@/features/settings/shipping', () => ({
+  useLogenCredentialsStatus: () => ({
+    data: { hasCredentials: true, hasSenderInfo: true, lastVerifiedAt: null, lastErrorAt: null, lastErrorCode: null },
+    isLoading: false,
+    isError: false,
+  }),
+}))
+
 import { ShippingPrintPage } from '../pages/ShippingPrintPage'
 
 const ORDER: ShippingPrintOrder = {

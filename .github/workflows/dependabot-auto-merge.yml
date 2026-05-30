@@ -1,0 +1,37 @@
+# Dependabot 자동 머지 — patch/minor 만 (major 는 사용자 명시 머지).
+# 인용: docs/architecture/v1/ops/ci-cd.md 부록 A.
+#
+# 동작:
+#   1) Dependabot 이 PR 생성 → CI 8 checks 자동 트리거 (ci.yml).
+#   2) 본 워크플로우가 metadata 추출 → patch/minor 인 경우 `gh pr merge --auto --squash` 활성화.
+#   3) CI 통과 시 GitHub 가 squash 머지 자동 실행 (develop 으로).
+#   4) major 또는 React/React-DOM 같은 ignored 패키지면 자동 머지 안 함 → 사용자 검토.
+#
+# 안전장치:
+#   - actor 가 dependabot[bot] 인 PR 만 처리. fork 외부 PR 영향 0.
+#   - GITHUB_TOKEN 권한 = pull-requests:write + contents:write (자동 머지 enable 만, 코드 fetch X).
+#   - develop branch protection 의 CI 통과 요구 그대로 적용 — bypass 없음.
+
+name: Dependabot auto-merge
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+
+      - name: Enable auto-merge for patch/minor
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

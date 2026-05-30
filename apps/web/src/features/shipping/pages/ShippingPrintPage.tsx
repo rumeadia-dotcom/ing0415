@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { ko } from '@/locales/ko'
 import { useShippingPrintList } from '../hooks/useShippingPrintList'
 import { useMarkWaybillPrinted } from '../hooks/useMarkWaybillPrinted'
+import { useLogenCredentialsStatus } from '@/features/settings/shipping'
 import { ShippingApiError } from '../api/shipping-api'
 import { buildOutSlipPrintPopUrl } from '../api/logen-print-stub'
 import { ShippingTabsNav } from '../components/ShippingTabsNav'
@@ -37,6 +38,7 @@ import { MarketBadge } from '@/features/orders/components/MarketBadge'
  */
 export function ShippingPrintPage(): JSX.Element {
   const { data, isLoading, isError, error, refetch } = useShippingPrintList()
+  const logenStatus = useLogenCredentialsStatus()
   const markPrinted = useMarkWaybillPrinted()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -75,10 +77,10 @@ export function ShippingPrintPage(): JSX.Element {
       const url = buildOutSlipPrintPopUrl({ waybillNumbers: waybills })
       // noopener,noreferrer: 로젠 외부 도메인 팝업이 window.opener 로 본 페이지에 접근하는
       // reverse tabnabbing 공격 방지 (OWASP A05:2021 — Security Misconfiguration).
-      const popup = window.open(url, 'logen-print-pop', 'width=900,height=700,noopener,noreferrer')
-      if (!popup) {
-        toast.error(ko.commonToasts.popupBlocked)
-      }
+      // W3C 사양상 noopener 가 set 되면 window.open 은 항상 null 반환 → 차단 자동 감지 불가.
+      // 차단 시 사용자가 브라우저 팝업 허용 아이콘으로 직접 해소 (안내성 toast).
+      window.open(url, 'logen-print-pop', 'width=900,height=700,noopener,noreferrer')
+      toast.info(ko.commonToasts.popupHint)
     } catch (e) {
       const message = e instanceof Error ? e.message : '팝업 URL 생성 실패'
       toast.error(message)
@@ -133,22 +135,24 @@ export function ShippingPrintPage(): JSX.Element {
 
       <ShippingTabsNav />
 
-      {/* 미연동 안내 — PR10 settings 연동 hook 도입 시 조건부로 교체. */}
-      <div className="mb-4 flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-soft/40 p-4">
-        <span
-          aria-hidden
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-warning text-xs font-bold text-white"
-        >
-          !
-        </span>
-        <p className="text-sm text-text">
-          로젠 연동이 필요합니다.{' '}
-          <Link to="/settings/shipping" className="font-semibold text-accent underline">
-            설정 → 로젠 연동
-          </Link>
-          에서 자격증명을 등록해 주세요.
-        </p>
-      </div>
+      {/* 미연동 안내 — logen 자격증명 미등록 시에만 조건부 표시. */}
+      {logenStatus.data && !logenStatus.data.hasCredentials && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning-soft/40 p-4">
+          <span
+            aria-hidden
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-warning text-xs font-bold text-white"
+          >
+            !
+          </span>
+          <p className="text-sm text-text">
+            로젠 연동이 필요합니다.{' '}
+            <Link to="/settings/shipping" className="font-semibold text-accent underline">
+              설정 → 로젠 연동
+            </Link>
+            에서 자격증명을 등록해 주세요.
+          </p>
+        </div>
+      )}
 
       {/* 액션 바 */}
       <section className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-surface px-5 py-4 shadow-sm">

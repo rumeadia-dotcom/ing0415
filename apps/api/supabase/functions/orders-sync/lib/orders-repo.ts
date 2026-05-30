@@ -15,9 +15,15 @@
  *   quantity           → quantity
  *   orderAmount        → order_amount
  *   status (정규화)    → status (DB enum: 'collected' 고정 — 수집 시점)
- *   paidAt             → collected_at  (PRD §4 의 timestamp 컬럼)
+ *   paidAt             → paid_at      (마켓 결제완료 시각)
+ *   orderedAt          → ordered_at   (마켓 주문생성 시각, optional)
+ *   vendorItemId       → vendor_item_id (쿠팡 only, optional)
  *   market             → market_id
- *   (seller_id 는 별도 인자)
+ *   (seller_id 는 별도 인자, collected_at 은 default now() — 우리 시스템 수집 시각)
+ *
+ * 2026-05-29 정합 (마이그 20260529000001):
+ *   - collected_at 은 "우리 시스템 수집 시각" 으로 재정의 (이전엔 paidAt 적재).
+ *   - paid_at / ordered_at / vendor_item_id 신규 컬럼.
  *
  * 상태 매핑 근거:
  *   - 어댑터의 정규화 status `new_pay` 는 "결제 완료, 발송 대기" — 본 PR 의 폴링 대상.
@@ -86,6 +92,7 @@ export async function upsertOrders(
     }))
   }
 
+  const nowIso = new Date().toISOString()
   const rows = eligible.map((i) => ({
     seller_id: i.sellerId,
     market_id: i.marketId,
@@ -98,7 +105,14 @@ export async function upsertOrders(
     quantity: i.order.quantity,
     order_amount: i.order.orderAmount,
     status: 'collected' as const,
-    collected_at: i.order.paidAt,
+    // collected_at: 우리 시스템이 마켓에서 수집한 시각 (DB default 도 now() 지만 명시).
+    collected_at: nowIso,
+    // paid_at: 마켓 결제완료 시각 (어댑터 MarketOrder.paidAt).
+    paid_at: i.order.paidAt,
+    // ordered_at: 마켓 주문 생성 시각 (어댑터 MarketOrder.orderedAt — optional).
+    ordered_at: i.order.orderedAt ?? null,
+    // vendor_item_id: 쿠팡 송장 제출용. 쿠팡 외 마켓은 NULL.
+    vendor_item_id: i.order.vendorItemId ?? null,
   }))
 
   // ignoreDuplicates: true → conflict row 는 결과에서 제외됨. 신규 insert 만 returning.

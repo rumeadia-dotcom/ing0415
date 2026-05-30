@@ -74,7 +74,14 @@ export function bufToHex(buf: ArrayBuffer): string {
 export const GATEWAY_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
+  // ESM(G마켓·옥션) 상품·카테고리(PR-2)·배송 프로필(PR-3) API 호스트. sa2 = 현행 base(sa2.esmplus.com/item/v1).
+  // sa = JWT aud 클레임용 레거시 도메인 — 전환 완료 전까지 호환 위해 병존(PR-2/4 가 전 호출 sa2 이전 후 제거 예정).
+  // NOTE: Lightsail Gateway main.ts 의 ALLOWED_* 미러 + gateway 재배포는 ops 작업 (esm.md §7 PR-2 항).
+  'sa2.esmplus.com',
   'sa.esmplus.com',
+  // 11번가: 실제 REST base(api.11st.co.kr, PR-0~). openapi.11st.co.kr 는 구 placeholder 호출용 —
+  // 호출부 재작성(PR-1~5) 완료 후 제거 예정. NOTE: Lightsail Gateway main.ts ALLOWED_* 미러 + 재배포는 ops.
+  'api.11st.co.kr',
   'openapi.11st.co.kr',
 ])
 
@@ -94,12 +101,31 @@ export function assertGatewayUrl(url: string): void {
 }
 
 /**
- * URL 의 querystring 제거 (로깅용 마스킹). 토큰/키가 querystring 에 실리는 마켓 대비.
+ * 민감 정보가 path variable 로 실리는 마켓 endpoint 의 pathname 마스킹 규칙.
+ *
+ * 11번가 발송처리(1888) `GET /rest/ordservices/reqdelivery/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}`
+ * 는 **송장번호(invcNo)·배송번호(dlvNo)** 를 path segment 로 포함한다. querystring 마스킹만으로는
+ * 이들이 게이트웨이 로그에 그대로 남으므로(cross-market 위험), `reqdelivery` 이후 segment 를
+ * 통째로 가린다. PII/송장 0 (PR-6 보안 — `features/11st.md` §7 PR-5 보안 후속).
+ */
+function maskSensitivePathSegments(pathname: string): string {
+  // /rest/ordservices/reqdelivery/<sendDt>/<dlvMthdCd>/<dlvEtprsCd>/<invcNo>/<dlvNo>
+  // reqdelivery 다음 모든 segment 를 마스킹 (송장·dlvNo 노출 차단).
+  const idx = pathname.indexOf('/reqdelivery/')
+  if (idx !== -1) {
+    return `${pathname.slice(0, idx + '/reqdelivery'.length)}/<masked>`
+  }
+  return pathname
+}
+
+/**
+ * URL 의 querystring 제거 + 민감 path segment 마스킹 (로깅용). 토큰/키가 querystring 에 실리는
+ * 마켓 + 송장/dlvNo 가 path 에 실리는 11번가 발송처리 대비.
  */
 export function maskUrlForLog(url: string): string {
   try {
     const u = new URL(url)
-    return `${u.protocol}//${u.host}${u.pathname}`
+    return `${u.protocol}//${u.host}${maskSensitivePathSegments(u.pathname)}`
   } catch {
     return '<invalid-url>'
   }

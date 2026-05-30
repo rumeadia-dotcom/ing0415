@@ -1,6 +1,10 @@
 import {
   CategoryNodeSchema,
   CreateProductResultSchema,
+  EsmGoodsCreateRequestSchema,
+  EsmGoodsCreateResponseSchema,
+  EsmSiteCatSchema,
+  EsmTransformExtraSchema,
   MarketOrderSchema,
   MarketSubmitTrackingResultSchema,
   StoredCredentialSchema,
@@ -22,6 +26,14 @@ import {
 } from '@/lib/schemas'
 import { MarketError } from '../errors'
 import type { MarketAdapter } from '../types'
+import { getEsmRegistrationFields } from '../real/esm/registration-fields'
+import { getElevenStRegistrationFields } from '../real/11st/registration-fields'
+import {
+  buildElevenStProductRaw,
+  classifyElevenStCreateResult,
+  type ElevenStProductRawResult,
+  mapElevenStCategories,
+} from '../real/11st/map'
 
 /**
  * Debug 모드 mock 어댑터.
@@ -55,6 +67,224 @@ const MARKET_TO_KIND: Record<MarketId, MarketCredentialKind> = {
   gmarket: 'esm_jwt',
   auction: 'esm_jwt',
   '11st': 'api_key',
+}
+
+function isEsmMarket(market: MarketId): boolean {
+  return market === 'gmarket' || market === 'auction'
+}
+
+/**
+ * ESM(G마켓·옥션) mock 카테고리 raw 응답 → EsmSiteCatSchema 통과 검증.
+ * site-cats 의 raw 형태(siteCatCode/siteCatName/isLeaf)를 만들어 스키마 통과를 보장한 뒤
+ * 공통 CategoryNode 트리로 정규화한다(PR-0 계약: mock raw 가 새 스키마 통과).
+ */
+function buildEsmMockCategoryTree(market: MarketId): CategoryNode[] {
+  const siteType = market === 'gmarket' ? 2 : 1
+  const rawSiteCat = EsmSiteCatSchema.parse({
+    siteCatCode: '300004975',
+    siteCatName: '패션의류',
+    isLeaf: false,
+    siteType,
+    children: [
+      {
+        siteCatCode: '300004976',
+        siteCatName: '여성의류',
+        isLeaf: true,
+        siteType,
+      },
+    ],
+  })
+  const childRaw = rawSiteCat.children?.[0]
+  const node: CategoryNode = {
+    id: rawSiteCat.siteCatCode,
+    name: rawSiteCat.siteCatName,
+    depth: 1,
+    leaf: rawSiteCat.isLeaf,
+    parentId: null,
+    children: childRaw
+      ? [
+          {
+            id: childRaw.siteCatCode,
+            name: childRaw.siteCatName,
+            depth: 2,
+            leaf: childRaw.isLeaf,
+            parentId: rawSiteCat.siteCatCode,
+            children: [],
+          },
+        ]
+      : [],
+  }
+  return [CategoryNodeSchema.parse(node)]
+}
+
+/**
+ * 11번가 mock 카테고리 — 실제 cateservice(1001) ns2 응답 구조(ns2:categorys>ns2:category[])를
+ * 만들어 real 파서(mapElevenStCategories)에 통과시킨다(PR-1 계약: mock raw 가 새 ns2/트리 파서 통과).
+ * dispNo/dispNm/depth/parentDispNo/leafYn 평탄 응답 → parentDispNo 트리(대>중>소). real 어댑터와 동형.
+ */
+function buildElevenStMockCategoryTree(): CategoryNode[] {
+  const rawNs2 = {
+    'ns2:categorys': {
+      'ns2:category': [
+        { dispNo: '1001', dispNm: '패션의류', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+        { dispNo: '1002', dispNm: '여성의류', depth: '2', parentDispNo: '1001', leafYn: 'Y' },
+        { dispNo: '1003', dispNm: '블라우스/셔츠', depth: '3', parentDispNo: '1002', leafYn: 'N' },
+      ],
+    },
+  }
+  return mapElevenStCategories(rawNs2).map((n) => CategoryNodeSchema.parse(n))
+}
+
+/**
+ * ESM(G마켓·옥션) mock createProduct raw 응답 → EsmGoodsCreateResponseSchema 통과 검증.
+ * siteDetail.{gmkt|iac}.SiteGoodsNo / goodsNo / resultCode 구조를 만들어 스키마 통과를 보장한 뒤
+ * 호출 site 의 SiteGoodsNo 를 externalId 로 매핑(real 어댑터 동작과 동형).
+ */
+function buildEsmMockCreateResult(
+  market: MarketId,
+  status: 'succeeded' | 'partial',
+): CreateProductResult {
+  const isGmkt = market === 'gmarket'
+  const siteGoodsNo = `${market.toUpperCase()}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`
+  const raw = EsmGoodsCreateResponseSchema.parse({
+    goodsNo: 1_000_000 + Math.floor(Math.random() * 1_000_000),
+    siteDetail: isGmkt
+      ? { gmkt: { SiteGoodsNo: siteGoodsNo, SiteGoodsComment: 'Success' } }
+      : { iac: { SiteGoodsNo: siteGoodsNo, SiteGoodsComment: 'Success' } },
+    resultCode: 0,
+    message: null,
+  })
+  const externalId = isGmkt
+    ? (raw.siteDetail?.gmkt?.SiteGoodsNo ?? siteGoodsNo)
+    : (raw.siteDetail?.iac?.SiteGoodsNo ?? siteGoodsNo)
+  const productUrl = isGmkt
+    ? `https://item.gmarket.co.kr/Item?goodscode=${externalId}`
+    : `https://itempage3.auction.co.kr/DetailView.aspx?itemno=${externalId}`
+  return CreateProductResultSchema.parse({
+    market,
+    externalId,
+    productUrl,
+    status,
+    warnings:
+      status === 'partial'
+        ? [
+            {
+              code: 'image_resized',
+              message: '이미지 1장이 권장 해상도 미달로 자동 보정됨',
+            },
+          ]
+        : [],
+  })
+}
+
+/**
+ * ESM(G마켓·옥션) mock transformProduct → 중첩 EsmGoodsCreateRequest 통과 검증.
+ * real(buildEsmGoodsPayload)과 동형 구조. debug 모드엔 실제 배송 프로필 번호가
+ * 없으므로, extra 에 placeNo/dispatchPolicyNo/officialNotice 가 없으면 mock 더미를
+ * 채워 스키마 통과를 보장한다(real 은 오케스트레이터가 주입한 실번호 사용).
+ */
+function buildEsmMockGoodsPayload(
+  market: MarketId,
+  product: Product,
+  mapping: MarketMapping,
+): unknown {
+  const site = market === 'gmarket' ? 'G' : 'A'
+  const siteType = site === 'G' ? 2 : 1
+  const extra = EsmTransformExtraSchema.parse(mapping.extra ?? {})
+
+  const placeNo = extra.placeNo ?? 'MOCK-PLACE-001'
+  const dispatchPolicyNo = extra.dispatchPolicyNo ?? 'MOCK-DISPATCH-001'
+  const officialNotice = extra.officialNotice ?? {
+    officialNoticeNo: 'MOCK-NOTICE-01',
+    details: [{ code: 'material', value: '면 100%' }],
+  }
+
+  const urls = mapping.transformedImageUrls
+  const images: Record<string, string> = { basicImgURL: urls[0] ?? '' }
+  urls.slice(1, 15).forEach((url, idx) => {
+    images[`addtionalImg${idx + 1}URL`] = url
+  })
+
+  const price = site === 'G' ? { Gmkt: product.priceKrw } : { Iac: product.priceKrw }
+  const stock = site === 'G' ? { Gmkt: product.stock || 1 } : { Iac: product.stock || 1 }
+  const sellingPeriod = site === 'G' ? { Gmkt: -1 } : { Iac: -1 }
+  const dispatchPolicyNoObj =
+    site === 'G' ? { gmkt: dispatchPolicyNo } : { iac: dispatchPolicyNo }
+
+  return EsmGoodsCreateRequestSchema.parse({
+    itemBasicInfo: {
+      goodsName: { kor: product.name },
+      category: { site: [{ siteType, catCode: mapping.categoryId }] },
+    },
+    itemAddtionalInfo: {
+      price,
+      stock,
+      sellingPeriod,
+      shipping: {
+        type: 1,
+        policy: { placeNo },
+        dispatchPolicyNo: dispatchPolicyNoObj,
+      },
+      images,
+      officialNotice,
+      isVatFree: extra.isVatFree ?? false,
+    },
+  })
+}
+
+/**
+ * 11번가 mock transformProduct (PR-3) → real(buildElevenStProductRaw)과 동형 { fields, warnings }.
+ * debug 모드엔 출고지/반품지 시퀀스가 없으므로 extra 에 없으면 mock addrSeq 를 채워 real 과 동형
+ * 페이로드(필수 20+ 필드)를 만든다. real 은 오케스트레이터가 주입한 실 addrSeq 사용.
+ */
+function buildElevenStMockProductPayload(
+  product: Product,
+  mapping: MarketMapping,
+): ElevenStProductRawResult {
+  const extra = {
+    outboundAddrSeq: '1',
+    returnAddrSeq: '2',
+    ...(mapping.extra ?? {}),
+  }
+  return buildElevenStProductRaw(product, { ...mapping, extra })
+}
+
+/**
+ * 11번가 mock createProduct (PR-3) → 실 응답 root `ClientMessage` 구조를 만들어 real 파서
+ * (classifyElevenStCreateResult)로 통과시킨다(parity). 시나리오별:
+ *   - happy/partial → resultCode 200(또는 신규 210) + productNo → success
+ *   - (5xx/429/401/timeout 은 호출측 createProduct 가 throw 로 선처리)
+ */
+function buildElevenStMockCreateResult(
+  built: ElevenStProductRawResult,
+  status: 'succeeded' | 'partial',
+): CreateProductResult {
+  const productNo = String(50_000_000 + Math.floor(Math.random() * 9_000_000))
+  // 실 응답 ClientMessage 구조 → real 분류기 통과 (mock=real parity).
+  const clientMessage = {
+    ClientMessage: {
+      message: `상품등록이 정상적으로 진행 되었습니다. 상품번호 : ${productNo}`,
+      productNo,
+      resultCode: '200',
+    },
+  }
+  const result = classifyElevenStCreateResult(clientMessage)
+  if (result.kind !== 'success') {
+    throw new MarketError('server', '11번가 mock 응답 분류 실패', { market: '11st' })
+  }
+  const warnings =
+    status === 'partial'
+      ? [{ code: 'image_resized', message: '이미지 1장이 권장 해상도 미달로 자동 보정됨' }]
+      : (built.warnings ?? [])
+  return CreateProductResultSchema.parse({
+    market: '11st',
+    externalId: result.productNo,
+    productUrl: `https://www.11st.co.kr/products/${result.productNo}`,
+    status,
+    warnings,
+  })
 }
 
 function buildHappyCredential(
@@ -162,6 +392,14 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
     },
 
     async fetchCategoryTree(): Promise<CategoryNode[]> {
+      // ESM(G마켓·옥션) 은 site-cats raw 응답 스키마(EsmSiteCatSchema) 통과 mock 사용.
+      if (isEsmMarket(market)) {
+        return buildEsmMockCategoryTree(market)
+      }
+      // 11번가 — 실 cateservice ns2 응답을 real 파서로 통과(PR-1 parity).
+      if (market === '11st') {
+        return buildElevenStMockCategoryTree()
+      }
       const tree: CategoryNode[] = [
         {
           id: 'C-100',
@@ -188,6 +426,15 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
       product: Product,
       mapping: MarketMapping,
     ): MarketPayload {
+      // ESM(G마켓·옥션) 은 real(buildEsmGoodsPayload)과 동형 중첩 페이로드
+      // (EsmGoodsCreateRequestSchema 통과) 반환 — parity.
+      if (isEsmMarket(market)) {
+        return { market, raw: buildEsmMockGoodsPayload(market, product, mapping) }
+      }
+      // 11번가 — real(buildElevenStProductRaw)과 동형 { fields, warnings } 반환 (PR-3 parity).
+      if (market === '11st') {
+        return { market, raw: buildElevenStMockProductPayload(product, mapping) }
+      }
       return {
         market,
         raw: {
@@ -210,6 +457,17 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
           market,
           retryAfterMs: 2000,
         })
+      // ESM(G마켓·옥션) 은 siteDetail.{gmkt|iac}.SiteGoodsNo 구조 raw 응답
+      // (EsmGoodsCreateResponseSchema) 통과 mock 사용.
+      if (isEsmMarket(market)) {
+        return buildEsmMockCreateResult(market, s === 'partial' ? 'partial' : 'succeeded')
+      }
+      // 11번가 — 실 ClientMessage 구조 → real 분류기 통과 (PR-3 parity).
+      //   transformProduct 가 만든 { fields, warnings } 를 받아 이미지 truncate 등 warning 전달.
+      if (market === '11st') {
+        const built = (_payload.raw ?? { fields: {}, warnings: [] }) as ElevenStProductRawResult
+        return buildElevenStMockCreateResult(built, s === 'partial' ? 'partial' : 'succeeded')
+      }
       if (s === 'partial') {
         return CreateProductResultSchema.parse({
           market,
@@ -318,6 +576,16 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
         dispatchId: `MOCK-DISPATCH-${input.externalOrderId}`,
       })
     },
+  }
+
+  // ESM(G마켓·옥션) 만 동적 등록필드(배송 프로필 선택) 노출 — real 어댑터와 동형(parity).
+  // 타 마켓은 메서드 미정의 → 호출측 `getRegistrationFields(adapter)` 가 [] 반환(하위호환).
+  if (isEsmMarket(market)) {
+    base.getRegistrationFields = () => getEsmRegistrationFields()
+  }
+  // 11번가 동적 등록필드(출고지/반품지 select 2개) — real 어댑터와 동형(parity, 11st.md §4.6 / PR-2).
+  if (market === '11st') {
+    base.getRegistrationFields = () => getElevenStRegistrationFields()
   }
 
   // OAuth 어댑터(네이버) 만 refreshToken 노출.

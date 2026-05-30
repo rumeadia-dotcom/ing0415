@@ -19,13 +19,13 @@
  *     F2. 하위 카테고리 포함 응답 → 재귀 children 파싱
  *     F3. 401 응답 → MarketError('unauthorized')
  *
- *   transformProduct (3건):
- *     T1. 상품명 80자 초과 → truncate
- *     T2. 이미지 배열 순서 + MAIN/EXTRA 분기
- *     T3. 결정성 — 같은 입력 두 번 호출 = 동일 출력 + market='gmarket'
+ *   transformProduct (3건, PR-4 중첩 페이로드):
+ *     T1. 상품명 100byte 초과 → truncate (goodsName.kor)
+ *     T2. 이미지 basicImgURL + addtionalImg{n}URL 순차 매핑
+ *     T3. 결정성 — 같은 입력 두 번 호출 = 동일 출력 + market='gmarket' + siteType 2
  *
  *   createProduct (2건):
- *     C1. 정상 응답 → CreateProductResult(succeeded) + G마켓 URL
+ *     C1. 정상 응답(siteDetail.gmkt.SiteGoodsNo) → CreateProductResult(succeeded) + G마켓 URL
  *     C2. 500 응답 → MarketError('server')
  */
 
@@ -81,6 +81,9 @@ const VALID_PRODUCT: Product = {
   shippingFeeKrw: 3_000,
 }
 
+// PR-4: ESM transformProduct 는 출하지(placeNo)·발송정책(dispatchPolicyNo) 번호 + officialNotice
+// 가 extra 에 주입돼 있어야 한다(조회형 전환 후 오케스트레이터가 marketOptions 의
+// shippingPlaceNo/dispatchPolicyNo 를 매핑해 채움 — esm.md "전환 결정 2026-05-30" / PR-E2~E4).
 const VALID_MAPPING: MarketMapping = {
   market: 'gmarket',
   categoryId: '200001234',
@@ -88,49 +91,49 @@ const VALID_MAPPING: MarketMapping = {
     'https://cdn.example.com/g1-gmarket.jpg',
     'https://cdn.example.com/g2-gmarket.jpg',
   ],
-  extra: {},
+  extra: {
+    placeNo: 'PLACE-G-001',
+    dispatchPolicyNo: 'DISPATCH-G-001',
+    officialNotice: {
+      officialNoticeNo: 'NOTICE-FASHION-01',
+      details: [{ code: 'material', value: '면 100%' }],
+    },
+  },
 }
 
-const CATEGORY_RESPONSE_LEAF = {
-  resultCode: '0000',
-  resultMessage: 'success',
-  data: {
-    categories: [
+// site-cats 대분류 응답 — 단일 leaf (추가 조회 없음). esm-api/product/4.md 형태.
+const CATEGORY_RESPONSE_LEAF = [
+  {
+    catCode: '200001234',
+    catName: '여성의류',
+    isLeaf: true,
+  },
+]
+
+// site-cats 대분류 응답 — 비-leaf 1개 + 인라인 subCats(leaf). 추가 조회 없이 트리 완성.
+const CATEGORY_RESPONSE_WITH_CHILDREN = [
+  {
+    catCode: '1',
+    catName: '패션',
+    isLeaf: false,
+    subCats: [
       {
-        categoryId: '200001234',
-        categoryName: '여성의류',
+        catCode: '200001234',
+        catName: '여성의류',
         isLeaf: true,
       },
     ],
   },
-}
+]
 
-const CATEGORY_RESPONSE_WITH_CHILDREN = {
-  resultCode: '0000',
-  data: {
-    categories: [
-      {
-        categoryId: '1',
-        categoryName: '패션',
-        isLeaf: false,
-        children: [
-          {
-            categoryId: '200001234',
-            categoryName: '여성의류',
-            isLeaf: true,
-          },
-        ],
-      },
-    ],
-  },
-}
-
+// PR-4: POST /item/v1/goods 응답 (EsmGoodsCreateResponseSchema).
 const CREATE_PRODUCT_RESPONSE = {
-  resultCode: '0000',
-  resultMessage: 'success',
-  data: {
-    itemNo: 'G-ITEM-9876543',
+  goodsNo: 9_876_543,
+  siteDetail: {
+    gmkt: { SiteGoodsNo: 'G-ITEM-9876543', SiteGoodsComment: 'Success' },
   },
+  resultCode: 0,
+  message: null,
 }
 
 // ─────────────────────────────────────────────
@@ -286,16 +289,17 @@ describe('gmarketRealAdapter.transformProduct', () => {
     vi.unstubAllGlobals()
   })
 
-  it('T1: 상품명 80자 초과 시 80자로 truncate', async () => {
+  it('T1: 상품명 100byte 초과 시 truncate (goodsName.kor ≤ 100byte)', async () => {
     const adapter = await getAuthenticatedAdapter()
-    const product: Product = { ...VALID_PRODUCT, name: '가'.repeat(100) }
+    const product: Product = { ...VALID_PRODUCT, name: '가'.repeat(40) } // 120byte
     const payload = adapter.transformProduct(product, VALID_MAPPING)
-    const raw = payload.raw as { itemName: string }
-    expect(raw.itemName.length).toBe(80)
-    expect(raw.itemName).toBe('가'.repeat(80))
+    const raw = payload.raw as { itemBasicInfo: { goodsName: { kor: string } } }
+    const bytes = new TextEncoder().encode(raw.itemBasicInfo.goodsName.kor).length
+    expect(bytes).toBeLessThanOrEqual(100)
+    expect(raw.itemBasicInfo.goodsName.kor).toBe('가'.repeat(33)) // 99byte
   })
 
-  it('T2: 이미지 첫 번째 = MAIN, 나머지 = EXTRA, 순서 유지', async () => {
+  it('T2: 이미지 basicImgURL + addtionalImg{n}URL 순차 매핑', async () => {
     const adapter = await getAuthenticatedAdapter()
     const mapping: MarketMapping = {
       ...VALID_MAPPING,
@@ -307,23 +311,25 @@ describe('gmarketRealAdapter.transformProduct', () => {
     }
     const payload = adapter.transformProduct(VALID_PRODUCT, mapping)
     const raw = payload.raw as {
-      images: { order: number; imageUrl: string; imageType: string }[]
+      itemAddtionalInfo: { images: Record<string, string> }
     }
-    expect(raw.images[0]?.imageType).toBe('MAIN')
-    expect(raw.images[0]?.imageUrl).toBe('https://cdn.example.com/main.jpg')
-    expect(raw.images[1]?.imageType).toBe('EXTRA')
-    expect(raw.images[2]?.imageType).toBe('EXTRA')
-    expect(raw.images[0]?.order).toBe(0)
-    expect(raw.images[2]?.order).toBe(2)
+    expect(raw.itemAddtionalInfo.images.basicImgURL).toBe('https://cdn.example.com/main.jpg')
+    expect(raw.itemAddtionalInfo.images.addtionalImg1URL).toBe('https://cdn.example.com/extra1.jpg')
+    expect(raw.itemAddtionalInfo.images.addtionalImg2URL).toBe('https://cdn.example.com/extra2.jpg')
   })
 
-  it('T3: 결정성 — 같은 입력 두 번 호출 = 동일 출력 + market="gmarket"', async () => {
+  it('T3: 결정성 — 같은 입력 두 번 호출 = 동일 출력 + market="gmarket" + siteType 2', async () => {
     const adapter = await getAuthenticatedAdapter()
     const p1 = adapter.transformProduct(VALID_PRODUCT, VALID_MAPPING)
     const p2 = adapter.transformProduct(VALID_PRODUCT, VALID_MAPPING)
     expect(p1).toEqual(p2)
     expect(p1.market).toBe('gmarket')
-    expect((p1.raw as { site: string }).site).toBe('G')
+    const raw = p1.raw as {
+      itemBasicInfo: { category: { site: { siteType: number }[] } }
+      itemAddtionalInfo: { price: { Gmkt?: number } }
+    }
+    expect(raw.itemBasicInfo.category.site[0]?.siteType).toBe(2)
+    expect(raw.itemAddtionalInfo.price.Gmkt).toBe(19_900)
   })
 })
 

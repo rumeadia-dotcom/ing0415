@@ -23,6 +23,7 @@ import { naverRealAdapter } from '../real/naver'
 import { coupangRealAdapter } from '../real/coupang'
 import { gmarketRealAdapter } from '../real/gmarket'
 import { auctionRealAdapter } from '../real/auction'
+import { elevenstRealAdapter } from '../real/11st'
 import type { MarketAdapter } from '../types'
 import type { MarketCredentialKind, MarketId } from '@/lib/schemas'
 
@@ -35,6 +36,8 @@ const ACTIVE_MARKETS: readonly {
   { market: 'coupang', kind: 'hmac', real: coupangRealAdapter },
   { market: 'gmarket', kind: 'esm_jwt', real: gmarketRealAdapter },
   { market: 'auction', kind: 'esm_jwt', real: auctionRealAdapter },
+  // 11번가 (api_key) — PR-5 에서 fetchOrders/submitTracking real 본체 동작 → parity 편입.
+  { market: '11st', kind: 'api_key', real: elevenstRealAdapter },
 ]
 
 describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => {
@@ -76,6 +79,59 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
           expect(mock.refreshToken).toBeUndefined()
           // real 어댑터는 refreshToken 을 정의하지 않거나 undefined.
           expect(real.refreshToken === undefined).toBe(true)
+        }
+      })
+
+      it('getRegistrationFields 정책 일치 — ESM(PR-E2 조회형) / 11번가(PR-2) / 그 외 미정의', () => {
+        const isEsm = market === 'gmarket' || market === 'auction'
+        const isElevenSt = market === '11st'
+        if (isEsm) {
+          // mock ↔ real 동형: 둘 다 함수로 노출 + [출하지, 발송정책, 상품정보고시] 3필드 (조회형 PR-E2).
+          //   생성형 shippingProfile → 조회형 출하지(select)+발송정책(select)로 전환.
+          expect(typeof mock.getRegistrationFields).toBe('function')
+          expect(typeof real.getRegistrationFields).toBe('function')
+          const mockFields = mock.getRegistrationFields?.() ?? []
+          const realFields = real.getRegistrationFields?.() ?? []
+          expect(mockFields).toEqual(realFields)
+          expect(mockFields.map((f) => f.key)).toEqual([
+            'shippingPlaceNo',
+            'dispatchPolicyNo',
+            'officialNotice',
+          ])
+          expect(mockFields[0]?.kind).toBe('select')
+          expect(mockFields[0]?.optionsSource).toBe('esmShippingPlace')
+          expect(mockFields[1]?.kind).toBe('select')
+          expect(mockFields[1]?.optionsSource).toBe('esmDispatchPolicy')
+          expect(mockFields[2]?.kind).toBe('officialNotice')
+          // 생성형 잔존 제거 검증 (PR-E5) — optionsSource 가 조회형 enum + static 으로만 구성.
+          //   생성형 shippingProfile kind / shippingProfiles optionsSource 는 enum 에서 제거됨.
+          expect(
+            mockFields
+              .map((f) => f.optionsSource)
+              .filter((s): s is NonNullable<typeof s> => s != null),
+          ).toEqual(['esmShippingPlace', 'esmDispatchPolicy', 'static'])
+        } else if (isElevenSt) {
+          // mock ↔ real 동형: 둘 다 함수로 노출 + [출고지, 반품/교환지] select + 상품정보고시
+          //   3필드 (11st.md §4.6 / PR-2·PR-4).
+          expect(typeof mock.getRegistrationFields).toBe('function')
+          expect(typeof real.getRegistrationFields).toBe('function')
+          const mockFields = mock.getRegistrationFields?.() ?? []
+          const realFields = real.getRegistrationFields?.() ?? []
+          expect(mockFields).toEqual(realFields)
+          expect(mockFields.map((f) => f.key)).toEqual([
+            'outboundAddrSeq',
+            'returnAddrSeq',
+            'officialNotice',
+          ])
+          expect(mockFields[0]?.kind).toBe('select')
+          expect(mockFields[1]?.kind).toBe('select')
+          expect(mockFields[2]?.kind).toBe('officialNotice')
+          // officialNotice 필드가 PR-4 로 추가됨.
+          expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(true)
+        } else {
+          // 하위호환: naver/coupang 은 메서드 미정의 → 헬퍼 통해 [] 취급.
+          expect(mock.getRegistrationFields).toBeUndefined()
+          expect(real.getRegistrationFields === undefined).toBe(true)
         }
       })
     })

@@ -10,6 +10,7 @@ import type {
   MarketPayload,
   MarketSubmitTrackingResult,
   Product,
+  RegistrationFieldMeta,
   StoredCredential,
   SubmitTrackingInput,
   TokenSet,
@@ -76,6 +77,19 @@ export interface MarketAdapter {
    * 마켓에 상품 생성 요청. externalId + productUrl + status 반환.
    */
   createProduct(payload: MarketPayload): Promise<CreateProductResult>
+
+  /**
+   * 마켓별 동적 등록필드 메타 (s3 3단계 MarketOptionsCard 동적 렌더용).
+   * 마스터: docs/architecture/v1/features/esm.md §4.6 / §6, cross-cutting/market-adapter.md.
+   *
+   * 하위호환: optional + 기본 동작은 빈 배열(`[]`). 미구현(undefined) = 추가 등록필드 없음.
+   * naver/coupang/11st 어댑터는 메서드 자체를 생략 → 카테고리 매핑만(현 동작 불변).
+   * ESM(gmarket/auction) 어댑터만 배송 프로필 선택 필드를 선언한다(officialNotice 는 PR-5).
+   *
+   * 순수 함수 — fetch / Date.now / Math.random 금지(렌더 시점 동기 호출).
+   * 호출측은 `getRegistrationFields(adapter)` 헬퍼(없으면 `[]`)로 접근한다.
+   */
+  getRegistrationFields?(): RegistrationFieldMeta[]
 
   // ─────────────────────────────────────────────
   // v2 Extension (market-adapter.md §9)

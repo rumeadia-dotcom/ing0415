@@ -32,7 +32,7 @@
 |---|---|---|
 | 1.1.1 | 상품명 자동 검증 + 실시간 중복 확인 | Step 1 (`useDuplicateProductCheck` 500ms 디바운스) |
 | 1.1.2 | 이미지 다중 업로드 + 미리보기 + 순서 조정 | Step 2 (`ImageDropzone` / `ImageThumbnailGrid`) |
-| 1.1.3 | 동적 카테고리 선택 + 필터링 | Step 3 (`CategoryMappingCard`) |
+| 1.1.3 | 동적 카테고리 선택 + 필터링 | Step 3 (`MarketOptionsCard` — 카테고리 + 마켓별 동적 등록필드) |
 | 1.1.4 | 기본 배송 정보 입력 | Step 1 의 `shippingPolicyId` 선택 (정책 마스터는 별도 화면) |
 | 1.2.1 | 마켓별 상품 속성 자동 변환 | Step 4 미리보기 (`transformProduct` 클라이언트 + 서버 결정성) |
 | 1.2.2 | 마켓별 이미지 규격·포맷 자동 최적화 | Step 2 업로드 시 이미지 파이프라인 (`image-pipeline.md`) |
@@ -55,7 +55,7 @@
 | n16 | 상품 정보 입력 | Step 1 (`StepInfoPage`) | |
 | n17 | 마켓 선택 | Step 3 전반부 (`MarketSelectGrid`) | n17/n19 통합 페이지 |
 | n18 | 이미지 업로드 | Step 2 (`StepImagesPage`) | 구현은 이미지를 마켓보다 앞에 둠 |
-| n19 | 카테고리 매핑 | Step 3 후반부 (`CategoryMappingCard`) | n17 과 동일 페이지 |
+| n19 | 카테고리 매핑 + 마켓별 등록옵션 | Step 3 후반부 (`MarketOptionsCard`) | n17 과 동일 페이지. ESM(gmarket/auction)=출하지·발송정책 select + 상품정보고시, 11번가=출고지·반품지 select + 상품정보고시. ⚠️ 배송 select 는 **조회형**(마켓 콘솔 등록분 GET 조회 — `esm.md` 전환 결정 절 / `features/11st.md`) |
 | n20 | 등록 미리보기 | Step 4 (`StepPreviewPage`) | |
 | n21 | 등록 결과 | Step 5 (`StepResultPage`) | |
 | n22 | action 템플릿 불러오기 | (v2) | s4 템플릿 도메인 v2 보류 |
@@ -215,8 +215,14 @@
 | "다음: 미리보기" | `Step3Schema.safeParse` 통과 시 `/register/preview` navigate |
 
 **주요 컴포넌트**:
-- 자체: `MarketSelectGrid` (v1 4마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `CategoryMappingCard` (마켓별 카테고리 트리 + override 입력)
-- shadcn: `Card` / `Button` / `Skeleton` / `ErrorMessage` / `Tooltip`
+- 자체: `MarketSelectGrid` (v1 5마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `MarketOptionsCard` (마켓별 카테고리 트리 + 어댑터 메타 기반 동적 등록필드. ESM=출하지·발송정책 조회형 select + 상품정보고시 / 11번가=출고지·반품지 조회형 select + 상품정보고시), `OfficialNoticeField` (상품정보고시 상품군 select + 군별 항목 동적 폼 — ESM PR-5 / 11번가 PR-4 공용, 마켓별 상품군 마스터는 `config` prop 주입)
+- shadcn: `Card` / `Button` / `Input` / `Skeleton` / `ErrorMessage` / `Tooltip`
+- **동적 등록필드 (PR-3.5)**: `MarketOptionsCard` 는 `getRegistrationFieldsForMarket(marketId)` 가 돌려준 `RegistrationFieldMeta[]` 를 `kind` 별로 렌더(마켓 하드코딩 분기 없음). 그 외 마켓은 필드 0개 → 카테고리만. required 필드 미입력 시 `makeStep3Schema` fail + 다음 버튼 비활성 tooltip.
+- **ESM 출하지/발송정책 select (PR-E2, 조회형 Layer 2)**: ⚠️ 생성형(`shippingProfile` + `esm_shipping_profiles` 테이블 + `/settings/shipping/esm-profiles` 생성 화면) → **조회형으로 전환**(`esm.md` "전환 결정 2026-05-30"). ESM(gmarket/auction)은 `kind='select'` + `optionsSource='esmShippingPlace'|'esmDispatchPolicy'` 필드 2개(`shippingPlaceNo`/`dispatchPolicyNo`). `useEsmShippingOptions(marketAccountId)`(Edge `esm-shipping-list` POST `{ marketAccountId }` 호출 — ESM 17 출하지 / 19 발송정책 조회)로 옵션을 채운다. 4상태: loading(skeleton) / error(조회 실패 문구) / data(이름 표시·번호 값) / empty(ESM Plus 등록 안내 + ESM Plus 외부 링크 — 우리 앱은 생성 화면 없음). 발송정책은 사이트별(G/A) — Edge 가 계정 site 분만 태깅해 내려주므로 카드는 받은 목록을 그대로 노출한다. 표시·저장은 `placeName`/`placeNo`·`dispatchPolicyName`/`dispatchPolicyNo` 만(주소·연락처 등 PII 미저장·미노출). 미선택 시 `makeStep3Schema` fail + blockingReason("출하지 선택 필요"/"발송정책 선택 필요") tooltip. (생성형 UI/훅/테이블 제거는 PR-E3/E4.)
+- **11번가 출고지/반품지 select (PR-2, 조회형 Layer 2)**: 11번가는 `kind='select'` + `optionsSource='elevenStOutbound'|'elevenStReturn'` 필드 2개(`outboundAddrSeq`/`returnAddrSeq`). `useElevenStShippingAddresses(marketAccountId)`(Edge `eleven-st-shipping-list` 호출 — 11번가 1014/1015 조회)로 옵션을 채운다. 4상태: loading(skeleton) / error(조회 실패 문구) / data(addrNm 표시·addrSeq 값) / empty(셀러오피스 등록 안내 + 11번가 셀러오피스 외부 링크 — 우리 앱은 생성 화면 없음). 표시·저장은 `addrNm`/`addrSeq` 만(주소·전화 등 PII 미저장·미노출 — `features/11st.md §3`). 미선택 시 `makeStep3Schema` fail + blockingReason("출고지 선택 필요"/"반품/교환지 선택 필요") tooltip. 11번가 `officialNotice`(상품정보고시)는 PR-4 에서 같은 카드에 추가됨(아래 항목).
+- **11번가 상품등록 backend (PR-3, 화면 변화 없음)**: 선택한 카테고리(leaf)·배송 정책(Layer 1)·출고지/반품지(Layer 2 select)·이미지가 `transformProduct` 에서 11번가 `<Product>`(prodservices 1003) 필수 20+ 필드로 매핑된다 — 상수(고정가/일반배송/새상품/택배/업체배송) + 배송 인라인(`dlvCstInstBasiCd`/`dlvCst1`/`PrdFrDlvBasiAmt`/`jeju·islandDlvCst`/`rtngd·exchDlvCst`/`bndlDlvCnYn`) + `addrSeqOut`/`addrSeqIn` + (카테고리 KC인증 필수 시) `ProductCertGroup`. 이미지는 `prdImage01~12`(대표+추가 11), 13장↑ 은 무음 드롭 + `images_truncated` warning(등록 결과 카드에 노출). `createProduct` 는 `POST /prodservices/product`(XML EUC-KR, `openapikey` 헤더) → 응답 `ClientMessage.resultCode∈{200,210}` + `productNo` 면 성공(`externalId`/`productUrl`). 그 외(400 일500개 한도 / 500 검증실패) 는 등록 결과 카드에 마켓 오류 메시지로 표시. `officialNotice`(ProductNotification) 입력 UI 는 PR-4(아래). (마스터: `features/11st.md §4.1/§4.2/§7`.)
+- **상품정보고시 — ESM (PR-5)**: `kind='officialNotice'` 필드는 `OfficialNoticeField` 로 렌더. ESM 은 상품군 select(41개 법정 표준 상품군, `ESM_OFFICIAL_NOTICE_GROUPS`) → 선택 군의 필수 고시 항목 동적 폼(군의 정적 `requiredItemCodes` 는 코드 잠금 행으로 seed, 그 외 군은 셀러가 `{code,value}` 행 추가). 입력값은 `EsmOfficialNotice`({officialNoticeNo, details[{code,value}]}) 형태로 `marketOptions.officialNotice` 에 적재 → 오케스트레이터가 `mapping.extra.officialNotice` 로 흘려 `transformProduct` 가 페이로드에 매핑. 군 미선택/항목 value 누락은 `makeStep3Schema`(객체 형태 완성도 판정 `isMarketOptionValuePresent`) fail → blockingReason "상품정보고시 입력 필요" tooltip + 다음 버튼 비활성.
+- **상품정보고시 — 11번가 (PR-4)**: 같은 `OfficialNoticeField` 공용 프레임을 **재사용**(컴포넌트 마켓 하드코딩 0 — `MarketOptionsCard` 가 marketId 로 상품군 마스터 `config` 만 주입). 11번가 상품군 마스터(`ELEVEN_ST_NOTICE_GROUPS`)는 spec 1003 의 `ProductNotification`(`type`+`item[{code,name}]`) 41군 전체 코드가 **외부 첨부파일**이라 확보 군이 1개(`891011`)뿐(C4 backlog) → **상품군 select 1개 + "직접 입력(free-form)" 옵션**(셀러가 미확보 군의 `type`·항목 code/name 직접 입력, 코드 날조 금지). UI 값 형태는 ESM 과 동일 generic(`{officialNoticeNo, details[{code,value}]}`) → `marketOptions.officialNotice` 적재 → `transformProduct`(`map.ts normalizeElevenStOfficialNotice`)가 11번가 `ProductNotification`(`{type, item:[{code,name}]}`)으로 변환해 `<Product>` 에 주입(PR-3 슬롯). 미입력 시 `makeStep3Schema` fail + blockingReason "상품정보고시 입력 필요". 고시 데이터는 PII 없음(소재·원산지 등 상품 속성).
 
 **데이터 의존**:
 - `useMarketAccounts()` — 셀러가 연결한 마켓 계정 목록 (`status='active'` 만 선택 가능).
@@ -557,7 +563,7 @@ stateDiagram-v2
 - **리뉴얼 시 가능 보강**: 툴바 커스터마이즈, 이미지 인서트 UX 개선 (현재 url 입력만 → drag&drop / Storage 업로드 연동), 마켓별 변환 미리보기 (이미지·HTML 깨짐 표시).
 - 에디터 라이브러리 결정 마무리됨 (Tiptap) — 리뉴얼은 UX 보강만.
 
-### 8.4 카테고리 트리 검색 (Step 3 `CategoryMappingCard`)
+### 8.4 카테고리 트리 검색 (Step 3 `MarketOptionsCard`)
 
 - 현재: 마켓별 트리 + leaf 선택 (구현 상세는 컴포넌트 내부).
 - **리뉴얼 핵심**:
@@ -611,7 +617,7 @@ stateDiagram-v2
 | zod 스키마 | `apps/web/src/lib/schemas/registration.ts` (`Step1Schema` ~ `Step4ValidationSchema`, `JOB_STATUSES`, `MARKET_RESULT_STATUSES`) |
 | zustand store | `apps/web/src/features/registration/store/useRegisterFormStore.ts` |
 | 라우터 | `apps/web/src/app/router.tsx` (`/register/*` children + `/register/result/:jobId`) |
-| 도메인 컴포넌트 | `apps/web/src/features/registration/components/` (Stepper / ImageDropzone / ImageThumbnailGrid / MarketSelectGrid / CategoryMappingCard / MarketPreviewCard / JobProgressBar / JobMarketResultRow / PartialJobBanner) |
+| 도메인 컴포넌트 | `apps/web/src/features/registration/components/` (Stepper / ImageDropzone / ImageThumbnailGrid / MarketSelectGrid / MarketOptionsCard / OfficialNoticeField / MarketPreviewCard / JobProgressBar / JobMarketResultRow / PartialJobBanner) |
 | 훅 (서버) | `hooks/useDuplicateProductCheck.ts` / `useImageUpload.ts` / `useMarketCategoryTree.ts` / `useProductDraft.ts` / `useRegistrationValidate.ts` / `useRegistrationStart.ts` / `useRegistrationJob.ts` / `useRegistrationRetry.ts` / `useRegistrationCancel.ts` / `useShippingPolicies.ts` |
 | API 클라이언트 | `api/registration-api.ts` / `image-api.ts` / `category-api.ts` |
 | 에러 메시지 매핑 | `utils/registration-error-messages.ts` |

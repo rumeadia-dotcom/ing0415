@@ -66,6 +66,8 @@ export type FetchOrdersInput = z.infer<typeof FetchOrdersInputSchema>
 //   - orderAmount     : 주문 총액 (원, 정수)
 //   - status          : MarketOrderStatusSchema 정규화 값
 //   - paidAt          : 결제 완료 시각 ISO 8601 + offset
+//   - orderedAt       : 주문 생성 시각 ISO 8601 + offset (선택 — 마켓별 미제공 시 omit)
+//   - vendorItemId    : 쿠팡 vendor_item_id (선택 — 쿠팡 송장 제출에 재사용)
 //
 // 주의: receiverPhone / buyerName / receiverAddress 는 PII. 로그에 절대 직접 출력 금지.
 //   logger 의 redact() (security.md §6.2) 가 키 이름 기반 마스킹.
@@ -81,6 +83,22 @@ export const MarketOrderSchema = z.object({
   orderAmount: z.number().int().nonnegative(),
   status: MarketOrderStatusSchema,
   paidAt: z.string().datetime({ offset: true }),
+  /**
+   * 주문 생성 시각 — 마켓 응답의 orderedAt. 마켓별 미제공 시 omit.
+   * 쿠팡 v5: entry.orderedAt / 네이버: entry.orderDate / ESM: entry.orderDt 등.
+   */
+  orderedAt: z.string().datetime({ offset: true }).optional(),
+  /**
+   * 쿠팡 vendor_item_id — 송장 제출 (POST /orders/invoices) body 의 vendorItemId 로 재사용.
+   * 쿠팡 외 마켓은 항상 omit.
+   */
+  vendorItemId: z.string().min(1).optional(),
+  /**
+   * 마켓별 발송처리 키 — 마켓 API 가 송장 제출 시 요구하는 추가 식별자(문자열맵).
+   * 예: 11번가 `dlvNo`(배송번호) — submitTracking 의 reqdelivery path 키 (11st.md §4.4/§4.5).
+   * 다른 마켓은 omit. PII 아님 (마켓 내부 식별자).
+   */
+  extra: z.record(z.string()).optional(),
   /** 마켓 ID — 호출측에서 어댑터 컨텍스트와 교차 검증. */
   market: MarketIdSchema,
 })
@@ -99,6 +117,17 @@ export const SubmitTrackingInputSchema = z.object({
   externalOrderId: z.string().min(1),
   waybillNumber: z.string().min(1).max(40),
   carrierCode: TrackingCarrierCodeSchema,
+  /**
+   * 마켓 주문 ID — 쿠팡 v4 /orders/invoices body 의 orderId 로 사용.
+   * 쿠팡은 shipmentBoxId(=externalOrderId) 와 orderId 가 다른 식별자라 별도 필요.
+   * 다른 마켓은 omit (어댑터 측에서 무시).
+   */
+  orderId: z.string().min(1).optional(),
+  /**
+   * 쿠팡 vendor_item_id — v4 /orders/invoices body 의 vendorItemId 필수.
+   * 다른 마켓은 omit.
+   */
+  vendorItemId: z.string().min(1).optional(),
 })
 export type SubmitTrackingInput = z.infer<typeof SubmitTrackingInputSchema>
 

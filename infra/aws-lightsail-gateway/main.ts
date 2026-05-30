@@ -22,7 +22,13 @@ const ALLOWED_MARKETS = new Set(['naver', 'coupang', 'gmarket', 'auction', '11st
 const ALLOWED_UPSTREAM_HOSTS = new Set([
   'api.commerce.naver.com',
   'api-gateway.coupang.com',
+  // ESM(G마켓·옥션): sa2 = 현행 상품/카테고리 base, sa = 레거시 호환 유지.
+  'sa2.esmplus.com',
   'sa.esmplus.com',
+  // 11번가: api.11st.co.kr = 실제 REST base (PR-1~, cateservice/prodservices/ordservices).
+  //   openapi.11st.co.kr = 구 placeholder 호출용 — 호출부 재작성(PR-1~5) 완료 전까지 병존.
+  //   PR-5 까지 다른 11번가 메서드가 구 placeholder 를 쓰므로 openapi 는 제거 금지 (11st.md §7).
+  'api.11st.co.kr',
   'openapi.11st.co.kr',
 ]);
 
@@ -68,10 +74,21 @@ function redact(obj: unknown): unknown {
   return obj;
 }
 
+// 11번가 발송처리(1888) `…/ordservices/reqdelivery/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}`
+// 는 송장번호(invcNo)·배송번호(dlvNo)를 path segment 로 포함한다. 게이트웨이 로그에 노출되지
+// 않도록 reqdelivery 이후 segment 를 마스킹한다 (Edge `gateway-sign.ts:maskUrlForLog` 미러, PR-6 보안).
+function maskSensitivePathSegments(pathname: string): string {
+  const idx = pathname.indexOf('/reqdelivery/');
+  if (idx !== -1) {
+    return `${pathname.slice(0, idx + '/reqdelivery'.length)}/<masked>`;
+  }
+  return pathname;
+}
+
 function maskUrl(url: string): string {
   try {
     const u = new URL(url);
-    return `${u.protocol}//${u.host}${u.pathname}`;
+    return `${u.protocol}//${u.host}${maskSensitivePathSegments(u.pathname)}`;
   } catch {
     return '<invalid-url>';
   }

@@ -26,6 +26,7 @@
 
 import { MarketError } from '../../errors'
 import type { MarketAdapter } from '../../types'
+import { getElevenStRegistrationFields } from './registration-fields'
 import {
   ApiKeyAuthInputSchema,
   CategoryNodeSchema,
@@ -44,21 +45,28 @@ import {
   type MarketPayload,
   type MarketSubmitTrackingResult,
   type Product,
+  type RegistrationFieldMeta,
   type StoredCredential,
   type SubmitTrackingInput,
 } from '@/lib/schemas'
 import {
-  ELEVEN_ST_API_BASE,
-  ELEVEN_ST_API_CODES,
+  ELEVEN_ST_REST_BASE,
+  ELEVEN_ST_REST_PATHS,
+  buildElevenStCategoryUrl,
+  buildElevenStDispatchPath,
+  buildElevenStOrderListPath,
   buildElevenStProductRaw,
   buildElevenStProductXml,
-  buildElevenStShipmentXml,
-  extractElevenStProductNo,
-  isElevenStShipmentOk,
+  classifyElevenStCreateResult,
+  classifyElevenStDispatchResult,
+  classifyElevenStOrdersResult,
   mapElevenStCategories,
   mapElevenStOrders,
-  toElevenStDate,
+  stripNsPrefix,
+  toElevenStCarrierCode,
+  toElevenStOrderDate,
   xmlDocToObject,
+  type ElevenStProductRawResult,
 } from './map'
 
 export { ELEVEN_ST_API_BASE } from './map'
@@ -147,21 +155,67 @@ function httpStatusToMarketError(
   )
 }
 
-/** 11번가 OpenAPI fetch — apiCode + key querystring + openapikey 헤더 + EUC-KR 디코딩. */
-async function elevenStFetch(opts: {
-  apiCode: string
-  apiKey: string
-  method: 'GET' | 'POST' | 'PUT'
-  params?: Record<string, string>
-  body?: string
+/**
+ * 카테고리 조회 fetch (PR-1) — cateservice 1001/1617 GET.
+ * 구 `?apiCode=ProductCategoryInfo` placeholder 제거. API Key 불필요(GET) — querystring 없음,
+ * 서비스별 REST path 절대 URL 직접 호출. 응답 XML(EUC-KR) → DOMParser → fast-xml-parser 호환 객체.
+ * ⚠️ URL 은 토큰/키 미포함이라 로그 안전. correlationId 만 헤더 부여.
+ */
+async function elevenStCategoryFetch(opts: {
+  url: string
   correlationId: string
   timeoutMs?: number
 }): Promise<ElevenStResponse> {
-  const { apiCode, apiKey, method, params, body, correlationId, timeoutMs = DEFAULT_TIMEOUT_MS } =
-    opts
+  const { url, correlationId, timeoutMs = CATEGORY_TIMEOUT_MS } = opts
+  const controller = new AbortController()
+  const timerId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/xml;charset=EUC-KR',
+        'X-Correlation-Id': correlationId,
+      },
+      signal: controller.signal,
+    })
+    const buf = await response.arrayBuffer()
+    const text = decodeElevenStBody(buf)
+    return { status: response.status, ok: response.ok, text }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new MarketError('network', '11번가 카테고리 조회 timeout', {
+        market: MARKET,
+        cause: err,
+        marketErrorCode: 'timeout',
+      })
+    }
+    throw new MarketError('network', '11번가 카테고리 조회 네트워크 오류', {
+      market: MARKET,
+      cause: err,
+    })
+  } finally {
+    clearTimeout(timerId)
+  }
+}
 
-  const qs = new URLSearchParams({ apiCode, key: apiKey, ...(params ?? {}) })
-  const url = `${ELEVEN_ST_API_BASE}?${qs.toString()}`
+/**
+ * 11번가 REST fetch (PR-5) — ordservices 계열은 apiCode 없이 서비스별 REST path 를 쓴다.
+ * `ELEVEN_ST_REST_BASE`(api.11st.co.kr/rest) + path variable. 인증은 `openapikey` 헤더만.
+ * EUC-KR 디코딩 + ns2 prefix 제거까지 수행해 매핑 입력 객체를 반환한다.
+ * ⚠️ URL 은 path variable 에 송장/배송번호 같은 식별자를 포함하므로 절대 로그 금지.
+ */
+async function elevenStRestFetch(opts: {
+  apiKey: string
+  method: 'GET' | 'POST'
+  path: string
+  body?: string
+  correlationId: string
+  timeoutMs?: number
+}): Promise<{ status: number; ok: boolean; obj: Record<string, unknown> }> {
+  const { apiKey, method, path, body, correlationId, timeoutMs = DEFAULT_TIMEOUT_MS } = opts
+  const url = `${ELEVEN_ST_REST_BASE}${path}`
 
   const controller = new AbortController()
   const timerId = setTimeout(() => {
@@ -181,7 +235,9 @@ async function elevenStFetch(opts: {
     })
     const buf = await response.arrayBuffer()
     const text = decodeElevenStBody(buf)
-    return { status: response.status, ok: response.ok, text }
+    const parsed = parseElevenStXml(text)
+    const obj = stripNsPrefix(parsed) as Record<string, unknown>
+    return { status: response.status, ok: response.ok, obj }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new MarketError('network', '11번가 API 요청 timeout', {
@@ -281,16 +337,15 @@ function createElevenStRealAdapter(): MarketAdapter {
     // ───────────────────────────────────────────
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — 연결 검증 ping 겸용 (HTTP 200 = 자격증명 OK)
+    // fetchCategoryTree — cateservice 1001 전체 카테고리 (PR-1 재작성).
+    //   GET {ELEVEN_ST_REST_BASE}/cateservice/category. API Key 불필요(spec 1001).
+    //   ns2:categorys>ns2:category[] → stripNsPrefix → parentDispNo 트리 빌드.
+    //   (구 ?apiCode=ProductCategoryInfo / ProductCategorys>Category 파싱 제거.)
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const { apiKey } = getCredOrThrow()
       const correlationId = crypto.randomUUID()
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.category,
-        apiKey,
-        method: 'GET',
-        params: { dispCtgrNo: '0' },
+      const res = await elevenStCategoryFetch({
+        url: buildElevenStCategoryUrl(),
         correlationId,
         timeoutMs: CATEGORY_TIMEOUT_MS,
       })
@@ -313,11 +368,26 @@ function createElevenStRealAdapter(): MarketAdapter {
           { market: MARKET },
         )
       }
-      return { market: MARKET, raw: buildElevenStProductRaw(product, mapping) }
+      // PR-3: prodservices 1003 `<Product>` 필수 20+ 필드 + Layer1/2 + (이미지 13장↑ 무음드롭 warning).
+      // raw = { fields, warnings } — createProduct 가 fields 를 XML 직렬화 + warnings 를 결과에 전달.
+      const built: ElevenStProductRawResult = buildElevenStProductRaw(product, mapping)
+      return { market: MARKET, raw: built }
     },
 
     // ───────────────────────────────────────────
-    // createProduct — ProductRegister POST
+    // getRegistrationFields — 출고지/반품지 select 2필드 (11st.md §4.6 / PR-2).
+    //   순수 동기 함수. UI(MarketOptionsCard)가 useElevenStShippingAddresses 로 옵션을 채운다.
+    //   officialNotice 는 PR-4. (구 동작: 미구현 → 카테고리만 → 본 PR 부터 select 2개 추가.)
+    // ───────────────────────────────────────────
+    getRegistrationFields(): RegistrationFieldMeta[] {
+      return getElevenStRegistrationFields()
+    },
+
+    // ───────────────────────────────────────────
+    // createProduct — POST /prodservices/product (1003). XML(EUC-KR) body + openapikey 헤더.
+    //   응답 root ClientMessage: resultCode∈{200,210} AND productNo 존재 → 성공.
+    //   그 외(400 일500개한도 / 500 검증실패) → MarketError(validation, 코드/메시지 동봉).
+    //   ⚠️ 구 apiCode(ProductRegister) / Product>ProductNo 파싱 제거(11st.md §0 갭표).
     // ───────────────────────────────────────────
     async createProduct(payload: MarketPayload): Promise<CreateProductResult> {
       const { apiKey } = getCredOrThrow()
@@ -328,11 +398,14 @@ function createElevenStRealAdapter(): MarketAdapter {
         })
       }
 
-      const body = buildElevenStProductXml(payload.raw as Record<string, unknown>)
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.productCreate,
+      const built = payload.raw as ElevenStProductRawResult
+      const fields = built.fields
+      const transformWarnings = built.warnings ?? []
+      const body = buildElevenStProductXml(fields)
+      const res = await elevenStRestFetch({
         apiKey,
         method: 'POST',
+        path: ELEVEN_ST_REST_PATHS.productCreate,
         body,
         correlationId,
       })
@@ -340,31 +413,32 @@ function createElevenStRealAdapter(): MarketAdapter {
         throw httpStatusToMarketError(res.status, correlationId)
       }
 
-      const { productNo, resultCode, resultText } = extractElevenStProductNo(
-        parseElevenStXml(res.text),
-      )
-      if (!productNo) {
+      const result = classifyElevenStCreateResult(res.obj)
+      if (result.kind === 'rejected') {
+        // 400(일 500개 한도)·500(검증 실패) 등 — 셀러 정정 필요(비재시도).
         throw new MarketError(
-          'server',
-          `11번가 상품 등록 실패: ${resultText || resultCode || '상품번호 미반환'}`,
+          'validation',
+          `11번가 상품 등록 실패: ${result.message || result.resultCode}`,
           {
             market: MARKET,
-            ...(resultCode ? { marketErrorCode: resultCode } : {}),
-            ...(resultText ? { marketErrorMessage: resultText } : {}),
+            marketErrorCode: result.resultCode,
+            ...(result.message ? { marketErrorMessage: result.message } : {}),
           },
         )
       }
       return CreateProductResultSchema.parse({
         market: MARKET,
-        externalId: productNo,
-        productUrl: `https://www.11st.co.kr/products/${productNo}`,
+        externalId: result.productNo,
+        productUrl: `https://www.11st.co.kr/products/${result.productNo}`,
         status: 'succeeded',
-        warnings: [],
+        warnings: transformWarnings,
       })
     },
 
     // ───────────────────────────────────────────
-    // fetchOrders — GetOrderList (결제완료/배송대기 = ordStat 101)
+    // fetchOrders — 발주확인 대기 목록 (GET /ordservices/complete/{start}/{end}, 1876).
+    //   12자리 YYYYMMDDhhmm path variable, 최대 7일. since/until 미지정 시 최근 7일.
+    //   ⚠️ dlvNo(배송번호)를 MarketOrder.extra.dlvNo 로 수집 (발송처리 path 키).
     // ───────────────────────────────────────────
     async fetchOrders(
       input: FetchOrdersInput,
@@ -381,28 +455,50 @@ function createElevenStRealAdapter(): MarketAdapter {
       const { apiKey } = extractApiKeyCred(credential, cred)
       const correlationId = crypto.randomUUID()
 
-      const params: Record<string, string> = { ordStat: '101' }
-      if (parsedInput.data.since) params.startDate = toElevenStDate(parsedInput.data.since)
-      if (parsedInput.data.until) params.endDate = toElevenStDate(parsedInput.data.until)
+      const nowMs = Date.now()
+      const endIso = parsedInput.data.until ?? new Date(nowMs).toISOString()
+      const startIso =
+        parsedInput.data.since ?? new Date(nowMs - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const startTime = toElevenStOrderDate(startIso)
+      const endTime = toElevenStOrderDate(endIso)
+      if (!startTime || !endTime) {
+        throw new MarketError('validation', '11번가 fetchOrders: 조회 기간 형식 오류', {
+          market: MARKET,
+        })
+      }
 
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.orderList,
+      const res = await elevenStRestFetch({
         apiKey,
         method: 'GET',
-        params,
+        path: buildElevenStOrderListPath(startTime, endTime),
         correlationId,
       })
       if (!res.ok) {
         throw httpStatusToMarketError(res.status, correlationId)
       }
-      return mapElevenStOrders(parseElevenStXml(res.text)).map((o) =>
-        MarketOrderSchema.parse(o),
-      )
+      // 빈 결과(result_code=0)는 에러 아님. 비즈니스 에러 코드(-3105 등)는 throw.
+      const classified = classifyElevenStOrdersResult(res.obj)
+      if (classified.kind === 'empty') return []
+      if (classified.kind === 'error') {
+        throw new MarketError(
+          'validation',
+          `11번가 주문조회 실패 (${classified.code})`,
+          {
+            market: MARKET,
+            marketErrorCode: classified.code,
+            marketErrorMessage: classified.message,
+          },
+        )
+      }
+      return mapElevenStOrders(res.obj).map((o) => MarketOrderSchema.parse(o))
     },
 
     // ───────────────────────────────────────────
-    // submitTracking — SendGoods (송장 등록).
-    // 마켓 정상 거부 → ok=false 반환. 네트워크/인증/5xx → MarketError throw.
+    // submitTracking — 발송처리 (GET /ordservices/reqdelivery/{sendDt}/{dlvMthdCd}/
+    //   {dlvEtprsCd}/{invcNo}/{dlvNo}, 1888). body 없음.
+    //   반환 정책(§9.7): 0/-3308 → ok:true / -3306·-3320·-3307 → ok:false /
+    //   -1000·-3311·기타 음수·5xx → MarketError throw.
+    //   ⚠️ 키 = dlvNo (fetchOrders 의 extra.dlvNo) — externalOrderId 가 아님.
     // ───────────────────────────────────────────
     async submitTracking(
       input: SubmitTrackingInput,
@@ -419,34 +515,51 @@ function createElevenStRealAdapter(): MarketAdapter {
       const { apiKey } = extractApiKeyCred(credential, cred)
       const correlationId = crypto.randomUUID()
 
-      const { externalOrderId, waybillNumber, carrierCode } = parsedInput.data
-      const body = buildElevenStShipmentXml({
-        ordPrdSeq: externalOrderId,
-        carrierCode,
-        invoiceNumber: waybillNumber,
-      })
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.shipment,
+      const { externalOrderId, waybillNumber, carrierCode, orderId } = parsedInput.data
+      // dlvNo(배송번호) 는 fetchOrders 의 extra.dlvNo → submitTracking 호출측이 orderId 로 전달.
+      const dlvNo = orderId ?? externalOrderId
+      const dlvEtprsCd = toElevenStCarrierCode(carrierCode)
+      if (!dlvEtprsCd) {
+        // 택배사 코드 미매핑 = 정상 거부 (셀러가 지원 택배사 선택해야 함).
+        return MarketSubmitTrackingResultSchema.parse({
+          ok: false,
+          errorCode: 'unsupported_carrier',
+          errorMessage: `11번가 미지원 택배사: ${carrierCode}`,
+        })
+      }
+      const sendDt = toElevenStOrderDate(new Date().toISOString())
+
+      const res = await elevenStRestFetch({
         apiKey,
-        method: 'PUT',
-        params: { ordPrdSeq: externalOrderId },
-        body,
+        method: 'GET',
+        path: buildElevenStDispatchPath({ sendDt, dlvEtprsCd, invcNo: waybillNumber, dlvNo }),
         correlationId,
       })
       if (!res.ok) {
         throw httpStatusToMarketError(res.status, correlationId)
       }
-      const result = isElevenStShipmentOk(parseElevenStXml(res.text))
-      if (!result.ok) {
+      const result = classifyElevenStDispatchResult(res.obj)
+      if (result.kind === 'rejected') {
         return MarketSubmitTrackingResultSchema.parse({
           ok: false,
           errorCode: result.code || 'shipment_rejected',
-          errorMessage: result.message || result.code || '11번가 발송 처리 실패',
+          errorMessage: result.message || result.code || '11번가 발송 처리 거부',
         })
+      }
+      if (result.kind === 'throwable') {
+        throw new MarketError(
+          'server',
+          `11번가 발송 처리 실패 (${result.code || 'unknown'})`,
+          {
+            market: MARKET,
+            ...(result.code ? { marketErrorCode: result.code } : {}),
+            ...(result.message ? { marketErrorMessage: result.message } : {}),
+          },
+        )
       }
       return MarketSubmitTrackingResultSchema.parse({
         ok: true,
-        dispatchId: externalOrderId,
+        dispatchId: dlvNo,
       })
     },
   }

@@ -5,7 +5,7 @@
 - **Version**: 1 ("새 플로우 1", COMPLETED)
 - **AI Model**: claude-opus-4-5
 - **Created**: 2026-05-18
-- **Pages**: 30 / Nodes: 60 / Edges: ~70 / Sections: 9
+- **Pages**: 30 / Nodes: 61 / Edges: ~71 / Sections: 9
 - **Note**: s7~s9 (주문·배송 자동화) 는 manyfast 다이어그램에 없는 자체 확장 섹션 — PRD §6~§9 와 매핑.
 
 ---
@@ -22,7 +22,7 @@
 | s6 | 등록 이력 | 6 |
 | s7 | 주문 현황 | 4 |
 | s8 | 배송 처리 | 7 |
-| s9 | 설정 (배송) | 3 |
+| s9 | 설정 (배송) | 4 |
 
 ---
 
@@ -75,7 +75,7 @@
 | n16 | page | 상품 정보 입력 |
 | n17 | page | 마켓 선택 |
 | n18 | page | 이미지 업로드 |
-| n19 | page | 카테고리 매핑 |
+| n19 | page | 카테고리 매핑 + 마켓별 등록옵션 |
 | n20 | page | 등록 미리보기 |
 | n21 | page | 등록 결과 |
 | n22 | action | 템플릿 불러오기 |
@@ -88,6 +88,8 @@
 - 상품 정보 입력 → 마켓 선택 / 이미지 업로드 / 템플릿 불러오기
 - 마켓 선택 → 카테고리 매핑
 - 카테고리 매핑 → 등록 미리보기
+- 카테고리 매핑(n19) ESM(gmarket/auction)·11번가 카드에 **배송 리소스 select**(ESM=출하지/발송정책, 11번가=출고지/반품지)가 동적 렌더된다. ⚠️ **조회형 전환(2026-05-30)**: 셀러가 마켓 콘솔(ESM Plus / 셀러오피스)에서 만든 리소스를 GET 조회해 채운다. 없으면 "마켓 콘솔에서 등록 후 새로고침" 안내(우리 앱 생성 페이지 n61 제거 — `esm.md` 전환 결정 절). ~~deep link `/settings/shipping/esm-profiles`(n61)~~ deprecate. ESM 외 마켓은 카테고리만(하위호환).
+- 카테고리 매핑(n19) 내 ESM(gmarket/auction) 카드는 **상품정보고시 입력**도 동적 렌더한다(PR-5) — 상품군 select(41개 법정 표준) → 선택 군의 필수 고시 항목 동적 폼. 입력값은 `marketOptions.officialNotice`({officialNoticeNo, details[{code,value}]})로 수집되어 오케스트레이터가 `mapping.extra.officialNotice` 로 적재(PR-4 transformProduct 가 페이로드에 매핑). 군 미선택/항목 value 누락 시 blockingReason → 다음(미리보기) 버튼 비활성. ESM 외 마켓은 고시 입력 없음(하위호환). (노드 추가 아님 — n19 카드 내부 구조.)
 - 등록 미리보기 → 일괄 등록 실행
 - 일괄 등록 실행 → 등록 결과
 - 등록 결과 → 오류 재시도 / 마켓 제외 등록
@@ -197,6 +199,8 @@
 | n58 | main_page | 배송 설정 |
 | n59 | page | 로젠 API 연동 |
 | n60 | page | 발송인 정보 설정 |
+
+> **제거 이력 (2026-05-30, PR-E3)**: n61 (G마켓·옥션 배송 프로필 관리, `/settings/shipping/esm-profiles`) 노드는 ESM 생성형→조회형 전환으로 제거됐다(`esm.md` 전환 결정 절). ESM 배송 선행값을 우리 앱이 생성하지 않고, 셀러가 ESM Plus 에서 만든 출하지·발송정책을 상품등록 3단계(n19)에서 GET 조회·select 한다. 생성 페이지·Edge `esm-shipping-profile`·`esm_shipping_profiles` 테이블은 PR-E3/E4 에서 제거.
 
 **Flow**
 - 배송 설정 → 로젠 API 연동 (userId / custCd 입력 → pgcrypto 암호화 저장 → 연결 테스트)

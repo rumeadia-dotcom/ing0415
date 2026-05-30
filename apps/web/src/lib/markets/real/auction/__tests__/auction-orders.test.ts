@@ -66,23 +66,28 @@ const VALID_TRACKING_INPUT = {
   carrierCode: 'LOGEN' as const,
 }
 
+// ESM 공식 주문조회 응답 (esm-api/order-shipping/67.md — PascalCase, RequestOrders).
 const ESM_HAPPY_RESPONSE = {
-  resultCode: '0000',
-  resultMessage: 'OK',
-  data: {
-    orders: [
+  ResultCode: 0,
+  Message: '',
+  Data: {
+    SiteType: 1,
+    TotalCount: 1,
+    SellerId: 'auction-seller',
+    RequestOrders: [
       {
-        orderNo: 'ESM-AUCTION-0001',
-        buyerName: '정민호',
-        receiverName: '정민호',
-        receiverZipCode: '03187',
-        receiverAddress: '서울특별시 종로구 종로 1',
-        receiverPhone: '010-5555-6666',
-        itemName: '옥션 테스트 상품',
-        orderQty: 2,
-        orderPrice: 12000,
-        orderStatus: 'PAID',
-        paidDate: '2026-05-21T05:00:00+00:00',
+        OrderNo: 'ESM-AUCTION-0001',
+        OrderStatus: 1,
+        BuyerName: '정민호',
+        ReceiverName: '정민호',
+        ZipCode: '03187',
+        DelFullAddress: '서울특별시 종로구 종로 1',
+        HpNo: '010-5555-6666',
+        GoodsName: '옥션 테스트 상품',
+        ContrAmount: 2,
+        OrderAmount: '12000.0000',
+        OrderDate: '2026-05-21T05:00:00',
+        PayDate: '2026-05-21T05:00:00',
       },
     ],
   },
@@ -125,12 +130,12 @@ describe('auctionFetchOrders (site=A)', () => {
 })
 
 describe('auctionSubmitTracking (site=A)', () => {
-  it('happy: resultCode=SUCCESS → ok=true', async () => {
+  it('happy: ResultCode="Success" → ok=true (esm-api/.../70.md)', async () => {
     globalThis.fetch = makeFetchMock([
       {
         ok: true,
         status: 200,
-        body: { resultCode: 'SUCCESS', resultMessage: 'OK' },
+        body: { ResultCode: 'Success', Message: 'Success', Data: { OrderNo: 1589617617 } },
       },
     ]) as unknown as typeof fetch
 
@@ -140,6 +145,9 @@ describe('auctionSubmitTracking (site=A)', () => {
     )
     expect(() => MarketSubmitTrackingResultSchema.parse(result)).not.toThrow()
     expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.dispatchId).toBe('1589617617')
+    }
   })
 
   it('422 응답 (정상 거부) → ok=false', async () => {
@@ -147,7 +155,7 @@ describe('auctionSubmitTracking (site=A)', () => {
       {
         ok: false,
         status: 422,
-        body: { resultCode: 'INVALID_INVOICE', resultMessage: '송장 번호 형식 오류' },
+        body: { ResultCode: 3000, Message: '송장 번호 형식 오류' },
       },
     ]) as unknown as typeof fetch
 
@@ -157,7 +165,7 @@ describe('auctionSubmitTracking (site=A)', () => {
     )
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.errorCode).toBe('INVALID_INVOICE')
+      expect(result.errorCode).toBe('3000')
     }
   })
 

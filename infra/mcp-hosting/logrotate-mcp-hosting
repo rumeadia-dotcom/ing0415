@@ -1,0 +1,15 @@
+# logrotate — MCP real-access audit + Caddy mcp access log.
+# 위치: /etc/logrotate.d/mcp-hosting (setup.sh 가 복사).
+# 설계: docs/architecture/v1/cross-cutting/mcp-hosting.md §9.3 (real audit daily, 30일)
+
+/var/log/mcp-hosting/*.log {
+    daily
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su mcp mcp
+    create 0640 mcp mcp
+}

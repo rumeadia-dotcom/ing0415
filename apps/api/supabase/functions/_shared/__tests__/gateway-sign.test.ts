@@ -9,7 +9,7 @@
  *   2) buildSignPayload — 결정적 직렬화
  *   3) hmacSignHex — 결정성 + 입력 변경 시 출력 변경 (collision-resistance smoke)
  *   4) assertGatewayUrl — invalid url / unsupported protocol / non-whitelisted host
- *   5) maskUrlForLog — querystring 제거
+ *   5) maskUrlForLog — querystring 제거 + 11번가 reqdelivery 송장/dlvNo path segment 마스킹 (PR-6 보안)
  *   6) classifyGatewayStatus — 6 가지 분류
  */
 
@@ -98,7 +98,15 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com/products')).not.toThrow()
     expect(() => assertGatewayUrl('https://api-gateway.coupang.com/v2/x')).not.toThrow()
     expect(() => assertGatewayUrl('https://sa.esmplus.com/api/v1/x')).not.toThrow()
+    // ESM sa2 (현행 base, esm.md §0/§7): PR-2 카테고리·상품 + PR-3 배송 프로필 Edge 실호출 대상.
+    expect(() =>
+      assertGatewayUrl('https://sa2.esmplus.com/item/v1/categories/site-cats'),
+    ).not.toThrow()
+    expect(() => assertGatewayUrl('https://sa2.esmplus.com/item/v1/sellers/address')).not.toThrow()
     expect(() => assertGatewayUrl('https://openapi.11st.co.kr/openapi/OpenApiService.tmall')).not.toThrow()
+    // 11번가 실제 REST base (PR-0, spec import #265) — features/11st.md §4.
+    expect(() => assertGatewayUrl('https://api.11st.co.kr/rest/cateservice/category')).not.toThrow()
+    expect(() => assertGatewayUrl('https://api.11st.co.kr/rest/prodservices/product')).not.toThrow()
   })
 
   it('invalid URL → throw', () => {
@@ -115,8 +123,13 @@ describe('gateway-sign / assertGatewayUrl', () => {
     expect(() => assertGatewayUrl('https://api.commerce.naver.com.evil.com/x')).toThrow(/host not in allow-list/)
   })
 
-  it('GATEWAY_ALLOWED_HOSTS 는 정확히 4종 (5마켓 — G+옥션 공유)', () => {
-    expect(GATEWAY_ALLOWED_HOSTS.size).toBe(4)
+  it('GATEWAY_ALLOWED_HOSTS 는 정확히 6종 (naver/coupang + ESM sa2·sa + 11번가 api·openapi)', () => {
+    // ESM 은 sa2(현행 base, G+옥션 공유)·sa(레거시 호환) 2개 호스트.
+    // 11번가는 api.11st.co.kr(실제 REST base, PR-0~)·openapi.11st.co.kr(구 placeholder) 2개 병존 —
+    // 호출부 재작성(PR-1~5) 완료 후 openapi 제거 예정 (features/11st.md §4).
+    expect(GATEWAY_ALLOWED_HOSTS.size).toBe(6)
+    expect(GATEWAY_ALLOWED_HOSTS.has('sa2.esmplus.com')).toBe(true)
+    expect(GATEWAY_ALLOWED_HOSTS.has('api.11st.co.kr')).toBe(true)
   })
 })
 
@@ -135,6 +148,38 @@ describe('gateway-sign / maskUrlForLog', () => {
 
   it('invalid URL → <invalid-url>', () => {
     expect(maskUrlForLog('not-a-url')).toBe('<invalid-url>')
+  })
+
+  // PR-6 보안: 11번가 발송처리(1888) path 가 송장번호(invcNo)·배송번호(dlvNo)를 path segment 로
+  // 포함 → reqdelivery 이후 segment 마스킹 (게이트웨이 로그 송장 노출 차단).
+  it('11번가 reqdelivery path 의 송장/dlvNo segment 마스킹 (보안)', () => {
+    const url =
+      'https://api.11st.co.kr/rest/ordservices/reqdelivery/202605301230/01/00002/1234567890123/987654321'
+    const masked = maskUrlForLog(url)
+    // reqdelivery 까지만 보존, 이후 전부 가림.
+    expect(masked).toBe(
+      'https://api.11st.co.kr/rest/ordservices/reqdelivery/<masked>',
+    )
+    // 송장번호·dlvNo 가 로그에 남지 않음.
+    expect(masked).not.toContain('1234567890123') // invcNo
+    expect(masked).not.toContain('987654321') // dlvNo
+  })
+
+  it('reqdelivery query string 도 함께 제거', () => {
+    expect(
+      maskUrlForLog(
+        'https://api.11st.co.kr/rest/ordservices/reqdelivery/202605301230/01/00002/INV1/DLV1?key=secret',
+      ),
+    ).toBe('https://api.11st.co.kr/rest/ordservices/reqdelivery/<masked>')
+  })
+
+  it('reqdelivery 가 아닌 11번가 path 는 그대로 (과잉 마스킹 방지)', () => {
+    expect(
+      maskUrlForLog('https://api.11st.co.kr/rest/ordservices/complete/202605300000/202605302359'),
+    ).toBe('https://api.11st.co.kr/rest/ordservices/complete/202605300000/202605302359')
+    expect(maskUrlForLog('https://api.11st.co.kr/rest/prodservices/product')).toBe(
+      'https://api.11st.co.kr/rest/prodservices/product',
+    )
   })
 })
 

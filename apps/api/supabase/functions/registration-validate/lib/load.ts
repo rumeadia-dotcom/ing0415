@@ -8,6 +8,7 @@ import {
   getUserClient,
   HttpErrors,
   type Logger,
+  resolveShippingFee,
 } from '../../_shared/index.ts'
 import type { ImageRow, MappingRow, ProductRow } from './types.ts'
 
@@ -40,7 +41,16 @@ export async function loadProductBundle(
   if (!productRes.data) {
     throw HttpErrors.notFound('product_not_found', 'product not found')
   }
-  const product = productRes.data as ProductRow
+  const productRaw = productRes.data as Omit<ProductRow, 'shipping_fee'>
+
+  // 배송 정책(Layer 1) fee 해소 — 미리보기 배송비를 워커와 동일하게 맞춘다
+  // (cross-cutting/shipping-fee-model.md §3-1).
+  const shippingFee = await resolveShippingFee(
+    supabase,
+    productRaw.shipping_policy_id,
+    productRaw.seller_id,
+  )
+  const product: ProductRow = { ...productRaw, shipping_fee: shippingFee }
 
   const imagesRes = await supabase
     .from('product_images')

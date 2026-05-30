@@ -6,8 +6,12 @@
  *   - PRD.md §6.1, §6.4
  *
  * 엔드포인트:
- *   - GET /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/ordersheets?status=ACCEPT
- *   - PUT /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/orders/{shipmentBoxId}/ordersheets/shipments
+ *   - GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/ordersheets?status=ACCEPT
+ *     (v4 → v5 마이그레이션 — 응답이 nested orderer/receiver/Money 객체 형태로 변경됨;
+ *      v4 flat shape 도 fallback 으로 수용)
+ *   - POST /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/orders/invoices
+ *     (구버전 PUT /orders/{shipmentBoxId}/ordersheets/shipments → 공식 docs 의
+ *      POST /orders/invoices 로 정정; body 가 orderSheetInvoiceApplyDtos 배열 구조)
  *
  * 인증: HMAC-SHA256 (credential kind = 'hmac'). authenticate() 후 인스턴스 cred
  *       또는 명시 인자 credential 어느 쪽이든 받는다.
@@ -38,19 +42,61 @@ import { COUPANG_API_BASE } from './index'
 const MARKET = 'coupang' as const
 const DEFAULT_TIMEOUT_MS = 15_000
 
+/**
+ * fetchOrders 페이징 follow-up 호출의 최대 페이지 수.
+ *
+ * v5 ordersheets 는 페이지당 최대 50건 (maxPerPage default 50). 10분 cron tick
+ * 1회당 5 페이지 (= 250건) 까지만 수집하고, 초과분은 다음 tick 으로 미룬다.
+ * MAX 도달 시 호출자는 `truncated_due_to_max_pages: true` 마커를 console.info 로
+ * 남기고 다음 tick 에 더 좁은 since/until 윈도우로 재시도하면 된다.
+ */
+export const COUPANG_ORDERS_MAX_PAGES = 5
+
 // ─────────────────────────────────────────────
 // Wing OpenAPI 응답 스키마
 // ─────────────────────────────────────────────
 
+/**
+ * 쿠팡 Money 객체 — v5 부터 가격 필드가 { currencyCode, units, nanos } nested 로 변경.
+ * v4 의 scalar number 도 mapCoupangOrderPrice 에서 fallback 처리.
+ */
+const CoupangMoneySchema = z.object({
+  currencyCode: z.string().optional().default('KRW'),
+  units: z.number().optional().default(0),
+  nanos: z.number().optional().default(0),
+})
+
 const CoupangOrderItemEntrySchema = z.object({
   vendorItemName: z.string().optional().default(''),
+  vendorItemId: z.number().optional(),
   shippingCount: z.number().int().nonnegative().optional().default(1),
-  orderPrice: z.number().int().nonnegative().optional().default(0),
+  // v5: orderPrice 가 Money 객체 / v4: scalar number → union 으로 둘 다 수용.
+  orderPrice: z.union([CoupangMoneySchema, z.number()]).optional(),
+})
+
+// v5 nested orderer / receiver — optional 로 두어 v4 flat 필드도 함께 수용.
+const CoupangOrdererSchema = z.object({
+  name: z.string().optional().default(''),
+  safeNumber: z.string().optional().default(''),
+  ordererNumber: z.string().nullable().optional(),
+})
+
+const CoupangReceiverSchema = z.object({
+  name: z.string().optional().default(''),
+  safeNumber: z.string().optional().default(''),
+  receiverNumber: z.string().nullable().optional(),
+  addr1: z.string().optional().default(''),
+  addr2: z.string().optional().default(''),
 })
 
 const CoupangOrderEntrySchema = z.object({
   shipmentBoxId: z.union([z.string(), z.number()]),
   orderId: z.union([z.string(), z.number()]).optional(),
+  // v5 nested
+  orderer: CoupangOrdererSchema.optional(),
+  receiver: CoupangReceiverSchema.optional(),
+  paidAt: z.string().optional(),
+  // v4 flat (하위호환)
   ordererName: z.string().optional().default(''),
   receiverName: z.string().optional().default(''),
   receiverAddr1: z.string().optional().default(''),
@@ -65,6 +111,42 @@ const CoupangOrderListResponseSchema = z.object({
   code: z.union([z.string(), z.number()]).optional(),
   message: z.string().optional(),
   data: z.array(CoupangOrderEntrySchema).optional(),
+  nextToken: z.string().optional(),
+})
+
+/**
+ * v5 Money 객체 또는 v4 scalar number 를 KRW 정수로 정규화.
+ * v5: units 가 정수 부분 (KRW 는 nanos 무시).
+ */
+function moneyToKrw(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'units' in value) {
+    const units = (value as { units?: number }).units
+    return typeof units === 'number' ? units : 0
+  }
+  return 0
+}
+
+/**
+ * 송장 업로드 응답 — v4 /orders/invoices.
+ *
+ * 공식 응답:
+ *   {
+ *     code: 200 | "200",
+ *     message: "OK",
+ *     data: {
+ *       responseCode: 0 (SUCCESS) | 1 (PARTIAL_ERROR) | 99 (FAILED),
+ *       responseMessage: "SUCCESS" | ...,
+ *       responseList: [{ shipmentBoxId, succeed, resultCode: 'OK'|..., resultMessage, retryRequired }]
+ *     }
+ *   }
+ */
+const CoupangShipmentResponseListEntrySchema = z.object({
+  shipmentBoxId: z.union([z.string(), z.number()]).optional(),
+  succeed: z.boolean().optional(),
+  resultCode: z.string().optional(),
+  resultMessage: z.string().nullable().optional(),
+  retryRequired: z.boolean().optional(),
 })
 
 const CoupangShipmentResponseSchema = z.object({
@@ -72,6 +154,11 @@ const CoupangShipmentResponseSchema = z.object({
   message: z.string().optional(),
   data: z
     .object({
+      // v4 /orders/invoices 신규 shape
+      responseCode: z.union([z.number(), z.string()]).optional(),
+      responseMessage: z.string().optional(),
+      responseList: z.array(CoupangShipmentResponseListEntrySchema).optional(),
+      // 하위호환 (구 /ordersheets/shipments 단건 응답)
       resultCode: z.string().optional(),
       resultMessage: z.string().optional(),
     })
@@ -255,6 +342,71 @@ async function coupangFetchSigned(opts: {
 // fetchOrders — GET ordersheets?status=ACCEPT
 // ─────────────────────────────────────────────
 
+/**
+ * v5 nested orderer/receiver/Money 매핑 + v4 flat fallback.
+ * 한 페이지 응답 (parsed.data.data) 을 MarketOrder[] 로 변환한다.
+ */
+function mapCoupangOrderEntries(
+  items: z.infer<typeof CoupangOrderEntrySchema>[],
+): MarketOrder[] {
+  return items.map((item) => {
+    const ordererName = item.orderer?.name ?? item.ordererName
+    const receiverName = item.receiver?.name ?? item.receiverName
+    const receiverAddr1 = item.receiver?.addr1 ?? item.receiverAddr1
+    const receiverAddr2 = item.receiver?.addr2 ?? item.receiverAddr2
+    const receiverPhone =
+      item.receiver?.safeNumber ||
+      item.receiver?.receiverNumber ||
+      item.receiverPhoneNumber
+
+    const addr = [receiverAddr1, receiverAddr2]
+      .filter((s): s is string => typeof s === 'string' && s.length > 0)
+      .join(' ')
+    const first = item.orderItems[0]
+    const totalAmount = item.orderItems.reduce(
+      (sum, entry) => sum + moneyToKrw(entry.orderPrice) * entry.shippingCount,
+      0,
+    )
+
+    // paidAt 과 orderedAt 분리 (이전엔 paidAt ?? orderedAt fallback 으로 한 컬럼 사용).
+    // v5 응답: 둘 다 entry-level 에 존재. v4 응답: orderedAt 만 존재할 수 있음.
+    const paidAtField = item.paidAt
+    const orderedAtField = item.orderedAt
+
+    const order: MarketOrder = {
+      market: MARKET,
+      externalOrderId: String(item.shipmentBoxId),
+      buyerName: ordererName && ordererName.length > 0 ? ordererName : '미상',
+      receiverName:
+        receiverName && receiverName.length > 0 ? receiverName : '미상',
+      receiverAddress: addr.length > 0 ? addr : '주소 없음',
+      receiverPhone:
+        receiverPhone && receiverPhone.length > 0
+          ? receiverPhone
+          : '연락처 없음',
+      productName:
+        first && first.vendorItemName.length > 0
+          ? first.vendorItemName
+          : '상품명 없음',
+      quantity: first ? first.shippingCount : 1,
+      orderAmount: totalAmount,
+      status: normalizeCoupangStatus(item.status),
+      // paidAt: 결제완료 시각. 없으면 orderedAt fallback (v4 호환).
+      paidAt: normalizeIsoOffset(paidAtField ?? orderedAtField),
+      // orderedAt: 주문 생성 시각 (별개 시각). 응답에 명시되었을 때만 채움.
+      ...(orderedAtField !== undefined
+        ? { orderedAt: normalizeIsoOffset(orderedAtField) }
+        : {}),
+      // vendorItemId: 쿠팡 송장 제출 (POST /orders/invoices) body 의 vendorItemId.
+      // orderItems[0].vendorItemId 가 number 타입 — string 으로 변환해 schema 정합.
+      ...(first?.vendorItemId !== undefined
+        ? { vendorItemId: String(first.vendorItemId) }
+        : {}),
+    }
+    return MarketOrderSchema.parse(order)
+  })
+}
+
 export async function coupangFetchOrders(
   input: FetchOrdersInput,
   credential: StoredCredential | undefined,
@@ -269,86 +421,124 @@ export async function coupangFetchOrders(
   }
 
   const cred = extractCoupangCredPayload(credential)
+  // 페이징 follow-up 전체를 동일 correlationId 로 묶는다 (운영 추적성).
   const correlationId = crypto.randomUUID()
 
-  const query: Record<string, string> = { status: 'ACCEPT' }
-  if (parsedInput.data.since) query.createdAtFrom = parsedInput.data.since
-  if (parsedInput.data.until) query.createdAtTo = parsedInput.data.until
-
-  const path = `/v2/providers/openapi/apis/api/v4/vendors/${encodeURIComponent(
+  const path = `/v2/providers/openapi/apis/api/v5/vendors/${encodeURIComponent(
     cred.vendorId,
   )}/ordersheets`
 
-  const response = await coupangFetchSigned({
-    method: 'GET',
-    path,
-    query,
-    accessKey: cred.accessKey,
-    secretKey: cred.secretKey,
-    correlationId,
-  })
+  const aggregated: MarketOrder[] = []
+  let nextToken: string | undefined
+  let prevNextToken: string | undefined
+  let page = 0
 
-  const text = await response.text()
-  if (!response.ok) {
-    throw httpStatusToMarketError(response.status, text, correlationId)
-  }
+  while (page < COUPANG_ORDERS_MAX_PAGES) {
+    page += 1
 
-  let json: unknown
-  try {
-    json = JSON.parse(text)
-  } catch {
-    throw new MarketError('server', '쿠팡 주문 응답 JSON 파싱 실패', {
-      market: MARKET,
-      status: response.status,
+    const query: Record<string, string> = { status: 'ACCEPT' }
+    if (parsedInput.data.since) query.createdAtFrom = parsedInput.data.since
+    if (parsedInput.data.until) query.createdAtTo = parsedInput.data.until
+    if (nextToken) query.nextToken = nextToken
+
+    const response = await coupangFetchSigned({
+      method: 'GET',
+      path,
+      query,
+      accessKey: cred.accessKey,
+      secretKey: cred.secretKey,
+      correlationId,
     })
-  }
 
-  const parsed = CoupangOrderListResponseSchema.safeParse(json)
-  if (!parsed.success) {
-    throw new MarketError('server', '쿠팡 주문 응답 스키마 불일치', {
-      market: MARKET,
-      cause: parsed.error,
-    })
-  }
-
-  const items = parsed.data.data ?? []
-  const orders: MarketOrder[] = items.map((item) => {
-    const addr = [item.receiverAddr1, item.receiverAddr2]
-      .filter((s) => s.length > 0)
-      .join(' ')
-    const first = item.orderItems[0]
-    const totalAmount = item.orderItems.reduce(
-      (sum, entry) => sum + entry.orderPrice * entry.shippingCount,
-      0,
-    )
-
-    const order: MarketOrder = {
-      market: MARKET,
-      externalOrderId: String(item.shipmentBoxId),
-      buyerName: item.ordererName.length > 0 ? item.ordererName : '미상',
-      receiverName: item.receiverName.length > 0 ? item.receiverName : '미상',
-      receiverAddress: addr.length > 0 ? addr : '주소 없음',
-      receiverPhone:
-        item.receiverPhoneNumber.length > 0
-          ? item.receiverPhoneNumber
-          : '연락처 없음',
-      productName:
-        first && first.vendorItemName.length > 0
-          ? first.vendorItemName
-          : '상품명 없음',
-      quantity: first ? first.shippingCount : 1,
-      orderAmount: totalAmount,
-      status: normalizeCoupangStatus(item.status),
-      paidAt: normalizeIsoOffset(item.orderedAt),
+    const text = await response.text()
+    if (!response.ok) {
+      throw httpStatusToMarketError(response.status, text, correlationId)
     }
-    return MarketOrderSchema.parse(order)
-  })
 
-  return orders
+    let json: unknown
+    try {
+      json = JSON.parse(text)
+    } catch {
+      throw new MarketError('server', '쿠팡 주문 응답 JSON 파싱 실패', {
+        market: MARKET,
+        status: response.status,
+      })
+    }
+
+    const parsed = CoupangOrderListResponseSchema.safeParse(json)
+    if (!parsed.success) {
+      throw new MarketError('server', '쿠팡 주문 응답 스키마 불일치', {
+        market: MARKET,
+        cause: parsed.error,
+      })
+    }
+
+    const items = parsed.data.data ?? []
+    const mapped = mapCoupangOrderEntries(items)
+    aggregated.push(...mapped)
+
+    // PII 금지 — 페이지 번호 / 건수 / nextToken 존재 여부만 로그.
+    console.info('coupang.ordersheets page', {
+      market: MARKET,
+      correlationId,
+      page,
+      count: mapped.length,
+      hasNextToken:
+        typeof parsed.data.nextToken === 'string' &&
+        parsed.data.nextToken.length > 0,
+    })
+
+    const rawNext = parsed.data.nextToken
+    const trimmed =
+      typeof rawNext === 'string' && rawNext.length > 0 ? rawNext : undefined
+
+    // 마지막 페이지 — nextToken 빈 문자열 / undefined / null.
+    if (!trimmed) {
+      return aggregated
+    }
+
+    // 무한 루프 방지 — 동일 nextToken 이 2번 연속 나오면 throw.
+    if (prevNextToken !== undefined && trimmed === prevNextToken) {
+      throw new MarketError(
+        'server',
+        'coupang ordersheets: nextToken 중복 — 무한 루프 의심',
+        {
+          market: MARKET,
+          marketErrorCode: 'nextToken_loop',
+        },
+      )
+    }
+
+    prevNextToken = trimmed
+    nextToken = trimmed
+  }
+
+  // MAX_PAGES 도달 — 다음 cron tick 에서 좁은 since/until 로 재수집해야 함.
+  console.info('coupang.ordersheets truncated', {
+    market: MARKET,
+    correlationId,
+    maxPages: COUPANG_ORDERS_MAX_PAGES,
+    collected: aggregated.length,
+    truncated_due_to_max_pages: true,
+  })
+  return aggregated
 }
 
 // ─────────────────────────────────────────────
-// submitTracking — PUT /orders/{shipmentBoxId}/ordersheets/shipments
+// submitTracking — POST /orders/invoices
+//
+// 공식 docs (Zendesk article 360033793014, 2026-05-28 추출):
+//   POST /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/orders/invoices
+//   body: {
+//     vendorId, orderSheetInvoiceApplyDtos: [{ shipmentBoxId, orderId,
+//       vendorItemId, deliveryCompanyCode, invoiceNumber, splitShipping,
+//       preSplitShipped, estimatedShippingDate }]
+//   }
+//
+// 2026-05-29: SubmitTrackingInputSchema 에 orderId / vendorItemId optional 추가
+// (PR #246 잔여 #1 해소). 호출측 (shipping-dispatch-job) 이 orders 행의
+// external_order_id / order_id / vendor_item_id 를 채워서 전달한다. 둘 중 하나라도
+// 누락되면 마켓이 거부 → ok=false 반환.
 // ─────────────────────────────────────────────
 
 export async function coupangSubmitTracking(
@@ -368,19 +558,50 @@ export async function coupangSubmitTracking(
   const correlationId = crypto.randomUUID()
 
   // 쿠팡 deliveryCompanyCode: 'LOGEN' (Wing API 표준 코드).
+  // shipmentBoxId 는 Number 가 표준이지만 SubmitTrackingInput 은 string —
+  // Number 변환 후 NaN 이면 fallback 으로 string 그대로 (마켓에서 거부).
+  const shipmentBoxIdNum = Number(parsedInput.data.externalOrderId)
+  // 쿠팡은 shipmentBoxId / orderId / vendorItemId 모두 Number 가 표준.
+  // SubmitTrackingInput 은 string 이므로 Number 변환 후 NaN 이면 string 그대로 (마켓 거부).
+  const orderIdNum =
+    parsedInput.data.orderId !== undefined
+      ? Number(parsedInput.data.orderId)
+      : NaN
+  const vendorItemIdNum =
+    parsedInput.data.vendorItemId !== undefined
+      ? Number(parsedInput.data.vendorItemId)
+      : NaN
+
   const body = {
     vendorId: cred.vendorId,
-    shipmentBoxId: parsedInput.data.externalOrderId,
-    deliveryCompanyCode: parsedInput.data.carrierCode, // 'LOGEN'
-    invoiceNumber: parsedInput.data.waybillNumber,
+    orderSheetInvoiceApplyDtos: [
+      {
+        shipmentBoxId: Number.isFinite(shipmentBoxIdNum)
+          ? shipmentBoxIdNum
+          : parsedInput.data.externalOrderId,
+        // orderId / vendorItemId 가 input 에 명시되면 사용, 없으면 0 fallback
+        // (호출측이 채우지 않은 경우 마켓이 거부 → ok=false 반환).
+        orderId: Number.isFinite(orderIdNum)
+          ? orderIdNum
+          : (parsedInput.data.orderId ?? 0),
+        vendorItemId: Number.isFinite(vendorItemIdNum)
+          ? vendorItemIdNum
+          : (parsedInput.data.vendorItemId ?? 0),
+        deliveryCompanyCode: parsedInput.data.carrierCode, // 'LOGEN'
+        invoiceNumber: parsedInput.data.waybillNumber,
+        splitShipping: false,
+        preSplitShipped: false,
+        estimatedShippingDate: '',
+      },
+    ],
   }
 
   const path = `/v2/providers/openapi/apis/api/v4/vendors/${encodeURIComponent(
     cred.vendorId,
-  )}/orders/${encodeURIComponent(parsedInput.data.externalOrderId)}/ordersheets/shipments`
+  )}/orders/invoices`
 
   const response = await coupangFetchSigned({
-    method: 'PUT',
+    method: 'POST',
     path,
     accessKey: cred.accessKey,
     secretKey: cred.secretKey,
@@ -426,15 +647,67 @@ export async function coupangSubmitTracking(
     })
   }
 
-  // 쿠팡은 응답 code "200" / data.resultCode "SUCCESS" 등 다양. 200 OK 면 성공.
-  // data 의 resultCode 가 명시적으로 실패면 ok=false.
-  const resultCode = parsed.data.data?.resultCode
-  if (resultCode !== undefined && resultCode !== 'SUCCESS' && resultCode !== '0') {
+  // v4 /orders/invoices 응답: data.responseList[0].succeed + resultCode='OK' 면 성공.
+  // PARTIAL_ERROR / FAILED 또는 succeed=false → ok=false.
+  const list = parsed.data.data?.responseList ?? []
+  const firstEntry = list[0]
+  if (firstEntry !== undefined) {
+    if (firstEntry.succeed === false) {
+      return MarketSubmitTrackingResultSchema.parse({
+        ok: false,
+        errorCode: firstEntry.resultCode ?? 'COUPANG_SHIPMENT_FAILED',
+        errorMessage:
+          firstEntry.resultMessage ??
+          parsed.data.data?.responseMessage ??
+          parsed.data.message ??
+          '쿠팡 송장 업로드 실패',
+      })
+    }
+    if (firstEntry.resultCode !== undefined && firstEntry.resultCode !== 'OK') {
+      return MarketSubmitTrackingResultSchema.parse({
+        ok: false,
+        errorCode: firstEntry.resultCode,
+        errorMessage:
+          firstEntry.resultMessage ??
+          parsed.data.data?.responseMessage ??
+          parsed.data.message ??
+          '쿠팡 송장 업로드 실패',
+      })
+    }
+  }
+
+  // 전체 responseCode 가 명시적 실패인 경우.
+  const responseCode = parsed.data.data?.responseCode
+  if (
+    responseCode !== undefined &&
+    String(responseCode) !== '0' &&
+    String(responseCode) !== 'SUCCESS'
+  ) {
     return MarketSubmitTrackingResultSchema.parse({
       ok: false,
-      errorCode: resultCode,
+      errorCode: String(responseCode),
       errorMessage:
-        parsed.data.data?.resultMessage ?? parsed.data.message ?? '쿠팡 발송 처리 실패',
+        parsed.data.data?.responseMessage ??
+        parsed.data.message ??
+        '쿠팡 송장 업로드 실패',
+    })
+  }
+
+  // 하위호환 — 구 단건 응답 (data.resultCode 'SUCCESS' / '0' 외 실패).
+  const legacyResultCode = parsed.data.data?.resultCode
+  if (
+    legacyResultCode !== undefined &&
+    legacyResultCode !== 'SUCCESS' &&
+    legacyResultCode !== '0' &&
+    legacyResultCode !== 'OK'
+  ) {
+    return MarketSubmitTrackingResultSchema.parse({
+      ok: false,
+      errorCode: legacyResultCode,
+      errorMessage:
+        parsed.data.data?.resultMessage ??
+        parsed.data.message ??
+        '쿠팡 발송 처리 실패',
     })
   }
 
