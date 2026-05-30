@@ -42,14 +42,10 @@
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4'
 import { HttpErrors } from '../../_shared/index.ts'
-import type { Logger, MarketId } from '../../_shared/index.ts'
-import type { MarketOrder } from './adapter-shape.ts'
+import type { Logger } from '../../_shared/index.ts'
+import { toOrderUpsertRow, type UpsertOrderInput } from './orders-repo-row.ts'
 
-export interface UpsertOrderInput {
-  sellerId: string
-  marketId: MarketId
-  order: MarketOrder
-}
+export type { UpsertOrderInput } from './orders-repo-row.ts'
 
 export interface UpsertOrderResult {
   /** insert 된 orders.id. 기존 row 면 null. */
@@ -93,27 +89,8 @@ export async function upsertOrders(
   }
 
   const nowIso = new Date().toISOString()
-  const rows = eligible.map((i) => ({
-    seller_id: i.sellerId,
-    market_id: i.marketId,
-    external_order_id: i.order.externalOrderId,
-    buyer_name: i.order.buyerName,
-    receiver_name: i.order.receiverName,
-    receiver_address: i.order.receiverAddress,
-    receiver_phone: i.order.receiverPhone,
-    product_name: i.order.productName,
-    quantity: i.order.quantity,
-    order_amount: i.order.orderAmount,
-    status: 'collected' as const,
-    // collected_at: 우리 시스템이 마켓에서 수집한 시각 (DB default 도 now() 지만 명시).
-    collected_at: nowIso,
-    // paid_at: 마켓 결제완료 시각 (어댑터 MarketOrder.paidAt).
-    paid_at: i.order.paidAt,
-    // ordered_at: 마켓 주문 생성 시각 (어댑터 MarketOrder.orderedAt — optional).
-    ordered_at: i.order.orderedAt ?? null,
-    // vendor_item_id: 쿠팡 송장 제출용. 쿠팡 외 마켓은 NULL.
-    vendor_item_id: i.order.vendorItemId ?? null,
-  }))
+  // row 빌드는 순수 함수(orders-repo-row.ts)로 분리 — PRD §4 컬럼 정합 + extra(NEW-1) 단위 검증.
+  const rows = eligible.map((i) => toOrderUpsertRow(i, nowIso))
 
   // ignoreDuplicates: true → conflict row 는 결과에서 제외됨. 신규 insert 만 returning.
   const { data, error } = await supabase

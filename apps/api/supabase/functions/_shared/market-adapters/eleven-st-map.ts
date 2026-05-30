@@ -202,6 +202,25 @@ export function buildElevenStDispatchPath(input: {
   return `${ELEVEN_ST_REST_PATHS.dispatch}/${sendDt}/01/${dlvEtprsCd}/${invcNo}/${dlvNo}`
 }
 
+/** submitTracking opts — 마켓별 발송키 전달 통로 (11번가 dlvNo). */
+export interface ElevenStDispatchOpts {
+  /** 배송번호(발송처리 1888 path 키). orders.extra.dlvNo 에서 워커가 전달. */
+  dlvNo?: string
+}
+
+/**
+ * 발송처리(1888) path 키(dlvNo) 선택 — NEW-1 dlvNo plumbing (순수 함수).
+ *   - ordNo(=externalOrderId) 와 dlvNo 는 별개 값. 워커가 orders.extra.dlvNo 를 opts.dlvNo 로
+ *     전달하면 그것을 쓴다. 미전달/빈 값이면 하위호환으로 externalOrderId 로 fallback.
+ */
+export function resolveElevenStDispatchDlvNo(
+  externalOrderId: string,
+  opts?: ElevenStDispatchOpts,
+): string {
+  const dlvNo = opts?.dlvNo
+  return dlvNo && dlvNo.trim() !== '' ? dlvNo : externalOrderId
+}
+
 // ─────────────────────────────────────────────
 // 카테고리 매핑 (PR-1 재작성 — cateservice 1001/1617, ns2, parentDispNo 트리)
 //
