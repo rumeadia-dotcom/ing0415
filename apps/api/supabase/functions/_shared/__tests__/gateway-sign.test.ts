@@ -9,7 +9,7 @@
  *   2) buildSignPayload — 결정적 직렬화
  *   3) hmacSignHex — 결정성 + 입력 변경 시 출력 변경 (collision-resistance smoke)
  *   4) assertGatewayUrl — invalid url / unsupported protocol / non-whitelisted host
- *   5) maskUrlForLog — querystring 제거
+ *   5) maskUrlForLog — querystring 제거 + 11번가 reqdelivery 송장/dlvNo path segment 마스킹 (PR-6 보안)
  *   6) classifyGatewayStatus — 6 가지 분류
  */
 
@@ -148,6 +148,38 @@ describe('gateway-sign / maskUrlForLog', () => {
 
   it('invalid URL → <invalid-url>', () => {
     expect(maskUrlForLog('not-a-url')).toBe('<invalid-url>')
+  })
+
+  // PR-6 보안: 11번가 발송처리(1888) path 가 송장번호(invcNo)·배송번호(dlvNo)를 path segment 로
+  // 포함 → reqdelivery 이후 segment 마스킹 (게이트웨이 로그 송장 노출 차단).
+  it('11번가 reqdelivery path 의 송장/dlvNo segment 마스킹 (보안)', () => {
+    const url =
+      'https://api.11st.co.kr/rest/ordservices/reqdelivery/202605301230/01/00002/1234567890123/987654321'
+    const masked = maskUrlForLog(url)
+    // reqdelivery 까지만 보존, 이후 전부 가림.
+    expect(masked).toBe(
+      'https://api.11st.co.kr/rest/ordservices/reqdelivery/<masked>',
+    )
+    // 송장번호·dlvNo 가 로그에 남지 않음.
+    expect(masked).not.toContain('1234567890123') // invcNo
+    expect(masked).not.toContain('987654321') // dlvNo
+  })
+
+  it('reqdelivery query string 도 함께 제거', () => {
+    expect(
+      maskUrlForLog(
+        'https://api.11st.co.kr/rest/ordservices/reqdelivery/202605301230/01/00002/INV1/DLV1?key=secret',
+      ),
+    ).toBe('https://api.11st.co.kr/rest/ordservices/reqdelivery/<masked>')
+  })
+
+  it('reqdelivery 가 아닌 11번가 path 는 그대로 (과잉 마스킹 방지)', () => {
+    expect(
+      maskUrlForLog('https://api.11st.co.kr/rest/ordservices/complete/202605300000/202605302359'),
+    ).toBe('https://api.11st.co.kr/rest/ordservices/complete/202605300000/202605302359')
+    expect(maskUrlForLog('https://api.11st.co.kr/rest/prodservices/product')).toBe(
+      'https://api.11st.co.kr/rest/prodservices/product',
+    )
   })
 })
 

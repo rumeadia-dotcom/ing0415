@@ -35,6 +35,7 @@ import {
   type SubmitTrackingInput,
 } from '@/lib/schemas'
 import { buildEsmJwt } from './jwt'
+import { toEsmCarrierCode } from '@/lib/markets/carrier-codes'
 
 const DEFAULT_TIMEOUT_MS = 15_000
 
@@ -46,12 +47,8 @@ function siteToSiteType(site: 'G' | 'A'): 1 | 2 {
   return site === 'A' ? 1 : 2
 }
 
-/**
- * 택배사 코드 매핑 (esm-api/product/142.md). v2 MVP 는 LOGEN(로젠택배=10003) 단일.
- */
-const ESM_CARRIER_CODE: Record<string, number> = {
-  LOGEN: 10003,
-}
+// 택배사 코드 매핑은 cross-market 단일 소스 `lib/markets/carrier-codes.ts`(toEsmCarrierCode) 로
+// 이전 (PR-6, §8-3). v2 MVP 는 LOGEN(로젠택배=10003) 단일.
 
 // ─────────────────────────────────────────────
 // ESM 응답 스키마 (실제 spec — PascalCase)
@@ -483,7 +480,7 @@ export async function esmSubmitTracking(opts: {
   const cred = extractEsmCredPayload(credential, site, market)
   const correlationId = crypto.randomUUID()
 
-  const deliveryCompanyCode = ESM_CARRIER_CODE[parsedInput.data.carrierCode]
+  const deliveryCompanyCode = toEsmCarrierCode(parsedInput.data.carrierCode)
   if (deliveryCompanyCode === undefined) {
     return MarketSubmitTrackingResultSchema.parse({
       ok: false,

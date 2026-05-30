@@ -74,10 +74,21 @@ function redact(obj: unknown): unknown {
   return obj;
 }
 
+// 11번가 발송처리(1888) `…/ordservices/reqdelivery/{sendDt}/{dlvMthdCd}/{dlvEtprsCd}/{invcNo}/{dlvNo}`
+// 는 송장번호(invcNo)·배송번호(dlvNo)를 path segment 로 포함한다. 게이트웨이 로그에 노출되지
+// 않도록 reqdelivery 이후 segment 를 마스킹한다 (Edge `gateway-sign.ts:maskUrlForLog` 미러, PR-6 보안).
+function maskSensitivePathSegments(pathname: string): string {
+  const idx = pathname.indexOf('/reqdelivery/');
+  if (idx !== -1) {
+    return `${pathname.slice(0, idx + '/reqdelivery'.length)}/<masked>`;
+  }
+  return pathname;
+}
+
 function maskUrl(url: string): string {
   try {
     const u = new URL(url);
-    return `${u.protocol}//${u.host}${u.pathname}`;
+    return `${u.protocol}//${u.host}${maskSensitivePathSegments(u.pathname)}`;
   } catch {
     return '<invalid-url>';
   }

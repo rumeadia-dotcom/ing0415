@@ -31,6 +31,7 @@ import {
   type MarketOrder,
   type MarketOrderStatus,
 } from '../market-orders.ts'
+import { toEsmCarrierCode } from '../carrier-codes.ts'
 
 // ─────────────────────────────────────────────
 // 상수 — ESM order-shipping API
@@ -44,14 +45,9 @@ export function siteToSiteType(site: 'G' | 'A'): 1 | 2 {
   return site === 'A' ? 1 : 2
 }
 
-/**
- * 택배사 코드 매핑 (esm-api/product/142.md 택배사 리스트).
- * v2 MVP 는 LOGEN(로젠택배=10003) 단일. SubmitTrackingInputSchema 가 carrierCode 를
- * 'LOGEN' 으로 제약하므로, 미지원 코드는 발생하지 않지만 방어적으로 매핑한다.
- */
-export const ESM_CARRIER_CODE: Record<string, number> = {
-  LOGEN: 10003,
-}
+// 택배사 코드 매핑은 cross-market 단일 소스 `_shared/carrier-codes.ts`(toEsmCarrierCode) 로
+// 이전 (PR-6, §8-3). v2 MVP 는 LOGEN(로젠택배=10003) 단일. SubmitTrackingInputSchema 가
+// carrierCode 를 'LOGEN' 으로 제약하므로 미지원 코드는 발생하지 않지만 방어적으로 매핑한다.
 
 // ─────────────────────────────────────────────
 // 주문조회 응답 스키마 (POST /Order/RequestOrders) — 67.md
@@ -277,7 +273,7 @@ export function buildEsmShipInfoBody(opts: {
   carrierCode: string
   shippingDate?: string
 }): EsmShipInfoRequestBody {
-  const code = ESM_CARRIER_CODE[opts.carrierCode]
+  const code = toEsmCarrierCode(opts.carrierCode)
   if (code === undefined) {
     throw new Error(`지원하지 않는 택배사 코드: ${opts.carrierCode}`)
   }

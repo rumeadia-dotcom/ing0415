@@ -1033,9 +1033,9 @@ getRegistrationFields?(): RegistrationFieldMeta[];
 - 고시: **`ProductNotification`**(상품정보제공고시, `type` + `item[code,name]`) — ESM `officialNotice` 와 동형
 - ⚠️ 어댑터 오용: `selPrdClfCd:'01'` 은 실제로 **판매기간코드**(예 `120:108`)지 판매상품구분이 아님. `dlvCst` 단일 필드는 존재하지 않음(위 `dlvCstInstBasiCd`+`dlvCst1/3/4`).
 
-**XML/인코딩**: 요청·응답 모두 XML, EUC-KR(CP949). 응답은 `ns2:` 네임스페이스 prefix 사용 → 파서가 prefix 제거(혹은 `removeNSPrefix`) 필요. 현재 어댑터 파서가 `ns2:` 미처리.
+**XML/인코딩**: 요청·응답 모두 XML, EUC-KR(CP949). 응답은 `ns2:` 네임스페이스 prefix 사용 → 파서가 prefix 제거 필요. `stripNsPrefix` 는 cross-market 공용 유틸 `_shared/xml.ts`(+ Web `lib/markets/xml.ts` 미러) 단일 소스다(2026-05-30 11번가 PR-6, `features/11st.md` §8-4 — 향후 XML 마켓 대비).
 
-**택배사 코드**: `dlvEtprsCd` enum (00034=CJ대한통운 / 00002=로젠 / 00011=한진 / 00012=롯데 / 00007=우체국 …). 공통 carrier code → 마켓별 코드 매핑 필요(§ cross-market, `features/11st.md`).
+**택배사 코드 (단일 소스)**: 마켓별 코드 체계 상이 — 11번가 `dlvEtprsCd`(00034=CJ / 00002=로젠 / 00011=한진 / 00012=롯데 / 00007=우체국 …) · ESM `DeliveryCompanyCode`(10003=로젠, 숫자) · 쿠팡/네이버는 영문 코드(`'LOGEN'`) 그대로. 내부 `CarrierCode` enum(`CARRIER_CODES`, default LOGEN) → 마켓별 매핑 테이블은 **`_shared/carrier-codes.ts`(+ Web `lib/markets/carrier-codes.ts` 미러) 단일 소스**다(2026-05-30 11번가 PR-6, `features/11st.md` §8-3). 어댑터는 `toElevenStCarrierCode`/`toEsmCarrierCode` 참조만 — 미매핑은 `undefined` → 호출측 `unsupported_carrier`(코드 날조 금지). v2 다중 택배사 진입 시 본 모듈 확장.
 
 ---
 
