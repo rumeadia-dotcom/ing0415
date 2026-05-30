@@ -19,6 +19,7 @@ export const ValidationIssueCodeSchema = z.enum([
   'image_main_missing',
   'image_size_too_small',
   'description_required',
+  'description_html_unsafe',
   'market_options_missing',
   'token_expired',
   'token_revoked',

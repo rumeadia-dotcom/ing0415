@@ -53,6 +53,12 @@ describe('formatValidationIssue', () => {
     expect(formatValidationIssue('token_expired')).toMatch(/재인증/)
   })
 
+  it('description_html_unsafe (XSS dual-defense §13.5) 는 전용 메시지 — 폴백 아님', () => {
+    const msg = formatValidationIssue('description_html_unsafe')
+    expect(msg).toMatch(/HTML/)
+    expect(msg).not.toBe('입력값을 확인해 주세요.')
+  })
+
   it('알 수 없는 issue code 는 폴백', () => {
     expect(formatValidationIssue('something_new')).toBe('입력값을 확인해 주세요.')
   })
