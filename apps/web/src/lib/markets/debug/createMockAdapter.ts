@@ -28,7 +28,12 @@ import { MarketError } from '../errors'
 import type { MarketAdapter } from '../types'
 import { getEsmRegistrationFields } from '../real/esm/registration-fields'
 import { getElevenStRegistrationFields } from '../real/11st/registration-fields'
-import { mapElevenStCategories } from '../real/11st/map'
+import {
+  buildElevenStProductRaw,
+  classifyElevenStCreateResult,
+  type ElevenStProductRawResult,
+  mapElevenStCategories,
+} from '../real/11st/map'
 
 /**
  * Debug 모드 mock 어댑터.
@@ -229,6 +234,59 @@ function buildEsmMockGoodsPayload(
   })
 }
 
+/**
+ * 11번가 mock transformProduct (PR-3) → real(buildElevenStProductRaw)과 동형 { fields, warnings }.
+ * debug 모드엔 출고지/반품지 시퀀스가 없으므로 extra 에 없으면 mock addrSeq 를 채워 real 과 동형
+ * 페이로드(필수 20+ 필드)를 만든다. real 은 오케스트레이터가 주입한 실 addrSeq 사용.
+ */
+function buildElevenStMockProductPayload(
+  product: Product,
+  mapping: MarketMapping,
+): ElevenStProductRawResult {
+  const extra = {
+    outboundAddrSeq: '1',
+    returnAddrSeq: '2',
+    ...(mapping.extra ?? {}),
+  }
+  return buildElevenStProductRaw(product, { ...mapping, extra })
+}
+
+/**
+ * 11번가 mock createProduct (PR-3) → 실 응답 root `ClientMessage` 구조를 만들어 real 파서
+ * (classifyElevenStCreateResult)로 통과시킨다(parity). 시나리오별:
+ *   - happy/partial → resultCode 200(또는 신규 210) + productNo → success
+ *   - (5xx/429/401/timeout 은 호출측 createProduct 가 throw 로 선처리)
+ */
+function buildElevenStMockCreateResult(
+  built: ElevenStProductRawResult,
+  status: 'succeeded' | 'partial',
+): CreateProductResult {
+  const productNo = String(50_000_000 + Math.floor(Math.random() * 9_000_000))
+  // 실 응답 ClientMessage 구조 → real 분류기 통과 (mock=real parity).
+  const clientMessage = {
+    ClientMessage: {
+      message: `상품등록이 정상적으로 진행 되었습니다. 상품번호 : ${productNo}`,
+      productNo,
+      resultCode: '200',
+    },
+  }
+  const result = classifyElevenStCreateResult(clientMessage)
+  if (result.kind !== 'success') {
+    throw new MarketError('server', '11번가 mock 응답 분류 실패', { market: '11st' })
+  }
+  const warnings =
+    status === 'partial'
+      ? [{ code: 'image_resized', message: '이미지 1장이 권장 해상도 미달로 자동 보정됨' }]
+      : (built.warnings ?? [])
+  return CreateProductResultSchema.parse({
+    market: '11st',
+    externalId: result.productNo,
+    productUrl: `https://www.11st.co.kr/products/${result.productNo}`,
+    status,
+    warnings,
+  })
+}
+
 function buildHappyCredential(
   market: MarketId,
   kind: MarketCredentialKind,
@@ -373,6 +431,10 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
       if (isEsmMarket(market)) {
         return { market, raw: buildEsmMockGoodsPayload(market, product, mapping) }
       }
+      // 11번가 — real(buildElevenStProductRaw)과 동형 { fields, warnings } 반환 (PR-3 parity).
+      if (market === '11st') {
+        return { market, raw: buildElevenStMockProductPayload(product, mapping) }
+      }
       return {
         market,
         raw: {
@@ -399,6 +461,12 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
       // (EsmGoodsCreateResponseSchema) 통과 mock 사용.
       if (isEsmMarket(market)) {
         return buildEsmMockCreateResult(market, s === 'partial' ? 'partial' : 'succeeded')
+      }
+      // 11번가 — 실 ClientMessage 구조 → real 분류기 통과 (PR-3 parity).
+      //   transformProduct 가 만든 { fields, warnings } 를 받아 이미지 truncate 등 warning 전달.
+      if (market === '11st') {
+        const built = (_payload.raw ?? { fields: {}, warnings: [] }) as ElevenStProductRawResult
+        return buildElevenStMockCreateResult(built, s === 'partial' ? 'partial' : 'succeeded')
       }
       if (s === 'partial') {
         return CreateProductResultSchema.parse({

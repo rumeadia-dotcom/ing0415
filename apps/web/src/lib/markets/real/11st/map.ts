@@ -373,52 +373,313 @@ export function mapElevenStCategoryCertMeta(
 }
 
 // ─────────────────────────────────────────────
-// 상품 등록 payload + 응답 매핑
+// 상품 등록 payload + 응답 매핑 (PR-3 재작성 — prodservices 1003, ClientMessage 응답)
+//
+// 구 placeholder(`selPrdClfCd:'01'`(실제 판매기간코드)·`dlvCst`(존재 안 함) 등) 를 제거하고
+// spec(product-manage-1003.md) 의 `<Product>` 필수 20+ 필드를 채운다(11st.md §4.1).
+//   - 상수 필드(selMthdCd 01 / prdTypCd 01 / prdStatCd 01 / dlvWyCd 01 / dlvClf 02 …)
+//   - Layer 1 배송 인라인(dlvCstInstBasiCd + dlvCst1/PrdFrDlvBasiAmt + jeju/island/rtngd/exch)
+//   - Layer 2 출고지/반품지(addrSeqOut/addrSeqIn ← mapping.extra.{outboundAddrSeq,returnAddrSeq})
+//   - KC인증(ProductCertGroup) — 카테고리 requiredYn=Y 시 필수(없으면 해당없음 코드)
+//   - officialNotice(ProductNotification) 는 PR-4 — 본 PR 은 주입 자리만(extra.officialNotice 있으면 통과)
+//   - 옵션(ProductOption)은 v1 단일상품 범위 밖(단일 재고/가격).
 // ─────────────────────────────────────────────
 
+/** 상품등록 상수 필드 (spec 1003 — 고정가/일반배송/새상품/택배/업체배송). */
+const ELEVEN_ST_PRODUCT_CONSTANTS = {
+  selMthdCd: '01', // 판매방식 = 고정가판매
+  prdTypCd: '01', // 서비스 상품 코드 = 일반배송상품
+  prdStatCd: '01', // 상품상태 = 새상품
+  minorSelCnYn: 'Y', // 미성년자 구매가능
+  suplDtyfrPrdClfCd: '01', // 부가세 = 과세상품(기본)
+  rmaterialTypCd: '04', // 원재료유형 = 원산지 의무표시대상 아님(기본)
+  orgnTypCd: '03', // 원산지 = 기타(+ orgnNmVal)
+  dlvCnAreaCd: '01', // 배송가능지역 = 전국
+  dlvWyCd: '01', // 배송방법 = 택배
+  dlvClf: '02', // 배송주체 = 업체배송(셀러)
+  dlvCstPayTypCd: '01', // 결제방법 = 선결제/착불 가능
+} as const
+
+/** 공백 불가 필드 기본값 (spec: A/S·반품교환 안내는 최소 '.' 이라도 필수). */
+const ELEVEN_ST_DEFAULT_AS_DETAIL = '상품 상세설명을 참고해주세요.'
+const ELEVEN_ST_DEFAULT_RTNG_EXCH_DETAIL = '상품 상세설명을 참고해주세요.'
+/** 원산지 기타(03) 시 필수 원산지명 기본값. */
+const ELEVEN_ST_DEFAULT_ORGN_NM = '상세설명 참조'
+/** brand 미지정 시 spec 권장값. */
+const ELEVEN_ST_DEFAULT_BRAND = '알수없음'
+
+/** 11번가 prdNm 입력 불가 특수문자(spec: 자동 공백 처리) — 사전 정리. */
+function sanitizeElevenStProductName(name: string): string {
+  // spec 이 자동 공백 처리하는 문자([,&,%,<,>,#,†,]) 를 미리 공백으로 치환 후 100자 컷.
+  const cleaned = name.replace(/[[\]&%<>#†]/g, ' ').replace(/\s+/g, ' ').trim()
+  return cleaned.length > 100 ? cleaned.slice(0, 100) : cleaned
+}
+
+/** 10원 단위 내림 (spec: 판매가/배송비는 10원 단위). */
+function floorTo10(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.floor(n / 10) * 10
+}
+
+/**
+ * Layer 1 배송 인라인 매핑 (shipping-fee-model.md Layer1 표 — 11번가 열).
+ *
+ * 우리 모델의 Layer 1 enrich(feeType/freeThreshold/returnFee/areaSurcharge…) 은 아직
+ * shipping_policies 가 flat fee 만 보유(shipping-fee-model §3-3) → v1 은 product.shippingFeeKrw +
+ * (선택) mapping.extra.shipping 의도값으로 매핑한다.
+ *   - fee 0  → dlvCstInstBasiCd 01(무료)
+ *   - fee >0 → dlvCstInstBasiCd 02(고정), dlvCst1 = fee(10원 단위)
+ *   - 조건부무료(freeThreshold) → 03 + dlvCst1 + PrdFrDlvBasiAmt (extra.shipping 로 의도 전달 시)
+ * 반품/교환·도서산간은 extra.shipping 의 값 우선, 없으면 0(기본).
+ * bndlDlvCnYn(묶음)·dlvCstPayTypCd(결제)·dlvCnAreaCd·dlvWyCd·dlvClf 는 상수에서.
+ */
+interface ElevenStShippingIntent {
+  baseFee?: number | undefined
+  freeThreshold?: number | undefined
+  returnFee?: number | undefined
+  exchangeFee?: number | undefined
+  jejuFee?: number | undefined
+  islandFee?: number | undefined
+  bundleAllowed?: boolean | undefined
+}
+
+function buildElevenStShippingFields(
+  product: Product,
+  intent: ElevenStShippingIntent,
+): Record<string, unknown> {
+  const baseFee = floorTo10(intent.baseFee ?? product.shippingFeeKrw)
+  const freeThreshold = intent.freeThreshold ?? 0
+  const out: Record<string, unknown> = {
+    bndlDlvCnYn: intent.bundleAllowed ? 'Y' : 'N',
+    jejuDlvCst: floorTo10(intent.jejuFee ?? 0),
+    islandDlvCst: floorTo10(intent.islandFee ?? 0),
+    rtngdDlvCst: floorTo10(intent.returnFee ?? 0),
+    exchDlvCst: floorTo10(intent.exchangeFee ?? 0),
+  }
+  if (baseFee <= 0) {
+    out.dlvCstInstBasiCd = '01' // 무료
+  } else if (freeThreshold > 0) {
+    out.dlvCstInstBasiCd = '03' // 상품 조건부 무료
+    out.dlvCst1 = baseFee
+    out.PrdFrDlvBasiAmt = floorTo10(freeThreshold)
+  } else {
+    out.dlvCstInstBasiCd = '02' // 고정 배송비
+    out.dlvCst1 = baseFee
+  }
+  return out
+}
+
+/**
+ * KC인증(ProductCertGroup) 분기 (spec 1003 + category-1617 requiredYn).
+ *   - requiredYn !== 'Y' → 인증그룹 생략 (면제/해당없음 — spec: 비대상이면 미입력).
+ *   - requiredYn === 'Y' → 셀러 입력(extra.cert) 우선, 없으면 "해당없음(131)" 최소 입력으로
+ *     스키마/등록을 통과시킨다(v1 — UI 정교화는 후속 §9). certType 으로 인증그룹번호 추정.
+ *
+ * extra.cert 형태: { crtfGrpTypCd, crtfGrpObjClfCd, certs:[{certTypeCd,certKey}] }.
+ */
+interface ElevenStCertInput {
+  crtfGrpTypCd?: string
+  crtfGrpObjClfCd?: string
+  crtfGrpExptTypCd?: string
+  certs?: { certTypeCd: string; certKey: string }[]
+}
+
+function buildElevenStCertGroup(
+  requiredYn: 'Y' | 'N' | undefined,
+  certInput: ElevenStCertInput | undefined,
+): Record<string, unknown> | undefined {
+  if (requiredYn !== 'Y') return undefined
+  if (certInput && certInput.crtfGrpTypCd && certInput.crtfGrpObjClfCd) {
+    const group: Record<string, unknown> = {
+      crtfGrpTypCd: certInput.crtfGrpTypCd,
+      crtfGrpObjClfCd: certInput.crtfGrpObjClfCd,
+    }
+    if (certInput.crtfGrpExptTypCd) group.crtfGrpExptTypCd = certInput.crtfGrpExptTypCd
+    const certs = (certInput.certs ?? []).filter((c) => c.certTypeCd && c.certKey)
+    if (certs.length > 0) {
+      group.ProductCert = certs.map((c) => ({ certTypeCd: c.certTypeCd, certKey: c.certKey }))
+    }
+    return group
+  }
+  // 셀러 미입력 — "해당없음(대상 아닌 경우)" 최소 인증정보로 통과 (spec certTypeCd 131).
+  return {
+    crtfGrpObjClfCd: '03', // KC인증대상 아님
+    ProductCert: { certTypeCd: '131', certKey: '' },
+  }
+}
+
+/** transformProduct 산출물 — `<Product>` 필드 + (이미지 13장↑ 등) 경고. */
+export interface ElevenStProductRawResult {
+  /** `<Product>` XML 로 직렬화할 필드 맵 (buildElevenStProductXml 입력). */
+  fields: Record<string, unknown>
+  /** 무음 처리(이미지 truncate 등) 경고 — createProduct 가 결과에 전달. */
+  warnings: { code: string; message: string }[]
+}
+
+/** mapping.extra 에서 Layer 2 / 배송의도 / KC인증 / officialNotice 슬롯 추출 (타입 가드). */
+function readElevenStExtra(extra: Record<string, unknown>): {
+  outboundAddrSeq: string
+  returnAddrSeq: string
+  shipping: ElevenStShippingIntent
+  cert: ElevenStCertInput | undefined
+  certRequiredYn: 'Y' | 'N' | undefined
+  officialNotice: unknown
+  orgnNmVal: string | undefined
+  asDetail: string | undefined
+  rtngExchDetail: string | undefined
+} {
+  const obj = (k: string): Record<string, unknown> | undefined => {
+    const v = extra[k]
+    return v && typeof v === 'object' && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : undefined
+  }
+  const shippingRaw = obj('shipping') ?? {}
+  const numOrUndef = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? v : undefined
+  const strOrUndef = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined
+  return {
+    outboundAddrSeq: str(extra.outboundAddrSeq),
+    returnAddrSeq: str(extra.returnAddrSeq),
+    shipping: {
+      baseFee: numOrUndef(shippingRaw.baseFee),
+      freeThreshold: numOrUndef(shippingRaw.freeThreshold),
+      returnFee: numOrUndef(shippingRaw.returnFee),
+      exchangeFee: numOrUndef(shippingRaw.exchangeFee),
+      jejuFee: numOrUndef(shippingRaw.jejuFee),
+      islandFee: numOrUndef(shippingRaw.islandFee),
+      bundleAllowed:
+        typeof shippingRaw.bundleAllowed === 'boolean' ? shippingRaw.bundleAllowed : undefined,
+    },
+    cert: obj('cert') as ElevenStCertInput | undefined,
+    certRequiredYn:
+      extra.certRequiredYn === 'Y' || extra.certRequiredYn === 'N'
+        ? (extra.certRequiredYn as 'Y' | 'N')
+        : undefined,
+    officialNotice: extra.officialNotice,
+    orgnNmVal: strOrUndef(extra.orgnNmVal),
+    asDetail: strOrUndef(extra.asDetail),
+    rtngExchDetail: strOrUndef(extra.rtngExchDetail),
+  }
+}
+
+/**
+ * 도메인 Product + MarketMapping → 11번가 상품등록(`<Product>`) raw payload (PR-3).
+ *
+ * 순수 함수 (Date.now / Math.random / 네트워크 금지). spec product-manage-1003 의 필수 20+ 필드.
+ * Layer 2(addrSeqOut/addrSeqIn)·KC인증·officialNotice 는 mapping.extra(오케스트레이터가 marketOptions
+ * 에서 주입) 에서 읽는다. 이미지 13장↑(prdImage12 초과) 은 무음 드롭하되 warning 으로 보고한다(WIP C5 동형).
+ *
+ * KC인증 필수여부(1617 cert 메타)는 오케스트레이터가 mapping.extra.certRequiredYn 로 주입한다
+ * (transformProduct 가 순수 2-arg 어댑터 메서드라 카테고리 메타 조회는 호출측 책임). 명시 인자
+ * `requiredYnOverride` 가 있으면 우선(단위테스트용).
+ */
 export function buildElevenStProductRaw(
   product: Product,
   mapping: MarketMapping,
-): Record<string, unknown> {
-  const name = product.name.length > 100 ? product.name.slice(0, 100) : product.name
+  requiredYnOverride?: 'Y' | 'N',
+): ElevenStProductRawResult {
+  const warnings: { code: string; message: string }[] = []
+  const extra = readElevenStExtra(mapping.extra ?? {})
+  const requiredYn = requiredYnOverride ?? extra.certRequiredYn
+
+  // 이미지 — 대표(prdImage01) 필수 + 추가 02~12 (최대 12장). 13장↑ 은 무음 드롭 + warning.
   const images = mapping.transformedImageUrls
-  const raw: Record<string, unknown> = {
-    selPrdClfCd: '01',
-    dispCtgrNo: mapping.categoryId,
-    prdNm: name,
-    selPrc: product.priceKrw,
-    prdSelQty: product.stock,
-    ...images.slice(0, 10).reduce<Record<string, string>>((acc, url, idx) => {
-      acc[`prdImage${String(idx + 1).padStart(2, '0')}`] = url
-      return acc
-    }, {}),
-    dlvCst: product.shippingFeeKrw,
-    brand: product.brand ?? '',
-    htmlDetail: product.descriptionHtml,
-    ...mapping.extra,
+  if (images.length > 12) {
+    warnings.push({
+      code: 'images_truncated',
+      message: `11번가는 이미지 12장까지 등록됩니다. ${images.length - 12}장이 제외됩니다.`,
+    })
   }
-  return raw
+  const imageFields = images.slice(0, 12).reduce<Record<string, string>>((acc, url, idx) => {
+    acc[`prdImage${String(idx + 1).padStart(2, '0')}`] = url
+    return acc
+  }, {})
+
+  const raw: Record<string, unknown> = {
+    ...ELEVEN_ST_PRODUCT_CONSTANTS,
+    dispCtgrNo: mapping.categoryId,
+    prdNm: sanitizeElevenStProductName(product.name),
+    brand: product.brand && product.brand.trim() !== '' ? product.brand.trim() : ELEVEN_ST_DEFAULT_BRAND,
+    selPrc: floorTo10(product.priceKrw),
+    prdSelQty: product.stock > 0 ? product.stock : 1,
+    ...imageFields,
+    htmlDetail: product.descriptionHtml && product.descriptionHtml.trim() !== ''
+      ? product.descriptionHtml
+      : '<p>상세설명 준비중입니다.</p>',
+    // 원산지 기타(03) → orgnNmVal 필수.
+    orgnNmVal: extra.orgnNmVal ?? ELEVEN_ST_DEFAULT_ORGN_NM,
+    // 공백 불가 안내 필드.
+    asDetail: extra.asDetail ?? ELEVEN_ST_DEFAULT_AS_DETAIL,
+    rtngExchDetail: extra.rtngExchDetail ?? ELEVEN_ST_DEFAULT_RTNG_EXCH_DETAIL,
+    // Layer 1 배송 인라인.
+    ...buildElevenStShippingFields(product, extra.shipping),
+    // Layer 2 출고지/반품지 (조회형 select 결과). 빈 값이면 미주입 → 11번가 기본주소 자동설정.
+    ...(extra.outboundAddrSeq ? { addrSeqOut: extra.outboundAddrSeq } : {}),
+    ...(extra.returnAddrSeq ? { addrSeqIn: extra.returnAddrSeq } : {}),
+  }
+
+  // KC인증 — 카테고리 requiredYn=Y 시 ProductCertGroup 필수.
+  const certGroup = buildElevenStCertGroup(requiredYn, extra.cert)
+  if (certGroup) raw.ProductCertGroup = certGroup
+
+  // officialNotice(ProductNotification) — PR-4 담당. 본 PR 은 주입 슬롯만:
+  //   오케스트레이터가 extra.officialNotice 를 넣어두면 그대로 통과(PR-4 가 채울 자리).
+  if (extra.officialNotice && typeof extra.officialNotice === 'object') {
+    raw.ProductNotification = extra.officialNotice
+  }
+
+  return { fields: raw, warnings }
 }
 
+/** Record → `<Product>...</Product>` XML (중첩 객체/배열은 buildElevenStProductXml 가 재귀 직렬화). */
 export function buildElevenStProductXml(raw: Record<string, unknown>): string {
-  return buildXml('Product', raw)
+  return `<?xml version="1.0" encoding="EUC-KR"?>${serializeElevenStXmlNode('Product', raw)}`
 }
 
-/** 상품 등록 응답에서 상품 번호 추출 (실패면 productNo='' — 호출측이 throw 판단). */
-export function extractElevenStProductNo(parsed: Record<string, unknown>): {
-  productNo: string
-  resultCode: string
-  resultText: string
-} {
+/** 중첩 객체/배열을 지원하는 XML 직렬화 (ProductCertGroup/ProductNotification 등). */
+function serializeElevenStXmlNode(tag: string, value: unknown): string {
+  if (value === undefined || value === null) return ''
+  if (Array.isArray(value)) {
+    return value.map((v) => serializeElevenStXmlNode(tag, v)).join('')
+  }
+  if (typeof value === 'object') {
+    const inner = Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => serializeElevenStXmlNode(k, v))
+      .join('')
+    return `<${tag}>${inner}</${tag}>`
+  }
+  return `<${tag}>${escapeXml(value)}</${tag}>`
+}
+
+/**
+ * 상품등록 응답(`ClientMessage`) 분류 (PR-3 — spec 1003 응답).
+ *   - success  : resultCode ∈ {200, 210} AND productNo 존재 → externalId 발급
+ *   - rejected : 400(일 500개 한도) / 500(검증실패) 등 — 셀러 정정 필요(validation)
+ *   - error    : productNo 없는 그 외 (방어)
+ * 순수 함수. 입력은 stripNsPrefix 통과 후 객체 (root `ClientMessage`).
+ */
+export const ELEVEN_ST_CREATE_SUCCESS_CODES = ['200', '210'] as const
+
+export function classifyElevenStCreateResult(
+  parsed: Record<string, unknown>,
+):
+  | { kind: 'success'; productNo: string; resultCode: string; message: string }
+  | { kind: 'rejected'; resultCode: string; message: string } {
   const container =
-    (pick(parsed, ['Product', 'ProductResponse', 'Result', 'result']) as
+    (pick(parsed, ['ClientMessage', 'clientMessage', 'Result', 'result']) as
       | Record<string, unknown>
       | undefined) ?? parsed
-  return {
-    productNo: str(pick(container, ['ProductNo', 'prdNo', 'productNo', 'product_no'])),
-    resultCode: str(pick(container, ['result_code', 'resultCode', 'ResultCode', 'code'])),
-    resultText: str(pick(container, ['result_text', 'resultMessage', 'ResultText', 'message'])),
+  const productNo = str(pick(container, ['productNo', 'ProductNo', 'prdNo']))
+  const resultCode = str(pick(container, ['resultCode', 'result_code', 'ResultCode', 'code']))
+  const message = str(pick(container, ['message', 'result_text', 'resultMessage']))
+  const isSuccess =
+    (ELEVEN_ST_CREATE_SUCCESS_CODES as readonly string[]).includes(resultCode) && productNo !== ''
+  if (isSuccess) {
+    return { kind: 'success', productNo, resultCode, message }
   }
+  return { kind: 'rejected', resultCode: resultCode || 'unknown', message }
 }
 
 // ─────────────────────────────────────────────

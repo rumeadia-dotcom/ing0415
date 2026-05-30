@@ -50,23 +50,23 @@ import {
   type SubmitTrackingInput,
 } from '@/lib/schemas'
 import {
-  ELEVEN_ST_API_BASE,
-  ELEVEN_ST_API_CODES,
   ELEVEN_ST_REST_BASE,
+  ELEVEN_ST_REST_PATHS,
   buildElevenStCategoryUrl,
   buildElevenStDispatchPath,
   buildElevenStOrderListPath,
   buildElevenStProductRaw,
   buildElevenStProductXml,
+  classifyElevenStCreateResult,
   classifyElevenStDispatchResult,
   classifyElevenStOrdersResult,
-  extractElevenStProductNo,
   mapElevenStCategories,
   mapElevenStOrders,
   stripNsPrefix,
   toElevenStCarrierCode,
   toElevenStOrderDate,
   xmlDocToObject,
+  type ElevenStProductRawResult,
 } from './map'
 
 export { ELEVEN_ST_API_BASE } from './map'
@@ -155,58 +155,6 @@ function httpStatusToMarketError(
   )
 }
 
-/** 11번가 OpenAPI fetch — apiCode + key querystring + openapikey 헤더 + EUC-KR 디코딩. */
-async function elevenStFetch(opts: {
-  apiCode: string
-  apiKey: string
-  method: 'GET' | 'POST' | 'PUT'
-  params?: Record<string, string>
-  body?: string
-  correlationId: string
-  timeoutMs?: number
-}): Promise<ElevenStResponse> {
-  const { apiCode, apiKey, method, params, body, correlationId, timeoutMs = DEFAULT_TIMEOUT_MS } =
-    opts
-
-  const qs = new URLSearchParams({ apiCode, key: apiKey, ...(params ?? {}) })
-  const url = `${ELEVEN_ST_API_BASE}?${qs.toString()}`
-
-  const controller = new AbortController()
-  const timerId = setTimeout(() => {
-    controller.abort()
-  }, timeoutMs)
-
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/xml;charset=EUC-KR',
-        openapikey: apiKey,
-        'X-Correlation-Id': correlationId,
-      },
-      body: body !== undefined ? body : null,
-      signal: controller.signal,
-    })
-    const buf = await response.arrayBuffer()
-    const text = decodeElevenStBody(buf)
-    return { status: response.status, ok: response.ok, text }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new MarketError('network', '11번가 API 요청 timeout', {
-        market: MARKET,
-        cause: err,
-        marketErrorCode: 'timeout',
-      })
-    }
-    throw new MarketError('network', '11번가 API 네트워크 오류', {
-      market: MARKET,
-      cause: err,
-    })
-  } finally {
-    clearTimeout(timerId)
-  }
-}
-
 /**
  * 카테고리 조회 fetch (PR-1) — cateservice 1001/1617 GET.
  * 구 `?apiCode=ProductCategoryInfo` placeholder 제거. API Key 불필요(GET) — querystring 없음,
@@ -260,12 +208,13 @@ async function elevenStCategoryFetch(opts: {
  */
 async function elevenStRestFetch(opts: {
   apiKey: string
-  method: 'GET'
+  method: 'GET' | 'POST'
   path: string
+  body?: string
   correlationId: string
   timeoutMs?: number
 }): Promise<{ status: number; ok: boolean; obj: Record<string, unknown> }> {
-  const { apiKey, method, path, correlationId, timeoutMs = DEFAULT_TIMEOUT_MS } = opts
+  const { apiKey, method, path, body, correlationId, timeoutMs = DEFAULT_TIMEOUT_MS } = opts
   const url = `${ELEVEN_ST_REST_BASE}${path}`
 
   const controller = new AbortController()
@@ -281,6 +230,7 @@ async function elevenStRestFetch(opts: {
         openapikey: apiKey,
         'X-Correlation-Id': correlationId,
       },
+      body: body !== undefined ? body : null,
       signal: controller.signal,
     })
     const buf = await response.arrayBuffer()
@@ -418,7 +368,10 @@ function createElevenStRealAdapter(): MarketAdapter {
           { market: MARKET },
         )
       }
-      return { market: MARKET, raw: buildElevenStProductRaw(product, mapping) }
+      // PR-3: prodservices 1003 `<Product>` 필수 20+ 필드 + Layer1/2 + (이미지 13장↑ 무음드롭 warning).
+      // raw = { fields, warnings } — createProduct 가 fields 를 XML 직렬화 + warnings 를 결과에 전달.
+      const built: ElevenStProductRawResult = buildElevenStProductRaw(product, mapping)
+      return { market: MARKET, raw: built }
     },
 
     // ───────────────────────────────────────────
@@ -431,7 +384,10 @@ function createElevenStRealAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
-    // createProduct — ProductRegister POST
+    // createProduct — POST /prodservices/product (1003). XML(EUC-KR) body + openapikey 헤더.
+    //   응답 root ClientMessage: resultCode∈{200,210} AND productNo 존재 → 성공.
+    //   그 외(400 일500개한도 / 500 검증실패) → MarketError(validation, 코드/메시지 동봉).
+    //   ⚠️ 구 apiCode(ProductRegister) / Product>ProductNo 파싱 제거(11st.md §0 갭표).
     // ───────────────────────────────────────────
     async createProduct(payload: MarketPayload): Promise<CreateProductResult> {
       const { apiKey } = getCredOrThrow()
@@ -442,11 +398,14 @@ function createElevenStRealAdapter(): MarketAdapter {
         })
       }
 
-      const body = buildElevenStProductXml(payload.raw as Record<string, unknown>)
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.productCreate,
+      const built = payload.raw as ElevenStProductRawResult
+      const fields = built.fields
+      const transformWarnings = built.warnings ?? []
+      const body = buildElevenStProductXml(fields)
+      const res = await elevenStRestFetch({
         apiKey,
         method: 'POST',
+        path: ELEVEN_ST_REST_PATHS.productCreate,
         body,
         correlationId,
       })
@@ -454,26 +413,25 @@ function createElevenStRealAdapter(): MarketAdapter {
         throw httpStatusToMarketError(res.status, correlationId)
       }
 
-      const { productNo, resultCode, resultText } = extractElevenStProductNo(
-        parseElevenStXml(res.text),
-      )
-      if (!productNo) {
+      const result = classifyElevenStCreateResult(res.obj)
+      if (result.kind === 'rejected') {
+        // 400(일 500개 한도)·500(검증 실패) 등 — 셀러 정정 필요(비재시도).
         throw new MarketError(
-          'server',
-          `11번가 상품 등록 실패: ${resultText || resultCode || '상품번호 미반환'}`,
+          'validation',
+          `11번가 상품 등록 실패: ${result.message || result.resultCode}`,
           {
             market: MARKET,
-            ...(resultCode ? { marketErrorCode: resultCode } : {}),
-            ...(resultText ? { marketErrorMessage: resultText } : {}),
+            marketErrorCode: result.resultCode,
+            ...(result.message ? { marketErrorMessage: result.message } : {}),
           },
         )
       }
       return CreateProductResultSchema.parse({
         market: MARKET,
-        externalId: productNo,
-        productUrl: `https://www.11st.co.kr/products/${productNo}`,
+        externalId: result.productNo,
+        productUrl: `https://www.11st.co.kr/products/${result.productNo}`,
         status: 'succeeded',
-        warnings: [],
+        warnings: transformWarnings,
       })
     },
 
