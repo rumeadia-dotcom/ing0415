@@ -37,6 +37,7 @@ import type {
   StoredCredential,
 } from '../schemas.ts'
 import type {
+  CategoryCertMeta,
   MarketAdapter,
   SubmitTrackingExtra,
   SubmitTrackingResult,
@@ -56,6 +57,7 @@ import {
   ELEVEN_ST_REST_BASE,
   ELEVEN_ST_REST_PATHS,
   mapElevenStCategories,
+  mapElevenStCategoryCertMeta,
   mapElevenStOrders,
   resolveElevenStDispatchDlvNo,
   stripNsPrefix,
@@ -328,6 +330,24 @@ export function createElevenStAdapter(): MarketAdapter {
         throw httpStatusToMarketError(res.status, res.text, correlationId)
       }
       return mapElevenStCategories(parseElevenStXml(res.text))
+    },
+
+    // 카테고리 KC인증 메타 조회 (NEW-2) — cateservice 1617 (조회 카테고리 자신 포함 하위).
+    //   GET {REST_BASE}/cateservice/category/{dispCtgrNo}. API Key 불필요. ns2 응답.
+    //   워커(registration-market-worker)가 transformProduct 전에 호출 → cert-inject 로 주입.
+    async fetchCategoryCertMeta(
+      dispCtgrNo: string,
+    ): Promise<Record<string, CategoryCertMeta>> {
+      const correlationId = generateCorrelationId()
+      const res = await elevenStCategoryFetch({
+        url: buildElevenStCategoryUrl(dispCtgrNo),
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, res.text, correlationId)
+      }
+      return mapElevenStCategoryCertMeta(parseElevenStXml(res.text))
     },
 
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
