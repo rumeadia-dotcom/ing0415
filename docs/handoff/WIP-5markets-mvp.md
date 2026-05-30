@@ -1,9 +1,9 @@
-# MarketCast — WIP 핸드오프 (ESM 문서 기준 재구현 8 PR develop 완료 + dev 검증)
+# MarketCast — WIP 핸드오프 (11번가 spec 재검토 + Layer 2 조회형 단일화 + 11번가 PR-0 완료)
 
-**develop HEAD**: `2bf4c80` — feat(esm): 상품정보고시 입력단계 (PR-5) (#262)
-**main HEAD**: `262c778` — hotfix: v0.15.1 (#237) · main 미배포 누적 = 쿠팡 drift 6 PR + ESM 8 PR (**release 는 사용자 결정 — 실호출 검증 전 배포 금지**)
-**테스트**: 1138 passed / 1 skipped / 31 todo
-**최근 머지**: ESM 재구현 #255~#262
+**develop HEAD**: `baf4125` — docs(handoff): WIP 11번가 PR-0 반영 (#268)
+**main HEAD**: `262c778` — hotfix: v0.15.1 (#237) · main 미배포 누적 = 쿠팡 drift 6 PR + ESM 8 PR + 11번가 설계·PR-0 (**release 는 사용자 결정 — 실호출 검증 전 배포 금지**)
+**테스트**: 1164 passed / 1 skipped / 31 todo
+**최근 머지**: 11번가 #266(설계)·#267(PR-0)·#268(WIP) / ESM 재구현 #255~#262
 
 ---
 
@@ -61,7 +61,9 @@
 - **정정한 설계문서 9개**: `market-adapter.md`(§9.0 base URL 오기·§9.9 신설·§9.8 optionsSource·O-11), `markets.md §3.2`(11번가 placeholder), `shipping-fee-model.md`(Layer 2 조회형·11번가 필드 확정), `features/11st.md`(신규), `features/esm.md`(전환 결정 절+supersede), `registration.md §10.5`(조회형), `user_flow.md`(n61 deprecate), `design-renewal/{s9-settings,s3-register}.md`.
 - **CLAUDE.md 규칙 추가**: 존댓말 / "수정 작업 전 전체 영향범위 전수조사(누락 금지)" / 메모리 포터블(레포) 우선.
 
-> **코드는 미변경** — 11번가 재구현(PR-0~6)·ESM 조회형 전환(PR-E1~E5)은 후속 트랙. real 검증(C3) 일정과 함께 사용자 결정.
+**이어서 11번가 PR-0 구현 머지 (#267)**: zod 계약(`schemas/eleven-st.ts` + Edge 미러)·REST base 상수(`ELEVEN_ST_REST_BASE`)·ns2 파서(`stripNsPrefix`)·gateway allowlist(`api.11st.co.kr`). **build-green 정련**: 신규는 additive, 구 placeholder(`OpenApiService.tmall`/apiCode·`openapi.11st.co.kr`)는 호출부 재작성(PR-1)까지 병존. 신규 25 tests, 1164 passed, typecheck/lint clean.
+
+> **남은 코드 트랙** — 11번가 PR-1~6(`features/11st.md`)·ESM 조회형 전환 PR-E1~E5(`esm.md` 전환 결정 절). PR-1 부터 placeholder 호출부 실제 재작성(동작 변경). real 검증(C3) 일정과 함께 사용자 결정.
 
 ## ⚠ carry-over 백로그 (전부 v1 머지 차단 아님)
 
@@ -114,9 +116,10 @@ Seller (auth.users) ─┬─ MarketAccount ─┬─ credential_payload jsonb +
 | 단계 | 내용 | 비고 |
 |---|---|---|
 | Stage A~D / v0.4~v0.11 | 부트스트랩 + s1~s6 + 4마켓 어댑터 + 주문배송 자동화 + WYSIWYG + Gateway + 운영안전망 | 운영 배포 |
-| v0.15 (#233~#235) | 11번가 v1 real 어댑터 + 5마켓 주문 수집 | 운영 배포 v0.15.1 |
+| v0.15 (#233~#235) | 11번가 "v1 real 어댑터"(⚠️ 실은 placeholder — #266 에서 확정) + 5마켓 주문 수집 | 운영 배포 v0.15.1 |
 | 쿠팡 drift (#245/#246/#248~#250) | 카테고리·발주서 v5·송장·안심번호·페이징 | develop 누적 (미배포) |
-| **ESM 재구현 (#255~#262)** | **G마켓·옥션 문서 기준 8 PR (mock+parity 완성)** | **develop 누적 (미배포)** |
+| ESM 재구현 (#255~#262) | G마켓·옥션 문서 기준 8 PR (mock+parity 완성) | develop 누적 (미배포) |
+| **11번가 (#266~#268)** | **spec 재검토 + Layer 2 조회형 단일화 설계 + PR-0(계약·파서·base)** | **develop 누적 (미배포). PR-1~6 남음** |
 
 ## 운영 현황
 
@@ -132,14 +135,14 @@ Seller (auth.users) ─┬─ MarketAccount ─┬─ credential_payload jsonb +
 ```bash
 git pull origin develop && pnpm install && pnpm test -- --run
 ```
-**1138 passed** 확인 후 진입.
+**1164 passed** 확인 후 진입.
 
 ### 우선 순위
-1. **C2 Gateway 재배포** — `infra/aws-lightsail-gateway/main.ts` `ALLOWED_*` 에 `sa2.esmplus.com` 미러 + 재배포. C3/C4 전제.
-2. **C3 real ESM 실호출 검증** — 셀러 키 + IP `3.36.239.243` 등록 후 1회 실호출로 createProduct(`/item/v1/goods`)·site-cats·배송프로필 4단계 검증. parity §5 captured-real 활성. **"완벽 개발+테스트" 의 핵심 게이트.**
-3. **C1 dev 마이그 이력 정합** — login 후 `db:push:dev`(`--include-all`) + `functions:deploy:dev`.
-4. **C4 PR-5 라이브 codes API** — 정적 항목 검증 refine.
-5. **C5 이미지 16장째 warnings** (v2 여유).
+1. **C9 11번가 PR-1** — 카테고리 `fetchCategoryTree` cateservice(`GET /rest/cateservice/category` + ns2 `stripNsPrefix` + depth/parentId 트리) 재작성 + 구 apiCode placeholder 제거 시작. `features/11st.md` §7 PR-1. (PR-0 토대 머지됨 #267.)
+2. **C2 Gateway 재배포** — `infra/aws-lightsail-gateway/main.ts` `ALLOWED_*` 에 `sa2.esmplus.com` + `api.11st.co.kr` 미러 + 재배포. C3/C4 전제.
+3. **C3 real ESM 실호출 검증** — 셀러 키 + IP `3.36.239.243` 등록 후 1회 실호출 검증. parity §5 captured-real 활성. **핵심 게이트.**
+4. **C1 dev 마이그 이력 정합** — login 후 `db:push:dev`(`--include-all`) + `functions:deploy:dev`. (C10 ESM 전환 시 `esm_shipping_profiles` DROP 동반.)
+5. **C10 ESM 조회형 전환 PR-E1~** / **C4 11번가 고시 상품군 코드 마스터 추출**.
 
 > release(main 배포)는 위 실호출 검증이 끝난 뒤 **사용자가 결정**. WIP 가 임의로 권하지 않는다.
 
