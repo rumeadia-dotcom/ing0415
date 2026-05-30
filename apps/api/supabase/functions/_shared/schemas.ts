@@ -638,6 +638,9 @@ export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
 export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
   'shippingProfiles',
   'static',
+  // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2). additive — ESM 영역(위 2개) 미접촉.
+  'elevenStOutbound',
+  'elevenStReturn',
 ] as const
 export const RegistrationFieldOptionsSourceSchema = z.enum(
   REGISTRATION_FIELD_OPTIONS_SOURCES,
@@ -759,6 +762,25 @@ export const ElevenStShippingAddressSchema = z
   })
   .passthrough()
 export type ElevenStShippingAddress = z.infer<typeof ElevenStShippingAddressSchema>
+
+// ─────────────────────────────────────────────
+// §3 Layer 2 — 조회 Edge → Web 정규화 응답 (PR-2). Web 미러: schemas/eleven-st.ts.
+//   ⚠️ PII 차단: addrSeq + addrNm 2필드만. 주소·수령자·전화는 통과 금지 (11st.md §3).
+// ─────────────────────────────────────────────
+export const ElevenStShippingAddressOptionSchema = z.object({
+  addrSeq: z.string().min(1),
+  addrNm: z.string().min(1),
+})
+export type ElevenStShippingAddressOption = z.infer<
+  typeof ElevenStShippingAddressOptionSchema
+>
+export const ElevenStShippingAddressListResponseSchema = z.object({
+  outbound: z.array(ElevenStShippingAddressOptionSchema),
+  returnAddrs: z.array(ElevenStShippingAddressOptionSchema),
+})
+export type ElevenStShippingAddressListResponse = z.infer<
+  typeof ElevenStShippingAddressListResponseSchema
+>
 
 export const ElevenStNoticeItemSchema = z.object({
   code: z.string().min(1),

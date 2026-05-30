@@ -18,6 +18,7 @@ import type { EsmShippingProfile } from '@/lib/schemas/esm'
 import type { CategoryMapping } from '@/lib/schemas/registration'
 
 const esmProfilesMock = vi.fn()
+const elevenStAddressesMock = vi.fn()
 
 vi.mock('@/features/auth', () => ({
   useAuth: () => ({ user: { id: 'seller-1' } }),
@@ -26,6 +27,8 @@ vi.mock('@/features/auth', () => ({
 vi.mock('@/features/settings/shipping', () => ({
   useEsmShippingProfiles: (marketAccountId?: string) =>
     esmProfilesMock(marketAccountId),
+  useElevenStShippingAddresses: (marketAccountId?: string) =>
+    elevenStAddressesMock(marketAccountId),
 }))
 
 vi.mock('../hooks/useMarketCategoryTree', () => ({
@@ -80,7 +83,7 @@ function profile(over: Partial<EsmShippingProfile>): EsmShippingProfile {
 }
 
 function renderCard(
-  marketId: 'gmarket' | 'naver',
+  marketId: 'gmarket' | 'naver' | '11st',
   onChange = vi.fn(),
   mapping: CategoryMapping | null = null,
 ): { onChange: ReturnType<typeof vi.fn> } {
@@ -219,9 +222,88 @@ describe('MarketOptionsCard — ESM(gmarket) 동적 필드', () => {
   })
 })
 
+describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () => {
+  beforeEach(() => {
+    esmProfilesMock.mockReset()
+    elevenStAddressesMock.mockReset()
+  })
+
+  it('출고지/반품지 select 를 addrNm 표시·addrSeq 값으로 렌더한다 (data)', () => {
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        outbound: [{ addrSeq: '14', addrNm: '본사 출고지' }],
+        returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+      },
+    })
+    renderCard('11st')
+    expect(screen.getByLabelText('11번가 출고지')).toBeInTheDocument()
+    expect(screen.getByLabelText('11번가 반품/교환지')).toBeInTheDocument()
+    // addrNm 표시 + addrSeq 값.
+    const opt = screen.getByRole('option', { name: '본사 출고지' }) as HTMLOptionElement
+    expect(opt.value).toBe('14')
+    // ESM 훅은 호출되지 않는다(11번가 카드).
+    expect(esmProfilesMock).not.toHaveBeenCalled()
+  })
+
+  it('출고지 선택 시 onChange 가 marketOptions.outboundAddrSeq 에 addrSeq 적재', async () => {
+    const user = userEvent.setup()
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        outbound: [{ addrSeq: '14', addrNm: '본사 출고지' }],
+        returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+      },
+    })
+    const { onChange } = renderCard('11st')
+    await user.selectOptions(screen.getByLabelText('11번가 출고지'), '14')
+    const last = onChange.mock.calls.at(-1)?.[0] as CategoryMapping
+    expect(last.marketOptions.outboundAddrSeq).toBe('14')
+  })
+
+  it('loading 상태 — skeleton(주소 목록 불러오는 중) 노출', () => {
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: true,
+      isError: false,
+      data: undefined,
+    })
+    renderCard('11st')
+    expect(screen.getAllByLabelText('주소 목록 불러오는 중…').length).toBeGreaterThan(0)
+  })
+
+  it('error 상태 — 조회 실패 문구 노출', () => {
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: true,
+      data: undefined,
+    })
+    renderCard('11st')
+    expect(
+      screen.getAllByText(/출고지\/반품지를 불러오지 못했습니다/).length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('empty 상태 — 셀러오피스 등록 안내 + 외부 링크 CTA', () => {
+    elevenStAddressesMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { outbound: [], returnAddrs: [] },
+    })
+    renderCard('11st')
+    expect(screen.getByText('등록된 출고지가 없습니다')).toBeInTheDocument()
+    expect(screen.getByText('등록된 반품/교환지가 없습니다')).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /11번가 셀러오피스 열기/ }).length,
+    ).toBe(2)
+  })
+})
+
 describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {
   beforeEach(() => {
     esmProfilesMock.mockReset()
+    elevenStAddressesMock.mockReset()
   })
 
   it('네이버 카드는 카테고리만 — 배송 프로필 필드 미노출', () => {
@@ -232,7 +314,8 @@ describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {
     expect(
       screen.queryByLabelText('G마켓·옥션 배송 프로필'),
     ).not.toBeInTheDocument()
-    // useEsmShippingProfiles 는 호출조차 되지 않아야 한다(ESM 외 필드 0개).
+    // useEsmShippingProfiles / useElevenStShippingAddresses 호출조차 안 됨(추가 필드 0개).
     expect(esmProfilesMock).not.toHaveBeenCalled()
+    expect(elevenStAddressesMock).not.toHaveBeenCalled()
   })
 })

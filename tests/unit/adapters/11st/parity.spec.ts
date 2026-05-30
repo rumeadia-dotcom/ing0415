@@ -77,6 +77,27 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(typeof elevenstRealAdapter.refreshToken).toBe('undefined')
   })
 
+  it('§2-b: getRegistrationFields 정합 (PR-2) — 출고지/반품지 select 2필드, mock = real', () => {
+    expect(typeof elevenstDebugAdapter.getRegistrationFields).toBe('function')
+    expect(typeof elevenstRealAdapter.getRegistrationFields).toBe('function')
+    const mockFields = elevenstDebugAdapter.getRegistrationFields?.() ?? []
+    const realFields = elevenstRealAdapter.getRegistrationFields?.() ?? []
+    expect(mockFields).toEqual(realFields)
+    expect(mockFields.map((f) => f.key)).toEqual([
+      'outboundAddrSeq',
+      'returnAddrSeq',
+    ])
+    // 두 필드 모두 조회형 select + required + 11번가 전용 optionsSource.
+    expect(mockFields.map((f) => f.kind)).toEqual(['select', 'select'])
+    expect(mockFields.every((f) => f.required)).toBe(true)
+    expect(mockFields.map((f) => f.optionsSource)).toEqual([
+      'elevenStOutbound',
+      'elevenStReturn',
+    ])
+    // officialNotice 는 PR-4 — 본 PR 에는 없어야 한다.
+    expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(false)
+  })
+
   it('§3-mock: mock transformProduct → { market, raw } / MarketPayloadSchema 통과', () => {
     const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
     expect(() => MarketPayloadSchema.parse(payload)).not.toThrow()

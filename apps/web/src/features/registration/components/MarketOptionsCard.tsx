@@ -3,7 +3,10 @@ import { Check, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui'
 import { useMarketCategoryTree } from '../hooks/useMarketCategoryTree'
 import { OfficialNoticeField } from './OfficialNoticeField'
-import { useEsmShippingProfiles } from '@/features/settings/shipping'
+import {
+  useEsmShippingProfiles,
+  useElevenStShippingAddresses,
+} from '@/features/settings/shipping'
 import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import { resolveKoPath } from '@/lib/i18n'
@@ -198,6 +201,17 @@ function MarketOptionField({
           value={typeof value === 'string' ? value : ''}
           onChange={onChange}
         />
+      ) : field.kind === 'select' &&
+        (field.optionsSource === 'elevenStOutbound' ||
+          field.optionsSource === 'elevenStReturn') ? (
+        <ElevenStAddressSelect
+          fieldId={`mof-${field.key}`}
+          fieldLabel={fieldLabel}
+          marketAccountId={marketAccountId}
+          kind={field.optionsSource}
+          value={typeof value === 'string' ? value : ''}
+          onChange={onChange}
+        />
       ) : field.kind === 'officialNotice' ? (
         <OfficialNoticeField
           fieldId={`mof-${field.key}`}
@@ -294,6 +308,81 @@ function ShippingProfileSelect({
       {usable.map((p) => (
         <option key={p.id} value={p.id}>
           {p.profileLabel}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+interface ElevenStAddressSelectProps {
+  fieldId: string
+  fieldLabel: string
+  marketAccountId: string
+  /** 출고지(elevenStOutbound) vs 반품/교환지(elevenStReturn) — 동일 훅의 다른 목록을 선택. */
+  kind: 'elevenStOutbound' | 'elevenStReturn'
+  value: string
+  onChange: (value: string) => void
+}
+
+/**
+ * 11번가 출고지/반품지 select — useElevenStShippingAddresses(marketAccountId) 로 옵션 로드 (11st.md §3 / §5).
+ * 4상태: loading / error / data(addrNm 표시·addrSeq 값) / empty(셀러오피스 외부 링크 안내).
+ * 출고지/반품지는 우리 앱이 생성하지 않음 — empty 시 11번가 셀러오피스로 안내(생성 화면 없음).
+ */
+function ElevenStAddressSelect({
+  fieldId,
+  fieldLabel,
+  marketAccountId,
+  kind,
+  value,
+  onChange,
+}: ElevenStAddressSelectProps): JSX.Element {
+  const t = ko.markets.registrationFields.elevenStAddressField
+  const { data, isLoading, isError } = useElevenStShippingAddresses(marketAccountId)
+
+  if (isLoading) {
+    return <Skeleton className="h-9 w-full" aria-label={t.loading} />
+  }
+  if (isError) {
+    return <p className="text-[12px] text-danger-on-soft">{t.error}</p>
+  }
+
+  const isOutbound = kind === 'elevenStOutbound'
+  const options = isOutbound ? (data?.outbound ?? []) : (data?.returnAddrs ?? [])
+  const placeholder = isOutbound ? t.outboundPlaceholder : t.returnPlaceholder
+  const emptyTitle = isOutbound ? t.outboundEmptyTitle : t.returnEmptyTitle
+
+  if (options.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border-strong bg-surface-subtle p-3">
+        <p className="text-[12px] font-semibold text-text-secondary">{emptyTitle}</p>
+        <p className="text-[11px] text-text-tertiary">{t.emptyHint}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="border border-border"
+          onClick={() => window.open(t.sellerOfficeUrl, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+          {t.emptyCta}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <select
+      id={fieldId}
+      aria-label={fieldLabel}
+      className={SELECT_CLASS}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt.addrSeq} value={opt.addrSeq}>
+          {opt.addrNm}
         </option>
       ))}
     </select>

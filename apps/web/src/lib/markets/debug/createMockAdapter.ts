@@ -27,6 +27,7 @@ import {
 import { MarketError } from '../errors'
 import type { MarketAdapter } from '../types'
 import { getEsmRegistrationFields } from '../real/esm/registration-fields'
+import { getElevenStRegistrationFields } from '../real/11st/registration-fields'
 import { mapElevenStCategories } from '../real/11st/map'
 
 /**
@@ -513,6 +514,10 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
   // 타 마켓은 메서드 미정의 → 호출측 `getRegistrationFields(adapter)` 가 [] 반환(하위호환).
   if (isEsmMarket(market)) {
     base.getRegistrationFields = () => getEsmRegistrationFields()
+  }
+  // 11번가 동적 등록필드(출고지/반품지 select 2개) — real 어댑터와 동형(parity, 11st.md §4.6 / PR-2).
+  if (market === '11st') {
+    base.getRegistrationFields = () => getElevenStRegistrationFields()
   }
 
   // OAuth 어댑터(네이버) 만 refreshToken 노출.

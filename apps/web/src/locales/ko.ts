@@ -101,6 +101,19 @@ export const ko = {
           '상품군을 선택하고 해당 상품군의 필수 고시 항목을 입력하세요. 전자상거래법상 필수입니다.',
         blockingReason: '상품정보고시 입력 필요',
       },
+      // 11번가 출고지/반품지 select (조회형 Layer 2, 11st.md §4.6 / PR-2).
+      elevenStOutbound: {
+        label: '11번가 출고지',
+        helpText:
+          '11번가 셀러오피스에 등록한 출고지를 선택하세요. 상품은 이 출고지에서 발송됩니다.',
+        blockingReason: '출고지 선택 필요',
+      },
+      elevenStReturn: {
+        label: '11번가 반품/교환지',
+        helpText:
+          '11번가 셀러오피스에 등록한 반품/교환지를 선택하세요. 반품·교환 상품이 이 주소로 회수됩니다.',
+        blockingReason: '반품/교환지 선택 필요',
+      },
       // MarketOptionsCard(PR-3.5) UI chrome — 동적 필드 렌더 공통 문구.
       card: {
         sectionTitle: '마켓별 등록 옵션',
@@ -115,6 +128,19 @@ export const ko = {
         emptyCta: '배송 프로필 만들러 가기',
         // active 가 아닌(error) 프로필은 선택지에서 제외됨을 알린다.
         selectedStatusError: '이 프로필은 생성 중 오류가 있어 사용할 수 없습니다',
+      },
+      // 11번가 출고지/반품지 select(ElevenStAddressSelect, PR-2) — 4상태 + 셀러오피스 안내.
+      elevenStAddressField: {
+        outboundPlaceholder: '— 출고지 선택 —',
+        returnPlaceholder: '— 반품/교환지 선택 —',
+        loading: '주소 목록 불러오는 중…',
+        error: '출고지/반품지를 불러오지 못했습니다. 마켓 연결 상태를 확인하세요.',
+        outboundEmptyTitle: '등록된 출고지가 없습니다',
+        returnEmptyTitle: '등록된 반품/교환지가 없습니다',
+        // 11번가는 우리 앱에서 생성하지 않음 — 셀러오피스 외부 링크로 안내.
+        emptyHint: '11번가 셀러오피스에서 먼저 등록한 뒤 새로고침하세요.',
+        emptyCta: '11번가 셀러오피스 열기',
+        sellerOfficeUrl: 'https://soffice.11st.co.kr',
       },
       // 상품정보고시 입력(OfficialNoticeField, PR-5) — 상품군 select + 군별 항목 동적 폼.
       officialNoticeField: {

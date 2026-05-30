@@ -6,6 +6,8 @@ import {
   ElevenStProductCreateResponseSchema,
   ElevenStProductCreateSchema,
   ElevenStShippingAddressSchema,
+  ElevenStShippingAddressOptionSchema,
+  ElevenStShippingAddressListResponseSchema,
   ELEVEN_ST_CREATE_SUCCESS_CODES,
 } from '../eleven-st'
 
@@ -158,5 +160,61 @@ describe('ElevenStOfficialNoticeSchema (§4 ProductNotification)', () => {
 
   it('fail: item 비어있음', () => {
     expect(() => ElevenStOfficialNoticeSchema.parse({ type: '891011', item: [] })).toThrow()
+  })
+})
+
+describe('ElevenStShippingAddressOptionSchema (§3 조회형 select 옵션, PR-2)', () => {
+  it('pass: addrSeq + addrNm', () => {
+    const parsed = ElevenStShippingAddressOptionSchema.parse({
+      addrSeq: '14',
+      addrNm: '본사 출고지',
+    })
+    expect(parsed.addrSeq).toBe('14')
+  })
+
+  it('fail: addrSeq 빈 문자열 (select 값으로 부적합)', () => {
+    expect(() =>
+      ElevenStShippingAddressOptionSchema.parse({ addrSeq: '', addrNm: '본사' }),
+    ).toThrow()
+  })
+
+  it('fail: addrNm 누락', () => {
+    expect(() =>
+      ElevenStShippingAddressOptionSchema.parse({ addrSeq: '14' }),
+    ).toThrow()
+  })
+})
+
+describe('ElevenStShippingAddressListResponseSchema (§3 조회 Edge 응답, PR-2)', () => {
+  it('pass: outbound + returnAddrs 목록', () => {
+    const parsed = ElevenStShippingAddressListResponseSchema.parse({
+      outbound: [{ addrSeq: '14', addrNm: '본사' }],
+      returnAddrs: [{ addrSeq: '31', addrNm: '본사 반품지' }],
+    })
+    expect(parsed.outbound).toHaveLength(1)
+    expect(parsed.returnAddrs).toHaveLength(1)
+  })
+
+  it('pass: 빈 배열 (셀러오피스 미등록 — empty 상태)', () => {
+    const parsed = ElevenStShippingAddressListResponseSchema.parse({
+      outbound: [],
+      returnAddrs: [],
+    })
+    expect(parsed.outbound).toHaveLength(0)
+  })
+
+  it('fail: returnAddrs 키 누락', () => {
+    expect(() =>
+      ElevenStShippingAddressListResponseSchema.parse({ outbound: [] }),
+    ).toThrow()
+  })
+
+  it('fail: 옵션 항목에 PII(addr) 만 있고 addrSeq/addrNm 누락', () => {
+    expect(() =>
+      ElevenStShippingAddressListResponseSchema.parse({
+        outbound: [{ addr: '서울 중구' }],
+        returnAddrs: [],
+      }),
+    ).toThrow()
   })
 })
