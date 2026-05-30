@@ -19,7 +19,6 @@ import { TooltipProvider } from '@/components/ui'
 import type { EsmShippingListResponse } from '@/lib/schemas/esm'
 import type { CategoryMapping } from '@/lib/schemas/registration'
 
-const esmProfilesMock = vi.fn()
 const elevenStAddressesMock = vi.fn()
 const esmShippingOptionsMock = vi.fn()
 
@@ -27,9 +26,8 @@ vi.mock('@/features/auth', () => ({
   useAuth: () => ({ user: { id: 'seller-1' } }),
 }))
 
+// 생성형 훅(useEsmShippingProfiles)은 조회형 전환(PR-E2~E4)으로 제거됨 — 모킹하지 않는다.
 vi.mock('@/features/settings/shipping', () => ({
-  useEsmShippingProfiles: (marketAccountId?: string) =>
-    esmProfilesMock(marketAccountId),
   useElevenStShippingAddresses: (marketAccountId?: string) =>
     elevenStAddressesMock(marketAccountId),
   useEsmShippingOptions: (marketAccountId?: string) =>
@@ -99,10 +97,6 @@ function renderCard(
       <MemoryRouter initialEntries={['/register/markets']}>
         <Routes>
           <Route path="/register/markets" element={children} />
-          <Route
-            path="/settings/shipping/esm-profiles"
-            element={<div>esm-profiles-page</div>}
-          />
         </Routes>
       </MemoryRouter>
     </TooltipProvider>
@@ -121,7 +115,6 @@ function renderCard(
 
 describe('MarketOptionsCard — ESM(gmarket) 조회형 출하지/발송정책 (PR-E2)', () => {
   beforeEach(() => {
-    esmProfilesMock.mockReset()
     esmShippingOptionsMock.mockReset()
   })
 
@@ -143,8 +136,6 @@ describe('MarketOptionsCard — ESM(gmarket) 조회형 출하지/발송정책 (P
       name: '오늘출발 발송정책',
     }) as HTMLOptionElement
     expect(dispatchOpt.value).toBe('2001')
-    // 생성형 훅(useEsmShippingProfiles)은 호출되지 않는다(조회형 전환).
-    expect(esmProfilesMock).not.toHaveBeenCalled()
   })
 
   it('출하지 선택 시 onChange 가 marketOptions.shippingPlaceNo 에 placeNo 적재', async () => {
@@ -278,7 +269,6 @@ describe('MarketOptionsCard — ESM(gmarket) 조회형 출하지/발송정책 (P
 
 describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () => {
   beforeEach(() => {
-    esmProfilesMock.mockReset()
     esmShippingOptionsMock.mockReset()
     elevenStAddressesMock.mockReset()
   })
@@ -298,8 +288,7 @@ describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () 
     // addrNm 표시 + addrSeq 값.
     const opt = screen.getByRole('option', { name: '본사 출고지' }) as HTMLOptionElement
     expect(opt.value).toBe('14')
-    // ESM 훅은 호출되지 않는다(11번가 카드).
-    expect(esmProfilesMock).not.toHaveBeenCalled()
+    // ESM 조회 훅은 호출되지 않는다(11번가 카드).
     expect(esmShippingOptionsMock).not.toHaveBeenCalled()
   })
 
@@ -358,7 +347,6 @@ describe('MarketOptionsCard — 11번가 출고지/반품지 select (PR-2)', () 
 
 describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {
   beforeEach(() => {
-    esmProfilesMock.mockReset()
     esmShippingOptionsMock.mockReset()
     elevenStAddressesMock.mockReset()
   })
@@ -372,7 +360,6 @@ describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {
       screen.queryByLabelText('G마켓·옥션 출하지'),
     ).not.toBeInTheDocument()
     // ESM/11번가 조회 훅 호출조차 안 됨(추가 필드 0개).
-    expect(esmProfilesMock).not.toHaveBeenCalled()
     expect(esmShippingOptionsMock).not.toHaveBeenCalled()
     expect(elevenStAddressesMock).not.toHaveBeenCalled()
   })

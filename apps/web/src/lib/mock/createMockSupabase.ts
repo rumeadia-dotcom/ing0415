@@ -80,8 +80,6 @@ const TABLES: Record<string, any[]> = {
   shipping_jobs_with_summary: mockShippingJobs,
   shipping_job_market_results: mockShippingJobMarketResults,
   shipping_policies: mockShippingPolicies,
-  // ESM 배송 프로필 (PR-3) — 초기 빈 목록. esm-shipping-profile invoke 시 in-memory 적재.
-  esm_shipping_profiles: [],
 }
 
 let currentSession: typeof mockSession | null = null
@@ -634,57 +632,6 @@ function makeFunctions() {
             },
             error: null,
           }
-        }
-        case 'esm-shipping-profile': {
-          // ESM 배송 프로필 생성 (PR-3) — Edge 4단계 생성 결과를 시뮬레이션.
-          // 응답은 EsmShippingProfileSchema(camelCase) 형태. address(PII)는 저장하지 않는다.
-          const now = new Date().toISOString()
-          const id = crypto.randomUUID()
-          const site = body.site === 'A' ? 'A' : 'G'
-          const fee = typeof body.shippingFee === 'number' ? body.shippingFee : 0
-          const profile = {
-            id,
-            sellerId: MOCK_SELLER_ID,
-            marketAccountId:
-              typeof body.marketAccountId === 'string'
-                ? body.marketAccountId
-                : crypto.randomUUID(),
-            site,
-            profileLabel:
-              typeof body.profileLabel === 'string'
-                ? body.profileLabel
-                : 'mock 배송 프로필',
-            addrNo: `MOCK-ADDR-${id.slice(0, 6)}`,
-            placeNo: `MOCK-PLACE-${id.slice(0, 6)}`,
-            bundlePolicyNo: fee > 0 ? `MOCK-BUNDLE-${id.slice(0, 6)}` : null,
-            dispatchPolicyNo: `MOCK-DISP-${id.slice(0, 6)}`,
-            dispatchType:
-              typeof body.dispatchType === 'string' ? body.dispatchType : 'B',
-            shippingFee: fee,
-            feeType: body.feeType === 2 ? 2 : 1,
-            status: 'active' as const,
-            createdAt: now,
-            updatedAt: now,
-          }
-          // in-memory 적재 — 이후 from('esm_shipping_profiles').select() 가 즉시 반영(snake_case row).
-          ;(TABLES.esm_shipping_profiles ??= []).push({
-            id: profile.id,
-            seller_id: profile.sellerId,
-            market_account_id: profile.marketAccountId,
-            site: profile.site,
-            profile_label: profile.profileLabel,
-            addr_no: profile.addrNo,
-            place_no: profile.placeNo,
-            bundle_policy_no: profile.bundlePolicyNo,
-            dispatch_policy_no: profile.dispatchPolicyNo,
-            dispatch_type: profile.dispatchType,
-            shipping_fee: profile.shippingFee,
-            fee_type: profile.feeType,
-            status: profile.status,
-            created_at: profile.createdAt,
-            updated_at: profile.updatedAt,
-          })
-          return { data: profile, error: null }
         }
         case 'eleven-st-shipping-list': {
           // 11번가 출고지/반품지 조회 (PR-2) — Edge 1014/1015 정규화 결과 시뮬레이션.

@@ -3,5 +3,4 @@ export {
   SettingsShippingPage,
   SettingsShippingLogenPage,
   SettingsShippingSenderPage,
-  SettingsShippingEsmProfilesPage,
 } from './shipping'

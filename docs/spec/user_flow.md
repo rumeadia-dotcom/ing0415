@@ -199,12 +199,12 @@
 | n58 | main_page | 배송 설정 |
 | n59 | page | 로젠 API 연동 |
 | n60 | page | 발송인 정보 설정 |
-| n61 | page | ~~G마켓·옥션 배송 프로필 관리 (ESM)~~ ⚠️ **deprecate 예정** (조회형 전환, PR-E3 제거 — `esm.md` 전환 결정 절) |
+
+> **제거 이력 (2026-05-30, PR-E3)**: n61 (G마켓·옥션 배송 프로필 관리, `/settings/shipping/esm-profiles`) 노드는 ESM 생성형→조회형 전환으로 제거됐다(`esm.md` 전환 결정 절). ESM 배송 선행값을 우리 앱이 생성하지 않고, 셀러가 ESM Plus 에서 만든 출하지·발송정책을 상품등록 3단계(n19)에서 GET 조회·select 한다. 생성 페이지·Edge `esm-shipping-profile`·`esm_shipping_profiles` 테이블은 PR-E3/E4 에서 제거.
 
 **Flow**
 - 배송 설정 → 로젠 API 연동 (userId / custCd 입력 → pgcrypto 암호화 저장 → 연결 테스트)
 - 배송 설정 → 발송인 정보 설정 (이름·주소·연락처·fareTy·dlvFare)
-- ~~배송 설정 → G마켓·옥션 배송 프로필 관리 (`/settings/shipping/esm-profiles`)~~ ⚠️ **deprecate 예정 (조회형 전환, 2026-05-30 — `esm.md` 전환 결정 절)**: ESM 배송 선행값을 우리 앱이 생성하지 않고, 셀러가 ESM Plus 에서 만든 출하지·발송정책을 상품등록 3단계에서 GET 조회·select 한다. 생성 페이지(n61)·Edge `esm-shipping-profile`·`esm_shipping_profiles` 테이블은 PR-E3/E4 에서 제거.
 - 로젠 미연동 상태에서 n47 진입 시 → 배송 설정 유도 배너
 
 ---
@@ -317,7 +317,6 @@ flowchart TD
     n58[배송 설정]
     n59[로젠 API 연동]
     n60[발송인 정보 설정]
-    n61[G마켓·옥션 배송 프로필 관리]
 
     n1 --> n2
     n2 --> n3
@@ -340,7 +339,6 @@ flowchart TD
     n16 --> n18
     n17 --> n19
     n19 --> n20
-    n19 -.->|ESM 배송프로필 없음| n61
     n20 --> n23
     n23 --> n21
     n21 --> n24
@@ -385,5 +383,4 @@ flowchart TD
     n9 --> n58
     n58 --> n59
     n58 --> n60
-    n58 --> n61
 ```
