@@ -27,6 +27,7 @@ import {
 import { MarketError } from '../errors'
 import type { MarketAdapter } from '../types'
 import { getEsmRegistrationFields } from '../real/esm/registration-fields'
+import { mapElevenStCategories } from '../real/11st/map'
 
 /**
  * Debug 모드 mock 어댑터.
@@ -108,6 +109,24 @@ function buildEsmMockCategoryTree(market: MarketId): CategoryNode[] {
       : [],
   }
   return [CategoryNodeSchema.parse(node)]
+}
+
+/**
+ * 11번가 mock 카테고리 — 실제 cateservice(1001) ns2 응답 구조(ns2:categorys>ns2:category[])를
+ * 만들어 real 파서(mapElevenStCategories)에 통과시킨다(PR-1 계약: mock raw 가 새 ns2/트리 파서 통과).
+ * dispNo/dispNm/depth/parentDispNo/leafYn 평탄 응답 → parentDispNo 트리(대>중>소). real 어댑터와 동형.
+ */
+function buildElevenStMockCategoryTree(): CategoryNode[] {
+  const rawNs2 = {
+    'ns2:categorys': {
+      'ns2:category': [
+        { dispNo: '1001', dispNm: '패션의류', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+        { dispNo: '1002', dispNm: '여성의류', depth: '2', parentDispNo: '1001', leafYn: 'Y' },
+        { dispNo: '1003', dispNm: '블라우스/셔츠', depth: '3', parentDispNo: '1002', leafYn: 'N' },
+      ],
+    },
+  }
+  return mapElevenStCategories(rawNs2).map((n) => CategoryNodeSchema.parse(n))
 }
 
 /**
@@ -317,6 +336,10 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
       // ESM(G마켓·옥션) 은 site-cats raw 응답 스키마(EsmSiteCatSchema) 통과 mock 사용.
       if (isEsmMarket(market)) {
         return buildEsmMockCategoryTree(market)
+      }
+      // 11번가 — 실 cateservice ns2 응답을 real 파서로 통과(PR-1 parity).
+      if (market === '11st') {
+        return buildElevenStMockCategoryTree()
       }
       const tree: CategoryNode[] = [
         {

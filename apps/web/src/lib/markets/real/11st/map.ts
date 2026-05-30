@@ -59,6 +59,17 @@ export const ELEVEN_ST_REST_PATHS = {
   outboundAddrOne: '/areaservice/getOutAddressInfo', // POST 1691 — `/{addrSeq}`
 } as const
 
+/**
+ * 카테고리 조회 REST URL 조립 (PR-1). API Key 불필요(GET) — querystring 없음.
+ *   - dispCtgrNo 없음 → 1001 전체 카테고리 (`/cateservice/category`).
+ *   - dispCtgrNo 지정 → 1617 하위 카테고리 (`/cateservice/category/{dispCtgrNo}`).
+ * 순수 함수 — Web(DOMParser)·Edge(fast-xml-parser) 양쪽이 동일 URL 을 게이트웨이로 보낸다.
+ */
+export function buildElevenStCategoryUrl(dispCtgrNo?: string): string {
+  const sub = dispCtgrNo && dispCtgrNo.trim() !== '' ? `/${encodeURIComponent(dispCtgrNo.trim())}` : ''
+  return `${ELEVEN_ST_REST_BASE}${ELEVEN_ST_REST_PATHS.categoryAll}${sub}`
+}
+
 // ─────────────────────────────────────────────
 // 공통 유틸 (순수)
 // ─────────────────────────────────────────────
@@ -148,41 +159,148 @@ export function toElevenStDate(iso: string): string {
 }
 
 // ─────────────────────────────────────────────
-// 카테고리 매핑
+// 카테고리 매핑 (PR-1 재작성 — cateservice 1001/1617, ns2, parentDispNo 트리)
+//
+// 구 placeholder(`?apiCode=ProductCategoryInfo` → `ProductCategorys>Category>CategoryCode/IsLeaf`)
+// 를 제거하고 spec(`category-1001.md`/`category-1617.md`) 의 `ns2:categorys > ns2:category[]`
+// 응답을 파싱한다. 필드 매핑(11st.md §4.3): dispNo→id / dispNm→name / depth→depth /
+//   parentDispNo→parentId(0→null) / leafYn→leaf.
+//
+// ⚠️ leafYn 의미(spec category-1001): "Y=하위 카테고리(가 존재) / N=하위 카테고리가 아님(=말단)".
+//   즉 leafYn='N' 이 말단(leaf) 이다. 따라서 leaf = (leafYn === 'N').
+//   응답에 leafYn 이 없으면(1617 등) 트리상 자식 유무로 보정(부모면 non-leaf).
 // ─────────────────────────────────────────────
 
+/** 카테고리 노드의 KC인증 메타(1617 의 certType/requiredYn). CategoryNode 엔 안 들어가는
+ *  UI 힌트/PR-3 검증용 — id 기준 별도 맵으로 보존(트리와 분리). */
+export interface ElevenStCategoryCertMeta {
+  /** 인증유형 (1=식품관련, 2=생활/어린이/전기용품관련). 없으면 undefined. */
+  certType?: string
+  /** 인증필수여부 (Y/N). */
+  requiredYn?: 'Y' | 'N'
+}
+
+/** parentId 기반 트리 빌드 입력 (내부 중간 표현). */
+export interface FlatElevenStCategory {
+  id: string
+  name: string
+  depth: number
+  parentId: string | null
+  /** leafYn 힌트 — true=말단, false=부모, undefined=미지(자식 유무로 보정). */
+  leafHint: boolean | undefined
+}
+
+/** ns2 제거 후 응답에서 category 평탄 배열을 추출 (1001 전체 / 1617 하위 공통). */
+function extractElevenStCategoryList(
+  parsed: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const stripped = stripNsPrefix(parsed) as Record<string, unknown>
+  const container = pick(stripped, ['categorys', 'categories']) as
+    | Record<string, unknown>
+    | undefined
+  if (container && typeof container === 'object') {
+    return asArray(pick(container, ['category']))
+  }
+  return asArray(pick(stripped, ['category']))
+}
+
+/** spec leafYn → leaf(boolean). 'N'=말단. 누락 시 undefined (트리 빌드가 자식 유무로 보정). */
+function parseLeafYn(raw: string): boolean | undefined {
+  if (raw === 'N') return true
+  if (raw === 'Y') return false
+  return undefined
+}
+
+function toFlatElevenStCategory(c: Record<string, unknown>): FlatElevenStCategory {
+  const id = str(pick(c, ['dispNo']))
+  const name = str(pick(c, ['dispNm']))
+  const depth = intOr(pick(c, ['depth']), 1)
+  const parentRaw = str(pick(c, ['parentDispNo']))
+  // parentDispNo '0'/'' = 최상위 → null.
+  const parentId = parentRaw === '' || parentRaw === '0' ? null : parentRaw
+  return {
+    id: id || 'unknown',
+    name: name || '미분류',
+    depth: depth >= 1 ? depth : 1,
+    parentId,
+    leafHint: parseLeafYn(str(pick(c, ['leafYn']))),
+  }
+}
+
+/**
+ * 평탄 카테고리 목록 → parentId 기반 트리(`CategoryNode[]`). 순수 함수.
+ *   - parentId=null 또는 부모가 목록에 없으면 루트.
+ *   - leaf = leafYn 힌트 우선, 없으면 자식 유무(자식 있으면 non-leaf, 기본 leaf).
+ *   - 자식이 발견되면 부모는 무조건 non-leaf 로 보정(leafYn 힌트보다 트리 구조 우선).
+ *   - 동일 id 중복(1617 가 조회 기준 노드 포함) → 첫 항목 유지(dedupe).
+ *   - 누락 parent 안전: 미연결 노드는 루트로 승격(데이터 유실 방지).
+ */
+export function buildElevenStCategoryTree(
+  flat: FlatElevenStCategory[],
+): CategoryNode[] {
+  const nodes = new Map<string, CategoryNode>()
+  for (const f of flat) {
+    if (!nodes.has(f.id)) {
+      nodes.set(f.id, {
+        id: f.id,
+        name: f.name,
+        depth: f.depth,
+        leaf: f.leafHint ?? true, // 기본 leaf, 자식 발견 시 false 로 보정.
+        parentId: f.parentId,
+        children: [],
+      })
+    }
+  }
+  const roots: CategoryNode[] = []
+  for (const node of nodes.values()) {
+    const parent =
+      node.parentId !== null && node.parentId !== node.id
+        ? nodes.get(node.parentId)
+        : undefined
+    if (parent) {
+      parent.children.push(node)
+      parent.leaf = false // 자식 보유 → 부모는 말단 아님(트리 구조 우선).
+    } else {
+      roots.push(node)
+    }
+  }
+  return roots
+}
+
+/**
+ * 파싱된 cateservice 응답 → CategoryNode 트리(11st.md §4.3).
+ * ns2 제거 + dispNo/dispNm/depth/parentDispNo/leafYn 매핑 + parentDispNo 트리 빌드.
+ * (구 depth:1 평탄화 → 정정.)
+ */
 export function mapElevenStCategories(
   parsed: Record<string, unknown>,
 ): CategoryNode[] {
-  const container = pick(parsed, [
-    'ProductCategorys',
-    'Categorys',
-    'Categories',
-    'ProductCategoryInfo',
-  ])
-  let list: Record<string, unknown>[] = []
-  if (container && typeof container === 'object') {
-    const c = container as Record<string, unknown>
-    list = asArray(pick(c, ['Category', 'category', 'ProductCategory']))
-  } else {
-    list = asArray(pick(parsed, ['Category', 'category']))
-  }
+  const list = extractElevenStCategoryList(parsed)
+  const flat = list.map(toFlatElevenStCategory)
+  return buildElevenStCategoryTree(flat)
+}
 
-  return list.map((c) => {
-    const id = str(pick(c, ['CategoryCode', 'ctgrNo', 'dispCtgrNo', 'categoryCode']))
-    const name = str(pick(c, ['CategoryName', 'ctgrNm', 'dispCtgrNm', 'categoryName']))
-    const leafRaw = str(pick(c, ['IsLeaf', 'leafYn', 'lastCtgrYn']))
-    const leaf = leafRaw === 'Y' || leafRaw === 'true' || leafRaw === '1'
-    const node: CategoryNode = {
-      id: id || 'unknown',
-      name: name || '미분류',
-      depth: 1,
-      leaf,
-      parentId: null,
-      children: [],
+/**
+ * 1617(하위) 응답의 KC인증 메타 추출 → `{ [dispNo]: { certType, requiredYn } }`.
+ * 상품등록(PR-3) 의 ProductCertGroup 필수여부 검증·UI 힌트에 사용. 1001 응답엔 없음(빈 맵).
+ */
+export function mapElevenStCategoryCertMeta(
+  parsed: Record<string, unknown>,
+): Record<string, ElevenStCategoryCertMeta> {
+  const out: Record<string, ElevenStCategoryCertMeta> = {}
+  for (const c of extractElevenStCategoryList(parsed)) {
+    const id = str(pick(c, ['dispNo']))
+    if (!id) continue
+    const certType = str(pick(c, ['certType']))
+    const requiredRaw = str(pick(c, ['requiredYn']))
+    const meta: ElevenStCategoryCertMeta = {}
+    if (certType) meta.certType = certType
+    if (requiredRaw === 'Y' || requiredRaw === 'N') meta.requiredYn = requiredRaw
+    if (meta.certType !== undefined || meta.requiredYn !== undefined) {
+      out[id] = meta
     }
-    return node
-  })
+  }
+  return out
 }
 
 // ─────────────────────────────────────────────

@@ -50,6 +50,7 @@ import {
 import {
   ELEVEN_ST_API_BASE,
   ELEVEN_ST_API_CODES,
+  buildElevenStCategoryUrl,
   buildElevenStProductRaw,
   buildElevenStProductXml,
   buildElevenStShipmentXml,
@@ -199,6 +200,51 @@ async function elevenStFetch(opts: {
   }
 }
 
+/**
+ * 카테고리 조회 fetch (PR-1) — cateservice 1001/1617 GET.
+ * 구 `?apiCode=ProductCategoryInfo` placeholder 제거. API Key 불필요(GET) — querystring 없음,
+ * 서비스별 REST path 절대 URL 직접 호출. 응답 XML(EUC-KR) → DOMParser → fast-xml-parser 호환 객체.
+ * ⚠️ URL 은 토큰/키 미포함이라 로그 안전. correlationId 만 헤더 부여.
+ */
+async function elevenStCategoryFetch(opts: {
+  url: string
+  correlationId: string
+  timeoutMs?: number
+}): Promise<ElevenStResponse> {
+  const { url, correlationId, timeoutMs = CATEGORY_TIMEOUT_MS } = opts
+  const controller = new AbortController()
+  const timerId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/xml;charset=EUC-KR',
+        'X-Correlation-Id': correlationId,
+      },
+      signal: controller.signal,
+    })
+    const buf = await response.arrayBuffer()
+    const text = decodeElevenStBody(buf)
+    return { status: response.status, ok: response.ok, text }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new MarketError('network', '11번가 카테고리 조회 timeout', {
+        market: MARKET,
+        cause: err,
+        marketErrorCode: 'timeout',
+      })
+    }
+    throw new MarketError('network', '11번가 카테고리 조회 네트워크 오류', {
+      market: MARKET,
+      cause: err,
+    })
+  } finally {
+    clearTimeout(timerId)
+  }
+}
+
 // ─────────────────────────────────────────────
 // credential 추출 (명시 인자 우선, 인스턴스 cred fallback)
 // ─────────────────────────────────────────────
@@ -281,16 +327,15 @@ function createElevenStRealAdapter(): MarketAdapter {
     // ───────────────────────────────────────────
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — 연결 검증 ping 겸용 (HTTP 200 = 자격증명 OK)
+    // fetchCategoryTree — cateservice 1001 전체 카테고리 (PR-1 재작성).
+    //   GET {ELEVEN_ST_REST_BASE}/cateservice/category. API Key 불필요(spec 1001).
+    //   ns2:categorys>ns2:category[] → stripNsPrefix → parentDispNo 트리 빌드.
+    //   (구 ?apiCode=ProductCategoryInfo / ProductCategorys>Category 파싱 제거.)
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const { apiKey } = getCredOrThrow()
       const correlationId = crypto.randomUUID()
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.category,
-        apiKey,
-        method: 'GET',
-        params: { dispCtgrNo: '0' },
+      const res = await elevenStCategoryFetch({
+        url: buildElevenStCategoryUrl(),
         correlationId,
         timeoutMs: CATEGORY_TIMEOUT_MS,
       })
