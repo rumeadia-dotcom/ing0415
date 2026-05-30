@@ -103,8 +103,13 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
           expect(mockFields[1]?.kind).toBe('select')
           expect(mockFields[1]?.optionsSource).toBe('esmDispatchPolicy')
           expect(mockFields[2]?.kind).toBe('officialNotice')
-          // 생성형 잔존 제거 검증 — shippingProfile kind 미노출.
-          expect(mockFields.some((f) => f.kind === 'shippingProfile')).toBe(false)
+          // 생성형 잔존 제거 검증 (PR-E5) — optionsSource 가 조회형 enum + static 으로만 구성.
+          //   생성형 shippingProfile kind / shippingProfiles optionsSource 는 enum 에서 제거됨.
+          expect(
+            mockFields
+              .map((f) => f.optionsSource)
+              .filter((s): s is NonNullable<typeof s> => s != null),
+          ).toEqual(['esmShippingPlace', 'esmDispatchPolicy', 'static'])
         } else if (isElevenSt) {
           // mock ↔ real 동형: 둘 다 함수로 노출 + [출고지, 반품/교환지] select 2필드 (11st.md §4.6 / PR-2).
           //   officialNotice 는 PR-4 — 본 PR 미포함.

@@ -76,7 +76,6 @@ const VALID_MAPPING: MarketMapping = {
   categoryId: '500009999',
   transformedImageUrls: ['https://cdn.example.com/a1-auction.jpg'],
   extra: {
-    shippingProfileId: '00000000-0000-4000-8000-0000000000bb',
     placeNo: 'PLACE-A-001',
     dispatchPolicyNo: 'DISPATCH-A-001',
     officialNotice: {

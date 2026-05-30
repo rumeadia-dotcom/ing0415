@@ -582,21 +582,16 @@ export const REGISTRATION_FIELD_KINDS = [
   'text',
   'number',
   'officialNotice',
-  // ⚠ 생성형 잔존 — 'shippingProfile' kind 는 PR-E5 에서 제거(PR-E3/E4 미제거).
-  //   negative-assertion 테스트가 리터럴 비교로 참조 → enum 값만 PR-E5 까지 보존(TS2367 회피).
-  'shippingProfile',
 ] as const
 export const RegistrationFieldKindSchema = z.enum(REGISTRATION_FIELD_KINDS)
 export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
 
 export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
-  // ⚠ 생성형 잔존 — 'shippingProfiles' 는 PR-E5 에서 제거(PR-E3/E4 미제거, 위 kind 와 동일 사유).
-  'shippingProfiles',
   'static',
-  // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2). additive — ESM 영역(위 2개) 미접촉.
+  // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2).
   'elevenStOutbound',
   'elevenStReturn',
-  // ESM Layer 2 조회형(esmShippingLookup) select 옵션 출처 (esm.md "전환 결정" / PR-E2). additive.
+  // ESM Layer 2 조회형(esmShippingLookup) select 옵션 출처 (esm.md "전환 결정" / PR-E2~E5).
   //   출하지(places) + 발송정책(dispatchPolicies, site별) 2종.
   'esmShippingPlace',
   'esmDispatchPolicy',

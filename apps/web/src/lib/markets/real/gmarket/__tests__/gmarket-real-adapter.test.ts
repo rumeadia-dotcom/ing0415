@@ -92,7 +92,6 @@ const VALID_MAPPING: MarketMapping = {
     'https://cdn.example.com/g2-gmarket.jpg',
   ],
   extra: {
-    shippingProfileId: '00000000-0000-4000-8000-0000000000aa',
     placeNo: 'PLACE-G-001',
     dispatchPolicyNo: 'DISPATCH-G-001',
     officialNotice: {
