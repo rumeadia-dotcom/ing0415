@@ -2,18 +2,23 @@ import { describe, expect, it } from 'vitest'
 import {
   ELEVEN_ST_API_BASE,
   ELEVEN_ST_API_CODES,
+  ELEVEN_ST_REST_BASE,
+  buildElevenStCategoryTree,
+  buildElevenStCategoryUrl,
   buildElevenStProductRaw,
   buildElevenStProductXml,
   escapeXml,
   extractElevenStProductNo,
   isElevenStShipmentOk,
   mapElevenStCategories,
+  mapElevenStCategoryCertMeta,
   mapElevenStOrders,
   normalizeElevenStStatus,
   stripNsPrefix,
   toElevenStDate,
   xmlDocToObject,
 } from '../map'
+import { CategoryNodeSchema } from '@/lib/schemas'
 
 /**
  * 11번가 어댑터 순수 매핑 로직 단위 테스트 (프론트엔드 포트).
@@ -177,34 +182,157 @@ describe('mapElevenStOrders', () => {
   })
 })
 
-describe('mapElevenStCategories', () => {
-  it('카테고리 목록 매핑 (leaf Y → true)', () => {
-    const parsed = {
-      Categorys: {
-        Category: [
-          { CategoryCode: '100', CategoryName: '패션', IsLeaf: 'N' },
-          { CategoryCode: '101', CategoryName: '셔츠', IsLeaf: 'Y' },
+describe('카테고리 — REST base / URL (PR-1)', () => {
+  it('ELEVEN_ST_REST_BASE = api.11st.co.kr/rest', () => {
+    expect(ELEVEN_ST_REST_BASE).toBe('https://api.11st.co.kr/rest')
+  })
+  it('buildElevenStCategoryUrl() — 1001 전체 카테고리 (path variable 없음)', () => {
+    expect(buildElevenStCategoryUrl()).toBe(
+      'https://api.11st.co.kr/rest/cateservice/category',
+    )
+  })
+  it('buildElevenStCategoryUrl(dispCtgrNo) — 1617 하위 (path variable 부착·encode)', () => {
+    expect(buildElevenStCategoryUrl('1097')).toBe(
+      'https://api.11st.co.kr/rest/cateservice/category/1097',
+    )
+    expect(buildElevenStCategoryUrl('  1097  ')).toBe(
+      'https://api.11st.co.kr/rest/cateservice/category/1097',
+    )
+  })
+})
+
+describe('mapElevenStCategories — ns2 + parentDispNo 트리 (PR-1 재작성)', () => {
+  // spec category-1001.md: ns2:categorys>ns2:category[], dispNo/dispNm/depth/parentDispNo/leafYn.
+  // ⚠️ leafYn: Y=하위 카테고리 존재(=non-leaf) / N=말단(=leaf).
+  const sample1001 = {
+    'ns2:categorys': {
+      'ns2:category': [
+        { dispNo: '1033', dispNm: '주방/이미용/생활가전', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+        { dispNo: '1097', dispNm: '주방조리가전', depth: '2', parentDispNo: '1033', leafYn: 'Y' },
+        { dispNo: '1098', dispNm: '전기밥솥', depth: '3', parentDispNo: '1097', leafYn: 'N' },
+      ],
+    },
+  }
+
+  it('성공: ns2 제거 후 parentDispNo 로 대>중>소 트리 빌드', () => {
+    const tree = mapElevenStCategories(sample1001)
+    expect(tree).toHaveLength(1) // 루트 1개 (parentDispNo=0)
+    const root = tree[0]
+    expect(root).toMatchObject({ id: '1033', name: '주방/이미용/생활가전', depth: 1, parentId: null })
+    expect(root?.leaf).toBe(false) // 자식 보유 → non-leaf
+    const mid = root?.children[0]
+    expect(mid).toMatchObject({ id: '1097', name: '주방조리가전', depth: 2, parentId: '1033', leaf: false })
+    const leaf = mid?.children[0]
+    expect(leaf).toMatchObject({ id: '1098', name: '전기밥솥', depth: 3, parentId: '1097', leaf: true })
+    expect(leaf?.children).toEqual([])
+    // CategoryNodeSchema 재귀 통과.
+    expect(() => CategoryNodeSchema.parse(root)).not.toThrow()
+  })
+
+  it('성공: 단일 카테고리(객체, 배열 아님) → 루트 1건', () => {
+    const tree = mapElevenStCategories({
+      'ns2:categorys': {
+        'ns2:category': { dispNo: '1', dispNm: '전자', depth: '1', parentDispNo: '0', leafYn: 'N' },
+      },
+    })
+    expect(tree).toHaveLength(1)
+    expect(tree[0]).toMatchObject({ id: '1', name: '전자', leaf: true, parentId: null })
+  })
+
+  it('엣지: 빈 응답 / categorys 누락 → 빈 배열', () => {
+    expect(mapElevenStCategories({})).toEqual([])
+    expect(mapElevenStCategories({ 'ns2:categorys': {} })).toEqual([])
+  })
+
+  it('엣지: ns2 prefix 가 없는 응답도 파싱 (categorys/category 키)', () => {
+    const tree = mapElevenStCategories({
+      categorys: { category: { dispNo: '7', dispNm: '도서', depth: '1', parentDispNo: '0', leafYn: 'N' } },
+    })
+    expect(tree[0]).toMatchObject({ id: '7', name: '도서' })
+  })
+
+  it('실패/엣지: depth/필드 누락 → 안전 기본값(unknown/미분류/depth1/leaf)', () => {
+    const tree = mapElevenStCategories({
+      'ns2:categorys': { 'ns2:category': { parentDispNo: '0' } },
+    })
+    expect(tree[0]).toMatchObject({ id: 'unknown', name: '미분류', depth: 1, leaf: true })
+  })
+
+  it('실패/엣지: 잘못된 depth(비숫자) → depth 1 로 fallback', () => {
+    const tree = mapElevenStCategories({
+      'ns2:categorys': { 'ns2:category': { dispNo: 'X', dispNm: 'Y', depth: 'abc', parentDispNo: '0', leafYn: 'N' } },
+    })
+    expect(tree[0]?.depth).toBe(1)
+  })
+
+  it('엣지: 부모가 목록에 없는 노드 → 루트로 승격(데이터 유실 방지)', () => {
+    const tree = mapElevenStCategories({
+      'ns2:categorys': {
+        'ns2:category': [{ dispNo: '50', dispNm: '고아노드', depth: '3', parentDispNo: '999', leafYn: 'N' }],
+      },
+    })
+    expect(tree).toHaveLength(1)
+    expect(tree[0]).toMatchObject({ id: '50', parentId: '999' })
+  })
+})
+
+describe('buildElevenStCategoryTree — 트리 빌드 단위 (leafYn 힌트 vs 자식 유무)', () => {
+  it('자식이 있으면 leafYn 힌트(Y=non-leaf) 와 무관하게 부모는 non-leaf', () => {
+    const tree = buildElevenStCategoryTree([
+      { id: 'p', name: '부모', depth: 1, parentId: null, leafHint: true }, // leafYn=N 힌트(leaf) 였더라도
+      { id: 'c', name: '자식', depth: 2, parentId: 'p', leafHint: true },
+    ])
+    expect(tree).toHaveLength(1)
+    expect(tree[0]?.leaf).toBe(false) // 자식 발견 → 강제 non-leaf
+    expect(tree[0]?.children[0]?.leaf).toBe(true)
+  })
+
+  it('leafHint undefined + 자식 없음 → 기본 leaf=true', () => {
+    const tree = buildElevenStCategoryTree([
+      { id: 'a', name: 'A', depth: 1, parentId: null, leafHint: undefined },
+    ])
+    expect(tree[0]?.leaf).toBe(true)
+  })
+
+  it('동일 id 중복 → 첫 항목 유지(dedupe)', () => {
+    const tree = buildElevenStCategoryTree([
+      { id: 'x', name: '첫번째', depth: 1, parentId: null, leafHint: true },
+      { id: 'x', name: '중복', depth: 1, parentId: null, leafHint: false },
+    ])
+    expect(tree).toHaveLength(1)
+    expect(tree[0]?.name).toBe('첫번째')
+  })
+
+  it('self-parent(순환) 방어 → 루트로 처리', () => {
+    const tree = buildElevenStCategoryTree([
+      { id: 'self', name: '자기참조', depth: 1, parentId: 'self', leafHint: true },
+    ])
+    expect(tree).toHaveLength(1)
+    expect(tree[0]?.id).toBe('self')
+  })
+})
+
+describe('mapElevenStCategoryCertMeta — 1617 KC인증 메타 (PR-1)', () => {
+  it('성공: certType/requiredYn 추출 (id 기준 맵)', () => {
+    const meta = mapElevenStCategoryCertMeta({
+      'ns2:categorys': {
+        'ns2:category': [
+          { dispNo: '1098', dispNm: '전기밥솥', depth: '3', parentDispNo: '1097', certType: '2', requiredYn: 'Y' },
+          { dispNo: '1097', dispNm: '주방조리가전', depth: '2', parentDispNo: '1033' }, // 메타 없음 → 제외
         ],
       },
-    }
-    const cats = mapElevenStCategories(parsed)
-    expect(cats).toHaveLength(2)
-    expect(cats[0]).toMatchObject({ id: '100', name: '패션', leaf: false, depth: 1 })
-    expect(cats[1]).toMatchObject({ id: '101', name: '셔츠', leaf: true })
-  })
-  it('단일 카테고리(객체) → 1건', () => {
-    const cats = mapElevenStCategories({
-      Categorys: { Category: { CategoryCode: '5', CategoryName: '전자', IsLeaf: '1' } },
     })
-    expect(cats).toHaveLength(1)
-    expect(cats[0]).toMatchObject({ id: '5', name: '전자', leaf: true })
+    expect(meta['1098']).toEqual({ certType: '2', requiredYn: 'Y' })
+    expect(meta['1097']).toBeUndefined()
   })
-  it('빈 응답 → 빈 배열 (엣지)', () => {
-    expect(mapElevenStCategories({})).toEqual([])
-  })
-  it('id/name 누락 → 안전 기본값 (엣지)', () => {
-    const cats = mapElevenStCategories({ Categorys: { Category: { IsLeaf: 'N' } } })
-    expect(cats[0]).toMatchObject({ id: 'unknown', name: '미분류', leaf: false })
+
+  it('엣지: 1001(메타 없는) 응답 → 빈 맵', () => {
+    const meta = mapElevenStCategoryCertMeta({
+      'ns2:categorys': {
+        'ns2:category': { dispNo: '1', dispNm: 'A', depth: '1', parentDispNo: '0', leafYn: 'N' },
+      },
+    })
+    expect(meta).toEqual({})
   })
 })
 
@@ -331,5 +459,23 @@ describe('xmlDocToObject — DOMParser 결과 → fast-xml-parser 호환 객체'
   it('잘못된 XML → 빈 객체 (실패 시나리오)', () => {
     const obj = parse('<<not valid>>')
     expect(mapElevenStOrders(obj)).toEqual([])
+  })
+
+  it('ns2 cateservice XML(EUC-KR style) → DOMParser → mapElevenStCategories 트리 (Web 실경로)', () => {
+    // 실제 11번가 응답은 ns2: prefix + 형제 반복. DOMParser 가 xmlns 미선언 prefix 를
+    // tagName 에 그대로 남기는지 검증 + stripNsPrefix → 트리 빌드.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      <ns2:categorys xmlns:ns2="http://www.11st.co.kr/cate">
+        <ns2:category>
+          <dispNo>1033</dispNo><dispNm>주방가전</dispNm><depth>1</depth><parentDispNo>0</parentDispNo><leafYn>Y</leafYn>
+        </ns2:category>
+        <ns2:category>
+          <dispNo>1097</dispNo><dispNm>주방조리가전</dispNm><depth>2</depth><parentDispNo>1033</parentDispNo><leafYn>N</leafYn>
+        </ns2:category>
+      </ns2:categorys>`
+    const tree = mapElevenStCategories(parse(xml))
+    expect(tree).toHaveLength(1)
+    expect(tree[0]).toMatchObject({ id: '1033', parentId: null, leaf: false })
+    expect(tree[0]?.children[0]).toMatchObject({ id: '1097', parentId: '1033', leaf: true })
   })
 })

@@ -25,6 +25,10 @@ const ALLOWED_UPSTREAM_HOSTS = new Set([
   // ESM(G마켓·옥션): sa2 = 현행 상품/카테고리 base, sa = 레거시 호환 유지.
   'sa2.esmplus.com',
   'sa.esmplus.com',
+  // 11번가: api.11st.co.kr = 실제 REST base (PR-1~, cateservice/prodservices/ordservices).
+  //   openapi.11st.co.kr = 구 placeholder 호출용 — 호출부 재작성(PR-1~5) 완료 전까지 병존.
+  //   PR-5 까지 다른 11번가 메서드가 구 placeholder 를 쓰므로 openapi 는 제거 금지 (11st.md §7).
+  'api.11st.co.kr',
   'openapi.11st.co.kr',
 ]);
 

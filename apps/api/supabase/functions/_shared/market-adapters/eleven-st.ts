@@ -39,6 +39,7 @@ import type { MarketAdapter, SubmitTrackingResult } from '../market-adapter.ts'
 import type { FetchOrdersInput, MarketOrder } from '../market-orders.ts'
 import { FetchOrdersInputSchema, MarketOrderSchema } from '../market-orders.ts'
 import {
+  buildElevenStCategoryUrl,
   buildElevenStProductRaw,
   buildElevenStProductXml,
   buildElevenStShipmentXml,
@@ -192,6 +193,54 @@ async function elevenStFetch(opts: {
   }
 }
 
+/**
+ * 카테고리 조회 fetch (PR-1) — cateservice 1001/1617 GET, 게이트웨이 경유.
+ * 구 `?apiCode=ProductCategoryInfo` placeholder 제거. API Key 불필요(GET) — querystring/헤더에
+ * apiKey 미부여. 절대 REST URL 직접 호출. 응답 XML(EUC-KR) → fast-xml-parser.
+ * ⚠️ URL 은 토큰/키 미포함이라 로그 안전. maskUrlForLog 는 gatewayFetch 내부 처리.
+ */
+async function elevenStCategoryFetch(opts: {
+  url: string
+  correlationId: string
+  timeoutMs?: number
+}): Promise<ElevenStResponse> {
+  const { url, correlationId, timeoutMs } = opts
+  const reqLogger = logger.with({ correlationId, market: MARKET })
+  reqLogger.info({ method: 'GET', service: 'cateservice' }, '→ market request (gateway)')
+  const start = Date.now()
+  try {
+    const response = await gatewayFetch(MARKET, url, {
+      correlationId,
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/xml;charset=EUC-KR',
+        'X-Correlation-Id': correlationId,
+      },
+      timeoutMs: timeoutMs ?? CATEGORY_TIMEOUT_MS,
+    })
+    const buf = await response.arrayBuffer()
+    const text = decodeElevenStBody(buf)
+    reqLogger.info(
+      { status: response.status, latencyMs: Date.now() - start },
+      '← market response (gateway)',
+    )
+    return { status: response.status, ok: response.ok, text }
+  } catch (err) {
+    reqLogger.error({ latencyMs: Date.now() - start }, '← market error (gateway)')
+    if (err instanceof MarketError) {
+      throw new MarketError(err.code, `11번가 ${err.message}`, {
+        market: MARKET,
+        cause: err,
+        status: err.context.status,
+      })
+    }
+    throw new MarketError('network', '11번가 카테고리 조회 네트워크 오류', {
+      market: MARKET,
+      cause: err,
+    })
+  }
+}
+
 export function createElevenStAdapter(): MarketAdapter {
   let cred: ApiKeyCred | null = null
 
@@ -246,15 +295,14 @@ export function createElevenStAdapter(): MarketAdapter {
       cred = { apiKey: p.apiKey }
     },
 
-    // 카테고리 조회 (연결 검증 ping 겸용 — HTTP 200 = 자격증명 OK).
+    // 카테고리 조회 — cateservice 1001 전체 카테고리 (PR-1 재작성).
+    //   GET {ELEVEN_ST_REST_BASE}/cateservice/category (게이트웨이 경유). API Key 불필요(spec 1001).
+    //   ns2:categorys>ns2:category[] → stripNsPrefix → parentDispNo 트리 빌드.
+    //   (구 ?apiCode=ProductCategoryInfo / ProductCategorys>Category 파싱 제거.)
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const { apiKey } = getCredOrThrow()
       const correlationId = generateCorrelationId()
-      const res = await elevenStFetch({
-        apiCode: ELEVEN_ST_API_CODES.category,
-        apiKey,
-        method: 'GET',
-        params: { dispCtgrNo: '0' },
+      const res = await elevenStCategoryFetch({
+        url: buildElevenStCategoryUrl(),
         correlationId,
         timeoutMs: CATEGORY_TIMEOUT_MS,
       })
