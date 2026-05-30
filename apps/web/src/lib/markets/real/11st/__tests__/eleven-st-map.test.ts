@@ -12,6 +12,7 @@ import {
   mapElevenStCategories,
   mapElevenStCategoryCertMeta,
   mapElevenStOrders,
+  normalizeElevenStOfficialNotice,
   normalizeElevenStStatus,
   stripNsPrefix,
   toElevenStDate,
@@ -555,17 +556,97 @@ describe('PR-3 이미지 truncate warning (13장↑ 무음 드롭)', () => {
     expect(warnings).toEqual([])
   })
 
-  it('officialNotice(extra) 있으면 ProductNotification 주입(PR-4 슬롯) — 없으면 미부착', () => {
+})
+
+describe('PR-4 officialNotice(ProductNotification) 주입 + 정규화', () => {
+  it('extra.officialNotice 없으면 ProductNotification 미부착', () => {
     const without = buildElevenStProductRaw(makeProduct(), makeMapping())
     expect(without.fields.ProductNotification).toBeUndefined()
-    const withNotice = buildElevenStProductRaw(
+  })
+
+  it('이미 11번가 형태({type,item})면 그대로 통과 (PR-3 슬롯 호환)', () => {
+    const { fields } = buildElevenStProductRaw(
       makeProduct(),
-      makeMapping({ extra: { officialNotice: { type: '891011', item: [{ code: '1', name: '면' }] } } }),
+      makeMapping({
+        extra: { officialNotice: { type: '891011', item: [{ code: '1', name: '면' }] } },
+      }),
     )
-    expect(withNotice.fields.ProductNotification).toEqual({
+    expect(fields.ProductNotification).toEqual({
       type: '891011',
       item: [{ code: '1', name: '면' }],
     })
+  })
+
+  it('UI generic 형태({officialNoticeNo, details}) → {type, item:[{code,name}]} 변환 후 주입', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({
+        extra: {
+          officialNotice: {
+            officialNoticeNo: '891011',
+            details: [
+              { code: '23759468', value: '나일론' },
+              { code: '23759469', value: '대한민국' },
+            ],
+          },
+        },
+      }),
+    )
+    expect(fields.ProductNotification).toEqual({
+      type: '891011',
+      item: [
+        { code: '23759468', name: '나일론' },
+        { code: '23759469', name: '대한민국' },
+      ],
+    })
+  })
+})
+
+describe('PR-4 normalizeElevenStOfficialNotice — 순수 정규화 (양측 입력)', () => {
+  it('UI generic 변환 — officialNoticeNo→type, details(value)→item(name)', () => {
+    expect(
+      normalizeElevenStOfficialNotice({
+        officialNoticeNo: '700001',
+        details: [{ code: 'C1', value: 'V1' }],
+      }),
+    ).toEqual({ type: '700001', item: [{ code: 'C1', name: 'V1' }] })
+  })
+
+  it('11번가 형태 passthrough', () => {
+    expect(
+      normalizeElevenStOfficialNotice({ type: '700001', item: [{ code: 'C1', name: 'V1' }] }),
+    ).toEqual({ type: '700001', item: [{ code: 'C1', name: 'V1' }] })
+  })
+
+  it('free-form 군(마스터 밖 type) 도 입력값 그대로 직렬화 (코드 날조 없음)', () => {
+    expect(
+      normalizeElevenStOfficialNotice({
+        officialNoticeNo: '999999',
+        details: [{ code: 'X', value: 'Y' }],
+      }),
+    ).toEqual({ type: '999999', item: [{ code: 'X', name: 'Y' }] })
+  })
+
+  it('fail: type/officialNoticeNo 비어있으면 undefined', () => {
+    expect(
+      normalizeElevenStOfficialNotice({ officialNoticeNo: '', details: [{ code: 'C', value: 'V' }] }),
+    ).toBeUndefined()
+  })
+
+  it('fail: item/details 가 비어있거나 code/value 공백이면 undefined', () => {
+    expect(
+      normalizeElevenStOfficialNotice({ officialNoticeNo: '1', details: [] }),
+    ).toBeUndefined()
+    expect(
+      normalizeElevenStOfficialNotice({ officialNoticeNo: '1', details: [{ code: '', value: '' }] }),
+    ).toBeUndefined()
+  })
+
+  it('fail: 객체 아님 / null → undefined', () => {
+    expect(normalizeElevenStOfficialNotice(undefined)).toBeUndefined()
+    expect(normalizeElevenStOfficialNotice(null)).toBeUndefined()
+    expect(normalizeElevenStOfficialNotice('x')).toBeUndefined()
+    expect(normalizeElevenStOfficialNotice([])).toBeUndefined()
   })
 })
 

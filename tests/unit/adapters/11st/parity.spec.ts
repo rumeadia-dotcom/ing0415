@@ -77,7 +77,7 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(typeof elevenstRealAdapter.refreshToken).toBe('undefined')
   })
 
-  it('§2-b: getRegistrationFields 정합 (PR-2) — 출고지/반품지 select 2필드, mock = real', () => {
+  it('§2-b: getRegistrationFields 정합 (PR-2·PR-4) — 출고지/반품지 select + 상품정보고시 3필드, mock = real', () => {
     expect(typeof elevenstDebugAdapter.getRegistrationFields).toBe('function')
     expect(typeof elevenstRealAdapter.getRegistrationFields).toBe('function')
     const mockFields = elevenstDebugAdapter.getRegistrationFields?.() ?? []
@@ -86,16 +86,22 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(mockFields.map((f) => f.key)).toEqual([
       'outboundAddrSeq',
       'returnAddrSeq',
+      'officialNotice',
     ])
-    // 두 필드 모두 조회형 select + required + 11번가 전용 optionsSource.
-    expect(mockFields.map((f) => f.kind)).toEqual(['select', 'select'])
+    // 출고지/반품지=조회형 select, officialNotice=공용 kind. 셋 다 required.
+    expect(mockFields.map((f) => f.kind)).toEqual([
+      'select',
+      'select',
+      'officialNotice',
+    ])
     expect(mockFields.every((f) => f.required)).toBe(true)
     expect(mockFields.map((f) => f.optionsSource)).toEqual([
       'elevenStOutbound',
       'elevenStReturn',
+      'static',
     ])
-    // officialNotice 는 PR-4 — 본 PR 에는 없어야 한다.
-    expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(false)
+    // officialNotice 필드가 PR-4 로 추가됨 (이전엔 부재).
+    expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(true)
   })
 
   it('§3-mock: mock transformProduct → { market, raw } / MarketPayloadSchema 통과', () => {

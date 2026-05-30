@@ -624,13 +624,64 @@ export function buildElevenStProductRaw(
   const certGroup = buildElevenStCertGroup(requiredYn, extra.cert)
   if (certGroup) raw.ProductCertGroup = certGroup
 
-  // officialNotice(ProductNotification) — PR-4 담당. 본 PR 은 주입 슬롯만:
-  //   오케스트레이터가 extra.officialNotice 를 넣어두면 그대로 통과(PR-4 가 채울 자리).
-  if (extra.officialNotice && typeof extra.officialNotice === 'object') {
-    raw.ProductNotification = extra.officialNotice
-  }
+  // officialNotice(ProductNotification) — PR-4. extra.officialNotice 를 11번가 형태로 정규화 후 주입.
+  //   UI generic 형태({officialNoticeNo, details}) → 11번가 {type, item:[{code,name}]} 변환.
+  //   이미 11번가 형태({type,item})면 passthrough (PR-3 슬롯 호환). 빈/불완전 입력은 미부착.
+  const notification = normalizeElevenStOfficialNotice(extra.officialNotice)
+  if (notification) raw.ProductNotification = notification
 
   return { fields: raw, warnings }
+}
+
+/**
+ * 상품정보고시 입력값 → 11번가 `ProductNotification`({type, item:[{code,name}]}) 정규화 (PR-4).
+ *
+ * 두 입력 형태를 모두 받는다(순수 함수):
+ *  - UI generic 형태 `{ officialNoticeNo, details:[{code,value}] }` (ESM OfficialNoticeField 재사용 산출):
+ *      officialNoticeNo → type, details[].code → item[].code, details[].value → item[].name.
+ *  - 이미 11번가 형태 `{ type, item:[{code,name}] }`: 그대로 통과(PR-3 슬롯/단위테스트 호환).
+ *
+ * 불완전 입력(type/officialNoticeNo 없음, item/details 비어있음, code/name 공백)은 undefined 반환
+ *   → 페이로드에 ProductNotification 미부착(상위 makeStep3Schema required 가 미입력을 먼저 차단).
+ *   추측 코드 금지: 셀러가 입력한 type/code/name 만 그대로 직렬화한다(마스터 미확보 군 free-form 포함).
+ */
+export function normalizeElevenStOfficialNotice(
+  raw: unknown,
+): { type: string; item: { code: string; name: string }[] } | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const obj = raw as Record<string, unknown>
+
+  // 11번가 형태 passthrough — type + item[{code,name}].
+  if ('type' in obj || 'item' in obj) {
+    const type = str(obj.type)
+    const item = Array.isArray(obj.item)
+      ? (obj.item as unknown[])
+          .map((it) => {
+            const r = (it ?? {}) as Record<string, unknown>
+            return { code: str(r.code), name: str(r.name) }
+          })
+          .filter((it) => it.code !== '' && it.name !== '')
+      : []
+    if (type === '' || item.length === 0) return undefined
+    return { type, item }
+  }
+
+  // UI generic 형태 변환 — officialNoticeNo + details[{code,value}].
+  if ('officialNoticeNo' in obj || 'details' in obj) {
+    const type = str(obj.officialNoticeNo)
+    const item = Array.isArray(obj.details)
+      ? (obj.details as unknown[])
+          .map((d) => {
+            const r = (d ?? {}) as Record<string, unknown>
+            return { code: str(r.code), name: str(r.value) }
+          })
+          .filter((it) => it.code !== '' && it.name !== '')
+      : []
+    if (type === '' || item.length === 0) return undefined
+    return { type, item }
+  }
+
+  return undefined
 }
 
 /** Record → `<Product>...</Product>` XML (중첩 객체/배열은 buildElevenStProductXml 가 재귀 직렬화). */

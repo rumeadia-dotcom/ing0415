@@ -1,12 +1,19 @@
 import { Check, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui'
 import { useMarketCategoryTree } from '../hooks/useMarketCategoryTree'
-import { OfficialNoticeField } from './OfficialNoticeField'
+import {
+  OfficialNoticeField,
+  type OfficialNoticeConfig,
+} from './OfficialNoticeField'
 import {
   useElevenStShippingAddresses,
   useEsmShippingOptions,
 } from '@/features/settings/shipping'
 import { getRegistrationFieldsForMarket } from '@/lib/markets/registration-fields'
+import {
+  ELEVEN_ST_NOTICE_ALLOW_FREEFORM,
+  getElevenStNoticeOptions,
+} from '@/lib/markets/real/11st/official-notice-groups'
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import { resolveKoPath } from '@/lib/i18n'
 import { ko } from '@/locales/ko'
@@ -14,6 +21,24 @@ import type { CategoryNode, EsmOfficialNotice } from '@/lib/schemas'
 import type { CategoryMapping } from '@/lib/schemas/registration'
 import type { RegistrationFieldMeta } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
+
+/**
+ * 11번가 상품정보고시 마스터 설정 (OfficialNoticeField 주입용) — 11st.md §4.1 / §7 PR-4.
+ *   확보 군은 1개(891011)뿐(C4) + 셀러 free-form 허용. 정적 필수항목은 첨부파일 미확보로 없음.
+ * 컴포넌트는 marketId → 설정 조회만 한다(render-kind 하드코딩 아님 — kind 분기는 'officialNotice' 단일).
+ */
+const ELEVEN_ST_NOTICE_CONFIG: OfficialNoticeConfig = {
+  options: getElevenStNoticeOptions(),
+  staticItemCodes: () => [],
+  allowFreeform: ELEVEN_ST_NOTICE_ALLOW_FREEFORM,
+}
+
+/** 마켓별 officialNotice 설정 조회 — 11번가만 주입, 그 외(ESM)는 undefined → 컴포넌트 기본(ESM 41군). */
+function getOfficialNoticeConfig(
+  marketId: MarketId,
+): OfficialNoticeConfig | undefined {
+  return marketId === '11st' ? ELEVEN_ST_NOTICE_CONFIG : undefined
+}
 
 interface MarketOptionsCardProps {
   marketId: MarketId
@@ -149,6 +174,7 @@ export function MarketOptionsCard({
             <MarketOptionField
               key={field.key}
               field={field}
+              marketId={marketId}
               marketAccountId={marketAccountId}
               value={marketOptions[field.key]}
               onChange={(value) => setOption(field.key, value)}
@@ -162,17 +188,21 @@ export function MarketOptionsCard({
 
 interface MarketOptionFieldProps {
   field: RegistrationFieldMeta
+  /** officialNotice 마스터(상품군) 설정을 마켓별로 주입하기 위한 식별자 — 데이터 조회용(render-kind 분기 아님). */
+  marketId: MarketId
   marketAccountId: string
   value: unknown
   onChange: (value: unknown) => void
 }
 
 /**
- * 단일 동적 필드 렌더 — kind 별 분기. marketId 하드코딩 없이 메타로만 결정.
+ * 단일 동적 필드 렌더 — kind 별 분기. render 분기는 메타 kind 로만 결정(마켓 하드코딩 없음).
+ * marketId 는 officialNotice 의 상품군 마스터 설정(ESM 41군 / 11번가 1군+free-form) 조회에만 쓴다.
  * 확장 대비: select/text/number 기본 렌더 + 조회형 select(11번가 출고지·반품지 / ESM 출하지·발송정책) 특수 렌더.
  */
 function MarketOptionField({
   field,
+  marketId,
   marketAccountId,
   value,
   onChange,
@@ -221,6 +251,7 @@ function MarketOptionField({
           fieldLabel={fieldLabel}
           value={isOfficialNotice(value) ? value : undefined}
           onChange={onChange}
+          config={getOfficialNoticeConfig(marketId)}
         />
       ) : field.kind === 'number' ? (
         <Input

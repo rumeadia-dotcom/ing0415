@@ -1,12 +1,12 @@
 /**
- * 11번가 동적 등록필드 (getRegistrationFields) 단위 테스트 (PR-2).
+ * 11번가 동적 등록필드 (getRegistrationFields) 단위 테스트 (PR-2·PR-4).
  *
- * 마스터: docs/architecture/v1/features/11st.md §3 / §4.6 / §5, market-adapter.md §9.8.
+ * 마스터: docs/architecture/v1/features/11st.md §3 / §4.6 / §5 / §7, market-adapter.md §9.8.
  * 검증:
- *   - 11st real 어댑터가 출고지/반품지 select 2필드 반환 (pass).
+ *   - 11st real 어댑터가 출고지/반품지 select + 상품정보고시 3필드 반환 (pass).
  *   - 필드 메타가 RegistrationFieldMetaSchema 통과 + 잘못된 메타는 거부 (pass + fail).
  *   - getRegistrationFieldsForMarket('11st') 가 어댑터와 동일 메타 반환.
- *   - mock ↔ real 동일 구조 (parity, R-006). officialNotice 부재(PR-4 영역).
+ *   - mock ↔ real 동일 구조 (parity, R-006). officialNotice 존재(PR-4).
  */
 
 import { describe, it, expect } from 'vitest'
@@ -17,12 +17,13 @@ import { createMockAdapter } from '../../../debug/createMockAdapter'
 import { getRegistrationFieldsForMarket } from '../../../registration-fields'
 
 describe('getElevenStRegistrationFields — 빌더', () => {
-  it('출고지(outboundAddrSeq) + 반품/교환지(returnAddrSeq) 2필드를 반환한다', () => {
+  it('출고지/반품지 + 상품정보고시 3필드를 반환한다 (PR-2·PR-4)', () => {
     const fields = getElevenStRegistrationFields()
-    expect(fields).toHaveLength(2)
+    expect(fields).toHaveLength(3)
     expect(fields.map((f) => f.key)).toEqual([
       'outboundAddrSeq',
       'returnAddrSeq',
+      'officialNotice',
     ])
   })
 
@@ -48,10 +49,15 @@ describe('getElevenStRegistrationFields — 빌더', () => {
     expect(f?.optionsSource).toBe('elevenStReturn')
   })
 
-  it('officialNotice 필드는 없다 (PR-4 영역 — 본 PR 미포함)', () => {
-    expect(
-      getElevenStRegistrationFields().some((f) => f.kind === 'officialNotice'),
-    ).toBe(false)
+  it('상품정보고시 필드 (kind=officialNotice, required, optionsSource=static, i18n key) — PR-4', () => {
+    const f = getElevenStRegistrationFields().find((x) => x.key === 'officialNotice')
+    expect(f?.kind).toBe('officialNotice')
+    expect(f?.required).toBe(true)
+    expect(f?.optionsSource).toBe('static')
+    expect(f?.label).toBe('markets.registrationFields.elevenStOfficialNotice.label')
+    expect(f?.blockingReason).toBe(
+      'markets.registrationFields.elevenStOfficialNotice.blockingReason',
+    )
   })
 
   it('반환 필드는 RegistrationFieldMetaSchema 를 통과한다 (pass)', () => {
@@ -67,11 +73,12 @@ describe('getElevenStRegistrationFields — 빌더', () => {
 })
 
 describe('MarketAdapter.getRegistrationFields — 11번가', () => {
-  it('real 어댑터가 출고지/반품지 2필드 반환', () => {
+  it('real 어댑터가 출고지/반품지 + 상품정보고시 3필드 반환', () => {
     const fields = elevenstRealAdapter.getRegistrationFields?.() ?? []
     expect(fields.map((f) => f.key)).toEqual([
       'outboundAddrSeq',
       'returnAddrSeq',
+      'officialNotice',
     ])
   })
 

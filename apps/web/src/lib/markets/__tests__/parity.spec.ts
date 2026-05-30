@@ -111,8 +111,8 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
               .filter((s): s is NonNullable<typeof s> => s != null),
           ).toEqual(['esmShippingPlace', 'esmDispatchPolicy', 'static'])
         } else if (isElevenSt) {
-          // mock ↔ real 동형: 둘 다 함수로 노출 + [출고지, 반품/교환지] select 2필드 (11st.md §4.6 / PR-2).
-          //   officialNotice 는 PR-4 — 본 PR 미포함.
+          // mock ↔ real 동형: 둘 다 함수로 노출 + [출고지, 반품/교환지] select + 상품정보고시
+          //   3필드 (11st.md §4.6 / PR-2·PR-4).
           expect(typeof mock.getRegistrationFields).toBe('function')
           expect(typeof real.getRegistrationFields).toBe('function')
           const mockFields = mock.getRegistrationFields?.() ?? []
@@ -121,9 +121,13 @@ describe('MarketAdapter mock ↔ real parity (v2 확장 후 7메서드)', () => 
           expect(mockFields.map((f) => f.key)).toEqual([
             'outboundAddrSeq',
             'returnAddrSeq',
+            'officialNotice',
           ])
-          expect(mockFields.every((f) => f.kind === 'select')).toBe(true)
-          expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(false)
+          expect(mockFields[0]?.kind).toBe('select')
+          expect(mockFields[1]?.kind).toBe('select')
+          expect(mockFields[2]?.kind).toBe('officialNotice')
+          // officialNotice 필드가 PR-4 로 추가됨.
+          expect(mockFields.some((f) => f.kind === 'officialNotice')).toBe(true)
         } else {
           // 하위호환: naver/coupang 은 메서드 미정의 → 헬퍼 통해 [] 취급.
           expect(mock.getRegistrationFields).toBeUndefined()
