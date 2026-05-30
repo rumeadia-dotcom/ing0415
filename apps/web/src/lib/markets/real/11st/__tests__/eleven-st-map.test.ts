@@ -7,8 +7,8 @@ import {
   buildElevenStCategoryUrl,
   buildElevenStProductRaw,
   buildElevenStProductXml,
+  classifyElevenStCreateResult,
   escapeXml,
-  extractElevenStProductNo,
   mapElevenStCategories,
   mapElevenStCategoryCertMeta,
   mapElevenStOrders,
@@ -17,6 +17,7 @@ import {
   toElevenStDate,
   xmlDocToObject,
 } from '../map'
+import type { MarketMapping, Product } from '@/lib/schemas'
 import { CategoryNodeSchema } from '@/lib/schemas'
 
 /**
@@ -337,56 +338,301 @@ describe('mapElevenStCategoryCertMeta — 1617 KC인증 메타 (PR-1)', () => {
   })
 })
 
-describe('상품 등록 빌드/응답', () => {
-  it('buildElevenStProductRaw — 상품명 100자 제한 + 이미지 prdImage01.. 매핑', () => {
-    const product = {
-      id: '00000000-0000-0000-0000-000000000001',
-      sellerId: '00000000-0000-0000-0000-000000000002',
-      name: 'x'.repeat(120),
-      priceKrw: 10000,
-      stock: 5,
-      images: [{ url: 'https://e.com/a.jpg', order: 0 }],
-      descriptionHtml: '<p>상세</p>',
-      shippingFeeKrw: 2500,
-    } as unknown as Parameters<typeof buildElevenStProductRaw>[0]
-    const mapping = {
-      market: '11st' as const,
-      categoryId: '101',
-      transformedImageUrls: ['https://e.com/a.jpg', 'https://e.com/b.jpg'],
-      extra: {},
-    }
-    const raw = buildElevenStProductRaw(product, mapping)
-    expect(String(raw.prdNm)).toHaveLength(100)
-    expect(raw.dispCtgrNo).toBe('101')
-    expect(raw.prdImage01).toBe('https://e.com/a.jpg')
-    expect(raw.prdImage02).toBe('https://e.com/b.jpg')
-    expect(raw.selPrc).toBe(10000)
+// ─────────────────────────────────────────────
+// PR-3: transformProduct (buildElevenStProductRaw) — prodservices 1003 필수 20+ 필드
+//   + Layer1 배송 인라인 + Layer2 addrSeq + KC인증 분기 + 이미지 truncate warning.
+// ─────────────────────────────────────────────
+
+function makeProduct(over: Partial<Product> = {}): Product {
+  return {
+    id: '00000000-0000-4000-8000-000000000001',
+    sellerId: '00000000-0000-4000-8000-000000000002',
+    name: '테스트 상품',
+    priceKrw: 12_345,
+    stock: 5,
+    images: [{ url: 'https://e.com/a.jpg', order: 0 }],
+    descriptionHtml: '<p>상세</p>',
+    shippingFeeKrw: 0,
+    ...over,
+  }
+}
+function makeMapping(over: Partial<MarketMapping> = {}): MarketMapping {
+  return {
+    market: '11st',
+    categoryId: '1122',
+    transformedImageUrls: ['https://e.com/a.jpg', 'https://e.com/b.jpg'],
+    extra: {},
+    ...over,
+  }
+}
+
+describe('PR-3 buildElevenStProductRaw — 필수필드', () => {
+  it('상수 필드 + 상품명 100자 컷 + 10원단위 + 이미지 prdImage01.. 매핑', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({ name: 'x'.repeat(120) }),
+      makeMapping(),
+    )
+    // 상수 필드 (spec 1003 — 고정가/일반배송/새상품/택배/업체배송).
+    expect(fields.selMthdCd).toBe('01')
+    expect(fields.prdTypCd).toBe('01')
+    expect(fields.prdStatCd).toBe('01')
+    expect(fields.dlvWyCd).toBe('01')
+    expect(fields.dlvClf).toBe('02')
+    expect(fields.minorSelCnYn).toBe('Y')
+    expect(fields.suplDtyfrPrdClfCd).toBe('01')
+    expect(fields.rmaterialTypCd).toBe('04')
+    expect(fields.orgnTypCd).toBe('03')
+    // 카테고리/상품명/가격/재고.
+    expect(fields.dispCtgrNo).toBe('1122')
+    expect(String(fields.prdNm)).toHaveLength(100)
+    expect(fields.selPrc).toBe(12_340) // 10원 단위 내림
+    expect(fields.prdSelQty).toBe(5)
+    // 이미지.
+    expect(fields.prdImage01).toBe('https://e.com/a.jpg')
+    expect(fields.prdImage02).toBe('https://e.com/b.jpg')
+    // 공백 불가 안내 + 원산지명 기본값.
+    expect(String(fields.asDetail).length).toBeGreaterThan(0)
+    expect(String(fields.rtngExchDetail).length).toBeGreaterThan(0)
+    expect(String(fields.orgnNmVal).length).toBeGreaterThan(0)
   })
 
-  it('buildElevenStProductXml — XML 특수문자 escape', () => {
+  it('brand 미지정 → "알수없음", htmlDetail 공백 → 기본값', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({ brand: undefined, descriptionHtml: '' }),
+      makeMapping(),
+    )
+    expect(fields.brand).toBe('알수없음')
+    expect(String(fields.htmlDetail).length).toBeGreaterThan(0)
+  })
+
+  it('FAIL 케이스 — prdNm 입력불가 특수문자([&%<>#†])는 공백 처리', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({ name: 'A&B[C]<D>#E' }),
+      makeMapping(),
+    )
+    expect(String(fields.prdNm)).not.toMatch(/[[\]&%<>#†]/)
+  })
+
+  it('구 placeholder 오용 제거 — selPrdClfCd / dlvCst 단일 미존재', () => {
+    const { fields } = buildElevenStProductRaw(makeProduct(), makeMapping())
+    expect(fields.selPrdClfCd).toBeUndefined()
+    expect(fields.dlvCst).toBeUndefined()
+  })
+})
+
+describe('PR-3 Layer1 배송 인라인 매핑 (shipping-fee-model)', () => {
+  it('fee 0 → dlvCstInstBasiCd 01(무료), dlvCst1 미부착', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({ shippingFeeKrw: 0 }),
+      makeMapping(),
+    )
+    expect(fields.dlvCstInstBasiCd).toBe('01')
+    expect(fields.dlvCst1).toBeUndefined()
+    expect(fields.bndlDlvCnYn).toBe('N')
+    expect(fields.jejuDlvCst).toBe(0)
+    expect(fields.islandDlvCst).toBe(0)
+    expect(fields.rtngdDlvCst).toBe(0)
+    expect(fields.exchDlvCst).toBe(0)
+  })
+
+  it('fee>0 → dlvCstInstBasiCd 02(고정) + dlvCst1(10원단위)', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({ shippingFeeKrw: 2_503 }),
+      makeMapping(),
+    )
+    expect(fields.dlvCstInstBasiCd).toBe('02')
+    expect(fields.dlvCst1).toBe(2_500)
+  })
+
+  it('extra.shipping.freeThreshold → 03(조건부무료) + PrdFrDlvBasiAmt + 반품/교환/도서산간', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({ shippingFeeKrw: 3_000 }),
+      makeMapping({
+        extra: {
+          shipping: {
+            baseFee: 3_000,
+            freeThreshold: 50_000,
+            returnFee: 2_500,
+            exchangeFee: 5_000,
+            jejuFee: 3_000,
+            islandFee: 5_000,
+            bundleAllowed: true,
+          },
+        },
+      }),
+    )
+    expect(fields.dlvCstInstBasiCd).toBe('03')
+    expect(fields.dlvCst1).toBe(3_000)
+    expect(fields.PrdFrDlvBasiAmt).toBe(50_000)
+    expect(fields.rtngdDlvCst).toBe(2_500)
+    expect(fields.exchDlvCst).toBe(5_000)
+    expect(fields.jejuDlvCst).toBe(3_000)
+    expect(fields.islandDlvCst).toBe(5_000)
+    expect(fields.bndlDlvCnYn).toBe('Y')
+  })
+})
+
+describe('PR-3 Layer2 addrSeq 주입 (출고지/반품지 조회형 select)', () => {
+  it('extra.outboundAddrSeq/returnAddrSeq → addrSeqOut/addrSeqIn', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({ extra: { outboundAddrSeq: '4', returnAddrSeq: '8' } }),
+    )
+    expect(fields.addrSeqOut).toBe('4')
+    expect(fields.addrSeqIn).toBe('8')
+  })
+
+  it('FAIL/엣지 — addrSeq 미선택 시 미주입(11번가 기본주소 자동설정)', () => {
+    const { fields } = buildElevenStProductRaw(makeProduct(), makeMapping({ extra: {} }))
+    expect(fields.addrSeqOut).toBeUndefined()
+    expect(fields.addrSeqIn).toBeUndefined()
+  })
+})
+
+describe('PR-3 KC인증 분기 (category-1617 requiredYn)', () => {
+  it('requiredYn 미지정/N → ProductCertGroup 생략', () => {
+    const a = buildElevenStProductRaw(makeProduct(), makeMapping())
+    expect(a.fields.ProductCertGroup).toBeUndefined()
+    const b = buildElevenStProductRaw(makeProduct(), makeMapping(), 'N')
+    expect(b.fields.ProductCertGroup).toBeUndefined()
+  })
+
+  it('requiredYn=Y + 셀러 미입력 → "해당없음(131)" 최소 인증그룹 통과', () => {
+    const { fields } = buildElevenStProductRaw(makeProduct(), makeMapping(), 'Y')
+    const grp = fields.ProductCertGroup as Record<string, unknown>
+    expect(grp).toBeTruthy()
+    expect(grp.crtfGrpObjClfCd).toBe('03')
+    expect((grp.ProductCert as Record<string, unknown>).certTypeCd).toBe('131')
+  })
+
+  it('requiredYn=Y + 셀러 입력(extra.cert) → 입력값 우선 + ProductCert 배열', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({
+        extra: {
+          cert: {
+            crtfGrpTypCd: '01',
+            crtfGrpObjClfCd: '01',
+            certs: [{ certTypeCd: '101', certKey: 'SAFE-12345' }],
+          },
+        },
+      }),
+      'Y',
+    )
+    const grp = fields.ProductCertGroup as Record<string, unknown>
+    expect(grp.crtfGrpTypCd).toBe('01')
+    expect(grp.crtfGrpObjClfCd).toBe('01')
+    expect(grp.ProductCert).toEqual([{ certTypeCd: '101', certKey: 'SAFE-12345' }])
+  })
+
+  it('extra.certRequiredYn=Y(오케스트레이터 주입) → 인자 없이도 인증그룹 부착', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({ extra: { certRequiredYn: 'Y' } }),
+    )
+    expect(fields.ProductCertGroup).toBeTruthy()
+  })
+})
+
+describe('PR-3 이미지 truncate warning (13장↑ 무음 드롭)', () => {
+  it('이미지 13장 → prdImage12 까지만 + images_truncated warning', () => {
+    const urls = Array.from({ length: 13 }, (_, i) => `https://e.com/${i}.jpg`)
+    const { fields, warnings } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({ transformedImageUrls: urls }),
+    )
+    expect(fields.prdImage12).toBe('https://e.com/11.jpg')
+    expect(fields.prdImage13).toBeUndefined()
+    expect(warnings.some((w) => w.code === 'images_truncated')).toBe(true)
+  })
+
+  it('이미지 12장 이하 → warning 없음', () => {
+    const urls = Array.from({ length: 12 }, (_, i) => `https://e.com/${i}.jpg`)
+    const { warnings } = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({ transformedImageUrls: urls }),
+    )
+    expect(warnings).toEqual([])
+  })
+
+  it('officialNotice(extra) 있으면 ProductNotification 주입(PR-4 슬롯) — 없으면 미부착', () => {
+    const without = buildElevenStProductRaw(makeProduct(), makeMapping())
+    expect(without.fields.ProductNotification).toBeUndefined()
+    const withNotice = buildElevenStProductRaw(
+      makeProduct(),
+      makeMapping({ extra: { officialNotice: { type: '891011', item: [{ code: '1', name: '면' }] } } }),
+    )
+    expect(withNotice.fields.ProductNotification).toEqual({
+      type: '891011',
+      item: [{ code: '1', name: '면' }],
+    })
+  })
+})
+
+describe('PR-3 buildElevenStProductXml — 중첩 직렬화 + escape', () => {
+  it('XML 특수문자 escape + <Product> root', () => {
     const xml = buildElevenStProductXml({ prdNm: 'A & <B> "C"' })
     expect(xml).toContain('<prdNm>A &amp; &lt;B&gt; &quot;C&quot;</prdNm>')
     expect(xml).toContain('<Product>')
+    expect(xml).toContain('<?xml version="1.0" encoding="EUC-KR"?>')
+  })
+
+  it('중첩 객체(ProductCertGroup) + 배열(ProductCert) 직렬화', () => {
+    const xml = buildElevenStProductXml({
+      ProductCertGroup: {
+        crtfGrpObjClfCd: '03',
+        ProductCert: [
+          { certTypeCd: '131', certKey: '' },
+          { certTypeCd: '101', certKey: 'K1' },
+        ],
+      },
+    })
+    expect(xml).toContain('<ProductCertGroup><crtfGrpObjClfCd>03</crtfGrpObjClfCd>')
+    // 배열 → 같은 태그 반복.
+    expect(xml.match(/<ProductCert>/g)?.length).toBe(2)
+    expect(xml).toContain('<certTypeCd>131</certTypeCd>')
   })
 
   it('escapeXml 단위', () => {
     expect(escapeXml(`<&>"'`)).toBe('&lt;&amp;&gt;&quot;&apos;')
   })
+})
 
-  it('extractElevenStProductNo — 성공: productNo 추출', () => {
-    const r = extractElevenStProductNo({
-      Product: { result_code: '200', ProductNo: '987654' },
+describe('PR-3 classifyElevenStCreateResult — ClientMessage 응답 분류', () => {
+  it('200(일반성공) + productNo → success', () => {
+    const r = classifyElevenStCreateResult({
+      ClientMessage: { resultCode: '200', productNo: '52844137', message: '정상' },
     })
-    expect(r.productNo).toBe('987654')
-    expect(r.resultCode).toBe('200')
+    expect(r.kind).toBe('success')
+    if (r.kind === 'success') expect(r.productNo).toBe('52844137')
   })
 
-  it('extractElevenStProductNo — 실패: 상품번호 없음 → 빈 문자열', () => {
-    const r = extractElevenStProductNo({
-      Product: { result_code: '400', result_text: '카테고리 오류' },
+  it('210(신규성공) + productNo → success', () => {
+    const r = classifyElevenStCreateResult({
+      ClientMessage: { resultCode: '210', productNo: '999', message: '신규성공' },
     })
-    expect(r.productNo).toBe('')
-    expect(r.resultText).toBe('카테고리 오류')
+    expect(r.kind).toBe('success')
+  })
+
+  it('400(일 500개 한도) → rejected', () => {
+    const r = classifyElevenStCreateResult({
+      ClientMessage: { resultCode: '400', message: '상품 등록은 1일 500개 까지만 가능합니다.' },
+    })
+    expect(r.kind).toBe('rejected')
+    if (r.kind === 'rejected') expect(r.resultCode).toBe('400')
+  })
+
+  it('500(검증 실패) → rejected + 메시지 보존', () => {
+    const r = classifyElevenStCreateResult({
+      ClientMessage: { resultCode: '500', message: '교환반품 안내는 반드시 입력하셔야 합니다.' },
+    })
+    expect(r.kind).toBe('rejected')
+    if (r.kind === 'rejected') expect(r.message).toContain('교환반품')
+  })
+
+  it('FAIL/엣지 — resultCode 200 이지만 productNo 누락 → rejected (보수적)', () => {
+    const r = classifyElevenStCreateResult({ ClientMessage: { resultCode: '200', message: 'x' } })
+    expect(r.kind).toBe('rejected')
   })
 })
 
@@ -440,11 +686,14 @@ describe('xmlDocToObject — DOMParser 결과 → fast-xml-parser 호환 객체'
     expect(orders[0]?.extra?.dlvNo).toBe('999')
   })
 
-  it('상품 등록 응답 XML → extractElevenStProductNo 성공', () => {
-    const xml = `<Product><result_code>200</result_code><ProductNo>987654</ProductNo></Product>`
-    const r = extractElevenStProductNo(parse(xml))
-    expect(r.productNo).toBe('987654')
-    expect(r.resultCode).toBe('200')
+  it('상품 등록 응답 XML(ClientMessage) → classifyElevenStCreateResult 성공', () => {
+    const xml = `<ClientMessage><resultCode>200</resultCode><productNo>987654</productNo><message>정상</message></ClientMessage>`
+    const r = classifyElevenStCreateResult(parse(xml))
+    expect(r.kind).toBe('success')
+    if (r.kind === 'success') {
+      expect(r.productNo).toBe('987654')
+      expect(r.resultCode).toBe('200')
+    }
   })
 
   it('잘못된 XML → 빈 객체 (실패 시나리오)', () => {

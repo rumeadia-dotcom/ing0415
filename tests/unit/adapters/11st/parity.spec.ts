@@ -138,6 +138,22 @@ describe('11st adapter parity (debug ↔ real)', () => {
     expect(result.market).toBe('11st')
   })
 
+  it('§4-d2: mock createProduct (PR-3) → ClientMessage 성공 구조 통과 + 11번가 productUrl', async () => {
+    const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, SAMPLE_MAPPING)
+    const result = await elevenstDebugAdapter.createProduct(payload)
+    expect(result.status).toBe('succeeded')
+    expect(result.externalId).toMatch(/^\d+$/)
+    expect(result.productUrl).toBe(`https://www.11st.co.kr/products/${result.externalId}`)
+  })
+
+  it('§4-d3: mock createProduct — 이미지 13장 transform warning(images_truncated) 결과 전달', async () => {
+    const manyImages = Array.from({ length: 13 }, (_, i) => `https://cdn.example.com/${i}.jpg`)
+    const mapping: MarketMapping = { ...SAMPLE_MAPPING, transformedImageUrls: manyImages }
+    const payload = elevenstDebugAdapter.transformProduct(SAMPLE_PRODUCT, mapping)
+    const result = await elevenstDebugAdapter.createProduct(payload)
+    expect(result.warnings.some((w) => w.code === 'images_truncated')).toBe(true)
+  })
+
   it('§4-e: real createProduct — 네트워크 실패 시 MarketError 분류 (에러 계약, fetch stub)', async () => {
     await elevenstRealAdapter.authenticate(SAMPLE_API_KEY_INPUT)
     const origFetch = globalThis.fetch
