@@ -133,7 +133,7 @@ function defaultRequiredFieldKeys(): string[] {
 /**
  * marketOptions 값이 "채워졌는지" 판정 (required 검증·blockingReason 단일 소스).
  *
- * 단순 string/number(예: shippingProfileId)뿐 아니라, 상품군 고시(officialNotice)처럼
+ * 단순 string/number(예: placeNo·dispatchPolicyNo)뿐 아니라, 상품군 고시(officialNotice)처럼
  * **객체 형태**의 동적 필드도 한 곳에서 판정한다. officialNotice 는
  * `{officialNoticeNo, details:[{code,value}]}` 형태이며(esm.md §4.4), 셀러가 상품군만
  * 고르고 항목 value 를 비워두면 "미완성"으로 봐야 한다(PR-5). 항목코드 마스터는 markets

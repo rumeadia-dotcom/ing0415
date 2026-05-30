@@ -387,26 +387,17 @@ export const REGISTRATION_FIELD_KINDS = [
   'text',
   'number',
   'officialNotice',
-  // ⚠ 생성형 잔존 — 'shippingProfile' kind 는 PR-E5 에서 제거한다(PR-E3/E4 미제거).
-  //   생성형 렌더(ShippingProfileSelect)는 PR-E3 에서 이미 삭제됐으나, 조회형 전환을
-  //   증명하는 negative-assertion 테스트(parity.spec / esm registration-fields.test)가
-  //   아직 이 리터럴을 비교 대상으로 참조하므로 enum 값은 PR-E5 까지 보존(TS2367 회피).
-  'shippingProfile',
 ] as const
 export const RegistrationFieldKindSchema = z.enum(REGISTRATION_FIELD_KINDS)
 export type RegistrationFieldKind = z.infer<typeof RegistrationFieldKindSchema>
 
 export const REGISTRATION_FIELD_OPTIONS_SOURCES = [
-  // ⚠ 생성형 잔존 — 'shippingProfiles' 는 PR-E5 에서 제거한다(PR-E3/E4 미제거).
-  //   생성형 UI/훅/스키마는 PR-E3/E4 에서 제거됐으나, 위 'shippingProfile' kind 와 동일하게
-  //   negative-assertion 테스트가 리터럴을 참조 → enum 값만 PR-E5 까지 보존.
-  'shippingProfiles',
   'static',
-  // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2). additive — ESM 영역(위 2개) 미접촉.
+  // 11번가 Layer 2 조회형 select 옵션 출처 (11st.md §4.6 / PR-2).
   //   UI(MarketOptionsCard)가 useElevenStShippingAddresses 로 출고지/반품지 목록을 채운다.
   'elevenStOutbound',
   'elevenStReturn',
-  // ESM Layer 2 조회형(esmShippingLookup) select 옵션 출처 (esm.md "전환 결정 2026-05-30" / PR-E2). additive.
+  // ESM Layer 2 조회형(esmShippingLookup) select 옵션 출처 (esm.md "전환 결정 2026-05-30" / PR-E2~E5).
   //   UI(MarketOptionsCard)가 useEsmShippingOptions 로 출하지(places)·발송정책(dispatchPolicies, site별)을 채운다.
   //   출하지/발송정책 2종이라 11번가(out/return)와 동일하게 옵션 출처를 2개로 나눈다.
   'esmShippingPlace',

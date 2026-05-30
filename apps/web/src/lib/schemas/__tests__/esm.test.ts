@@ -335,17 +335,28 @@ describe('EsmSiteCatSchema', () => {
 // 4.6 RegistrationFieldMetaSchema
 // ─────────────────────────────────────────────
 describe('RegistrationFieldMetaSchema', () => {
-  it('shippingProfile 필드 메타 통과', () => {
+  it('생성형 shippingProfile kind 는 enum 에서 제거돼 실패 (PR-E5)', () => {
     expect(
       RegistrationFieldMetaSchema.safeParse({
         key: 'shippingProfileId',
         label: 'registration.fields.shippingProfile',
         kind: 'shippingProfile',
         required: true,
-        optionsSource: 'shippingProfiles',
         blockingReason: '배송 프로필을 선택해주세요',
       }).success,
-    ).toBe(true)
+    ).toBe(false)
+  })
+
+  it('생성형 shippingProfiles optionsSource 는 enum 에서 제거돼 실패 (PR-E5)', () => {
+    expect(
+      RegistrationFieldMetaSchema.safeParse({
+        key: 'shippingProfileId',
+        label: 'registration.fields.shippingProfile',
+        kind: 'select',
+        required: true,
+        optionsSource: 'shippingProfiles',
+      }).success,
+    ).toBe(false)
   })
 
   it('officialNotice 필드 메타 통과 (optional 필드 생략)', () => {

@@ -3,7 +3,7 @@
  *
  * 마스터: docs/architecture/v1/features/esm.md §4.6 / §6, cross-cutting/market-adapter.md §9.8.
  * 검증:
- *   - ESM(gmarket/auction) real 어댑터가 shippingProfile 필드 1개 반환 (pass).
+ *   - ESM(gmarket/auction) real 어댑터가 조회형 [출하지, 발송정책, 상품정보고시] 3필드 반환 (pass).
  *   - 타 마켓(naver/coupang/11st) 어댑터가 getRegistrationFields 미정의 → [] 취급 (하위호환 회귀).
  *   - 필드 메타가 RegistrationFieldMetaSchema 를 통과 + 잘못된 메타는 거부 (pass + fail).
  *   - mock ↔ real 동일 구조 (parity 보강).
@@ -56,12 +56,33 @@ describe('getEsmRegistrationFields — 빌더 (조회형 전환 PR-E2)', () => {
     )
   })
 
-  it('더 이상 생성형 shippingProfile(optionsSource=shippingProfiles)을 노출하지 않는다 (전환)', () => {
+  it('생성형 shippingProfile kind / shippingProfiles optionsSource 는 enum 에서 제거됐다 (PR-E5)', () => {
+    // 빌더는 조회형 필드만 반환 — 생성형 잔재 없음.
     const fields = getEsmRegistrationFields()
-    expect(fields.find((f) => f.kind === 'shippingProfile')).toBeUndefined()
+    expect(fields.map((f) => f.optionsSource)).toEqual([
+      'esmShippingPlace',
+      'esmDispatchPolicy',
+      'static',
+    ])
+    // 스키마 레벨 negative-assertion — 제거된 enum 값은 이제 런타임 parse 가 거부한다.
+    //   (PR-E3/E4 까지 보존됐던 TS2367 회피 리터럴 비교를 schema reject 로 대체.)
     expect(
-      fields.find((f) => f.optionsSource === 'shippingProfiles'),
-    ).toBeUndefined()
+      RegistrationFieldMetaSchema.safeParse({
+        key: 'shippingProfileId',
+        label: 'x',
+        kind: 'shippingProfile',
+        required: true,
+      }).success,
+    ).toBe(false)
+    expect(
+      RegistrationFieldMetaSchema.safeParse({
+        key: 'shippingProfileId',
+        label: 'x',
+        kind: 'select',
+        required: true,
+        optionsSource: 'shippingProfiles',
+      }).success,
+    ).toBe(false)
   })
 
   it('officialNotice 필드 (kind=officialNotice, required, optionsSource=static, i18n key)', () => {
