@@ -29,21 +29,41 @@ export async function tryRefreshCredential(args: {
   logger: Logger
 }): Promise<boolean> {
   try {
+    // adapter.refreshToken 은 optional (OAuth = 네이버 한정). 미구현 마켓은 refresh 불가.
+    const adapterRefresh = args.adapter.refreshToken
+    if (typeof adapterRefresh !== 'function') {
+      args.logger.warn(
+        { market: args.marketId, marketAccountId: args.marketAccountId },
+        '↻ adapter has no refreshToken — skip',
+      )
+      return false
+    }
     const cred = await loadCredential({
       credentialId: args.credentialId,
       correlationId: args.correlationId,
       logger: args.logger,
     })
-    const newSet = await args.adapter.refreshToken(cred.refreshToken)
+    // refresh token 은 payload jsonb(oauth TokenSet 모양) 안에 — DecryptedCredential 최상위 아님.
+    const oauthPayload = cred.payload as { refreshToken?: string }
+    const refreshTok = oauthPayload.refreshToken
+    if (typeof refreshTok !== 'string' || refreshTok.length === 0) {
+      args.logger.warn(
+        { market: args.marketId, marketAccountId: args.marketAccountId },
+        '↻ no refresh token in payload — skip',
+      )
+      return false
+    }
+    const newSet = await adapterRefresh(refreshTok)
     const label = await loadAccountLabel(args.service, args.marketAccountId)
+    // markets-token-refresh §3 과 동일 — oauth kind, payload=TokenSet, scope 공백 분리.
     await storeCredential({
       sellerId: args.sellerId,
       marketId: args.marketId,
-      marketAccountLabel: label,
-      accessToken: newSet.accessToken,
-      refreshToken: newSet.refreshToken,
+      accountLabel: label,
+      credentialKind: 'oauth',
+      payload: newSet as unknown as Record<string, unknown>,
       tokenExpiresAt: newSet.expiresAt,
-      scope: newSet.scope ? [newSet.scope] : [],
+      scope: newSet.scope ? newSet.scope.split(/\s+/) : [],
       correlationId: args.correlationId,
       logger: args.logger,
     })

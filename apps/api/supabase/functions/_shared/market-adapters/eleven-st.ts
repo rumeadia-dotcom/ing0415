@@ -36,7 +36,12 @@ import type {
   RegistrationFieldMeta,
   StoredCredential,
 } from '../schemas.ts'
-import type { MarketAdapter, SubmitTrackingResult } from '../market-adapter.ts'
+import type {
+  CategoryCertMeta,
+  MarketAdapter,
+  SubmitTrackingExtra,
+  SubmitTrackingResult,
+} from '../market-adapter.ts'
 import { getElevenStRegistrationFields } from './eleven-st-registration-fields.ts'
 import type { FetchOrdersInput, MarketOrder } from '../market-orders.ts'
 import { FetchOrdersInputSchema, MarketOrderSchema } from '../market-orders.ts'
@@ -52,7 +57,9 @@ import {
   ELEVEN_ST_REST_BASE,
   ELEVEN_ST_REST_PATHS,
   mapElevenStCategories,
+  mapElevenStCategoryCertMeta,
   mapElevenStOrders,
+  resolveElevenStDispatchDlvNo,
   stripNsPrefix,
   toElevenStCarrierCode,
   toElevenStOrderDate,
@@ -286,7 +293,8 @@ export function createElevenStAdapter(): MarketAdapter {
       return {
         kind: 'api_key',
         payload: { apiKey: input.apiKey },
-        expiresAt: null,
+        // api_key variant 의 expiresAt 은 optional (만료 없음) — 필드 생략.
+        // StoredCredentialSchema.api_key 는 `string | undefined` 만 허용(null 불가).
       }
     },
 
@@ -322,6 +330,24 @@ export function createElevenStAdapter(): MarketAdapter {
         throw httpStatusToMarketError(res.status, res.text, correlationId)
       }
       return mapElevenStCategories(parseElevenStXml(res.text))
+    },
+
+    // 카테고리 KC인증 메타 조회 (NEW-2) — cateservice 1617 (조회 카테고리 자신 포함 하위).
+    //   GET {REST_BASE}/cateservice/category/{dispCtgrNo}. API Key 불필요. ns2 응답.
+    //   워커(registration-market-worker)가 transformProduct 전에 호출 → cert-inject 로 주입.
+    async fetchCategoryCertMeta(
+      dispCtgrNo: string,
+    ): Promise<Record<string, CategoryCertMeta>> {
+      const correlationId = generateCorrelationId()
+      const res = await elevenStCategoryFetch({
+        url: buildElevenStCategoryUrl(dispCtgrNo),
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, res.text, correlationId)
+      }
+      return mapElevenStCategoryCertMeta(parseElevenStXml(res.text))
     },
 
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
@@ -448,17 +474,18 @@ export function createElevenStAdapter(): MarketAdapter {
     //   body 없음. Edge 계약 = throw-on-failure (process.ts withRetry 오케스트레이터):
     //     0/-3308 → 성공 객체 반환 / -3306·-3320·-3307 → validation throw(비재시도) /
     //     -1000·-3311·기타 음수·5xx → server throw(재시도).
-    //   ⚠️ 키 = dlvNo (fetchOrders 의 extra.dlvNo). 워커는 dlvNo 를 externalOrderId 인자로 전달한다
-    //      (orders 테이블에 dlvNo 적재 + 전달은 후속 plumbing — orders-repo/worker).
+    //   ⚠️ 키 = dlvNo (fetchOrders 의 extra.dlvNo). 워커가 orders.extra.dlvNo 를 opts.dlvNo 로
+    //      전달한다(NEW-1). 미전달이면 하위호환으로 externalOrderId(=ordNo) fallback.
     async submitTracking(
       externalOrderId: string,
       waybillNumber: string,
       carrierCode: string,
+      opts?: SubmitTrackingExtra,
     ): Promise<SubmitTrackingResult> {
       const { apiKey } = getCredOrThrow()
       const correlationId = generateCorrelationId()
 
-      const dlvNo = externalOrderId
+      const dlvNo = resolveElevenStDispatchDlvNo(externalOrderId, opts)
       const dlvEtprsCd = toElevenStCarrierCode(carrierCode)
       if (!dlvEtprsCd) {
         throw new MarketError('validation', `11번가 미지원 택배사: ${carrierCode}`, {

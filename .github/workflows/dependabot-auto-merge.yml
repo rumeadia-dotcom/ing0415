@@ -2,7 +2,7 @@
 # 인용: docs/architecture/v1/ops/ci-cd.md 부록 A.
 #
 # 동작:
-#   1) Dependabot 이 PR 생성 → CI 8 checks 자동 트리거 (ci.yml).
+#   1) Dependabot 이 PR 생성 → ci.yml 풀 게이트 트리거 (required: CI Gate / Lint & Typecheck / Unit).
 #   2) 본 워크플로우가 metadata 추출 → patch/minor 인 경우 `gh pr merge --auto --squash` 활성화.
 #   3) CI 통과 시 GitHub 가 squash 머지 자동 실행 (develop 으로).
 #   4) major 또는 React/React-DOM 같은 ignored 패키지면 자동 머지 안 함 → 사용자 검토.

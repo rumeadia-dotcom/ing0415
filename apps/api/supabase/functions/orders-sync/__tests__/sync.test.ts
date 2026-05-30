@@ -64,6 +64,8 @@ interface OrderRow {
   paid_at: string | null
   ordered_at: string | null
   vendor_item_id: string | null
+  // NEW-1: 마켓별 발송 보조키 (11번가 dlvNo) — extra jsonb (마이그 20260530000003).
+  extra: Record<string, string> | null
 }
 
 interface MockState {

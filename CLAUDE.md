@@ -65,8 +65,9 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 마스터: `docs/architecture/v1/ops/ci-cd.md` (워크플로우 / PR 잡 / 배포 잡 / 시크릿 매트릭스 / 롤백 절차 전부).
 
 - **워크플로우**: `.github/workflows/ci.yml` (PR + push) / `deploy.yml` (`main` push + 태그 + `workflow_dispatch`).
-- **PR 머지 게이트** (branch protection):
-  - `develop`: Lint & Typecheck / Unit (Vitest) / Build matrix (dev + real) / E2E Golden Path 전체 통과.
+- **빠른 레인 / 풀 게이트 분리** (2026-05-30): `feature/**` push 는 빠른 레인(Lint & Typecheck / Unit)만. 무거운 잡(Build dev+real / E2E / pgTAP)은 PR(develop·main·release) + develop·release·hotfix push 에서만, 그리고 경로 필터(app / sql 변경)에 걸릴 때만 실행. WIP push 마다 풀 7잡 돌던 비용 제거.
+- **PR 머지 게이트** (branch protection — `.github/rulesets/develop.json` 백업):
+  - required check 는 **항상 실행되는 잡만** 둔다: `CI Gate` / `Lint & Typecheck` / `Unit & Integration (Vitest)` 3개. 무거운 잡은 skip 가능해 required 로 두면 영구 pending → 머지 차단되므로, 단일 `CI Gate` 잡(`if: always()`)이 전체 잡 result 를 집계해 failure/cancelled 만 차단한다.
   - `main`: 위 전부 + release/hotfix 만 허용 + linear history (squash).
 - **위험 게이트 (수동 결정)**:
   - **`supabase db push` 자동 적용 default 비활성.** `workflow_dispatch` 의 `apply_db_migrations=true` 입력 시에만 실행 (ci-cd.md §7 drift 정책).
@@ -105,6 +106,7 @@ React + Vite + TS strict (`noUncheckedIndexedAccess`) / pnpm / React Router v6 +
 - 색상·spacing·radius = `apps/web/src/styles/globals.css` CSS 변수 또는 `tailwind.config.ts` 키만. raw HEX·임의 px 금지.
 - RHF + Supabase insert + 서버 응답 parse 는 동일 zod 스키마 3중 재사용 (단일 ground truth).
 - RLS 없는 테이블 거부. OAuth access/refresh 토큰 클라이언트 직접 SELECT 차단 (Edge Function 전용 + pgcrypto / Vault).
+- **owner 컬럼(`seller_id`) default `auth.uid()` 필수** — 클라이언트가 직접 INSERT 하는 RLS 테이블(`seller_id not null` + `with check (seller_id = auth.uid())`)은 컬럼 default 를 `auth.uid()` 로 둔다. 프론트 insert payload 에서 seller_id 를 생략해도 인증 호출자 uid 로 자동 채워지며, WITH CHECK 가 그대로라 spoofing 은 차단된다. default 누락 시 NULL = auth.uid() → RLS 위반 PostgREST 42501 (2026-05-31 shipping_policies/products 운영 사고. 마이그 20260531000001).
 - 골든패스 (s1→s5→s3→s6) Playwright 1개 강제. 우회 PR 거부.
 - Sentry `beforeSend` 에서 OAuth 토큰·셀러 PII 자동 마스킹 (security.md §6.2).
 

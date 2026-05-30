@@ -29,14 +29,9 @@
         "strict_required_status_checks_policy": true,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
+          { "context": "CI Gate" },
           { "context": "Lint & Typecheck" },
-          { "context": "Unit & Integration (Vitest)" },
-          { "context": "Zod Mirror Check" },
-          { "context": "Build (dev)" },
-          { "context": "Build (real)" },
-          { "context": "E2E Golden Path (Chromium)" },
-          { "context": "E2E a11y (axe, Chromium)" },
-          { "context": "pgTAP RLS (Supabase local)" }
+          { "context": "Unit & Integration (Vitest)" }
         ]
       }
     }

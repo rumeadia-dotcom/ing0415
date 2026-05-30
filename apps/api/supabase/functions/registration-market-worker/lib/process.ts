@@ -12,6 +12,7 @@ import {
   type getServiceClient,
   loadCredential,
   MarketError,
+  maskError,
   withRetry,
   type Logger,
   type MarketId,
@@ -23,6 +24,7 @@ import {
   loadJmr,
   type JobContext,
 } from './data-load.ts'
+import { injectCertRequiredYn } from './cert-inject.ts'
 import { markJmrInFlight, recomputeJobStatus } from './jmr-update.ts'
 import { tryRefreshCredential } from './refresh-credential.ts'
 
@@ -86,7 +88,8 @@ export async function processMarket(
     correlationId: input.correlationId,
     logger,
   })
-  const expMs = Date.parse(cred.tokenExpiresAt)
+  // tokenExpiresAt 은 oauth kind 만 값 존재 — null(영구키)이면 refresh 불필요(NaN → skip).
+  const expMs = cred.tokenExpiresAt ? Date.parse(cred.tokenExpiresAt) : NaN
   if (Number.isFinite(expMs) && expMs - Date.now() < 60_000) {
     const refreshed = await tryRefreshCredential({
       service,
@@ -111,7 +114,30 @@ export async function processMarket(
     payload: cred.payload,
   } as StoredCredential)
 
-  const payload = adapter.transformProduct(product, mapping)
+  // NEW-2: 어댑터가 cert 메타 조회를 지원하면(11번가 1617) categoryId 의 KC인증 필수여부를
+  // mapping.extra.certRequiredYn 로 주입. 조회 실패는 등록을 막지 않음(warn 후 미주입 진행 —
+  // requiredYn=Y 인데 인증 누락 시 createProduct 가 명확히 거부하므로 그 지점에서 실패).
+  let effectiveMapping = mapping
+  const fetchCertMeta = adapter.fetchCategoryCertMeta
+  if (typeof fetchCertMeta === 'function') {
+    try {
+      const certMap = await fetchCertMeta.call(adapter, mapping.categoryId)
+      effectiveMapping = injectCertRequiredYn(mapping, certMap)
+    } catch (err) {
+      logger.warn(
+        {
+          jobId: input.jobId,
+          market: input.marketId,
+          categoryId: mapping.categoryId,
+          err: maskError(err),
+          correlationId: input.correlationId,
+        },
+        '← cert meta 조회 실패 — certRequiredYn 미주입 진행',
+      )
+    }
+  }
+
+  const payload = adapter.transformProduct(product, effectiveMapping)
   const result = await withRetry(
     () => adapter.createProduct(payload),
     {

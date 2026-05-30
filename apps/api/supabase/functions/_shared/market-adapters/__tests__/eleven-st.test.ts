@@ -6,6 +6,7 @@ import {
   buildElevenStCategoryTree,
   buildElevenStCategoryUrl,
   buildElevenStProductRaw,
+  resolveElevenStDispatchDlvNo,
   buildElevenStProductXml,
   classifyElevenStCreateResult,
   escapeXml,
@@ -480,5 +481,22 @@ describe('toElevenStDate', () => {
   })
   it('잘못된 입력 → 빈 문자열 (엣지)', () => {
     expect(toElevenStDate('not-a-date')).toBe('')
+  })
+})
+
+// 발송처리(1888) path 키 선택 — NEW-1 dlvNo plumbing.
+//   ordNo(=externalOrderId) 와 dlvNo(=발송처리 키) 는 다른 값이므로, 워커가 orders.extra.dlvNo
+//   를 opts.dlvNo 로 전달하면 그것을 쓰고, 없으면 하위호환으로 externalOrderId fallback.
+describe('resolveElevenStDispatchDlvNo (NEW-1 — dlvNo plumbing)', () => {
+  it('opts.dlvNo 가 있으면 dlvNo 반환 (externalOrderId=ordNo 와 분리)', () => {
+    expect(resolveElevenStDispatchDlvNo('ORD-123', { dlvNo: 'DLV-999' })).toBe('DLV-999')
+  })
+  it('opts 미전달/빈 객체 → externalOrderId fallback (하위호환)', () => {
+    expect(resolveElevenStDispatchDlvNo('ORD-123')).toBe('ORD-123')
+    expect(resolveElevenStDispatchDlvNo('ORD-123', {})).toBe('ORD-123')
+  })
+  it('opts.dlvNo 가 빈 문자열/공백 → externalOrderId fallback (FAIL 엣지)', () => {
+    expect(resolveElevenStDispatchDlvNo('ORD-123', { dlvNo: '' })).toBe('ORD-123')
+    expect(resolveElevenStDispatchDlvNo('ORD-123', { dlvNo: '   ' })).toBe('ORD-123')
   })
 })
