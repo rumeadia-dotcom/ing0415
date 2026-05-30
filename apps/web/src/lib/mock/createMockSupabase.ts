@@ -700,9 +700,13 @@ function makeStorage() {
         async upload(_path: string, _file: any, _opts?: any) {
           return { data: { path: 'mock://uploaded' }, error: null }
         },
-        async createSignedUrl(_path: string, _expiresIn: number) {
+        async createSignedUrl(path: string, _expiresIn: number) {
+          // getPublicUrl 과 동일하게 imageId → 등록된 blob URL 해소.
+          // (ImageThumbnailGrid 가 private 버킷 대응으로 createSignedUrl 사용 — dev preview 유지.)
+          const imageId = path.split('/').pop() ?? ''
+          const blobUrl = mockImageBlobs.get(imageId)
           return {
-            data: { signedUrl: 'https://mock.local/signed' },
+            data: { signedUrl: blobUrl ?? `https://mock.local/signed/${path}` },
             error: null,
           }
         },
