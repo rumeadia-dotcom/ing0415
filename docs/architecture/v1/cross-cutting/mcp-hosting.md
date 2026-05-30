@@ -321,12 +321,14 @@ revoke all on all functions in schema public from mcp_ro_dev;       -- decrypt R
 Lightsail(IPv4) → Supabase 는 **Supavisor 세션 풀러(포트 5432, IPv4)** 권장. 풀러 사용자명은 `<role>.<project_ref>` 형식:
 
 ```
-# real (컨테이너 env, host 미노출)
-DATABASE_URI=postgresql://mcp_ro_real.lfrnythcujxdhehvkmtg:<<<PW>>>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+# real (컨테이너 env, host 미노출) — 서울 리전 풀러
+DATABASE_URI=postgresql://mcp_ro_real.lfrnythcujxdhehvkmtg:<<<PW>>>@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
 
-# dev
-DATABASE_URI=postgresql://mcp_ro_dev.eqoywqoalwkwbrdsulfl:<<<PW>>>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+# dev — ⚠ dev 프로젝트는 뭄바이(ap-south-1) 리전 풀러 (real 과 다름! 생성 시 region 선택 상이)
+DATABASE_URI=postgresql://mcp_ro_dev.eqoywqoalwkwbrdsulfl:<<<PW>>>@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require
 ```
+
+> ⚠️ **풀러 호스트는 프로젝트 region 마다 다르다.** dev(eqoyw)=뭄바이 `aws-1-ap-south-1`, real(lfrny)=서울 `aws-1-ap-northeast-2`. 둘을 같은 호스트로 적으면 한쪽이 `tenant/user ... not found` 로 끊긴다 (2026-05-30 사고 — §9.3). 호스트는 각 프로젝트 대시보드 **Connect → Session pooler** 에서 확인할 것.
 
 > `default_transaction_read_only` 등 `ALTER ROLE ... SET` 은 풀러 경유라도 백엔드 세션 시작 시 적용되므로 유효. role 자체에 박혀 있어 MCP 가 우회 불가.
 
@@ -507,8 +509,8 @@ MCP_TOKEN_SUPABASE_REAL=base64url-32B
 MCP_TOKEN_PLAYWRIGHT=base64url-32B
 MCP_TOKEN_SENTRY=base64url-32B
 # DB (Supavisor 세션 풀러, IPv4)
-DATABASE_URI_DEV=postgresql://mcp_ro_dev.eqoyw...:PW@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
-DATABASE_URI_REAL=postgresql://mcp_ro_real.lfrny...:PW@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+DATABASE_URI_DEV=postgresql://mcp_ro_dev.eqoyw...:PW@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require       # dev=뭄바이
+DATABASE_URI_REAL=postgresql://mcp_ro_real.lfrny...:PW@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require  # real=서울 (호스트 region 상이 주의)
 # Sentry (read)
 SENTRY_AUTH_TOKEN=...
 SENTRY_HOST=sentry.io
@@ -593,6 +595,24 @@ WantedBy=multi-user.target
   - 외부 uptime(선택): 기존 gateway 와 동일 도구로 `/healthz` 폴링.
 - **재시작**: `docker compose restart <svc>` 또는 `systemctl restart mcp-hosting`. gateway 와 독립.
 - **이미지 갱신**: `docker compose pull && docker compose up -d` (MCP 만). gateway 무관.
+
+### 9.3.1 트러블슈팅 — DB 연결 / 재기동 함정 (2026-05-30 사고)
+
+**증상: 특정 MCP 만 `select 1` 도 30s 타임아웃 (다른 MCP 는 정상)**
+1. 컨테이너 생존: `sudo docker ps | grep mcp` (Up 이면 컨테이너는 정상 — 내부 연결 문제).
+2. 로그: `sudo docker logs --tail 50 mcp-hosting-postgres-mcp-<dev|real>-1`.
+3. 원인 패턴:
+   - **`FATAL: (ENOTFOUND) tenant/user <role>.<ref> not found`** = 풀러가 그 프로젝트(tenant)를 못 찾음. **role 문제 아님** — `DATABASE_URI_*` 의 풀러 **호스트 region 이 그 프로젝트 실제 region 과 불일치**. 대시보드 Connect → Session pooler 의 정확한 호스트로 `/etc/mcp-hosting/env` 수정. dev=`aws-1-ap-south-1`(뭄바이), real=`aws-1-ap-northeast-2`(서울) — **둘이 다르니 한 호스트로 통일 금지** (§5.5).
+   - **`password authentication failed`** = role PW stale → §5.4/§5.1 로 `alter role <role> password` + env PW 동기.
+
+**⚠ 재기동 함정 — `docker compose up -d <svc>` 단독 금지**
+- compose 가 `DATABASE_URI: "${DATABASE_URI_DEV}"` 셸 보간을 쓰는데 `/opt/mcp-hosting` 에 `.env` 가 없다. 정상 보간 경로 = **systemd 유닛의 `EnvironmentFile=/etc/mcp-hosting/env`** (§9.1).
+- 수동 `sudo docker compose up -d postgres-mcp-dev` 만 하면 보간 소스가 없어 `DATABASE_URI` 가 빈 값 → `No database URL provided` 로 컨테이너 죽음.
+- **올바른 수동 재기동**: `sudo systemctl restart mcp-hosting` (전체) 또는 dev 만 —
+  `sudo bash -c 'set -a; . /etc/mcp-hosting/env; set +a; cd /opt/mcp-hosting && docker compose up -d postgres-mcp-dev'`
+- 컨테이너 recreate 후엔 Claude Code MCP SSE 세션이 끊겨 `404 Could not find session` → `/mcp` 로 재연결.
+
+> **2026-05-30 사고 요약**: dev 무료 프로젝트의 풀러 호스트가 서울로 오설정(실제 뭄바이) + `mcp_ro_dev` role 유실 동반. env region 정정 + role 재생성(§5.4) + env-source 재기동으로 복구. dev DB·호스팅 인스턴스·real MCP 는 전부 정상이었음(컨테이너 Up, REST 401 즉답).
 
 ### 9.4 비용 추정
 
