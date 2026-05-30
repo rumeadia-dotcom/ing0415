@@ -49,6 +49,15 @@ ssh ubuntu@3.36.239.243 'sudo install -o marketgw -g marketgw -m 0644 /tmp/main.
 curl.exe -i https://3-36-239-243.sslip.io/healthz
 ```
 
+### 1-1. develop branch protection required check 갱신 (feature/ci-fast-lane) — ✅ 완료 (2026-05-30)
+`ci.yml` 재구성으로 잡 이름 변경(Zod Mirror 흡수 / E2E 통합)·조건부 skip 도입 → live ruleset 의 옛 8개 체크를 3개로 갱신 완료. **이 레포는 classic protection 이 아니라 Rulesets** (`branches/.../protection` 은 404). ruleset id `16808386` 을 PUT (rules 배열 전체, required_status_checks context 만 교체):
+```bash
+# 이미 적용됨. 향후 잡 이름 변경 시 동일 절차 (release-deploy 스킬 "branch protection 컨텍스트 정합" 참조)
+gh api repos/rumeadia-dotcom/ing0415/rulesets/16808386 --jq '.rules[]|select(.type=="required_status_checks").parameters.required_status_checks[].context'
+# → CI Gate / Lint & Typecheck / Unit & Integration (Vitest)
+```
+PR #286 에서 빠른레인(push run=heavy skip) + 풀게이트(PR run=Build/E2E/pgTAP pass) + CI Gate 집계 실전 검증 완료.
+
 ### 2. dev 마이그 이력 정합 (C1 잔여)
 `esm_shipping_profiles` 는 테이블은 제거됐으나 `supabase_migrations` 이력 미정합(생성·DROP 모두 SQL Editor 직접). login 후:
 ```bash
@@ -81,7 +90,7 @@ pnpm db:push:dev   # --include-all, 충돌 시 이월 마이그(20260523~30) 정
          + AWS Lightsail Market Gateway (서울, 3.36.239.243, HMAC + 호스트 화이트리스트)
 호스팅:  GitHub Pages (정적 SPA + 404.html) + Supabase Cloud
 모니터링: Sentry (PII 마스킹 강제)
-CI/CD:   GitHub Actions (PR 8잡: Lint&Typecheck / Unit / Build dev·real / E2E Golden·a11y / Zod Mirror / pgTAP RLS)
+CI/CD:   GitHub Actions — 빠른레인(feature push=Lint&Typecheck/Unit) + 풀게이트(PR=Build dev·real/E2E golden+a11y 통합/pgTAP, 경로필터 app·sql). required=CI Gate/Lint&Typecheck/Unit 3개 (2026-05-30 feature/ci-fast-lane)
 브랜치:  Git Flow (main / develop / release/* / feature/* / hotfix/*) — feature base = develop, squash-only, strict(up-to-date)
 빌드모드: VITE_APP_MODE=dev|real + VITE_USE_MOCK=true|false
 MCP 호스팅: Lightsail 3.36.239.243 docker-compose (supabase-dev=뭄바이풀러 / supabase-real=서울풀러 / playwright / sentry)

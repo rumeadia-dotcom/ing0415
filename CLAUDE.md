@@ -65,8 +65,9 @@ scripts/                   # 빌드 헬퍼 (postbuild-spa.mjs 등)
 마스터: `docs/architecture/v1/ops/ci-cd.md` (워크플로우 / PR 잡 / 배포 잡 / 시크릿 매트릭스 / 롤백 절차 전부).
 
 - **워크플로우**: `.github/workflows/ci.yml` (PR + push) / `deploy.yml` (`main` push + 태그 + `workflow_dispatch`).
-- **PR 머지 게이트** (branch protection):
-  - `develop`: Lint & Typecheck / Unit (Vitest) / Build matrix (dev + real) / E2E Golden Path 전체 통과.
+- **빠른 레인 / 풀 게이트 분리** (2026-05-30): `feature/**` push 는 빠른 레인(Lint & Typecheck / Unit)만. 무거운 잡(Build dev+real / E2E / pgTAP)은 PR(develop·main·release) + develop·release·hotfix push 에서만, 그리고 경로 필터(app / sql 변경)에 걸릴 때만 실행. WIP push 마다 풀 7잡 돌던 비용 제거.
+- **PR 머지 게이트** (branch protection — `.github/rulesets/develop.json` 백업):
+  - required check 는 **항상 실행되는 잡만** 둔다: `CI Gate` / `Lint & Typecheck` / `Unit & Integration (Vitest)` 3개. 무거운 잡은 skip 가능해 required 로 두면 영구 pending → 머지 차단되므로, 단일 `CI Gate` 잡(`if: always()`)이 전체 잡 result 를 집계해 failure/cancelled 만 차단한다.
   - `main`: 위 전부 + release/hotfix 만 허용 + linear history (squash).
 - **위험 게이트 (수동 결정)**:
   - **`supabase db push` 자동 적용 default 비활성.** `workflow_dispatch` 의 `apply_db_migrations=true` 입력 시에만 실행 (ci-cd.md §7 drift 정책).
