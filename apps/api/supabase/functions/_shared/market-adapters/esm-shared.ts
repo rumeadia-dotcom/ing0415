@@ -557,6 +557,42 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       return expandedRoots.map((cat) => siteCatToCategoryNode(cat, 1, null))
     },
 
+    // ───────────────────────────────────────────
+    // fetchCategoryChildren — 부모코드 직계 자식만 (lazy cascading)
+    //   parentId=null → GET /categories/site-cats(대분류), else /categories/site-cats/{parentId}.
+    //   재귀 expand 하지 않음(직계만). children=[], leaf=isLeaf, depth=1(UI 미사용).
+    // ───────────────────────────────────────────
+    async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
+      const c = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+      const path =
+        parentId === null || parentId.trim() === ''
+          ? '/categories/site-cats'
+          : `/categories/site-cats/${encodeURIComponent(parentId.trim())}`
+      const response = await esmFetch({
+        market,
+        method: 'GET',
+        path,
+        cred: c,
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+        logger,
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw httpStatusToMarketError(market, response.status, text, correlationId)
+      }
+      const raw = await response.json()
+      return extractSiteCatList(raw).map((cat) => ({
+        id: cat.catCode,
+        name: cat.catName,
+        depth: 1,
+        leaf: cat.isLeaf,
+        parentId: parentId ?? null,
+        children: [],
+      }))
+    },
+
     // transformProduct — 순수 함수. 중첩 EsmGoodsCreateRequest 빌드 (esm.md §4.1).
     // 배송 프로필 번호·officialNotice 는 오케스트레이터가 mapping.extra 로 주입.
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {

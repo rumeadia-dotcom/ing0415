@@ -27,29 +27,25 @@
  *   - masterId / accessKey / secretKey 는 절대 로그에 포함 금지.
  *   - 모든 외부 호출에 correlationId 부여.
  *   - 검색용 상품명(goodsName.kor) 최대 100byte, 초과 시 byte 경계 truncate (esm.md §4.1).
- *   - 카테고리 트리는 site-cats 재귀 fetch (timeout 10s, 최대 깊이 ESM_CATEGORY_MAX_DEPTH).
+ *   - 카테고리 조회는 Edge markets-category-children 로 이전 (category-sync.md §6.4) — 어댑터 fetchCategoryTree 는 미사용 throw.
  *
  * 현재 제약 (베타):
  *   - 실제 자격증명 미보유. 통합 테스트는 fetch mock 으로.
  *   - 상품 등록 API 최종 payload 스펙 베타 셀러 확인 후 보정 예정.
  */
 
-import { z } from 'zod'
 import { MarketError } from '../../errors'
 import type { MarketAdapter } from '../../types'
 import {
   EsmGoodsCreateRequestSchema,
   EsmGoodsCreateResponseSchema,
   EsmJwtAuthInputSchema,
-  EsmSiteCatSchema,
   EsmTransformExtraSchema,
   StoredCredentialSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   type AuthInput,
   type CategoryNode,
   type EsmGoodsCreateRequest,
-  type EsmSiteCat,
   type EsmSiteType,
   type CreateProductResult,
   type FetchOrdersInput,
@@ -71,7 +67,6 @@ import type { RegistrationFieldMeta } from '@/lib/schemas'
 // ─────────────────────────────────────────────
 
 export const ESM_API_BASE = 'https://sa2.esmplus.com/item/v1'
-const CATEGORY_TIMEOUT_MS = 10_000
 const DEFAULT_TIMEOUT_MS = 15_000
 /** 검색용 상품명(goodsName.kor) 최대 byte (esm.md §4.1 / product/20.md). */
 const GOODS_NAME_MAX_BYTES = 100
@@ -79,8 +74,6 @@ const GOODS_NAME_MAX_BYTES = 100
 const DEFAULT_SELLING_PERIOD = -1
 /** 미지정 시 기본 배송 type (1=택배). */
 const DEFAULT_SHIPPING_TYPE = 1
-/** site-cats 재귀 안전 상한 (ESM 트리는 통상 3~5 depth). 무한 재귀·요청 폭증 방지. */
-export const ESM_CATEGORY_MAX_DEPTH = 5
 
 /** UTF-8 byte 길이로 잘라 ≤maxBytes 보장 (멀티바이트 경계 안전). */
 function truncateToBytes(value: string, maxBytes: number): string {
@@ -200,27 +193,9 @@ export function buildEsmGoodsPayload(
   return parsed.data
 }
 
-// ─────────────────────────────────────────────
-// site-cats 카테고리 API 응답 raw 스키마 (런타임 검증)
-//   esm-api/product/4.md — { catCode, catName, isLeaf, subCats?[] }
-//   대분류 GET /categories/site-cats / 하위 GET /categories/site-cats/{siteCatCode}
-// ─────────────────────────────────────────────
-
-interface EsmSiteCatRaw {
-  catCode: string
-  catName: string
-  isLeaf: boolean
-  subCats?: EsmSiteCatRaw[]
-}
-
-const EsmSiteCatRawSchema: z.ZodType<EsmSiteCatRaw> = z.lazy(() =>
-  z.object({
-    catCode: z.string().min(1),
-    catName: z.string().min(1),
-    isLeaf: z.boolean(),
-    subCats: z.array(EsmSiteCatRawSchema).optional(),
-  }),
-) as z.ZodType<EsmSiteCatRaw>
+// site-cats 카테고리 raw 스키마(EsmSiteCatRaw / EsmSiteCatRawSchema)는 fetchCategoryTree
+//   직접 fetch 제거와 함께 삭제됨 — 카테고리 조회는 Edge markets-category-children 으로 이전
+//   (category-sync.md §6.4).
 
 // ─────────────────────────────────────────────
 // ESM JWT credential (내부)
@@ -350,55 +325,9 @@ async function esmFetch(opts: {
   }
 }
 
-// ─────────────────────────────────────────────
-// site-cats 응답 정규화
-//   raw(catCode/catName/isLeaf/subCats) → EsmSiteCat(siteCatCode/...) → CategoryNode
-// ─────────────────────────────────────────────
-
-/**
- * site-cats 응답 본문에서 카테고리 배열을 추출한다.
- * 대분류 조회는 배열, 하위 조회(/{code})는 단일 객체(subCats 포함)를 반환할 수 있으므로
- * 양쪽을 모두 허용한다. 알 수 없는 형태는 빈 배열.
- */
-function extractSiteCatList(raw: unknown): EsmSiteCatRaw[] {
-  // 배열 그대로
-  if (Array.isArray(raw)) {
-    return raw
-      .map((r) => EsmSiteCatRawSchema.safeParse(r))
-      .filter((p): p is { success: true; data: EsmSiteCatRaw } => p.success)
-      .map((p) => p.data)
-  }
-  // 단일 객체 (대분류 wrapper 없이 1개 / 하위 조회 단일 객체)
-  const single = EsmSiteCatRawSchema.safeParse(raw)
-  if (single.success) return [single.data]
-  // wrapper 형태 — { subCats: [...] } / { categories: [...] } / { data: ... }
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>
-    for (const key of ['subCats', 'categories', 'data']) {
-      if (key in obj) return extractSiteCatList(obj[key])
-    }
-  }
-  return []
-}
-
-/** EsmSiteCat → 공통 CategoryNode. depth 1-base, parentId 연결. */
-function siteCatToCategoryNode(
-  cat: EsmSiteCat,
-  depth: number,
-  parentId: string | null,
-): CategoryNode {
-  const children = (cat.children ?? []).map((c) =>
-    siteCatToCategoryNode(c, depth + 1, cat.siteCatCode),
-  )
-  return CategoryNodeSchema.parse({
-    id: cat.siteCatCode,
-    name: cat.siteCatName,
-    depth,
-    leaf: cat.isLeaf,
-    parentId,
-    children,
-  })
-}
+// site-cats 응답 정규화 헬퍼(extractSiteCatList / siteCatToCategoryNode)는 fetchCategoryTree
+//   직접 fetch 제거와 함께 삭제됨 — 카테고리 조회는 Edge markets-category-children 으로 이전
+//   (category-sync.md §6.4).
 
 // ─────────────────────────────────────────────
 // 어댑터 팩토리 (site 별 인스턴스)
@@ -474,68 +403,14 @@ export function createEsmRealAdapter(options: EsmAdapterOptions): MarketAdapter 
     },
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — site-cats 재귀 (esm-api/product/4.md)
-    //   대분류 GET /categories/site-cats → 비-leaf 는 /{siteCatCode} 로 하위 재귀.
-    //   site 선택은 JWT ssi 클레임(esmFetch 내부 buildEsmJwt({ site }))으로 결정.
-    //   isLeaf=true 인 최하위만 상품등록 가능.
+    // fetchCategoryTree — Edge `markets-category-children` 로 이전됨 (category-sync.md §6.4).
+    //   브라우저 직접 fetch 는 CORS 차단 → lazy cascading Edge 경유로 전환. 런타임 미사용.
+    //   인터페이스 충족용 시그니처만 유지(throw).
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const c = getCredOrThrow()
-      // site='G'(지마켓)→siteType 2, site='A'(옥션)→siteType 1 (esm.md §4.1).
-      const siteType: EsmSiteType = site === 'G' ? 2 : 1
-
-      // 단일 site-cats 호출 → raw 카테고리 배열.
-      const fetchSiteCats = async (
-        path: string,
-        correlationId: string,
-      ): Promise<EsmSiteCatRaw[]> => {
-        const response = await esmFetch({
-          market,
-          method: 'GET',
-          path,
-          cred: c,
-          correlationId,
-          timeoutMs: CATEGORY_TIMEOUT_MS,
-        })
-        if (!response.ok) {
-          const text = await response.text().catch(() => '')
-          throw httpStatusToMarketError(market, response.status, text, correlationId)
-        }
-        const raw = await response.json()
-        return extractSiteCatList(raw)
-      }
-
-      // 비-leaf 노드를 하위 조회로 채워 트리 완성 (깊이 상한).
-      const expand = async (
-        raw: EsmSiteCatRaw,
-        depth: number,
-      ): Promise<EsmSiteCat> => {
-        let children = raw.subCats
-        // 하위가 비어있고 leaf 가 아니며 깊이 여유가 있으면 /{code} 로 조회.
-        if (!raw.isLeaf && (!children || children.length === 0) && depth < ESM_CATEGORY_MAX_DEPTH) {
-          const childCorrelationId = crypto.randomUUID()
-          children = await fetchSiteCats(
-            `/categories/site-cats/${encodeURIComponent(raw.catCode)}`,
-            childCorrelationId,
-          )
-        }
-        const expandedChildren =
-          !raw.isLeaf && children && depth < ESM_CATEGORY_MAX_DEPTH
-            ? await Promise.all(children.map((ch) => expand(ch, depth + 1)))
-            : []
-        return EsmSiteCatSchema.parse({
-          siteCatCode: raw.catCode,
-          siteCatName: raw.catName,
-          isLeaf: raw.isLeaf,
-          siteType,
-          children: expandedChildren,
-        })
-      }
-
-      const rootCorrelationId = crypto.randomUUID()
-      const roots = await fetchSiteCats('/categories/site-cats', rootCorrelationId)
-      const expandedRoots = await Promise.all(roots.map((r) => expand(r, 1)))
-      return expandedRoots.map((cat) => siteCatToCategoryNode(cat, 1, null))
+      throw new Error(
+        'fetchCategoryTree 는 Edge markets-category-children 으로 이전됨 (category-sync.md §6.4)',
+      )
     },
 
     // ───────────────────────────────────────────

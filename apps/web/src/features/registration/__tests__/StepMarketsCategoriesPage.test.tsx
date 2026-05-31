@@ -41,15 +41,20 @@ vi.mock('@/features/markets/hooks/useMarketAccounts', () => ({
   }),
 }))
 
-vi.mock('../hooks/useMarketCategoryTree', () => ({
-  useMarketCategoryTree: () => ({
+// CategoryCascader 가 쓰는 useMarketCategoryChildren — parentId 별 직계 자식(lazy).
+vi.mock('../hooks/useMarketCategoryChildren', () => ({
+  useMarketCategoryChildren: (
+    _marketId: string | null,
+    _marketAccountId: string | null,
+    parentId: string | null,
+  ) => ({
     isLoading: false,
     isError: false,
-    data: [
-      { id: 'c-root', name: '가전', depth: 1, leaf: false, parentId: null, children: [
-        { id: 'c-kitchen', name: '주방가전', depth: 2, leaf: true, parentId: 'c-root', children: [] },
-      ] },
-    ],
+    error: null,
+    data:
+      parentId == null
+        ? [{ id: 'c-root', name: '가전', depth: 1, leaf: false, parentId: null, children: [] }]
+        : [{ id: 'c-kitchen', name: '주방가전', depth: 2, leaf: true, parentId: 'c-root', children: [] }],
   }),
 }))
 
@@ -99,8 +104,11 @@ describe('StepMarketsCategoriesPage', () => {
     renderPage()
 
     await user.click(screen.getByRole('checkbox', { name: /네이버 스마트스토어 선택/ }))
-    const categorySelect = await screen.findByLabelText(/네이버 스마트스토어 카테고리 선택/)
-    await user.selectOptions(categorySelect, 'c-kitchen')
+    // Cascader lazy: 대분류(가전, leaf=false) 선택 → 2단계(주방가전, leaf=true) 확정.
+    const rootSelect = await screen.findByLabelText(/네이버 스마트스토어 대분류 카테고리 선택/)
+    await user.selectOptions(rootSelect, 'c-root')
+    const childSelect = await screen.findByLabelText(/네이버 스마트스토어 2단계 카테고리 선택/)
+    await user.selectOptions(childSelect, 'c-kitchen')
 
     const submit = screen.getByRole('button', { name: /다음: 미리보기/ })
     await waitFor(() => expect(submit).toBeEnabled())
@@ -117,7 +125,9 @@ describe('StepMarketsCategoriesPage', () => {
     expect(cb).toBeEnabled()
     await user.click(cb)
     expect(cb).toBeChecked()
-    // 선택 시 11번가 카테고리 매핑 카드가 노출됨
-    expect(await screen.findByLabelText(/11번가 카테고리 선택/)).toBeInTheDocument()
+    // 선택 시 11번가 카테고리 매핑 카드(Cascader 대분류 select)가 노출됨
+    expect(
+      await screen.findByLabelText(/11번가 대분류 카테고리 선택/),
+    ).toBeInTheDocument()
   })
 })

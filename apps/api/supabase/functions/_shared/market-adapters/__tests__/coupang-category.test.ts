@@ -5,6 +5,7 @@ import {
   buildCategoryTree,
   coerceCoupangCategory,
   coupangHttpStatusToMarketError,
+  coupangSubCategoriesToNodes,
   COUPANG_DISPLAY_CATEGORY_BASE_PATH,
   ROOT_DISPLAY_CATEGORY_CODE,
   type RawCoupangCategory,
@@ -157,5 +158,56 @@ describe('buildCategoryTree — 핑 깊이 제한 (게이트웨이 폭주 방지
     const root = await buildCategoryTree(fetchRaw, 0, 1, 3, null)
     expect(fetchRaw).toHaveBeenCalledTimes(1)
     expect(root.leaf).toBe(true)
+  })
+})
+
+describe('coupangSubCategoriesToNodes — 직계 자식 매핑 (lazy cascading)', () => {
+  const raw = (
+    subs: { categoryId: number; displayCategoryName: string; isLeafCategory: boolean }[],
+  ): RawCoupangCategory => ({
+    categoryId: 0,
+    displayCategoryName: '루트',
+    isLeafCategory: false,
+    subCategories: subs,
+  })
+
+  it('subCategories 를 직계 CategoryNode[] 로 매핑 (children=[], depth=1, parentId 부착)', () => {
+    const nodes = coupangSubCategoriesToNodes(
+      raw([
+        { categoryId: 56137, displayCategoryName: '식품', isLeafCategory: false },
+        { categoryId: 56138, displayCategoryName: '여성패션', isLeafCategory: true },
+      ]),
+      null,
+    )
+    expect(nodes).toHaveLength(2)
+    expect(nodes[0]).toEqual({
+      id: '56137',
+      name: '식품',
+      depth: 1,
+      leaf: false,
+      parentId: null,
+      children: [],
+    })
+    expect(nodes[1]?.leaf).toBe(true)
+  })
+
+  it('parentId 가 각 자식 노드에 부착된다', () => {
+    const nodes = coupangSubCategoriesToNodes(
+      raw([{ categoryId: 1, displayCategoryName: 'a', isLeafCategory: true }]),
+      '56137',
+    )
+    expect(nodes[0]?.parentId).toBe('56137')
+  })
+
+  it('edge: subCategories 가 비면 빈 배열(사실상 leaf 부모)', () => {
+    expect(coupangSubCategoriesToNodes(raw([]), '1')).toEqual([])
+  })
+
+  it('edge: displayCategoryName 빈 문자열이면 categoryId 로 name 보정(zod min(1) 통과)', () => {
+    const nodes = coupangSubCategoriesToNodes(
+      raw([{ categoryId: 99, displayCategoryName: '', isLeafCategory: true }]),
+      null,
+    )
+    expect(nodes[0]?.name).toBe('99')
   })
 })

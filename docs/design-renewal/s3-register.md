@@ -209,13 +209,13 @@
 |---|---|
 | 페이지 진입 | `productId` 없으면 Step 1 회귀. `useMarketAccounts()` 호출 |
 | 마켓 카드 체크 | `setSelections` + 동시에 해제된 마켓의 매핑은 제거 (orphan 매핑 방지) |
-| 카테고리 검색·트리 탐색 | 마켓별 카테고리 트리는 `useMarketCategoryTree(marketId)` (마켓 어댑터 `fetchCategoryTree`) |
-| 카테고리 선택 (leaf) | `upsertMapping(next)` — 같은 marketId 의 이전 매핑 교체 |
+| 카테고리 단계 선택 (lazy cascading) | 마켓별 카테고리는 `CategoryCascader` 단계별 select — `useMarketCategoryChildren(marketId, marketAccountId, parentId)` (Edge `markets-category-children` 경유, 부모코드 직계 자식만 lazy 조회). 브라우저 직접 fetch 금지(CORS) — Edge→Gateway→마켓. 네이버는 미지원(`category_not_supported`) → 안내 카드 |
+| 카테고리 leaf 확정 | leaf 노드 선택 시 `upsertMapping(next)` — 같은 marketId 의 이전 매핑 교체. 비-leaf 선택은 다음 단계 자식 조회(미확정) |
 | 마켓별 override (이름·가격·옵션) | 같은 카드에서 입력 → mapping 업데이트 |
 | "다음: 미리보기" | `Step3Schema.safeParse` 통과 시 `/register/preview` navigate |
 
 **주요 컴포넌트**:
-- 자체: `MarketSelectGrid` (v1 5마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `MarketOptionsCard` (마켓별 카테고리 트리 + 어댑터 메타 기반 동적 등록필드. ESM=출하지·발송정책 조회형 select + 상품정보고시 / 11번가=출고지·반품지 조회형 select + 상품정보고시), `OfficialNoticeField` (상품정보고시 상품군 select + 군별 항목 동적 폼 — ESM PR-5 / 11번가 PR-4 공용, 마켓별 상품군 마스터는 `config` prop 주입)
+- 자체: `MarketSelectGrid` (v1 5마켓 카드 그리드, 비활성 계정 마켓은 disabled + 사유 라벨), `CategoryCascader` (부모코드 직계 자식만 조회하는 단계별 select — 대→중→소 lazy, leaf 확정 = marketCategoryCode, 4상태 + 네이버 미지원 안내. Edge `markets-category-children` 경유), `MarketOptionsCard` (CategoryCascader + 어댑터 메타 기반 동적 등록필드. ESM=출하지·발송정책 조회형 select + 상품정보고시 / 11번가=출고지·반품지 조회형 select + 상품정보고시), `OfficialNoticeField` (상품정보고시 상품군 select + 군별 항목 동적 폼 — ESM PR-5 / 11번가 PR-4 공용, 마켓별 상품군 마스터는 `config` prop 주입)
 - shadcn: `Card` / `Button` / `Input` / `Skeleton` / `ErrorMessage` / `Tooltip`
 - **동적 등록필드 (PR-3.5)**: `MarketOptionsCard` 는 `getRegistrationFieldsForMarket(marketId)` 가 돌려준 `RegistrationFieldMeta[]` 를 `kind` 별로 렌더(마켓 하드코딩 분기 없음). 그 외 마켓은 필드 0개 → 카테고리만. required 필드 미입력 시 `makeStep3Schema` fail + 다음 버튼 비활성 tooltip.
 - **ESM 출하지/발송정책 select (PR-E2, 조회형 Layer 2)**: ⚠️ 생성형(`shippingProfile` + `esm_shipping_profiles` 테이블 + `/settings/shipping/esm-profiles` 생성 화면) → **조회형으로 전환**(`esm.md` "전환 결정 2026-05-30"). ESM(gmarket/auction)은 `kind='select'` + `optionsSource='esmShippingPlace'|'esmDispatchPolicy'` 필드 2개(`shippingPlaceNo`/`dispatchPolicyNo`). `useEsmShippingOptions(marketAccountId)`(Edge `esm-shipping-list` POST `{ marketAccountId }` 호출 — ESM 17 출하지 / 19 발송정책 조회)로 옵션을 채운다. 4상태: loading(skeleton) / error(조회 실패 문구) / data(이름 표시·번호 값) / empty(ESM Plus 등록 안내 + ESM Plus 외부 링크 — 우리 앱은 생성 화면 없음). 발송정책은 사이트별(G/A) — Edge 가 계정 site 분만 태깅해 내려주므로 카드는 받은 목록을 그대로 노출한다. 표시·저장은 `placeName`/`placeNo`·`dispatchPolicyName`/`dispatchPolicyNo` 만(주소·연락처 등 PII 미저장·미노출). 미선택 시 `makeStep3Schema` fail + blockingReason("출하지 선택 필요"/"발송정책 선택 필요") tooltip. (생성형 UI/훅/테이블 제거는 PR-E3/E4.)
@@ -226,7 +226,7 @@
 
 **데이터 의존**:
 - `useMarketAccounts()` — 셀러가 연결한 마켓 계정 목록 (`status='active'` 만 선택 가능).
-- `useMarketCategoryTree(marketId)` — 마켓별 카테고리 트리 (캐시).
+- `useMarketCategoryChildren(marketId, marketAccountId, parentId)` — 부모코드 직계 자식 카테고리 lazy 조회 (Edge `markets-category-children`, staleTime 1h). parentId=null=대분류.
 
 **상태 분기**:
 - **loading**: `useMarketAccounts` 페치 중 → `Skeleton`.

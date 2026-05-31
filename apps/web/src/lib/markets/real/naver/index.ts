@@ -38,7 +38,6 @@ import type { MarketAdapter } from '../../types'
 import {
   OAuthCodeAuthInputSchema,
   TokenSetSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   type AuthInput,
   type CategoryNode,
@@ -60,7 +59,6 @@ import {
 
 export const NAVER_API_BASE = 'https://api.commerce.naver.com'
 const MARKET = 'naver' as const
-const CATEGORY_TIMEOUT_MS = 10_000
 const PRODUCT_NAME_MAX_LENGTH = 100
 const DEFAULT_TIMEOUT_MS = 15_000
 
@@ -81,20 +79,8 @@ const NaverTokenResponseSchema = z.object({
   scope: z.string().optional(),
 })
 
-const NaverCategoryItemSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  parentId: z.number().nullable(),
-  wholeCategoryName: z.string().optional(),
-  leaf: z.boolean().optional(),
-})
-type NaverCategoryItem = z.infer<typeof NaverCategoryItemSchema>
-
-const NaverCategoryListResponseSchema = z.object({
-  // Naver Commerce API 의 카테고리 목록 응답은 배열을 직접 반환하거나
-  // { data: [...] } 형식으로 감싸 줄 수 있다. 두 형식 모두 수용한다.
-  data: z.array(NaverCategoryItemSchema).optional(),
-})
+// 카테고리 응답 스키마(NaverCategoryItemSchema / NaverCategoryListResponseSchema)는
+//   fetchCategoryTree Edge 이전(category-sync.md §6.4)으로 제거됨.
 
 const NaverCreateProductResponseSchema = z.object({
   // 응답 본문은 외부 베타 셀러 검증 전까지 다음 best-effort 스키마를 가정한다.
@@ -392,74 +378,15 @@ function createNaverRealAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — depth 3 재귀
-    //
-    // 네이버 Commerce API 의 GET /external/v1/categories 는 전체 목록을 평탄한
-    // 배열로 반환 (parentId 로 부모 관계 표현). 본 메서드는 그 평탄 배열을
-    // depth 3 트리 구조로 재구성한다.
+    // fetchCategoryTree — Edge `markets-category-children` 로 이전됨 (category-sync.md §6.4).
+    //   브라우저 직접 fetch 는 CORS 차단 → lazy cascading Edge 경유로 전환. 런타임 미사용.
+    //   (네이버는 Edge 측도 NOT_IMPL → category_not_supported, 어댑터 스펙 확보 후 후속.)
+    //   인터페이스 충족용 시그니처만 유지(throw).
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const { accessToken } = getCredOrThrow()
-      const correlationId = crypto.randomUUID()
-
-      const response = await naverFetch({
-        method: 'GET',
-        path: '/external/v1/categories',
-        accessToken,
-        correlationId,
-        timeoutMs: CATEGORY_TIMEOUT_MS,
-      })
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => '')
-        throw httpStatusToMarketError(response.status, text, correlationId)
-      }
-
-      const raw = await response.json().catch(() => null)
-      // 응답이 배열 자체이거나 { data: [...] } 형식일 수 있다.
-      const items = Array.isArray(raw)
-        ? raw
-        : NaverCategoryListResponseSchema.safeParse(raw).data?.data
-      if (!items) {
-        throw new MarketError('server', '네이버 카테고리 응답 파싱 실패', {
-          market: MARKET,
-        })
-      }
-
-      // parentId == null 인 항목 = depth 1 (루트).
-      // 각 노드의 children 은 동일 배열에서 parentId == node.id 인 것들.
-      // depth 3 까지만 children 채움 (그 이상은 leaf=true 강제).
-      const itemsTyped = items as NaverCategoryItem[]
-      const byParent = new Map<number | null, NaverCategoryItem[]>()
-      for (const it of itemsTyped) {
-        const parent = it.parentId ?? null
-        const arr = byParent.get(parent) ?? []
-        arr.push(it)
-        byParent.set(parent, arr)
-      }
-
-      function build(item: NaverCategoryItem, depth: number): CategoryNode {
-        const children: CategoryNode[] = []
-        if (depth < 3) {
-          const subs = byParent.get(item.id) ?? []
-          for (const sub of subs) {
-            children.push(build(sub, depth + 1))
-          }
-        }
-        const leaf = item.leaf ?? (depth >= 3 || children.length === 0)
-        const node: CategoryNode = {
-          id: String(item.id),
-          name: item.name,
-          depth,
-          leaf,
-          parentId: item.parentId !== null ? String(item.parentId) : null,
-          children,
-        }
-        return CategoryNodeSchema.parse(node)
-      }
-
-      const roots = byParent.get(null) ?? []
-      return roots.map((r) => build(r, 1))
+      throw new Error(
+        'fetchCategoryTree 는 Edge markets-category-children 으로 이전됨 (category-sync.md §6.4)',
+      )
     },
 
     // ───────────────────────────────────────────

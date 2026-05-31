@@ -56,6 +56,9 @@ docs/design-renewal/designFile/uploads/
 # Manual verification artifacts (scripts/verify-mock-flow.mjs 출력)
 verify-out/
 
+# Superpowers 일회성 구현 계획 (영구 설계는 docs/architecture/v1/features/*).
+docs/superpowers/plans/
+
 # Deno lockfile — Edge Function deps 는 각 functions/* deno.json 이 관리.
 # 루트에서 deno test 실행 시 생성되는 부산물. CI 는 deno 미사용 (ci-cd.md).
 deno.lock

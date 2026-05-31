@@ -34,29 +34,30 @@ vi.mock('@/features/settings/shipping', () => ({
     esmShippingOptionsMock(marketAccountId),
 }))
 
-vi.mock('../hooks/useMarketCategoryTree', () => ({
-  useMarketCategoryTree: () => ({
+// CategoryCascader 가 쓰는 useMarketCategoryChildren — parentId 별 직계 자식 응답(lazy).
+//   루트(null): 비-leaf '가전' / 자식('c-root'): leaf '주방가전'.
+vi.mock('../hooks/useMarketCategoryChildren', () => ({
+  useMarketCategoryChildren: (
+    _marketId: string | null,
+    _marketAccountId: string | null,
+    parentId: string | null,
+  ) => ({
     isLoading: false,
     isError: false,
-    data: [
-      {
-        id: 'c-root',
-        name: '가전',
-        depth: 1,
-        leaf: false,
-        parentId: null,
-        children: [
-          {
-            id: 'c-kitchen',
-            name: '주방가전',
-            depth: 2,
-            leaf: true,
-            parentId: 'c-root',
-            children: [],
-          },
-        ],
-      },
-    ],
+    error: null,
+    data:
+      parentId == null
+        ? [{ id: 'c-root', name: '가전', depth: 1, leaf: false, parentId: null, children: [] }]
+        : [
+            {
+              id: 'c-kitchen',
+              name: '주방가전',
+              depth: 2,
+              leaf: true,
+              parentId: 'c-root',
+              children: [],
+            },
+          ],
   }),
 }))
 
@@ -418,7 +419,7 @@ describe('MarketOptionsCard — 하위호환 회귀(naver)', () => {
   it('네이버 카드는 카테고리만 — ESM/11번가 필드 미노출', () => {
     renderCard('naver')
     expect(
-      screen.getByLabelText(/네이버 스마트스토어 카테고리 선택/),
+      screen.getByLabelText(/네이버 스마트스토어 대분류 카테고리 선택/),
     ).toBeInTheDocument()
     expect(
       screen.queryByLabelText('G마켓·옥션 출하지'),

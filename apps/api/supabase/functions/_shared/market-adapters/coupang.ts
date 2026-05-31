@@ -59,6 +59,7 @@ import {
   buildDisplayCategoryPath,
   coerceCoupangCategory,
   coupangHttpStatusToMarketError,
+  coupangSubCategoriesToNodes,
   ROOT_DISPLAY_CATEGORY_CODE,
   type RawCoupangCategory,
 } from './coupang-category.ts'
@@ -299,6 +300,27 @@ export function createCoupangAdapter(): MarketAdapter {
         null,
       )
       return [rootNode]
+    },
+
+    // ───────────────────────────────────────────
+    // fetchCategoryChildren — 부모코드 직계 자식만 (lazy cascading)
+    //   GET .../meta/display-categories/{parentId ?? 0} → data.subCategories 직계 매핑.
+    //   parentId=null → 루트(0). children=[], leaf=각 sub.isLeafCategory.
+    // ───────────────────────────────────────────
+    async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
+      const { accessKey, secretKey } = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+      const code =
+        parentId === null || parentId.trim() === ''
+          ? ROOT_DISPLAY_CATEGORY_CODE
+          : Number(parentId)
+      if (!Number.isFinite(code)) {
+        throw new MarketError('validation', `쿠팡: 잘못된 parentId (${parentId})`, {
+          market: MARKET,
+        })
+      }
+      const raw = await fetchRawCoupangCategory(code, accessKey, secretKey, correlationId)
+      return coupangSubCategoriesToNodes(raw, parentId ?? null)
     },
 
     // ───────────────────────────────────────────

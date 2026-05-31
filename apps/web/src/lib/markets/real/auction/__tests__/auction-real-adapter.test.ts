@@ -85,14 +85,7 @@ const VALID_MAPPING: MarketMapping = {
   },
 }
 
-// site-cats 대분류 응답 — 단일 leaf. esm-api/product/4.md 형태.
-const CATEGORY_RESPONSE = [
-  {
-    catCode: '500009999',
-    catName: '주방/욕실',
-    isLeaf: true,
-  },
-]
+// 카테고리 응답 fixture 는 fetchCategoryTree Edge 이전(category-sync.md §6.4)으로 제거됨.
 
 // PR-4: POST /item/v1/goods 응답 (siteDetail.iac.SiteGoodsNo).
 const CREATE_PRODUCT_RESPONSE = {
@@ -159,26 +152,13 @@ describe('auctionRealAdapter.authenticate', () => {
 // ─────────────────────────────────────────────
 
 describe('auctionRealAdapter.fetchCategoryTree', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.stubGlobal('crypto', {
-      randomUUID: () => 'test-correlation-id',
-      subtle: globalThis.crypto.subtle,
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('F1: 정상 응답 → CategoryNode 반환', async () => {
-    vi.stubGlobal('fetch', makeFetchMock([{ ok: true, status: 200, body: CATEGORY_RESPONSE }]))
-
-    const adapter = await getAuthenticatedAdapter()
-    const tree = await adapter.fetchCategoryTree()
-    expect(tree.length).toBe(1)
-    expect(tree[0]?.name).toBe('주방/욕실')
-    expect(tree[0]?.leaf).toBe(true)
+  // 카테고리 조회는 Edge markets-category-children 로 이전됨 (category-sync.md §6.4).
+  //   브라우저 직접 fetch 는 CORS 차단 → web 어댑터 fetchCategoryTree 는 런타임 미사용 throw.
+  it('F1: Edge 이전됨 — 호출 시 throw (런타임 미사용)', async () => {
+    const { auctionRealAdapter } = await import('../index')
+    await expect(auctionRealAdapter.fetchCategoryTree()).rejects.toThrow(
+      /markets-category-children/,
+    )
   })
 })
 

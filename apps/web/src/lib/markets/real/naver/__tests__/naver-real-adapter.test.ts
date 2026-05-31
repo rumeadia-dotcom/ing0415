@@ -33,7 +33,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   StoredCredentialSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   TokenSetSchema,
   type Product,
@@ -77,23 +76,7 @@ const NAVER_TOKEN_RESPONSE = {
   scope: 'commerce.products',
 }
 
-const NAVER_CATEGORY_FLAT_RESPONSE = {
-  data: [
-    { id: 50000000, name: '패션의류', parentId: null },
-    { id: 50000001, name: '여성의류', parentId: 50000000 },
-    { id: 50000002, name: '원피스', parentId: 50000001 },
-  ],
-}
-
-// depth 4 자식 (자식의 자식의 자식의 자식) — 의도적으로 depth 3 초과
-const NAVER_CATEGORY_DEEP_RESPONSE = {
-  data: [
-    { id: 1, name: 'L1', parentId: null },
-    { id: 2, name: 'L2', parentId: 1 },
-    { id: 3, name: 'L3', parentId: 2 },
-    { id: 4, name: 'L4 (overflow)', parentId: 3 },
-  ],
-}
+// 카테고리 응답 fixture 는 fetchCategoryTree Edge 이전(category-sync.md §6.4)으로 제거됨.
 
 const CREATE_PRODUCT_RESPONSE = {
   originProductNo: 1234567890,
@@ -247,67 +230,13 @@ describe('naverRealAdapter.refreshToken', () => {
 // ─────────────────────────────────────────────
 
 describe('naverRealAdapter.fetchCategoryTree', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.stubGlobal('crypto', {
-      randomUUID: () => 'test-correlation-id',
-      subtle: globalThis.crypto.subtle,
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('F1: 평탄 배열 → depth 1 루트 + 자식 트리화', async () => {
-    const adapter = await getAuthedAdapter()
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock([
-        { ok: true, status: 200, body: NAVER_CATEGORY_FLAT_RESPONSE },
-      ]),
+  // 카테고리 조회는 Edge markets-category-children 로 이전됨 (category-sync.md §6.4).
+  //   네이버는 Edge 측도 NOT_IMPL → category_not_supported. web 어댑터는 런타임 미사용 throw.
+  it('F1: Edge 이전됨 — 호출 시 throw (런타임 미사용)', async () => {
+    const { naverRealAdapter } = await import('../index')
+    await expect(naverRealAdapter.fetchCategoryTree()).rejects.toThrow(
+      /markets-category-children/,
     )
-
-    const tree = await adapter.fetchCategoryTree()
-    expect(tree.length).toBe(1)
-    for (const node of tree) {
-      expect(() => CategoryNodeSchema.parse(node)).not.toThrow()
-    }
-    expect(tree[0]?.name).toBe('패션의류')
-    expect(tree[0]?.children[0]?.name).toBe('여성의류')
-    expect(tree[0]?.children[0]?.children[0]?.name).toBe('원피스')
-    // 가장 깊은 노드도 leaf
-    expect(tree[0]?.children[0]?.children[0]?.leaf).toBe(true)
-  })
-
-  it('F2: depth 4 응답 → depth 3 까지만 children, depth 3 노드는 leaf=true', async () => {
-    const adapter = await getAuthedAdapter()
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock([
-        { ok: true, status: 200, body: NAVER_CATEGORY_DEEP_RESPONSE },
-      ]),
-    )
-
-    const tree = await adapter.fetchCategoryTree()
-    const l3 = tree[0]?.children[0]?.children[0]
-    expect(l3?.depth).toBe(3)
-    expect(l3?.leaf).toBe(true)
-    expect(l3?.children.length).toBe(0)
-  })
-
-  it('F3: 401 응답 → MarketError("unauthorized")', async () => {
-    const adapter = await getAuthedAdapter()
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock([
-        { ok: false, status: 401, body: { error: 'invalid_token' } },
-      ]),
-    )
-
-    await expect(adapter.fetchCategoryTree()).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
   })
 })
 

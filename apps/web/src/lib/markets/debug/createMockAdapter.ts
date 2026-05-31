@@ -1,9 +1,7 @@
 import {
-  CategoryNodeSchema,
   CreateProductResultSchema,
   EsmGoodsCreateRequestSchema,
   EsmGoodsCreateResponseSchema,
-  EsmSiteCatSchema,
   EsmTransformExtraSchema,
   MarketOrderSchema,
   MarketSubmitTrackingResultSchema,
@@ -32,7 +30,6 @@ import {
   buildElevenStProductRaw,
   classifyElevenStCreateResult,
   type ElevenStProductRawResult,
-  mapElevenStCategories,
 } from '../real/11st/map'
 
 /**
@@ -73,67 +70,8 @@ function isEsmMarket(market: MarketId): boolean {
   return market === 'gmarket' || market === 'auction'
 }
 
-/**
- * ESM(G마켓·옥션) mock 카테고리 raw 응답 → EsmSiteCatSchema 통과 검증.
- * site-cats 의 raw 형태(siteCatCode/siteCatName/isLeaf)를 만들어 스키마 통과를 보장한 뒤
- * 공통 CategoryNode 트리로 정규화한다(PR-0 계약: mock raw 가 새 스키마 통과).
- */
-function buildEsmMockCategoryTree(market: MarketId): CategoryNode[] {
-  const siteType = market === 'gmarket' ? 2 : 1
-  const rawSiteCat = EsmSiteCatSchema.parse({
-    siteCatCode: '300004975',
-    siteCatName: '패션의류',
-    isLeaf: false,
-    siteType,
-    children: [
-      {
-        siteCatCode: '300004976',
-        siteCatName: '여성의류',
-        isLeaf: true,
-        siteType,
-      },
-    ],
-  })
-  const childRaw = rawSiteCat.children?.[0]
-  const node: CategoryNode = {
-    id: rawSiteCat.siteCatCode,
-    name: rawSiteCat.siteCatName,
-    depth: 1,
-    leaf: rawSiteCat.isLeaf,
-    parentId: null,
-    children: childRaw
-      ? [
-          {
-            id: childRaw.siteCatCode,
-            name: childRaw.siteCatName,
-            depth: 2,
-            leaf: childRaw.isLeaf,
-            parentId: rawSiteCat.siteCatCode,
-            children: [],
-          },
-        ]
-      : [],
-  }
-  return [CategoryNodeSchema.parse(node)]
-}
-
-/**
- * 11번가 mock 카테고리 — 실제 cateservice(1001) ns2 응답 구조(ns2:categorys>ns2:category[])를
- * 만들어 real 파서(mapElevenStCategories)에 통과시킨다(PR-1 계약: mock raw 가 새 ns2/트리 파서 통과).
- * dispNo/dispNm/depth/parentDispNo/leafYn 평탄 응답 → parentDispNo 트리(대>중>소). real 어댑터와 동형.
- */
-function buildElevenStMockCategoryTree(): CategoryNode[] {
-  const rawNs2 = {
-    'ns2:categorys': {
-      'ns2:category': [
-        { dispNo: '1001', dispNm: '패션의류', depth: '1', parentDispNo: '0', leafYn: 'Y' },
-        { dispNo: '1002', dispNm: '여성의류', depth: '2', parentDispNo: '1001', leafYn: 'Y' },
-        { dispNo: '1003', dispNm: '블라우스/셔츠', depth: '3', parentDispNo: '1002', leafYn: 'N' },
-      ],
-    },
-  }
-  return mapElevenStCategories(rawNs2).map((n) => CategoryNodeSchema.parse(n))
-}
+// mock 카테고리 트리 헬퍼(buildEsmMockCategoryTree / buildElevenStMockCategoryTree)는
+//   fetchCategoryTree Edge 이전(category-sync.md §6.4)으로 제거됨.
 
 /**
  * ESM(G마켓·옥션) mock createProduct raw 응답 → EsmGoodsCreateResponseSchema 통과 검증.
@@ -392,34 +330,11 @@ export function createMockAdapter(market: MarketId): MarketAdapter {
     },
 
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      // ESM(G마켓·옥션) 은 site-cats raw 응답 스키마(EsmSiteCatSchema) 통과 mock 사용.
-      if (isEsmMarket(market)) {
-        return buildEsmMockCategoryTree(market)
-      }
-      // 11번가 — 실 cateservice ns2 응답을 real 파서로 통과(PR-1 parity).
-      if (market === '11st') {
-        return buildElevenStMockCategoryTree()
-      }
-      const tree: CategoryNode[] = [
-        {
-          id: 'C-100',
-          name: '패션의류',
-          depth: 1,
-          leaf: false,
-          parentId: null,
-          children: [
-            {
-              id: 'C-100-10',
-              name: '여성의류',
-              depth: 2,
-              leaf: true,
-              parentId: 'C-100',
-              children: [],
-            },
-          ],
-        },
-      ]
-      return tree.map((n) => CategoryNodeSchema.parse(n))
+      // 카테고리 조회는 Edge markets-category-children 로 이전됨 (category-sync.md §6.4).
+      //   web 어댑터(real/mock 공통)의 fetchCategoryTree 는 런타임 미사용 — real 과 동형으로 throw.
+      throw new Error(
+        'fetchCategoryTree 는 Edge markets-category-children 으로 이전됨 (category-sync.md §6.4)',
+      )
     },
 
     transformProduct(

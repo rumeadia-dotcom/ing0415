@@ -157,6 +157,26 @@ export const CategoryNodeSchema: z.ZodType<CategoryNode> = z.lazy(() =>
 )
 
 // ─────────────────────────────────────────────
+// 카테고리 lazy cascading — Edge `markets-category-children` req/res
+// 마스터: docs/architecture/v1/features/category-sync.md §5
+//   서버 _shared/schemas.ts 와 동형. parentId=null/미지정 → 루트(대분류).
+//   응답 nodes 는 직계 자식만(children=[], leaf 로 하위 존재 표시).
+// ─────────────────────────────────────────────
+export const CategoryChildrenRequestSchema = z.object({
+  marketId: MarketIdSchema,
+  marketAccountId: z.string().uuid(),
+  parentId: z.string().nullable().optional(),
+})
+export type CategoryChildrenRequest = z.infer<typeof CategoryChildrenRequestSchema>
+
+export const CategoryChildrenResponseSchema = z.object({
+  nodes: z.array(CategoryNodeSchema),
+})
+export type CategoryChildrenResponse = z.infer<
+  typeof CategoryChildrenResponseSchema
+>
+
+// ─────────────────────────────────────────────
 // Product (도메인 마스터) + 이미지
 // ─────────────────────────────────────────────
 export const ProductImageSchema = z.object({

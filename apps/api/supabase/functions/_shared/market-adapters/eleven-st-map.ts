@@ -344,6 +344,46 @@ export function mapElevenStCategories(
 }
 
 /**
+ * 전체 트리(mapElevenStCategories 산출물)에서 parentId 의 직계 자식만 추출 (lazy cascading).
+ * 순수 함수 — 11번가는 1001 전체 조회 1회 후 트리에서 직계만 잘라 반환한다.
+ *
+ *   - parentId=null/빈 문자열 → 루트들(대분류) 반환.
+ *   - else → 트리를 순회해 id===parentId 인 노드의 직계 children 반환(미발견 시 []).
+ *   - 반환 노드는 children=[] 로 잘라 직계만 노출(다음 단계는 호출측이 재조회).
+ *   - leaf 는 원 노드의 leaf 값 유지(하위 존재 여부 표시).
+ */
+export function elevenStChildrenOf(
+  allRoots: CategoryNode[],
+  parentId: string | null,
+): CategoryNode[] {
+  const strip = (n: CategoryNode): CategoryNode => ({
+    id: n.id,
+    name: n.name,
+    depth: n.depth,
+    leaf: n.leaf,
+    parentId: n.parentId,
+    children: [],
+  })
+
+  if (parentId === null || parentId.trim() === '') {
+    return allRoots.map(strip)
+  }
+
+  const target = parentId.trim()
+  const findNode = (nodes: CategoryNode[]): CategoryNode | undefined => {
+    for (const n of nodes) {
+      if (n.id === target) return n
+      const found = findNode(n.children)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  const node = findNode(allRoots)
+  return node ? node.children.map(strip) : []
+}
+
+/**
  * 1617(하위) 응답의 KC인증 메타 추출 → `{ [dispNo]: { certType, requiredYn } }`.
  * 상품등록(PR-3) 의 ProductCertGroup 필수여부 검증·UI 힌트에 사용. 1001 응답엔 없음(빈 맵).
  */
