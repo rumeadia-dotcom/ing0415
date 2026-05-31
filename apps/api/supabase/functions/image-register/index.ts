@@ -99,11 +99,47 @@ export default Deno.serve(
     })
 
     if (insErr) {
-      // Postgres unique violation = 23505
+      // Postgres unique violation = 23505 — 멱등 처리.
+      //   같은 상품에 동일 파일(product_id, sha256) 또는 동일 위치(product_id, position)
+      //   재시도는 에러가 아니라 기존 row 를 반환한다(재시도·재사용 안전, sha256 "멱등성 키").
+      //   sha256 매칭 우선(같은 파일), 없으면 position 매칭(같은 위치) fallback.
       if (insErr.code === '23505') {
+        const bySha = await service
+          .from('product_images')
+          .select('id, position, original_path')
+          .eq('product_id', body.productId)
+          .eq('sha256', body.hashSha256)
+          .maybeSingle()
+        let existing = bySha.data
+        if (!existing) {
+          const byPos = await service
+            .from('product_images')
+            .select('id, position, original_path')
+            .eq('product_id', body.productId)
+            .eq('position', body.position)
+            .maybeSingle()
+          existing = byPos.data
+        }
+        if (existing) {
+          const exRole: 'main' | 'sub' = existing.position === 0 ? 'main' : 'sub'
+          logger.info(
+            { sellerId, productId: body.productId, imageId: existing.id, position: existing.position },
+            '← image-register idempotent (existing row returned)',
+          )
+          return ok(
+            {
+              imageId: existing.id as string,
+              status: 'uploaded' as const,
+              role: exRole,
+              originalPath: existing.original_path as string,
+            },
+            { correlationId },
+          )
+        }
+        // 충돌인데 기존 row 를 못 찾는 경우(이론상 없음) — 보수적으로 conflict.
         logger.warn(
           { sellerId, productId: body.productId, imageId: body.imageId },
-          '← image-register duplicate',
+          '← image-register duplicate (no existing row found)',
         )
         throw HttpErrors.conflict('duplicate_image', 'image already registered (same file or position)')
       }
@@ -136,7 +172,7 @@ export default Deno.serve(
     )
 
     return ok(
-      { imageId: body.imageId, status: 'uploaded' as const, role },
+      { imageId: body.imageId, status: 'uploaded' as const, role, originalPath: body.originalPath },
       { correlationId },
     )
   }),

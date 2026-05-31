@@ -43,7 +43,10 @@ export async function uploadOneImage({ productId, file, position, onProgress }: 
 
   await putImageToSignedUrl(uploadUrl, file, onProgress)
 
-  await registerImage({
+  // image-register 는 멱등: 같은 상품에 동일 파일/위치 재시도 시 기존 row 를 반환한다.
+  // 따라서 ImageMeta 의 id / storagePath 는 요청값이 아니라 **응답값**을 신뢰한다
+  // (멱등 반환 시 새로 발급한 imageId/originalPath 가 아닌 기존 것을 가리켜야 정합).
+  const registered = await registerImage({
     productId,
     imageId,
     originalPath,
@@ -56,8 +59,8 @@ export async function uploadOneImage({ productId, file, position, onProgress }: 
   })
 
   return {
-    id: imageId,
-    storagePath: originalPath,
+    id: registered.imageId,
+    storagePath: registered.originalPath,
     role: position === 0 ? 'main' : 'sub',
     sortOrder: position,
     width: dimensions.width,

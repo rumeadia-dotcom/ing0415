@@ -219,7 +219,7 @@ export const IMAGE_SPECS: Record<MarketCode, ImageSpec> = {
 2. **클라이언트 1차 검증** — RHF + zod: 파일 수 ≤ 10, 각 파일 ≤ 10MB, MIME whitelist. **실패 시 서버 호출 안 함**.
 3. **서명 URL 요청** — Edge Fn `image-upload-url` 호출. 요청에 `productId`, `count`, `mimeList` 전달. 응답: `[{ imageId, signedUrl, expiresAt }]`.
 4. **Storage 직접 PUT** — Supabase JS `storage.from('product-images-original').uploadToSignedUrl(...)`. 진행률은 `XMLHttpRequest progress` 이벤트로 RHF UI 에 반영.
-5. **DB row 생성** — 업로드 완료 후 Edge Fn `image-register` 호출. 응답에 이미지 메타 (width/height/bytes/hash) 포함. **이 시점에 `product_images.status = 'uploaded'`**.
+5. **DB row 생성** — 업로드 완료 후 Edge Fn `image-register` 호출. 응답 `{ imageId, status, role, originalPath }`. **이 시점에 `product_images.status = 'uploaded'`**. **멱등**: 같은 상품에 동일 파일(`product_id, sha256`)·동일 위치(`product_id, position`) 재시도는 409 가 아니라 **기존 row 를 반환**한다(재시도·재사용 안전). 클라이언트는 응답의 `imageId/originalPath`(멱등 시 기존)를 신뢰한다.
 6. **에러** — PUT 실패 시 클라이언트는 재시도 3회 (1s/3s/9s backoff). 모두 실패 시 에러 메시지 + 사용자 재선택 유도.
 
 ### 5.2 서명 URL 발급 Edge Fn
@@ -282,8 +282,13 @@ create table product_images (
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   unique (product_id, position),
-  unique (seller_id, sha256)            -- 동일 셀러 동일 파일 재업로드 차단
+  unique (product_id, sha256)           -- 같은 상품 내 동일 파일 중복만 차단 (2026-05-31 완화)
 );
+-- ⚠ 2026-05-31 변경 (마이그 20260531000002): UNIQUE (seller_id, sha256) → (product_id, sha256).
+--   전역 (seller_id, sha256) 은 셀러가 같은 이미지를 다른 상품에 재사용하거나 재시도 시
+--   영구 409(duplicate_image) 를 유발했다(운영 사고). 같은 상품 내 중복만 차단하도록 완화.
+--   멱등성은 image-register 가 23505 충돌 시 기존 row 를 반환하는 것으로 보강
+--   (sha256 매칭 우선, position fallback → { imageId, status, role, originalPath } 200).
 
 create index product_images_product_idx on product_images (product_id);
 create index product_images_status_idx on product_images (status);
