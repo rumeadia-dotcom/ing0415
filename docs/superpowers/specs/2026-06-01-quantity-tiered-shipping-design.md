@@ -108,14 +108,20 @@ export const ShippingTemplateSchema = ShippingConfigSchema.and(z.object({
 
 공용 순수함수 `expandBoxToTiers(box, maxTiers)` → `{ minQty, maxQty|null, fee }[]` 를 만들고, 각 어댑터가 마켓 포맷으로 변환한다.
 
+> **2026-06-01 실검증 완료** — 네이버 모델 / 11번가 open-ended / ESM details 포맷 확정. 잔여는 네이버 enum 리터럴(문자열)뿐 → §8.
+
 | 마켓 | feeType=quantity_tiered 매핑 | 구간 한도 | 한도 초과 처리 |
 |---|---|---|---|
-| **네이버** | `deliveryFee.repeatQuantity = qtyPerBox`, `baseFee = feePerBox` (N개마다 기본배송비 반복) | 사실상 무한(균등) | 불필요 (네이티브) |
-| **11번가** | `dlvCstInstBasiCd=04`, `dlvCnt1=1^(N+1)^…`, `dlvCnt2=N^2N^…`(요소 1개 적음=마지막 ≥), `dlvCst3=M^2M^…` | 10박스 | 10박스 초과분은 10번째 요금 (open-ended) |
-| **G마켓/옥션** | `shipping.policy.feeType=2`(상품별) + `each.feeType=4` + `each.details[].Condition/FeeAmnt` | 5박스 | 5박스 초과분은 5번째 요금 |
+| **네이버** | `deliveryFee.repeatQuantity = qtyPerBox`, `baseFee = feePerBox` (= 네이버 "수량별 배송비" 반복부과). `deliveryFeeType` enum 리터럴은 §8 | **무한(균등)** | 불필요 (네이티브) |
+| **11번가** | `dlvCstInstBasiCd=04`, `dlvCnt1=1^(N+1)^…`(요소 K개), `dlvCnt2=N^2N^…`(요소 K-1개), `dlvCst3=M^2M^…`(요소 K개) | 10박스 | 마지막(dlvCnt2 없는) 구간이 ≥ open-ended → 10번째 요금. spec 예시 `dlvCnt1=1^10^100`/`dlvCnt2=9^99`/`dlvCst3=5000^1000^0` 로 확정 |
+| **G마켓/옥션** | `shipping.policy.feeType=2`(상품별) + `each.feeType=4` + `each.details[]={Condition(수량), FeeAmnt(금액)}` 배열 | 5박스(=5단계) | 5박스 초과분은 5번째 요금 |
 | **쿠팡** | ❌ → fallback (§4) | — | 항상 fallback |
 
-> **핵심:** 박스 모델이면 **네이버는 한도 문제 없음**(repeatQuantity 균등 반복). 한도는 11번가(10)·ESM(5)에서 박스 수가 그보다 많을 수 있을 때만, 그것도 마지막 구간 open-ended라 실질 손실은 초대량 주문에 한정.
+> **핵심:** 박스 모델이면 **네이버는 한도 문제 없음**(수량별 배송비 = repeatQuantity 균등 반복). 한도는 11번가(10)·ESM(5)에서 박스 수가 그보다 많을 수 있을 때만, 그것도 마지막 구간 open-ended라 실질 손실은 초대량 주문에 한정.
+>
+> **ESM 할증(surcharge) 의미 주의 (2026-06-01 발견):** ESM `each.details.FeeAmnt` 는 **G마켓 포함 등록 시 "배송비 할증" 방식 + 카테고리별 최대 배송비 상한**(`20.md:118`). 즉 박스 모델의 "k번째 박스 총액 k×M" 을 ESM 에 넣을 때 FeeAmnt 가 *총액*인지 *base 대비 할증분*인지 + 카테고리 상한에 걸리는지 구현 시 실호출 검증 필요. 착불(`feePayType=3`)은 **옥션 단독 등록만** 허용.
+>
+> **네이버 구간별(비균등) 별도 메커니즘:** 네이버는 우리 박스(균등) 외에 "구간별 배송비(2구간/3구간)" = `secondBaseQuantity`/`secondExtraFee`/`thirdBaseQuantity`/`thirdExtraFee` 로 **비균등 최대 3구간**도 지원. v1 박스 모델은 균등만 쓰므로 미사용 — 향후 비균등 입력(§2 입력모델 '구간 직접 입력') 도입 시 네이버는 이 필드로, 11번가/ESM 은 임의 dlvCst3/FeeAmnt 로 매핑 가능.
 
 ---
 
@@ -183,12 +189,19 @@ export const ShippingTemplateSchema = ShippingConfigSchema.and(z.object({
 
 ---
 
-## 8. 확인 필요 (구현 착수 전 해소)
+## 8. 확인 필요
 
-- **네이버 `repeatQuantity` 정확 의미 + `deliveryFeeType` enum 값** — apicenter 정식 spec 실검증. 박스 모델이 정말 repeatQuantity 단독으로 무한 표현되는지, baseQuantity 와의 조합인지 확정. (`shipping-fee-model.md §6` 기존 미해결과 합류.)
-- **11번가 `dlvCnt2` 마지막 구간 open-ended** — 요소 1개 적은 것이 ≥(이상) 처리인지 실검증 (spec 예시 `dlvCnt1=1^10^100`, `dlvCnt2=9^99` → 100개 이상 마지막).
-- **ESM `each.details` 5단계 배열 표현 포맷** — `20.md` 보충 (Condition/FeeAmnt 가 배열인지, `^` 구분인지).
-- **쿠팡 fallback 경고 카피 강도** — under-charge 위험을 셀러에게 어느 수준으로 경고할지 (배너 문구 최종).
+### 8.1 해소 완료 (2026-06-01 실검증)
+
+- ✅ **네이버 수량별 모델** — "수량별 배송비"는 `repeatQuantity`(반복 수량) + `baseFee`(반복 부과 금액)로 **균등·무한** 표현 = 우리 박스 모델 네이티브 매핑. "구간별 배송비(2/3구간)"는 별개의 비균등(second/third, 최대 3). 박스 모델 가정 확정.
+- ✅ **11번가 마지막 구간 open-ended** — spec 예시(`dlvCnt1=1^10^100`/`dlvCnt2=9^99`/`dlvCst3=5000^1000^0`)로 dlvCnt2 가 1개 적고 마지막이 ≥(이상) 처리임을 확정.
+- ✅ **ESM details 포맷** — `each.details` = `{Condition, FeeAmnt}` 배열, 최대 5단계 (`20.md:114-118`).
+
+### 8.2 구현 착수 전 잔여 (실호출 트랙에서 확정)
+
+- **네이버 `deliveryFeeType` enum 리터럴 문자열** — 모델은 확정, 단 수량별에 해당하는 enum *문자열 값*은 apicenter 봇 차단으로 web 미확정. 셀러 실 API 키로 1회 호출해 확정 (값은 version-specific 가능성 있어 어차피 live 검증 대상). 모델이 확정이라 **설계 위험 아님.**
+- **ESM FeeAmnt 할증/상한 의미** — G마켓 포함 등록 시 FeeAmnt 가 *총액* vs *base 대비 할증분*, 카테고리별 최대 배송비 상한 충돌 여부 실호출 검증 (§3 주의 박스).
+- **쿠팡 fallback 경고 카피 강도** — under-charge 위험을 셀러에게 어느 수준으로 경고할지 (배너 문구 최종 — 카피 결정, 설계 비차단).
 
 ---
 
@@ -198,3 +211,4 @@ export const ShippingTemplateSchema = ShippingConfigSchema.and(z.object({
 - 2026-06-01: §2 입력 모델 = **박스 모델** (박스당 N개 + 박스당 M원, 구간 자동 생성). 사용자 승인.
 - 2026-06-01: §4 미지원 fallback = **자동 근사(첫 구간 금액) + 가시적 경고 + 선택적 마켓별 override**. 사용자 승인.
 - 2026-06-01: §2 저장 = `products.shipping_config jsonb` 단일 컬럼 + zod 단일 소스 / 템플릿 테이블명 `shipping_policies` 유지 / fallback 기본값 = 박스당 요금. (사용자 "이견 없음".)
+- 2026-06-01: §8 실검증 — 네이버 박스=`repeatQuantity`(무한 균등) 확정 / 11번가 마지막 구간 ≥ open-ended 확정 / ESM `each.details[]` 최대 5단계 + G마켓 할증·카테고리 상한 제약 발견. 잔여: 네이버 enum 리터럴(문자열)·ESM FeeAmnt 할증 의미만 실호출 트랙으로 이관(설계 비차단).
