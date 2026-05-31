@@ -20,9 +20,8 @@ description: WIP 핸드오프 파일(docs/handoff/WIP-*.md) 을 최신 상태로
 
 ### 자동 트리거 (스킬이 사용자에게 "WIP 갱신할까요?" 묻고 진행)
 
-- `feature/*` 브랜치가 `develop` 로 머지된 직후
-- `release/*` 또는 `hotfix/*` 가 `main` 으로 머지된 직후
-- 운영 배포가 완료된 직후 (deploy.yml 성공 후)
+- **`feature/*` 를 `develop` 로 머지하기 _전_** — feature 브랜치 위에서 WIP 를 갱신해 **같은 feature PR 에 포함**시킨다. (2026-05-31 사용자 지시: "develop 머지 전에 WIP 작성".) 머지 _후_ 에 갱신하면 protected develop 에 WIP-only PR 을 따로 내야 해 비효율 — feature 작업 마무리(테스트 green) 시점에 같은 브랜치에서 갱신할 것.
+- `release/*` 또는 `hotfix/*` 가 `main` 으로 머지되기 전(같은 PR) / 운영 배포가 완료된 직후 (deploy.yml 성공 후)
 - Phase 전환 (예: v0.x → v0.x+1, Stage X 완료)
 - 외부 차단 항목이 해소된 시점
 
