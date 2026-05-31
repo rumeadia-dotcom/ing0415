@@ -1,10 +1,30 @@
-# MarketCast — WIP 핸드오프 (카테고리 추천 Phase 1 develop 머지 / v0.19 운영 완료)
+# MarketCast — WIP 핸드오프 (수량 구간 배송비 설계 / 카테고리 추천 Phase 1 / v0.19 운영)
 
-**develop HEAD**: `22554fa` — feat(category): 카테고리 추천 Phase 1 — 전역 인덱스 + 검색 + 최근 (4마켓) (#312)
+**develop HEAD**: `b67ca42` — docs(handoff): WIP 갱신 — 카테고리 추천 Phase 1 develop 머지 + 운영 액션 4건 (#313)
+**이 브랜치**: `feature/quantity-tiered-shipping` — 수량 구간(박스) 배송비 **설계 spec 추가 (design-only)** · develop 머지 예정
 **main HEAD**: `e48d7e0` — release: v0.19 — 이미지 업로드 멱등 fix (#308) · **Deploy (real) success (2026-05-31)**
-**테스트**: 1434 passed / 1 skipped / 31 todo (133 files) · **deno check 28 entrypoint green** (빌드·검색 Edge +2)
-**갱신일**: 2026-05-31
-**develop 누적(→v0.20, 미릴리즈)**: 카테고리 추천 Phase 1 #312 (**마이그 3개 동반**) + 카테고리 cascader Phase 0 fix #311
+**테스트**: 1434 passed / 1 skipped / 31 todo (133 files) · **deno check 28 entrypoint green** *(design-only 브랜치 — 코드/테스트 미변경)*
+**갱신일**: 2026-06-01
+**develop 누적(→v0.20, 미릴리즈)**: 카테고리 추천 Phase 1 #312 (**마이그 3개 동반**) + 카테고리 cascader Phase 0 fix #311 + 수량구간 배송비 설계 spec (design-only)
+
+---
+
+## 2026-06-01 세션 — 수량 구간(박스) 배송비 + 배송 설정 인라인 재편 (design-only)
+
+### 배경 (사용자 편의)
+상품마다 다른 "수량 구간별 차등 배송비"(N개 초과 시 새 박스 → 배송비 배수. 예: 12개까지 2,500원 / 13~24개 5,000원) 요구. **5마켓 API 지원 조사 결과: 네이버·11번가·G마켓·옥션 지원, 쿠팡 미지원.**
+스펙: `docs/superpowers/specs/2026-06-01-quantity-tiered-shipping-design.md` (**설계 확정, 구현 미착수**).
+
+### 확정 설계 (사용자 승인)
+- **배송 정책 재편**: 현행 `shipping_policies`(별도 엔티티 + Step1 **필수 select**, 사실상 "이름 붙인 단일 배송비") → **상품 인라인 배송 설정(`products.shipping_config jsonb`) + 선택적 템플릿(prefill)**. 필수 select 제거. (`shipping_policy_id` FK 제거, `shipping_policies` enrich = 템플릿.)
+- **입력 = 박스 모델**: 박스당 N개 + 박스당 M원 → 구간 자동 생성. zod 단일 소스 `ShippingConfigSchema`(`lib/schemas/shipping.ts`).
+- **박스→마켓 매핑**: 네이버 `repeatQuantity`+`baseFee`(무한 균등·네이티브) / 11번가 `dlvCstInstBasiCd=04`+`dlvCnt1/2/dlvCst3`(10구간, 마지막 ≥ open-ended) / ESM `each.feeType=4`+`details[]={Condition,FeeAmnt}`(5단계, G마켓 할증·카테고리 상한) / **쿠팡 fallback**(박스당 요금 단일 등록 + 가시적 경고 + 선택적 마켓별 override). 공용 순수함수 `expandBoxToTiers`.
+- **부수 해소**: 워커/validate `shippingFeeKrw:0` 하드코딩 버그(shipping-fee-model §3.1) 구현 시 동시 해소.
+
+### 실검증 완료 / 잔여
+- ✅ 네이버 박스=`repeatQuantity`(무한 균등) · 11번가 마지막 구간 ≥ open-ended · ESM `details[]` 5단계 포맷.
+- 잔여(실호출 트랙, **설계 비차단**): 네이버 `deliveryFeeType` enum 리터럴(문자열) / ESM `FeeAmnt` 할증·카테고리 상한 의미.
+- 구현 blast radius·테스트 매트릭스는 spec §6·§7 참조.
 
 ---
 
@@ -53,7 +73,8 @@ cd apps/api && npx supabase@latest db push
 
 | # | 항목 | 사유 / 진입 |
 |---|---|---|
-| **C3** | **real 실호출 검증** (5마켓 mock+parity 까지만) | 셀러 키 + IP `3.36.239.243` 화이트리스트 → 키 발급 후 1회. **다음 release 핵심 게이트.** 카테고리 lazy + **Phase 1 ESM 빌드/검색** 도 이때 실검증. |
+| **C9** | **수량 구간(박스) 배송비 구현** | **설계 확정 (2026-06-01 spec).** Layer1 인라인(`products.shipping_config jsonb`)+선택적 템플릿, 박스→마켓 매핑 4마켓+쿠팡 fallback, `expandBoxToTiers` 순수함수, 워커 fee 0원 하드코딩 동시 해소. 잔여 실호출 검증(네이버 enum 리터럴·ESM 할증)은 C3 와 합류. |
+| **C3** | **real 실호출 검증** (5마켓 mock+parity 까지만) | 셀러 키 + IP `3.36.239.243` 화이트리스트 → 키 발급 후 1회. **다음 release 핵심 게이트.** 카테고리 lazy + **Phase 1 ESM 빌드/검색** + **C9 배송비 매핑** 도 이때 실검증. |
 | **C7** | **네이버 카테고리 real 어댑터** | 어댑터 stub + 커머스 카테고리 API 스펙 부재. Phase 1 도 네이버 제외(unsupported). `market-api-docs-import` 스펙 확보 + 구현 + 키 발급 후. |
 | **C4** | 11번가 상품군(officialNotice) 코드 마스터 | spec 1003 1군만 확보, 40군 free-form |
 | **C5** | 이미지 ≥13장 truncate 사전경고 UX | warning 처리됨 — v2 |
@@ -85,10 +106,11 @@ MCP 호스팅: Lightsail 3.36.239.243 (supabase-dev/real=read-only mcp_ro 뷰 / 
 Seller (auth.users) ─┬─ MarketAccount ── credential_payload jsonb + pgcrypto
                      ├─ Product ─┬─ ProductImage ─ ImageTransform (private 버킷 + signed URL)
                      │           │   (UNIQUE (product_id, sha256) #307 — 같은상품 중복만 차단, 재사용 허용)
-                     │           └─ ProductMarketMapping (카테고리: 검색/최근/cascader 3경로
-                     │                + marketOptions: 출고지/반품지·officialNotice + certRequiredYn)
+                     │           ├─ ProductMarketMapping (카테고리: 검색/최근/cascader 3경로
+                     │           │    + marketOptions: 출고지/반품지·officialNotice + certRequiredYn)
+                     │           └─ shipping_config jsonb (C9 설계 — 인라인 배송 설정, 박스 수량구간 포함)
                      ├─ RegistrationJob ─── JobMarketResult (1:N)
-                     └─ ShippingPolicy (seller_id default auth.uid())
+                     └─ ShippingPolicy → C9 설계: 선택적 "배송 템플릿"(prefill)로 강등, 필수 FK 제거
 주문·배송 (s7~s9): Order(+extra jsonb dlvNo) → OrderGroup / ShippingJob → ShippingJobResult / LogenCredentials
 카테고리 (Phase 1):
   · cascader: Browser → Edge markets-category-children → GW → 마켓 (부모코드 직계 자식 lazy)
@@ -105,7 +127,8 @@ Seller (auth.users) ─┬─ MarketAccount ── credential_payload jsonb + pg
 | Stage A~D / v0.4~v0.17 | 부트스트랩 + s1~s6 + 5마켓 어댑터 + 주문배송 + Gateway + 11번가/ESM 재구현 + deno check | 운영 배포 |
 | v0.18 (#301·#303) | 카테고리 게이트웨이 lazy cascading(CORS fix) + 이미지 썸네일 signed URL | 운영 배포 |
 | v0.19 (#307·#308) | 이미지 업로드 멱등 + product_images UNIQUE 완화 (409 fix, 마이그 동반) | **운영 배포 (real success)** |
-| **develop 누적 (#311·#312)** | **카테고리 cascader Phase 0 fix + 카테고리 추천 Phase 1(전역 인덱스+검색+최근, 마이그 3개)** | **develop 머지 (→v0.20 release 예정)** |
+| develop 누적 (#311·#312) | 카테고리 cascader Phase 0 fix + 카테고리 추천 Phase 1(전역 인덱스+검색+최근, 마이그 3개) | develop 머지 (→v0.20 release 예정) |
+| **2026-06-01 (design-only)** | **수량 구간(박스) 배송비 + 배송 설정 인라인 재편 설계 spec** | **구현 미착수 (C9)** |
 
 ## 운영 현황
 
@@ -125,16 +148,18 @@ git pull origin develop && pnpm install && pnpm test
 
 ### 우선 순위
 1. **release/v0.20 → main 배포 + 마이그 적용** — Phase 0/1 운영 반영. main 머지 후 **apply_db_migrations + deploy_edge_functions workflow_dispatch 필수**(운영 액션 1) + dev push(액션 2) + cron vault 확인(액션 3) + playwright 라이브 검증(액션 4).
-2. **C3 real 실호출 검증** — 셀러 키 + IP 화이트리스트 후 5마켓 1회. 카테고리 lazy + **Phase 1 ESM 빌드/검색** real 검증.
-3. **C7 네이버 카테고리** + C4~C6·C8.
+2. **C9 수량 구간(박스) 배송비 구현** — 설계 확정(spec 2026-06-01). `writing-plans` 로 구현 계획 → 마이그(`products.shipping_config`)·zod·어댑터 4마켓+쿠팡 fallback·UI 인라인. 워커 fee 0원 버그 동시 해소.
+3. **C3 real 실호출 검증** — 셀러 키 + IP 화이트리스트 후 5마켓 1회. 카테고리 lazy + Phase 1 ESM + C9 배송비 매핑(네이버 enum·ESM 할증) real 검증.
+4. **C7 네이버 카테고리** + C4~C6·C8.
 
-> 카테고리 추천 Phase 1 develop 머지 완료. release 시 마이그 3개 + Edge 2개 배포가 핵심 운영 액션.
+> 카테고리 추천 Phase 1 develop 머지 완료 + 수량구간 배송비 설계 확정. release 시 마이그 3개+Edge 2개 배포가 핵심 운영 액션, 그 다음 C9 배송비 구현.
 
 ---
 
 ## 백로그 (v1 이후 / 영구 보류)
 
 - 네이버 카테고리 real 어댑터(C7) / 11번가 상품군 코드(C4) / 카테고리 추천 Phase 2(C8) / orphan storage 정리 — v2
+- 수량 구간 배송비 비균등(구간 직접 입력) 모드 — v1 은 박스(균등)만, 비균등은 향후 (네이버 구간별 2/3·11번가/ESM 임의 매핑)
 - web 어댑터 createProduct·fetchOrders 등 미사용 메서드 정리(런타임은 Edge worker) — 별도 트랙
 - 알림 / CSV / 오류 통계 / 이미지 WebP / s4 템플릿 / 소셜 / 2FA / Stripe·PG / 멀티유저 — v2~보류
 
