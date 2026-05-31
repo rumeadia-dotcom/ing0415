@@ -82,6 +82,16 @@ export interface MarketAdapter {
   fetchCategoryTree(): Promise<CategoryNode[]>;
 
   /**
+   * 부모코드 직계 자식 카테고리만 반환 (optional, lazy cascading — s3 3단계 CategoryCascader).
+   * 마스터: `features/category-sync.md`. children 은 항상 빈 배열, leaf 로 하위 존재만 표시.
+   * parentId=null → 루트(대분류). 모든 마켓 호출 gatewayFetch 경유. fetchCategoryCertMeta /
+   * getRegistrationFields / fetchOrders / submitTracking 과 동일한 optional 확장 선례를 따름.
+   * 미구현 마켓(네이버 real)은 메서드 생략 → Edge(markets-category-children) 가
+   * category_not_supported. debug mock 은 4마켓+네이버 모두 정상 반환(parity).
+   */
+  fetchCategoryChildren?(parentId: string | null): Promise<CategoryNode[]>;
+
+  /**
    * 도메인 Product + 마켓별 MarketMapping → 마켓 페이로드.
    * 순수 함수. fetch / Date.now / Math.random 직접 사용 금지 (결정성).
    */

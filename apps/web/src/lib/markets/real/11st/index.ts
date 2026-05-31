@@ -29,7 +29,6 @@ import type { MarketAdapter } from '../../types'
 import { getElevenStRegistrationFields } from './registration-fields'
 import {
   ApiKeyAuthInputSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   FetchOrdersInputSchema,
   MarketOrderSchema,
@@ -52,7 +51,6 @@ import {
 import {
   ELEVEN_ST_REST_BASE,
   ELEVEN_ST_REST_PATHS,
-  buildElevenStCategoryUrl,
   buildElevenStDispatchPath,
   buildElevenStOrderListPath,
   buildElevenStProductRaw,
@@ -60,7 +58,6 @@ import {
   classifyElevenStCreateResult,
   classifyElevenStDispatchResult,
   classifyElevenStOrdersResult,
-  mapElevenStCategories,
   mapElevenStOrders,
   stripNsPrefix,
   toElevenStCarrierCode,
@@ -73,7 +70,6 @@ export { ELEVEN_ST_API_BASE } from './map'
 
 const MARKET = '11st' as const
 const DEFAULT_TIMEOUT_MS = 15_000
-const CATEGORY_TIMEOUT_MS = 10_000
 
 // ─────────────────────────────────────────────
 // EUC-KR 디코딩 + XML 파싱 (브라우저/jsdom API)
@@ -107,12 +103,6 @@ function parseElevenStXml(text: string): Record<string, unknown> {
 
 interface ApiKeyCred {
   apiKey: string
-}
-
-interface ElevenStResponse {
-  status: number
-  ok: boolean
-  text: string
 }
 
 function httpStatusToMarketError(
@@ -155,50 +145,8 @@ function httpStatusToMarketError(
   )
 }
 
-/**
- * 카테고리 조회 fetch (PR-1) — cateservice 1001/1617 GET.
- * 구 `?apiCode=ProductCategoryInfo` placeholder 제거. API Key 불필요(GET) — querystring 없음,
- * 서비스별 REST path 절대 URL 직접 호출. 응답 XML(EUC-KR) → DOMParser → fast-xml-parser 호환 객체.
- * ⚠️ URL 은 토큰/키 미포함이라 로그 안전. correlationId 만 헤더 부여.
- */
-async function elevenStCategoryFetch(opts: {
-  url: string
-  correlationId: string
-  timeoutMs?: number
-}): Promise<ElevenStResponse> {
-  const { url, correlationId, timeoutMs = CATEGORY_TIMEOUT_MS } = opts
-  const controller = new AbortController()
-  const timerId = setTimeout(() => {
-    controller.abort()
-  }, timeoutMs)
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/xml;charset=EUC-KR',
-        'X-Correlation-Id': correlationId,
-      },
-      signal: controller.signal,
-    })
-    const buf = await response.arrayBuffer()
-    const text = decodeElevenStBody(buf)
-    return { status: response.status, ok: response.ok, text }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new MarketError('network', '11번가 카테고리 조회 timeout', {
-        market: MARKET,
-        cause: err,
-        marketErrorCode: 'timeout',
-      })
-    }
-    throw new MarketError('network', '11번가 카테고리 조회 네트워크 오류', {
-      market: MARKET,
-      cause: err,
-    })
-  } finally {
-    clearTimeout(timerId)
-  }
-}
+// 카테고리 조회 fetch(elevenStCategoryFetch)는 fetchCategoryTree Edge 이전(category-sync.md §6.4)으로
+//   제거됨. 카테고리는 Edge markets-category-children 이 cateservice 1001 을 gatewayFetch 로 호출한다.
 
 /**
  * 11번가 REST fetch (PR-5) — ordservices 계열은 apiCode 없이 서비스별 REST path 를 쓴다.
@@ -337,23 +285,13 @@ function createElevenStRealAdapter(): MarketAdapter {
     // ───────────────────────────────────────────
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — cateservice 1001 전체 카테고리 (PR-1 재작성).
-    //   GET {ELEVEN_ST_REST_BASE}/cateservice/category. API Key 불필요(spec 1001).
-    //   ns2:categorys>ns2:category[] → stripNsPrefix → parentDispNo 트리 빌드.
-    //   (구 ?apiCode=ProductCategoryInfo / ProductCategorys>Category 파싱 제거.)
+    // fetchCategoryTree — Edge `markets-category-children` 로 이전됨 (category-sync.md §6.4).
+    //   브라우저 직접 fetch 는 CORS 차단 → lazy cascading Edge 경유로 전환. 런타임 미사용.
+    //   인터페이스 충족용 시그니처만 유지(throw).
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const correlationId = crypto.randomUUID()
-      const res = await elevenStCategoryFetch({
-        url: buildElevenStCategoryUrl(),
-        correlationId,
-        timeoutMs: CATEGORY_TIMEOUT_MS,
-      })
-      if (!res.ok) {
-        throw httpStatusToMarketError(res.status, correlationId)
-      }
-      return mapElevenStCategories(parseElevenStXml(res.text)).map((node) =>
-        CategoryNodeSchema.parse(node),
+      throw new Error(
+        'fetchCategoryTree 는 Edge markets-category-children 으로 이전됨 (category-sync.md §6.4)',
       )
     },
 

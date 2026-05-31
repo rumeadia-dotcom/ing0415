@@ -450,6 +450,58 @@ export function createMockAdapter(
       return tree.map((n) => CategoryNodeSchema.parse(n))
     },
 
+    // fetchCategoryChildren — 부모코드 직계 자식만 (lazy cascading parity).
+    //   real 노드 형태와 동형(CategoryNode, children=[]). 4마켓 + 네이버 모두 정상 반환
+    //   (debug 는 stub 아님 — real 네이버만 NOT_IMPL). parentId=null → 대분류, else → 자식.
+    async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
+      const s = resolveS()
+      if (s === '5xx') throw new MarketError('server', 'mock 5xx', { market })
+      if (s === '429')
+        throw new MarketError('rate_limit', 'mock 429', { market, retryAfterMs: 1500 })
+      if (s === '401')
+        throw new MarketError('unauthorized', 'mock 401', { market })
+
+      const root = parentId === null || parentId.trim() === ''
+      const nodes: CategoryNode[] = root
+        ? [
+            {
+              id: 'C-100',
+              name: '패션의류',
+              depth: 1,
+              leaf: false,
+              parentId: null,
+              children: [],
+            },
+            {
+              id: 'C-200',
+              name: '디지털/가전',
+              depth: 1,
+              leaf: false,
+              parentId: null,
+              children: [],
+            },
+          ]
+        : [
+            {
+              id: `${parentId}-10`,
+              name: '여성의류',
+              depth: 2,
+              leaf: true,
+              parentId,
+              children: [],
+            },
+            {
+              id: `${parentId}-20`,
+              name: '남성의류',
+              depth: 2,
+              leaf: true,
+              parentId,
+              children: [],
+            },
+          ]
+      return nodes.map((n) => CategoryNodeSchema.parse(n))
+    },
+
     transformProduct(
       product: Product,
       mapping: MarketMapping,

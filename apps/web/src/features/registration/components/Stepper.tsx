@@ -48,11 +48,22 @@ export function Stepper({ current }: StepperProps): JSX.Element {
             key={step.id}
             className={cn(
               'flex items-center gap-2.5 last:flex-none',
+              // 모바일: 현재 단계만 라벨 표시(폭 차지) / 나머지는 번호만.
               isCurrent ? 'min-w-0 flex-1' : 'flex-none',
-              'md:min-w-0 md:flex-1',
+              // 데스크탑: 모든 단계가 연결선으로 균등 분배되도록 li 는 flex-1.
+              //   단, 라벨 자체는 잘리지 않게(아래 whitespace-nowrap) — 연결선이 남은 폭을 흡수.
+              'md:flex-1',
             )}
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            {/* 번호 + 라벨 묶음 — 데스크탑에서 내용폭(flex-none)으로 두어 라벨이 잘리지 않게 한다. */}
+            <div
+              className={cn(
+                'flex min-w-0 items-center gap-2.5',
+                // 모바일 현재 단계는 라벨이 길 수 있어 truncate 허용(flex-1) — 화면폭 보호.
+                isCurrent ? 'flex-1' : 'flex-none',
+                'md:flex-none',
+              )}
+            >
               <span
                 aria-current={isCurrent ? 'step' : undefined}
                 className={cn(
@@ -70,10 +81,15 @@ export function Stepper({ current }: StepperProps): JSX.Element {
               </span>
               <span
                 className={cn(
-                  'min-w-0 flex-1 truncate text-sm tracking-tight',
+                  'text-sm tracking-tight',
+                  // 데스크탑: 잘림 방지 — whitespace-nowrap + overflow-visible(truncate 무력화).
+                  'min-w-0 md:overflow-visible md:whitespace-nowrap',
+                  // 모바일 현재 단계: 화면폭 보호 위해 truncate(flex-1). 데스크탑은 flex-none + nowrap.
+                  isCurrent && 'flex-1 truncate md:flex-none',
                   isCurrent && 'font-semibold text-text',
                   isCompleted && 'font-medium text-text',
                   !isCurrent && !isCompleted && 'font-medium text-text-tertiary',
+                  // 비현재 단계는 모바일에서 라벨 숨김(번호만), 데스크탑은 표시.
                   !isCurrent && 'hidden md:block',
                 )}
               >
@@ -84,6 +100,7 @@ export function Stepper({ current }: StepperProps): JSX.Element {
               <span
                 aria-hidden="true"
                 className={cn(
+                  // 연결선이 남은 가로 폭을 흡수(flex-1) — 라벨과 폭 경쟁하지 않음.
                   'mx-3 hidden h-[1.5px] flex-1 md:block',
                   step.index < currentIndex ? 'bg-accent/50' : 'bg-border',
                 )}

@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { Check, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui'
-import { useMarketCategoryTree } from '../hooks/useMarketCategoryTree'
+import { CategoryCascader } from './CategoryCascader'
 import {
   OfficialNoticeField,
   type OfficialNoticeConfig,
@@ -17,7 +18,7 @@ import {
 import { MARKET_CATALOG, type MarketId } from '@/features/markets/types'
 import { resolveKoPath } from '@/lib/i18n'
 import { ko } from '@/locales/ko'
-import type { CategoryNode, EsmOfficialNotice } from '@/lib/schemas'
+import type { EsmOfficialNotice } from '@/lib/schemas'
 import type { CategoryMapping } from '@/lib/schemas/registration'
 import type { RegistrationFieldMeta } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
@@ -78,16 +79,19 @@ export function MarketOptionsCard({
   mapping,
   onChange,
 }: MarketOptionsCardProps): JSX.Element {
-  const { data, isLoading, isError } = useMarketCategoryTree(marketId)
   const label = MARKET_CATALOG[marketId].label
-  const flatOptions = data ? flatten(data, []) : []
   const isMapped = Boolean(mapping?.marketCategoryCode)
 
   const fields = getRegistrationFieldsForMarket(marketId)
   const marketOptions = mapping?.marketOptions ?? {}
 
-  const selected = flatOptions.find((o) => o.code === mapping?.marketCategoryCode) ?? null
-  const path = selected ? selected.path.join(' › ') : '— 카테고리 미선택'
+  // 선택 경로 라벨(대 › 중 › 소) — Cascader 가 leaf 확정 시 제공. mapping 에 별도 필드가 없어
+  //   카드 로컬 state 로 보관(표시 전용). 코드 단일 소스는 mapping.marketCategoryCode 유지.
+  const [pathLabels, setPathLabels] = useState<string[]>([])
+  const path =
+    isMapped && pathLabels.length > 0
+      ? pathLabels.join(' › ')
+      : ko.markets.category.pathEmpty
 
   const emitMapping = (patch: Partial<CategoryMapping>): void => {
     onChange({
@@ -131,25 +135,15 @@ export function MarketOptionsCard({
             {path}
           </p>
         </div>
-        {isLoading && <Skeleton className="h-9 w-full" />}
-        {isError && (
-          <p className="text-sm text-danger-on-soft">카테고리를 불러오지 못했습니다.</p>
-        )}
-        {!isLoading && !isError && (
-          <select
-            aria-label={`${label} 카테고리 선택`}
-            className={SELECT_CLASS}
-            value={mapping?.marketCategoryCode ?? ''}
-            onChange={(e) => emitMapping({ marketCategoryCode: e.target.value })}
-          >
-            <option value="">— 카테고리 선택 —</option>
-            {flatOptions.map((opt) => (
-              <option key={opt.code} value={opt.code}>
-                {opt.path.join(' > ')}
-              </option>
-            ))}
-          </select>
-        )}
+        <CategoryCascader
+          marketId={marketId}
+          marketAccountId={marketAccountId}
+          value={mapping?.marketCategoryCode ?? null}
+          onChange={(code, labels) => {
+            setPathLabels(code ? labels : [])
+            emitMapping({ marketCategoryCode: code })
+          }}
+        />
         <span
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold',
@@ -442,22 +436,4 @@ function isOfficialNotice(value: unknown): value is EsmOfficialNotice {
   if (typeof value !== 'object' || value === null) return false
   const obj = value as Record<string, unknown>
   return typeof obj.officialNoticeNo === 'string' && Array.isArray(obj.details)
-}
-
-interface FlatOption {
-  code: string
-  path: string[]
-}
-
-function flatten(nodes: CategoryNode[], parentPath: string[]): FlatOption[] {
-  const acc: FlatOption[] = []
-  for (const n of nodes) {
-    const path = [...parentPath, n.name]
-    if (n.leaf || !n.children || n.children.length === 0) {
-      acc.push({ code: n.id, path })
-    } else {
-      acc.push(...flatten(n.children, path))
-    }
-  }
-  return acc
 }

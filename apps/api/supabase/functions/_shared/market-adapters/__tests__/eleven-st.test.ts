@@ -9,6 +9,7 @@ import {
   resolveElevenStDispatchDlvNo,
   buildElevenStProductXml,
   classifyElevenStCreateResult,
+  elevenStChildrenOf,
   escapeXml,
   mapElevenStCategories,
   mapElevenStCategoryCertMeta,
@@ -107,6 +108,50 @@ describe('eleven-st-map — 상수', () => {
     expect(ELEVEN_ST_API_CODES.productCreate).toBeTruthy()
     expect(ELEVEN_ST_API_CODES.orderList).toBeTruthy()
     expect(ELEVEN_ST_API_CODES.shipment).toBeTruthy()
+  })
+})
+
+describe('elevenStChildrenOf — 전체 트리에서 직계 자식 추출 (lazy cascading)', () => {
+  // 대(1001) > 중(1002) > 소(1003). leafYn: 'N'=말단(leaf), 'Y'=하위존재.
+  const rawNs2 = {
+    'ns2:categorys': {
+      'ns2:category': [
+        { dispNo: '1001', dispNm: '패션의류', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+        { dispNo: '1002', dispNm: '여성의류', depth: '2', parentDispNo: '1001', leafYn: 'Y' },
+        { dispNo: '1003', dispNm: '블라우스', depth: '3', parentDispNo: '1002', leafYn: 'N' },
+        { dispNo: '1004', dispNm: '디지털', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+      ],
+    },
+  }
+  const allRoots = mapElevenStCategories(rawNs2)
+
+  it('parentId=null → 루트(대분류)들 반환 (children 비움)', () => {
+    const roots = elevenStChildrenOf(allRoots, null)
+    expect(roots.map((n) => n.id).sort()).toEqual(['1001', '1004'])
+    expect(roots.every((n) => n.children.length === 0)).toBe(true)
+  })
+
+  it('parentId=빈문자열 → 루트 반환 (null 과 동일)', () => {
+    expect(elevenStChildrenOf(allRoots, '').map((n) => n.id).sort()).toEqual([
+      '1001',
+      '1004',
+    ])
+  })
+
+  it('중간 노드(1001) → 직계 자식(1002)만, 손자(1003) 미포함', () => {
+    const children = elevenStChildrenOf(allRoots, '1001')
+    expect(children.map((n) => n.id)).toEqual(['1002'])
+    expect(children[0]?.children).toEqual([])
+    // 원 노드 leaf 유지 — 1002 는 자식(1003) 보유 → non-leaf.
+    expect(children[0]?.leaf).toBe(false)
+  })
+
+  it('leaf 노드(1003) → 자식 없음 → 빈 배열', () => {
+    expect(elevenStChildrenOf(allRoots, '1003')).toEqual([])
+  })
+
+  it('edge: 미존재 parentId → 빈 배열', () => {
+    expect(elevenStChildrenOf(allRoots, '99999')).toEqual([])
   })
 })
 

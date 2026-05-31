@@ -4,7 +4,6 @@ import { MarketError } from '@/lib/markets/errors'
 import {
   StoredCredentialSchema,
   TokenSetSchema,
-  CategoryNodeSchema,
   MarketPayloadSchema,
   CreateProductResultSchema,
   type AuthInput,
@@ -152,13 +151,12 @@ describe.each<(typeof ACTIVE_MARKETS)[number]>(ACTIVE_MARKETS)(
       }
     })
 
-    // fetchCategoryTree ───────────────────────────────────────────────────────
-    it('fetchCategoryTree: CategoryNodeSchema 배열 전수 parse 통과', async () => {
-      const tree = await adapter.fetchCategoryTree()
-      expect(tree.length).toBeGreaterThan(0)
-      for (const node of tree) {
-        expect(() => CategoryNodeSchema.parse(node)).not.toThrow()
-      }
+    // fetchCategoryTree — Edge markets-category-children 로 이전(category-sync.md §6.4).
+    //   런타임 미사용 throw (real 어댑터와 동형).
+    it('fetchCategoryTree: Edge 이전됨 — throw', async () => {
+      await expect(adapter.fetchCategoryTree()).rejects.toThrow(
+        /markets-category-children/,
+      )
     })
 
     // transformProduct (순수 함수) ─────────────────────────────────────────────

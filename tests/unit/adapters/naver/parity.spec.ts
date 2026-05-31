@@ -12,7 +12,6 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  CategoryNodeSchema,
   CreateProductResultSchema,
   StoredCredentialSchema,
   type AuthInput,
@@ -42,12 +41,11 @@ describe('naver adapter parity (debug ↔ real)', () => {
     expect(cred.kind).toBe('oauth')
   })
 
-  it('§4-b: mock fetchCategoryTree → CategoryNode[] schema 통과', async () => {
-    const tree = await naverDebugAdapter.fetchCategoryTree()
-    expect(tree.length).toBeGreaterThan(0)
-    for (const node of tree) {
-      expect(() => CategoryNodeSchema.parse(node)).not.toThrow()
-    }
+  it('§4-b: mock fetchCategoryTree → Edge 이전 throw (category-sync.md §6.4)', async () => {
+    // 카테고리 조회는 Edge markets-category-children 로 이전 — web 어댑터는 런타임 미사용 throw.
+    await expect(naverDebugAdapter.fetchCategoryTree()).rejects.toThrow(
+      /markets-category-children/,
+    )
   })
 
   it('§4-c: mock createProduct happy → CreateProductResult schema 통과 + status=succeeded', async () => {

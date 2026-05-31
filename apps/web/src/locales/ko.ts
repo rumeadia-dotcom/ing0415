@@ -182,6 +182,29 @@ export const ko = {
         itemRemoveAria: (n: number) => `고시 항목 ${n} 삭제`,
       },
     },
+    // 카테고리 lazy cascading select (CategoryCascader, category-sync.md §6.2/§6.3).
+    //   단계별 select 가 부모코드 직계 자식만 조회한다(쿠팡·11번가·G/옥션). 네이버는 fallback.
+    category: {
+      // 각 단계 select placeholder — depth 1=대분류 … 그 이상은 하위 분류.
+      rootPlaceholder: '— 대분류 선택 —',
+      childPlaceholder: '— 하위 분류 선택 —',
+      // 단계별 aria-label (스크린리더 동선).
+      rootAriaLabel: (market: string) => `${market} 대분류 카테고리 선택`,
+      childAriaLabel: (market: string, depth: number) =>
+        `${market} ${depth}단계 카테고리 선택`,
+      loading: '카테고리 불러오는 중…',
+      // 조회 실패(네트워크/마켓 거부 등) — 공통 ErrorMessage message.
+      error: '카테고리를 불러오지 못했습니다. 마켓 연결 상태를 확인하세요.',
+      // 선택한 노드가 leaf 인데 더 하위가 없을 때(자식 0) — 사실상 최하위 안내.
+      empty: '하위 카테고리가 없습니다. 현재 선택이 최하위 분류입니다.',
+      pathEmpty: '— 카테고리 미선택',
+      // 네이버 fallback(category_not_supported) — 준비 중 안내 카드.
+      notSupportedTitle: '네이버 카테고리 조회 준비 중',
+      notSupportedHint:
+        'API 키 발급 후 지원됩니다. 다른 마켓을 먼저 등록하거나 네이버는 제외하고 진행하세요.',
+      // Step3 페이지 blockingReasons 용 — 네이버 선택 시 등록 차단 사유.
+      notSupportedBlocking: '네이버 카테고리 조회 준비 중 — 등록 불가',
+    },
     page: {
       title: '마켓 계정',
       subtitleLine1: '연결된 마켓을 관리하고 새 마켓을 연결합니다',
