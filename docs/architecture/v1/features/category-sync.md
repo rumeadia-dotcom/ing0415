@@ -116,14 +116,61 @@ CategoryChildrenResponseSchema = { nodes: CategoryNodeSchema.array() }
 | 클라이언트 `category-api` | invoke 성공 / 에러파싱(context.json) / `category_not_supported` 매핑 |
 | `CategoryCascader` | 단계 진행(leaf=false 다음단계) / leaf 확정 emit / 상위 재선택 시 하위 reset / 4상태 |
 | `Stepper` | (회귀) 라벨 미잘림 — 기존 a11y/렌더 테스트 |
+| `flattenCategoryTree` (§10.2) | 중첩 트리 → path_text/path_labels 누적 / 빈 트리 → [] |
+| 쿠팡·ESM 순수 파서 (§10.2) | `coupangFullTreeToNodes`/`extractSiteCatList`·`siteCatToCategoryNode` 변환 + 빈/이상 |
+| `category-api` 검색/최근 (§10.7) | search ready/building/err/스키마위반 / recent 배열·null·err |
+| `CategorySearchBox` (§10.7) | 5상태 + 키보드 ↑↓/Enter + onPick(code, pathLabels) |
+| `RecentCategoryChips` (§10.7) | leaf 라벨·title=pathText·클릭 onPick / 0개 null |
 | 게이트 | `deno check` 25+ entrypoint green / 전체 vitest pass |
 
 ## 9. 비포함 (후속)
 - **네이버 카테고리 real 어댑터** — 스펙 확보(`market-api-docs-import` 네이버 커머스 카테고리 API) + 키 발급 후 별도 PR.
-- 카테고리 검색(autocomplete) — 마켓 검색 endpoint 부재로 v1 미도입.
-- 카테고리 서버/DB 캐시 — 클라이언트 staleTime 으로 충분, 부하 측정 후 검토.
+- ~~카테고리 검색(autocomplete)~~ → **§10 카테고리 추천 Phase 1 에서 도입**(마켓 검색 endpoint 부재를 전역 인덱스 부분일치로 우회).
+- ~~카테고리 서버/DB 캐시~~ → **§10 `market_category_index` 전역 캐시로 도입**.
 - 클라이언트 web real 어댑터의 createProduct/fetchOrders 등 미사용 메서드 정리 — 별도 트랙.
 - 마켓별 카테고리 자동매핑(PRD §1.2.1) — 현행 수동 선택 유지, v2.
 
-## 10. 변경 이력
+## 10. 카테고리 추천 Phase 1 — 전역 인덱스 + 검색 + 최근 (4마켓, 네이버 제외)
+
+**목표(사용자 편의):** 깊은 cascading 의 수고를 줄인다 — (1) 카테고리명을 타이핑해 leaf 를 바로 찾고, (2) 최근 등록 카테고리를 칩으로 재선택. cascader 는 graceful 폴백으로 유지.
+스펙 마스터: `docs/superpowers/specs/2026-05-31-category-recommendation-design.md`.
+
+### 10.1 전역 인덱스 테이블 (마이그 `20260601000001`)
+- `market_category_index(market_id, code, name, parent_code, depth, leaf, path_text, path_labels jsonb, updated_at)` PK `(market_id, code)`. 셀러 **무관 전역 1벌**.
+- `path_text`(누적 경로 "대 > 중 > 소") 에 **pg_trgm GIN** 인덱스 → 부분일치 검색. `(market_id, leaf)` 보조 인덱스.
+- `market_category_index_meta(market_id PK, status, built_at, node_count, source_account_id, error, updated_at)` — 빌드 상태(building/ready/failed).
+- RLS: authenticated **읽기 전역**(`using(true)`), 쓰기는 service_role 만(빌드 Edge).
+
+### 10.2 어댑터 `fetchCategoryTreeFull()` (인덱스 빌드용 풀트리, optional)
+- `MarketAdapter.fetchCategoryTreeFull?(): Promise<CategoryNode[]>`. 11번가·ESM 은 기존 풀트리 조회(`fetchCategoryTree`)에 위임, 쿠팡은 `/meta/display-categories`(코드 없음) 1콜.
+- 네이버는 미구현 → `unsupported`.
+- ESM(G마켓·옥션)은 동일 ESM API(site-cats 재귀, JWT site 만 G/A). 순수 파서(`extractSiteCatList`/`siteCatToCategoryNode`)는 Deno 의존 없는 `esm-category.ts` 로 분리(Vitest 회귀). 쿠팡 순수 파서는 `coupang-category.ts`.
+- `flattenCategoryTree(marketId, tree)` (`_shared/category-index.ts`, 순수) — 트리 → row(`path_text`/`path_labels` 누적).
+
+### 10.3 빌드 — 공유 헬퍼 + Edge `markets-category-index-build`
+- `_shared/category-index-build.ts buildAndUpsertCategoryIndex(svc, marketId, adapter)`: `fetchCategoryTreeFull` → flatten → `delete(market_id)` → chunked insert(1000) → meta(building→ready/failed). 빌드 Edge·검색 인라인이 공유.
+- Edge 호출자 2종: (a) 셀러 JWT(marketAccountId 필수 + ownership), (b) service_role/cron(미지정 시 해당 마켓 active account 1개 자동 선택). 11번가는 카테고리 키 불필요(graceful), active account 0개(non-11st)면 `skipped`, naver `unsupported`.
+
+### 10.4 검색 Edge `markets-category-search`
+- body `{marketId, marketAccountId, query}`. 셀러 JWT + ownership. user query 의 LIKE 와일드카드(`%_\`) 이스케이프.
+- `meta=ready & !stale(<7일)` → 즉시 `.eq(market_id).eq(leaf,true).ilike(path_text,%q%).limit(20)` → `{status:'ready', hits:[{code,name,pathText,pathLabels}]}`.
+- miss 시: **11번가·쿠팡(단발 1콜)** = 인라인 빌드 후 검색(`ready`). **ESM(콜 多)** = 빌드 Edge **async 트리거**(`EdgeRuntime.waitUntil`) + `building` 반환(이미 building 이면 재트리거 없이 대기 → 폴링 중복 방지). naver → `unsupported`.
+
+### 10.5 최근 RPC `get_recent_categories(p_market_id)` (마이그 `20260601000002`)
+- security invoker + `auth.uid()` 격리. `product_market_mappings` 의 셀러 마켓별 최근 카테고리 distinct 최신순 6개를 `market_category_index` 와 left join 해 라벨/경로 채움(인덱스 미적재 코드는 `code` fallback). 반환 키 = `CategoryHit{code,name,pathText,pathLabels}`.
+
+### 10.6 cron pre-warm (마이그 `20260601000003`)
+- `category-prewarm-daily` 매일 03:00, `unnest` 로 4마켓(coupang/11st/gmarket/auction) `markets-category-index-build` 비동기 호출. orders-sync cron 패턴(vault secret graceful, 멱등 unschedule). ESM 콜 비용을 cron + building 폴백으로 흡수 → 셀러 대기 0.
+
+### 10.7 FE
+- `category-api.ts`: `fetchCategorySearch`(→`CategorySearchResponse`) + `fetchRecentCategories`(rpc→`CategoryHit[]`). children/search 에러파싱은 `invokeCategoryEdge` 공유.
+- 훅: `useCategorySearch`(250ms 디바운스, q≥2 & !naver, `building` 시 4s 폴링), `useRecentCategories`(!naver, staleTime 10m).
+- 컴포넌트: `CategorySearchBox`(combobox+listbox, 5상태 idle/loading/building/empty/ready, 키보드 ↑↓/Enter, 옵션 44px), `RecentCategoryChips`(leaf 라벨 칩 6개, title=pathText, 0개 null). `MarketOptionsCard` 가 Cascader 위에 조립, `onPick=setPathLabels+emitMapping` 재사용. `marketId!=='naver'` 가드.
+- 스키마 단일 소스: `_shared/schemas.ts` + `apps/web/src/lib/schemas/market.ts` 미러(`CategorySearchRequest/CategoryHit/CategorySearchResponse/CategoryIndexBuildRequest`).
+
+### 10.8 검증 한계
+- dev 에 ESM(G마켓·옥션) 테스트 계정 없음 → ESM 순수 파서/flatten 은 단위 테스트(문서 응답 형태), **라이브 빌드·검색은 운영(real) 배포 후 검증**(카테고리 조회+자체 테이블 write 라 운영 안전, 상품등록/마켓변경 없음). 11번가는 키 불필요라 dev 검증 가능, 쿠팡은 dev 계정 유무에 따라.
+
+## 11. 변경 이력
 - 2026-05-31 — 도입. CORS 버그 진단 → lazy cascading + Edge 경유 설계. 4마켓 완성 + 네이버 인터페이스만.
+- 2026-05-31 — 카테고리 추천 Phase 1(§10): 전역 인덱스(`market_category_index` + pg_trgm) + 빌드/검색 Edge + 최근 RPC + cron pre-warm + FE 검색박스·최근칩. 4마켓(네이버 제외).
