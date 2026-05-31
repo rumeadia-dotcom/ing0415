@@ -333,6 +333,11 @@ export function createElevenStAdapter(): MarketAdapter {
       return mapElevenStCategories(parseElevenStXml(res.text))
     },
 
+    // 인덱스 빌드용 풀트리 — 11번가는 1001 전체가 곧 풀트리. fetchCategoryTree 위임.
+    async fetchCategoryTreeFull(): Promise<CategoryNode[]> {
+      return this.fetchCategoryTree()
+    },
+
     // 카테고리 직계 자식 조회 (lazy cascading).
     //   root(parentId=null) → 1001 전체 카테고리.
     //   비-root → 1617 하위 카테고리(/cateservice/category/{parentId}) — 조회노드+전체하위.

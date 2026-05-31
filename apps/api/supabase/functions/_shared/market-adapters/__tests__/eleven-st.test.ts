@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { flattenCategoryTree } from '../../category-index'
 import {
   ELEVEN_ST_API_BASE,
   ELEVEN_ST_API_CODES,
@@ -549,6 +550,19 @@ describe('toElevenStDate', () => {
   })
   it('잘못된 입력 → 빈 문자열 (엣지)', () => {
     expect(toElevenStDate('not-a-date')).toBe('')
+  })
+})
+
+describe('fetchCategoryTreeFull 위임 — flattenCategoryTree 통합 (인덱스 빌드)', () => {
+  it('1001 트리 → flatten 인덱스 rows (path 누적)', () => {
+    const tree = mapElevenStCategories({ 'ns2:categorys': { 'ns2:category': [
+      { dispNo: '1033', dispNm: '주방가전', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+      { dispNo: '1097', dispNm: '주방조리가전', depth: '2', parentDispNo: '1033', leafYn: 'Y' },
+      { dispNo: '1098', dispNm: '전기밥솥', depth: '3', parentDispNo: '1097', leafYn: 'N' } ] } })
+    const leafRow = flattenCategoryTree('11st', tree).find((r) => r.code === '1098')
+    expect(leafRow).toBeDefined()
+    expect(leafRow?.leaf).toBe(true)
+    expect(leafRow?.path_text).toBe('주방가전 > 주방조리가전 > 전기밥솥')
   })
 })
 

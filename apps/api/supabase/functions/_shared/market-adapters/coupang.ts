@@ -58,8 +58,10 @@ import {
   buildCategoryTree,
   buildDisplayCategoryPath,
   coerceCoupangCategory,
+  coupangFullTreeToNodes,
   coupangHttpStatusToMarketError,
   coupangSubCategoriesToNodes,
+  COUPANG_DISPLAY_CATEGORY_BASE_PATH,
   ROOT_DISPLAY_CATEGORY_CODE,
   type RawCoupangCategory,
 } from './coupang-category.ts'
@@ -323,6 +325,30 @@ export function createCoupangAdapter(): MarketAdapter {
       }
       const raw = await fetchRawCoupangCategory(code, accessKey, secretKey, correlationId)
       return coupangSubCategoriesToNodes(raw, parentId ?? null)
+    },
+
+    // ───────────────────────────────────────────
+    // fetchCategoryTreeFull — 인덱스 빌드용 풀트리 (1콜)
+    //   GET .../meta/display-categories (코드 없음) → 재귀 child 구조 전체 반환.
+    //   coupangFullTreeToNodes 로 CategoryNode 트리 파싱. throw 없이 빈 배열 fallback.
+    // ───────────────────────────────────────────
+    async fetchCategoryTreeFull(): Promise<CategoryNode[]> {
+      const { accessKey, secretKey } = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+      const response = await coupangFetch({
+        method: 'GET',
+        path: COUPANG_DISPLAY_CATEGORY_BASE_PATH,
+        accessKey,
+        secretKey,
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw coupangHttpStatusToMarketError(response.status, text, correlationId)
+      }
+      const raw = await response.json().catch(() => ({}))
+      return coupangFullTreeToNodes(raw)
     },
 
     // ───────────────────────────────────────────

@@ -4,6 +4,7 @@ import {
   buildDisplayCategoryPath,
   buildCategoryTree,
   coerceCoupangCategory,
+  coupangFullTreeToNodes,
   coupangHttpStatusToMarketError,
   coupangSubCategoriesToNodes,
   COUPANG_DISPLAY_CATEGORY_BASE_PATH,
@@ -209,6 +210,30 @@ describe('buildCategoryTree — 핑 깊이 제한 (게이트웨이 폭주 방지
     const root = await buildCategoryTree(fetchRaw, 0, 1, 3, null)
     expect(fetchRaw).toHaveBeenCalledTimes(1)
     expect(root.leaf).toBe(true)
+  })
+})
+
+describe('coupangFullTreeToNodes — 풀트리(/display-categories) 재귀 파싱', () => {
+  const raw = { data: { displayItemCategoryCode: 0, name: 'ROOT', child: [
+    { displayItemCategoryCode: 1, name: '패션', child: [
+      { displayItemCategoryCode: 2, name: '여성', child: [
+        { displayItemCategoryCode: 3, name: '티셔츠', child: [] }] }] },
+    { displayItemCategoryCode: 4, name: '식품', child: [] }] } }
+  it('ROOT child 를 트리로 — leaf=child빈, parentId/depth 부착', () => {
+    const tree = coupangFullTreeToNodes(raw)
+    expect(tree.map((t) => t.id)).toEqual(['1', '4'])
+    const fashion = tree.find((t) => t.id === '1')
+    expect(fashion).toBeDefined()
+    expect(fashion?.leaf).toBe(false)
+    expect(fashion?.depth).toBe(1)
+    expect(fashion?.children[0]?.children[0]).toMatchObject(
+      { id: '3', name: '티셔츠', leaf: true, depth: 3, parentId: '2' })
+    const food = tree.find((t) => t.id === '4')
+    expect(food?.leaf).toBe(true)
+  })
+  it('형태 이상/빈 응답 → 빈 배열', () => {
+    expect(coupangFullTreeToNodes({})).toEqual([])
+    expect(coupangFullTreeToNodes({ data: {} })).toEqual([])
   })
 })
 
