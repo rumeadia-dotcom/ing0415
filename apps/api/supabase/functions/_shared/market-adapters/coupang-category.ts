@@ -48,12 +48,15 @@ export interface RawCoupangCategory {
 /**
  * Wing OpenAPI 카테고리 응답을 RawCoupangCategory 로 관대하게 매핑.
  *
- * 연결 검증 핑은 "HTTP 200 = 자격증명 OK" 만 확인하면 되고 (반환 트리는 미사용),
- * 응답 본문 형태에 의존하면 스키마 불일치로 오탐(server)이 난다. 따라서 throw 없이
- * 알 수 있는 필드만 best-effort 로 추출하고, 모르면 fallbackCode 로 최소 노드 반환.
+ * 실제 응답 필드 (카테고리-조회.md / 카테고리-목록조회.md):
+ *   data.displayCategoryCode | displayItemCategoryCode (코드) / data.name (이름) / data.child[] (직계 자식).
+ *   ⚠️ isLeafCategory / subCategories / categoryId / displayCategoryName 필드는 존재하지 않는다.
+ *   per-code 응답은 1-depth 자식만 주고 각 자식의 child 는 항상 [] (2-depth 미표시) →
+ *   자식의 leaf 는 응답으로 판정 불가 → false(드릴 가능)로 두고, 실제 leaf 는
+ *   CategoryCascader 의 "드릴 결과 0개 → 부모 자동 확정"이 판정한다.
  *
- * 표준 필드(data.categoryId / displayCategoryName / isLeafCategory / subCategories)를
- * 우선 읽되, 형태가 달라도 절대 throw 하지 않는다.
+ * 연결 검증 핑은 HTTP 200 만 확인하면 되므로(반환 트리 미사용) 형태가 달라도 절대 throw 하지 않는다.
+ * 구 표준 필드(categoryId/displayCategoryName/isLeafCategory/subCategories)도 하위호환으로 함께 읽는다.
  */
 export function coerceCoupangCategory(
   raw: unknown,
@@ -65,25 +68,44 @@ export function coerceCoupangCategory(
       : undefined
   const d = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
 
-  const categoryId = typeof d.categoryId === 'number' ? d.categoryId : fallbackCode
-  const displayCategoryName =
-    typeof d.displayCategoryName === 'string' ? d.displayCategoryName : ''
-  const isLeafCategory = typeof d.isLeafCategory === 'boolean' ? d.isLeafCategory : true
+  const toCode = (v: unknown): number | undefined => {
+    if (typeof v === 'number' && Number.isFinite(v)) return v
+    if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v)
+    return undefined
+  }
 
-  const subs = Array.isArray(d.subCategories) ? d.subCategories : []
-  const subCategories = subs.flatMap((s) => {
+  const categoryId =
+    toCode(d.displayCategoryCode) ?? toCode(d.displayItemCategoryCode) ?? toCode(d.categoryId) ?? fallbackCode
+  const displayCategoryName =
+    typeof d.name === 'string'
+      ? d.name
+      : typeof d.displayCategoryName === 'string'
+        ? d.displayCategoryName
+        : ''
+
+  const childArr = Array.isArray(d.child)
+    ? d.child
+    : Array.isArray(d.subCategories)
+      ? d.subCategories
+      : []
+
+  const subCategories = childArr.flatMap((s) => {
     if (!s || typeof s !== 'object') return []
     const o = s as Record<string, unknown>
-    if (typeof o.categoryId !== 'number') return []
-    return [
-      {
-        categoryId: o.categoryId,
-        displayCategoryName:
-          typeof o.displayCategoryName === 'string' ? o.displayCategoryName : '',
-        isLeafCategory: typeof o.isLeafCategory === 'boolean' ? o.isLeafCategory : true,
-      },
-    ]
+    const subId = toCode(o.displayCategoryCode) ?? toCode(o.displayItemCategoryCode) ?? toCode(o.categoryId)
+    if (subId === undefined) return []
+    const subName =
+      typeof o.name === 'string'
+        ? o.name
+        : typeof o.displayCategoryName === 'string'
+          ? o.displayCategoryName
+          : ''
+    const subLeaf = typeof o.isLeafCategory === 'boolean' ? o.isLeafCategory : false
+    return [{ categoryId: subId, displayCategoryName: subName, isLeafCategory: subLeaf }]
   })
+
+  const isLeafCategory =
+    typeof d.isLeafCategory === 'boolean' ? d.isLeafCategory : subCategories.length === 0
 
   return { categoryId, displayCategoryName, isLeafCategory, subCategories }
 }
