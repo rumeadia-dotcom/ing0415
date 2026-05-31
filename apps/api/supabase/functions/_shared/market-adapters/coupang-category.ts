@@ -180,6 +180,47 @@ export function coupangHttpStatusToMarketError(
 }
 
 /**
+ * 쿠팡 풀트리(/display-categories, 코드 없음) 응답 → CategoryNode 트리 (재귀, throw 없음).
+ *  각 노드 leaf = child 빈 배열. depth 루트직계=1. id = displayCategoryCode|displayItemCategoryCode|categoryId.
+ */
+export function coupangFullTreeToNodes(raw: unknown): CategoryNode[] {
+  const root =
+    raw && typeof raw === 'object' && 'data' in raw ? (raw as { data?: unknown }).data : undefined
+  const rootChild =
+    root && typeof root === 'object' && Array.isArray((root as Record<string, unknown>).child)
+      ? ((root as Record<string, unknown>).child as unknown[])
+      : []
+  const toCode = (v: unknown): string | undefined =>
+    typeof v === 'number' && Number.isFinite(v)
+      ? String(v)
+      : typeof v === 'string' && v.trim() !== ''
+        ? v.trim()
+        : undefined
+  const build = (arr: unknown[], parentId: string | null, depth: number): CategoryNode[] => {
+    const out: CategoryNode[] = []
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue
+      const o = item as Record<string, unknown>
+      const id =
+        toCode(o.displayCategoryCode) ??
+        toCode(o.displayItemCategoryCode) ??
+        toCode(o.categoryId)
+      if (id === undefined) continue
+      const name =
+        typeof o.name === 'string'
+          ? o.name
+          : typeof o.displayCategoryName === 'string'
+            ? o.displayCategoryName
+            : id
+      const children = build(Array.isArray(o.child) ? o.child : [], id, depth + 1)
+      out.push({ id, name, depth, leaf: children.length === 0, parentId, children })
+    }
+    return out
+  }
+  return build(rootChild, null, 1)
+}
+
+/**
  * 카테고리 트리 순회 (순수). fetchRaw 주입으로 테스트 가능.
  *
  * @param fetchRaw  displayCategoryCode 1건 조회.

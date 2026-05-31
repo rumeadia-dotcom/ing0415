@@ -29,7 +29,6 @@
  *   - timeout   → 'network'
  */
 
-import { z } from 'npm:zod@3.23.8'
 import { MarketError } from '../errors.ts'
 import { createLogger } from '../logger.ts'
 import { generateCorrelationId } from '../correlation.ts'
@@ -40,6 +39,7 @@ import {
   EsmSiteCatSchema,
   EsmTransformExtraSchema,
   type AuthInput,
+  type CategoryNode,
   type CreateProductResult,
   type EsmGoodsCreateRequest,
   type EsmSiteCat,
@@ -59,6 +59,11 @@ import {
   type MarketOrder,
 } from '../market-orders.ts'
 import { buildEsmJwt } from './esm-jwt.ts'
+import {
+  extractSiteCatList,
+  siteCatToCategoryNode,
+  type EsmSiteCatRaw,
+} from './esm-category.ts'
 import {
   EsmOrderListResponseSchema,
   EsmShipResponseSchema,
@@ -191,36 +196,8 @@ export function buildEsmGoodsPayload(
   return parsed.data
 }
 
-// ─────────────────────────────────────────────
-// site-cats 카테고리 API 응답 raw 스키마
-//   esm-api/product/4.md — { catCode, catName, isLeaf, subCats?[] }
-// ─────────────────────────────────────────────
-
-interface EsmSiteCatRaw {
-  catCode: string
-  catName: string
-  isLeaf: boolean
-  subCats?: EsmSiteCatRaw[]
-}
-
-const EsmSiteCatRawSchema: z.ZodType<EsmSiteCatRaw> = z.lazy(() =>
-  z.object({
-    catCode: z.string().min(1),
-    catName: z.string().min(1),
-    isLeaf: z.boolean(),
-    subCats: z.array(EsmSiteCatRawSchema).optional(),
-  }),
-)
-
-// CategoryNode (Deno 측 수동 정의)
-interface CategoryNode {
-  id: string
-  name: string
-  depth: number
-  leaf: boolean
-  parentId: string | null
-  children: CategoryNode[]
-}
+// site-cats raw 스키마(EsmSiteCatRaw) / 추출(extractSiteCatList) / CategoryNode 변환
+// (siteCatToCategoryNode) 은 Deno 의존 없는 순수 모듈 ./esm-category.ts 로 분리 — Vitest 회귀.
 
 // ─────────────────────────────────────────────
 // 내부 credential
@@ -373,47 +350,6 @@ async function esmFetch(opts: {
   }
 }
 
-/**
- * site-cats 응답 본문에서 카테고리 배열 추출.
- * 대분류=배열 / 하위 조회=단일 객체(subCats) / wrapper 모두 허용.
- */
-function extractSiteCatList(raw: unknown): EsmSiteCatRaw[] {
-  if (Array.isArray(raw)) {
-    return raw
-      .map((r) => EsmSiteCatRawSchema.safeParse(r))
-      .filter((p): p is { success: true; data: EsmSiteCatRaw } => p.success)
-      .map((p) => p.data)
-  }
-  const single = EsmSiteCatRawSchema.safeParse(raw)
-  if (single.success) return [single.data]
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>
-    for (const key of ['subCats', 'categories', 'data']) {
-      if (key in obj) return extractSiteCatList(obj[key])
-    }
-  }
-  return []
-}
-
-/** EsmSiteCat → 공통 CategoryNode. depth 1-base, parentId 연결. */
-function siteCatToCategoryNode(
-  cat: EsmSiteCat,
-  depth: number,
-  parentId: string | null,
-): CategoryNode {
-  const children = (cat.children ?? []).map((c) =>
-    siteCatToCategoryNode(c, depth + 1, cat.siteCatCode),
-  )
-  return {
-    id: cat.siteCatCode,
-    name: cat.siteCatName,
-    depth,
-    leaf: cat.isLeaf,
-    parentId,
-    children,
-  }
-}
-
 // ─────────────────────────────────────────────
 // 어댑터 팩토리
 // ─────────────────────────────────────────────
@@ -555,6 +491,16 @@ export function createEsmAdapter(options: EsmAdapterOptions): MarketAdapter {
       const roots = await fetchSiteCats('/categories/site-cats', generateCorrelationId())
       const expandedRoots = await Promise.all(roots.map((r) => expand(r, 1)))
       return expandedRoots.map((cat) => siteCatToCategoryNode(cat, 1, null))
+    },
+
+    // ───────────────────────────────────────────
+    // fetchCategoryTreeFull — 인덱스 빌드용 풀트리.
+    //   ESM 은 site-cats 재귀(fetchCategoryTree)가 곧 풀트리이므로 그대로 위임
+    //   (11번가와 동형 — 새 호출 로직 없음). 콜이 여러 번이라 검색 Edge 는 인라인
+    //   빌드 금지 → async 빌드 + cron pre-warm + `building` 폴백으로 흡수 (plan Task 9/10).
+    // ───────────────────────────────────────────
+    async fetchCategoryTreeFull(): Promise<CategoryNode[]> {
+      return this.fetchCategoryTree()
     },
 
     // ───────────────────────────────────────────

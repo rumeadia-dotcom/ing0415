@@ -2,7 +2,11 @@ import { getSupabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
 import {
   CategoryChildrenResponseSchema,
+  CategoryHitsArraySchema,
+  CategorySearchResponseSchema,
+  type CategoryHit,
   type CategoryNode,
+  type CategorySearchResponse,
   type MarketId,
 } from '@/lib/schemas'
 
@@ -41,22 +45,19 @@ export class CategoryFetchError extends Error {
 }
 
 /**
- * 부모코드(parentId) 직계 자식 카테고리만 조회.
- * @param parentId null = 루트(대분류). leaf=false 노드 선택 시 그 id 로 다음 단계 재조회.
+ * 카테고리 Edge 공통 호출 — invoke + Edge err 본문(ReadableStream) 파싱 + zod parse.
+ *   markets-category-children / -search 가 공유 (DRY). 미지원·소유권 에러는 CategoryFetchError.
  */
-export async function fetchMarketCategoryChildren(
-  marketId: MarketId,
-  marketAccountId: string,
-  parentId: string | null,
-): Promise<CategoryNode[]> {
+async function invokeCategoryEdge<T>(
+  fnName: string,
+  body: Record<string, unknown>,
+  parse: (data: unknown) => T,
+): Promise<T> {
   const supabase = getSupabase()
-  const { data, error } = await supabase.functions.invoke<unknown>(
-    'markets-category-children',
-    { body: { marketId, marketAccountId, parentId } },
-  )
+  const { data, error } = await supabase.functions.invoke<unknown>(fnName, { body })
 
   if (error) {
-    logger.warn({ err: error.message }, '← markets-category-children error')
+    logger.warn({ err: error.message, fn: fnName }, '← category edge error')
     // Supabase JS v2 FunctionsHttpError: error.context 가 fetch Response (body 는 ReadableStream).
     // esm-shipping-list-api 와 동일하게 clone().json() 으로 본문 파싱.
     let errorBody: unknown = data
@@ -81,7 +82,56 @@ export async function fetchMarketCategoryChildren(
     throw new CategoryFetchError(inline, data)
   }
 
-  return CategoryChildrenResponseSchema.parse(data).nodes
+  return parse(data)
+}
+
+/**
+ * 부모코드(parentId) 직계 자식 카테고리만 조회.
+ * @param parentId null = 루트(대분류). leaf=false 노드 선택 시 그 id 로 다음 단계 재조회.
+ */
+export async function fetchMarketCategoryChildren(
+  marketId: MarketId,
+  marketAccountId: string,
+  parentId: string | null,
+): Promise<CategoryNode[]> {
+  return invokeCategoryEdge(
+    'markets-category-children',
+    { marketId, marketAccountId, parentId },
+    (data) => CategoryChildrenResponseSchema.parse(data).nodes,
+  )
+}
+
+/**
+ * 카테고리명 부분일치 검색 (전역 인덱스 기반). leaf 만.
+ * status: 'ready'(hits) | 'building'(폴링 대기) | 'unsupported'(naver).
+ * 마스터: docs/architecture/v1/features/category-sync.md §6
+ */
+export async function fetchCategorySearch(
+  marketId: MarketId,
+  marketAccountId: string,
+  query: string,
+): Promise<CategorySearchResponse> {
+  return invokeCategoryEdge(
+    'markets-category-search',
+    { marketId, marketAccountId, query },
+    (data) => CategorySearchResponseSchema.parse(data),
+  )
+}
+
+/**
+ * 셀러의 마켓별 최근 사용 카테고리 (get_recent_categories RPC). 최신순 6개.
+ * 인덱스 미적재 코드는 code fallback(name/pathText=code). 0건이면 [].
+ */
+export async function fetchRecentCategories(marketId: MarketId): Promise<CategoryHit[]> {
+  const supabase = getSupabase()
+  const { data, error } = await supabase.rpc('get_recent_categories', {
+    p_market_id: marketId,
+  })
+  if (error) {
+    logger.warn({ err: error.message }, '← get_recent_categories error')
+    throw new CategoryFetchError({ code: 'internal', message: error.message }, error)
+  }
+  return CategoryHitsArraySchema.parse(data ?? [])
 }
 
 /** Edge `err()` 본문(`{ error: { code, message, correlationId } }`) 또는 flat 형태를 정규화. */

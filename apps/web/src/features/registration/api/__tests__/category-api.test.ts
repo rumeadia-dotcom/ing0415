@@ -14,10 +14,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const invokeMock = vi.fn()
+const rpcMock = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
   getSupabase: () => ({
     functions: { invoke: invokeMock },
+    rpc: rpcMock,
   }),
 }))
 
@@ -27,6 +29,8 @@ vi.mock('@/lib/logger', () => ({
 
 import {
   fetchMarketCategoryChildren,
+  fetchCategorySearch,
+  fetchRecentCategories,
   CategoryFetchError,
 } from '../category-api'
 
@@ -57,6 +61,7 @@ function nodesResponse() {
 
 beforeEach(() => {
   invokeMock.mockReset()
+  rpcMock.mockReset()
 })
 
 describe('fetchMarketCategoryChildren', () => {
@@ -153,5 +158,99 @@ describe('fetchMarketCategoryChildren', () => {
     expect(e).toBeInstanceOf(CategoryFetchError)
     expect(e.code).toBe('internal')
     expect(e.correlationId).toBe('c')
+  })
+})
+
+describe('fetchCategorySearch', () => {
+  it('pass: POST body 규약 + 200 ready hits parse', async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: {
+        status: 'ready',
+        hits: [
+          {
+            code: '300',
+            name: '티셔츠',
+            pathText: '패션 > 여성 > 티셔츠',
+            pathLabels: ['패션', '여성', '티셔츠'],
+          },
+        ],
+      },
+      error: null,
+    })
+    const res = await fetchCategorySearch('coupang', ACCOUNT_ID, '티셔츠')
+    expect(invokeMock).toHaveBeenCalledWith('markets-category-search', {
+      body: { marketId: 'coupang', marketAccountId: ACCOUNT_ID, query: '티셔츠' },
+    })
+    expect(res.status).toBe('ready')
+    expect(res.hits[0]?.code).toBe('300')
+    expect(res.hits[0]?.pathText).toBe('패션 > 여성 > 티셔츠')
+  })
+
+  it('pass: building 상태 → hits []', async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: { status: 'building', hits: [] },
+      error: null,
+    })
+    const res = await fetchCategorySearch('gmarket', ACCOUNT_ID, '의류')
+    expect(res.status).toBe('building')
+    expect(res.hits).toEqual([])
+  })
+
+  it('fail: Edge err(code 보존) → CategoryFetchError', async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: { error: { code: 'forbidden', message: '본인 계정이 아닙니다' } },
+      error: { message: 'edge non-2xx', context: undefined },
+    })
+    await expect(
+      fetchCategorySearch('coupang', ACCOUNT_ID, '티셔츠'),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('fail: 잘못된 status enum → parse throw', async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: { status: 'weird', hits: [] },
+      error: null,
+    })
+    await expect(
+      fetchCategorySearch('coupang', ACCOUNT_ID, '티셔츠'),
+    ).rejects.toBeInstanceOf(Error)
+  })
+})
+
+describe('fetchRecentCategories', () => {
+  it('pass: rpc 배열 → CategoryHit[] parse', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: [
+        {
+          code: '300',
+          name: '티셔츠',
+          pathText: '패션 > 여성 > 티셔츠',
+          pathLabels: ['패션', '여성', '티셔츠'],
+        },
+      ],
+      error: null,
+    })
+    const hits = await fetchRecentCategories('coupang')
+    expect(rpcMock).toHaveBeenCalledWith('get_recent_categories', {
+      p_market_id: 'coupang',
+    })
+    expect(hits).toHaveLength(1)
+    expect(hits[0]?.code).toBe('300')
+  })
+
+  it('pass: data null → []', async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: null })
+    const hits = await fetchRecentCategories('11st')
+    expect(hits).toEqual([])
+  })
+
+  it('fail: rpc error → CategoryFetchError', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'rpc failed' },
+    })
+    await expect(fetchRecentCategories('coupang')).rejects.toBeInstanceOf(
+      CategoryFetchError,
+    )
   })
 })

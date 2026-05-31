@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Check, AlertCircle, ExternalLink } from 'lucide-react'
 import { Button, Input, Skeleton } from '@/components/ui'
 import { CategoryCascader } from './CategoryCascader'
+import { CategorySearchBox } from './CategorySearchBox'
+import { RecentCategoryChips } from './RecentCategoryChips'
 import {
   OfficialNoticeField,
   type OfficialNoticeConfig,
@@ -108,6 +110,12 @@ export function MarketOptionsCard({
     emitMapping({ marketOptions: { ...marketOptions, [key]: value } })
   }
 
+  // 검색박스·최근칩 선택 — Cascader onChange 와 동일 처리(코드+경로 라벨 동기 반영).
+  const handleCategoryPick = (code: string, labels: string[]): void => {
+    setPathLabels(labels)
+    emitMapping({ marketCategoryCode: code })
+  }
+
   return (
     <div
       className={cn(
@@ -115,6 +123,23 @@ export function MarketOptionsCard({
         isMapped ? 'border-border bg-surface' : 'border-warning/30 bg-warning-soft/40',
       )}
     >
+      {/* 카테고리 검색 + 최근 사용 (추천 Phase 1). 네이버는 인덱스 미지원 → 노출 안 함. */}
+      {marketId !== 'naver' && (
+        <div className="mb-3.5 flex flex-col gap-2.5 border-b border-border pb-3.5">
+          <CategorySearchBox
+            marketId={marketId}
+            marketAccountId={marketAccountId}
+            marketLabel={label}
+            onPick={handleCategoryPick}
+          />
+          <RecentCategoryChips
+            marketId={marketId}
+            marketLabel={label}
+            onPick={handleCategoryPick}
+          />
+        </div>
+      )}
+
       {/* 카테고리 매핑 row (기존 CategoryMappingCard 레이아웃 유지) */}
       <div className="grid items-center gap-3 md:grid-cols-[auto_1fr_240px_auto]">
         <span

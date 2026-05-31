@@ -139,7 +139,11 @@ create table public.market_category_index_meta (
 - 프론트 UI 는 `CategorySearchBox`, `RecentCategoryChips` 신규 컴포넌트로 분리하고 `MarketOptionsCard` 가 조합.
 
 ## 6. 미해결 / 리스크
-- **ESM 빌드 비용(최대 리스크)**: G마켓/옥션 전체 트리 순회 콜 수가 크다. resumable 빌드 + cron pre-warm 으로 사용자 대기는 제거하되, 게이트웨이 rate limit 내 완결 가능한 분할 크기는 구현 단계에서 실측 필요. ESM 풀트리 1콜 bulk endpoint 존재 여부 재확인(없으면 분할 순회 확정).
+- **ESM 빌드 비용 (2026-05-31 재조사·정정)**: G마켓·옥션은 **동일 ESM API**(`sa2.esmplus.com`, 동일 `site-cats`/`sd-cats` 엔드포인트). 자격증명 1쌍의 JWT `ssi` 에 옥션 `A`·G마켓 `G` 를 함께 담아 같은 코드로 두 site 를 커버(README §164). 어댑터 1개. → **두 마켓 수집 비용은 대칭**(이전의 "옥션 1콜/G마켓 수십 콜" 비대칭 서술은 오류).
+  - 플레인 `GET /categories/site-cats` 는 대분류+1단계 자식만 → 전체 트리는 재귀 필요(두 site 동일, 단일 풀트리 콜 없음).
+  - `GET /categories/sd-cats/{sdCatCode}/site-cats/full-depth`(product/13.md)는 ESM 표준카테고리 1개 기준 매칭 G마켓+옥션 leaf 를 `MatchedCategory.Gmkt[]`/`Iac[]` 로 **한 번에 두 site 동시** 반환 → 상위 sd-cat 단위 호출로 콜 수를 크게 줄일 여지. 정확한 콜 수는 트리 분기에 의존 → **1B 첫 spike 에서 실측**.
+  - 옥션 정적 XML `script.auction.co.kr/category/categories.xml` 은 ESM API 와 별개인 옥션 전용 공개 파일(보너스 지름길). 통합 설계에선 같은 API 로 일관 처리 가능 → 굳이 필요 없음.
+  - 결론: ESM 도 단발성 빌드(site A/G 각 1회 또는 sd-cat full-depth 루프)로 충분할 가능성 → resumable 백그라운드 잡·cron pre-warm 은 필수 아님(있으면 최적화). 1B 에서 실측 후 확정.
 - 인덱스 갱신 주기 7일 동안 마켓이 카테고리를 바꾸면 stale — 검색 결과 코드가 등록 시점에 거부될 수 있음. 등록 단계의 마켓 필수필드 검증이 최종 방어선(기존). 필요 시 주기 단축.
 
 ## 7. 2개 산출물 동기화 대상 (구현 시)
