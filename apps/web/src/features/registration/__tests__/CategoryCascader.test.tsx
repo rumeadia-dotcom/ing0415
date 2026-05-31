@@ -215,8 +215,8 @@ describe('CategoryCascader', () => {
     )
 
     expect(onChange).toHaveBeenLastCalledWith('1001', ['패션'])
-    // 단일 발화 보장 — empty 자식 로드가 onChange 를 한 번만 확정해야 한다.
-    expect(onChange).toHaveBeenCalledTimes(1)
+    // 자동 확정('1001')은 정확히 1회 — 중간 미확정 통지 onChange('') 와는 별개.
+    expect(onChange.mock.calls.filter((c) => c[0] === '1001')).toHaveLength(1)
     expect(
       screen.queryByLabelText(ko.markets.category.childAriaLabel('쿠팡', 2)),
     ).not.toBeInTheDocument()
