@@ -304,8 +304,10 @@ export function createCoupangAdapter(): MarketAdapter {
 
     // ───────────────────────────────────────────
     // fetchCategoryChildren — 부모코드 직계 자식만 (lazy cascading)
-    //   GET .../meta/display-categories/{parentId ?? 0} → data.subCategories 직계 매핑.
-    //   parentId=null → 루트(0). children=[], leaf=각 sub.isLeafCategory.
+    //   GET .../meta/display-categories/{parentId ?? 0} → data.child[] 직계 매핑.
+    //   parentId=null → 루트(0). children=[]. 자식 leaf 는 응답으로 판정 불가(per-code 는 자식의
+    //   child 를 항상 [] 로 줌) → 항상 drillable(leaf=false), 실제 말단은 CategoryCascader 의
+    //   "드릴 결과 0개 → 부모 자동 확정"이 판정 (coupang-category.ts coerceCoupangCategory 참조).
     // ───────────────────────────────────────────
     async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
       const { accessKey, secretKey } = getCredOrThrow()
