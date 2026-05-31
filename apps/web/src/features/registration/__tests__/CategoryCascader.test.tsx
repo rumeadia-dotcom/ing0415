@@ -190,6 +190,50 @@ describe('CategoryCascader', () => {
     expect(screen.getByText(ko.markets.category.empty)).toBeInTheDocument()
   })
 
+  it('⑥ 비-root 단계 자식 0개 → 직전 부모를 자동 확정', async () => {
+    childrenHookMock.mockImplementation((_m, _a, parentId: string | null) => {
+      if (parentId == null) {
+        return ok([node({ id: '1001', name: '패션', leaf: false, depth: 1 })])
+      }
+      return ok([]) // 드릴 결과 자식 없음 → '패션'이 사실상 말단
+    })
+
+    const onChange = vi.fn()
+    render(
+      <CategoryCascader
+        marketId="coupang"
+        marketAccountId={ACCOUNT_ID}
+        value={null}
+        onChange={onChange}
+      />,
+    )
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(ko.markets.category.rootAriaLabel('쿠팡')),
+      '1001',
+    )
+
+    expect(onChange).toHaveBeenLastCalledWith('1001', ['패션'])
+    expect(
+      screen.queryByLabelText(ko.markets.category.childAriaLabel('쿠팡', 2)),
+    ).not.toBeInTheDocument()
+  })
+
+  it('⑦ root(첫 단계) 0개는 자동 확정하지 않는다 (확정 대상 부모 없음)', () => {
+    childrenHookMock.mockReturnValue(ok([]))
+    const onChange = vi.fn()
+    render(
+      <CategoryCascader
+        marketId="coupang"
+        marketAccountId={ACCOUNT_ID}
+        value={null}
+        onChange={onChange}
+      />,
+    )
+    expect(screen.getByText(ko.markets.category.empty)).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('⑤ category_not_supported(네이버) → fallback 안내', () => {
     childrenHookMock.mockReturnValue({
       data: undefined,
