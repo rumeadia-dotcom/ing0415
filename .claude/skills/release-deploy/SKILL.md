@@ -80,24 +80,35 @@ git checkout develop
 git pull origin develop
 ```
 
-### 3. release 브랜치 생성
+### 3. WIP 갱신 (develop 에 **먼저** — 백머지 충돌 구조적 예방)
+
+main 머지 전 WIP 를 갱신하되, **release 브랜치가 아니라 develop 에 먼저 별도 PR 로** 반영한다.
+
+> ⚠ **백머지 충돌 예방 (2026-05-31 사고 회수)**: release 브랜치에서 WIP 를 갱신하면 main 에만 최신 WIP 가 생기고 develop 은 stale 인 채로 남는다 → 백머지(main→develop) 때 같은 파일(WIP)이 양쪽에서 다른 내용 → **매 릴리즈마다 백머지 충돌**. (혼자 작업해도 squash 머지로 main↔develop lineage 가 갈리기 때문에 발생.) **develop 우선 갱신**하면 release 브랜치(develop 기반)가 자동으로 최신 WIP 를 포함하고 main=develop WIP 가 동일해져 **백머지 WIP 충돌이 사라진다**. (v0.18 은 이 방식이라 백머지 빈 diff, v0.19 는 release 브랜치 갱신이라 충돌남 — 차이 확인됨.)
+
+`wip-update` 스킬로 이번 release 범위(§전제 #1 의 develop 누적)를 반영 → feature 브랜치 → develop PR 머지:
 
 ```bash
-git checkout -b release/vX.Y
-# push 는 WIP 갱신(§4) 후 함께 → CI 1회만 (이중 CI 회피)
-```
-
-### 4. WIP 갱신 (main 머지 전 — 작업 진행 상태 반영)
-
-main 머지는 비가역 액션이므로 **머지 전에** 핸드오프 문서를 먼저 갱신한다. WIP 의 주 내용은 **이 프로젝트 작업의 진행 상태**(완료한 것 / 다음 우선순위 / 미해결)이지 배포 상태가 아니다. `wip-update` 스킬을 호출하여 이번 release 범위(§전제 조건 #1 의 develop 누적 변경)를 `docs/handoff/WIP-*.md` 에 반영하고 release/vX.Y 브랜치에 커밋한다. 이 커밋이 §5 의 release PR 에 포함되어 main 까지 함께 머지된다.
-
-```bash
+git checkout develop && git pull origin develop
+git checkout -b feature/wip-vX.Y
+# wip-update 스킬로 docs/handoff/WIP-*.md 갱신
 git add docs/handoff/WIP-*.md
 git commit -m "docs(handoff): WIP 갱신 — vX.Y 작업 진행 상태"
-git push -u origin release/vX.Y    # §3 의 브랜치 push 를 여기서 한 번에
+git push -u origin feature/wip-vX.Y
+gh pr create --base develop --head feature/wip-vX.Y --title "docs(handoff): WIP 갱신 — vX.Y"
+# CI(빠른레인) 통과 후
+gh pr merge <N> --squash --delete-branch
+git checkout develop && git pull origin develop   # WIP 가 포함된 최신 develop
 ```
 
-- PR 생성(§5) 전에 완료해야 CI 가 WIP 포함 상태로 한 번만 돈다.
+### 4. release 브랜치 생성 + push (최신 WIP 자동 포함)
+
+```bash
+git checkout -b release/vX.Y origin/develop   # §3 의 WIP 가 이미 포함됨
+git push -u origin release/vX.Y
+```
+
+- WIP 는 §3 에서 develop 에 들어갔으므로 release 브랜치에서 추가 커밋하지 않는다(이게 충돌 예방의 핵심).
 
 ### 5. release PR 생성 (release/vX.Y → main)
 
@@ -120,8 +131,8 @@ v0.X — <한 줄 요약>. 직전 (`release/v0.X-1` → main) 이후 develop 누
 - required check 3개 통과 필수: **CI Gate** (전체 잡 result 집계) / Lint & Typecheck / Unit & Integration (Vitest). Build·E2E·pgTAP 은 CI Gate 가 대리 집계 (2026-05-30 빠른 레인 분리)
 
 ## Post-merge
-- main → develop 백머지 chore commit
-- (WIP 는 §4 에서 머지 전 이미 갱신됨)
+- main → develop 백머지 chore commit (+ orphan 가드 §11)
+- (WIP 는 §3 에서 develop 에 먼저 갱신됨 → 백머지 WIP 충돌 없음)
 ```
 
 ```bash
