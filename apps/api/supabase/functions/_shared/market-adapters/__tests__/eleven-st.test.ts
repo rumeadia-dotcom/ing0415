@@ -153,6 +153,29 @@ describe('elevenStChildrenOf — 전체 트리에서 직계 자식 추출 (lazy 
   it('edge: 미존재 parentId → 빈 배열', () => {
     expect(elevenStChildrenOf(allRoots, '99999')).toEqual([])
   })
+
+  it('1617-형 응답(leafYn 없음·조회노드+전체하위) → 직계 자식 leaf 정확', () => {
+    // 1617(/cateservice/category/1097) 응답: 조회노드 1097 + 하위 전부. leafYn 필드 없음.
+    //   parentDispNo(1097→1033)는 응답에 1033 이 없어 1097 이 root 로 승격된다.
+    const raw1617 = {
+      'ns2:categorys': {
+        'ns2:category': [
+          { dispNo: '1097', dispNm: '주방조리가전', depth: '1', parentDispNo: '1033' },
+          { dispNo: '1098', dispNm: '전기밥솥', depth: '2', parentDispNo: '1097' },
+          { dispNo: '1099', dispNm: '밥솥내솥', depth: '3', parentDispNo: '1098' },
+        ],
+      },
+    }
+    const roots = mapElevenStCategories(raw1617)
+    // 1097 직계 → 1098 (자식 1099 보유 → non-leaf)
+    const lv1 = elevenStChildrenOf(roots, '1097')
+    expect(lv1.map((n) => n.id)).toEqual(['1098'])
+    expect(lv1[0]?.leaf).toBe(false)
+    // 1098 직계 → 1099 (자식 없음 → leaf=true 로 확정 가능)
+    const lv2 = elevenStChildrenOf(roots, '1098')
+    expect(lv2.map((n) => n.id)).toEqual(['1099'])
+    expect(lv2[0]?.leaf).toBe(true)
+  })
 })
 
 describe('normalizeElevenStStatus', () => {
