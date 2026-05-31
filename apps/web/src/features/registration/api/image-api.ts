@@ -119,6 +119,8 @@ const RegisterResponseSchema = z.object({
   imageId: z.string().uuid(),
   status: z.literal('uploaded'),
   role: z.enum(['main', 'sub']),
+  // 멱등 반환 시 기존 row 의 경로 — 요청 originalPath 와 다를 수 있으므로 응답 기준 사용.
+  originalPath: z.string(),
 })
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>
 

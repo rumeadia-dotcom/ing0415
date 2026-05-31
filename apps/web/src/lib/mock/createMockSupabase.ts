@@ -559,12 +559,17 @@ function makeFunctions() {
           }
         }
         case 'image-register': {
+          const regImageId =
+            typeof body.imageId === 'string' ? body.imageId : crypto.randomUUID()
           return {
             data: {
-              imageId:
-                typeof body.imageId === 'string' ? body.imageId : crypto.randomUUID(),
+              imageId: regImageId,
               status: 'uploaded' as const,
               role: body.position === 0 ? 'main' : 'sub',
+              originalPath:
+                typeof body.originalPath === 'string'
+                  ? body.originalPath
+                  : `mock/${regImageId}`,
             },
             error: null,
           }
