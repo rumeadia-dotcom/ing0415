@@ -197,8 +197,8 @@ function triggerBuildAsync(opts: {
   const er = (globalThis as Record<string, unknown>).EdgeRuntime as
     | { waitUntil?: (p: Promise<unknown>) => void }
     | undefined
-  if (er?.waitUntil) er.waitUntil(p.catch(() => {}))
-  else void p.catch(() => {})
+  if (er?.waitUntil) er.waitUntil(p.catch(() => undefined))
+  else void p.catch(() => undefined)
 }
 
 // ─────────────────────────────────────────────
