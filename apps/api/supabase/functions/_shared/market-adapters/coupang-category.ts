@@ -88,6 +88,30 @@ export function coerceCoupangCategory(
   return { categoryId, displayCategoryName, isLeafCategory, subCategories }
 }
 
+/**
+ * 부모 카테고리 응답(RawCoupangCategory) → 직계 자식 CategoryNode[] (lazy cascading 용).
+ *
+ * 순수 함수 (Deno 의존 0 → Vitest 회귀). coerceCoupangCategory 통과 후의 subCategories 를
+ * 직계 노드로 매핑한다. children 은 항상 빈 배열(직계만), leaf=각 sub.isLeafCategory.
+ * depth 는 쿠팡 응답에 없으므로 1 고정 (CategoryNodeSchema 의 min(1) 통과용 — UI 미사용).
+ *
+ * @param raw       부모 코드 1건 조회 응답 (coerceCoupangCategory 산출물).
+ * @param parentId  부모 코드 (루트=null). 자식 노드의 parentId 로 부착.
+ */
+export function coupangSubCategoriesToNodes(
+  raw: RawCoupangCategory,
+  parentId: string | null,
+): CategoryNode[] {
+  return raw.subCategories.map((sub) => ({
+    id: String(sub.categoryId),
+    name: sub.displayCategoryName || String(sub.categoryId),
+    depth: 1,
+    leaf: sub.isLeafCategory,
+    parentId,
+    children: [],
+  }))
+}
+
 /** HTTP 상태 → MarketError code 매핑. */
 export function coupangHttpStatusToMarketError(
   status: number,

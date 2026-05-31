@@ -54,6 +54,7 @@ import {
   classifyElevenStCreateResult,
   classifyElevenStDispatchResult,
   classifyElevenStOrdersResult,
+  elevenStChildrenOf,
   ELEVEN_ST_REST_BASE,
   ELEVEN_ST_REST_PATHS,
   mapElevenStCategories,
@@ -330,6 +331,23 @@ export function createElevenStAdapter(): MarketAdapter {
         throw httpStatusToMarketError(res.status, res.text, correlationId)
       }
       return mapElevenStCategories(parseElevenStXml(res.text))
+    },
+
+    // 카테고리 직계 자식 조회 (lazy cascading) — cateservice 1001 전체 1회 후 직계만 추출.
+    //   11번가는 부모별 직계 조회 endpoint 가 없어 전체(1001)를 한 번 받아 트리에서 잘라낸다.
+    //   API Key 불필요(1001). parentId=null → 대분류, else → 트리에서 parentId 직계.
+    async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
+      const correlationId = generateCorrelationId()
+      const res = await elevenStCategoryFetch({
+        url: buildElevenStCategoryUrl(),
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+      })
+      if (!res.ok) {
+        throw httpStatusToMarketError(res.status, res.text, correlationId)
+      }
+      const allRoots = mapElevenStCategories(parseElevenStXml(res.text))
+      return elevenStChildrenOf(allRoots, parentId)
     },
 
     // 카테고리 KC인증 메타 조회 (NEW-2) — cateservice 1617 (조회 카테고리 자신 포함 하위).

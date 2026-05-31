@@ -64,6 +64,19 @@ export interface MarketAdapter {
   fetchCategoryTree(): Promise<CategoryNode[]>
 
   /**
+   * 부모코드 직계 자식 카테고리만 반환 (lazy cascading 용 — s3 3단계 CategoryCascader).
+   * children 은 항상 빈 배열, leaf 플래그로 하위 존재만 표시. parentId=null → 루트(대분류).
+   * 모든 마켓 호출 gatewayFetch 경유. hydrate() 선행(11번가는 카테고리 키 불필요).
+   * 미구현 마켓(네이버)은 메서드 생략 → Edge 가 category_not_supported.
+   *
+   * optional 확장 — fetchCategoryCertMeta / getRegistrationFields / fetchOrders /
+   * submitTracking 과 동일하게 "5메서드" 룰의 optional 확장 선례를 따른다(의도적).
+   * 마스터: docs/architecture/v1/features/category-sync.md §3 /
+   *         cross-cutting/market-adapter.md §2.1.
+   */
+  fetchCategoryChildren?(parentId: string | null): Promise<CategoryNode[]>
+
+  /**
    * 카테고리 KC인증 메타 조회 (NEW-2, optional — 서버 워커 전용).
    * 11번가만 구현(cateservice 1617 — 조회 카테고리 자신 포함 하위 트리의 certType/requiredYn).
    * 오케스트레이터(registration-market-worker)가 transformProduct 전에 호출해

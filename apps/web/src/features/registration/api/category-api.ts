@@ -1,16 +1,114 @@
-import { getMarketAdapter } from '@/lib/markets'
-import type { CategoryNode, MarketId } from '@/lib/schemas'
+import { getSupabase } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
+import {
+  CategoryChildrenResponseSchema,
+  type CategoryNode,
+  type MarketId,
+} from '@/lib/schemas'
 
 /**
- * 마켓별 카테고리 트리 조회.
- * 마스터: docs/architecture/v1/cross-cutting/market-adapter.md §2.1 fetchCategoryTree
+ * 마켓 카테고리 lazy cascading 조회 도메인 API.
+ * 마스터: docs/architecture/v1/features/category-sync.md §6.1
  *
- * - debug 모드: NaverDebugAdapter 등 mock 어댑터가 정적 트리 반환.
- * - real 모드: Edge Function `markets-categories-sync` 경유 (Phase 3 도입 시 어댑터 내부에서 처리).
+ * 조회 경로: Browser → Edge `markets-category-children` → gatewayFetch → Lightsail GW → 마켓 API.
+ *   브라우저가 마켓 실도메인을 직접 fetch 하면 CORS 차단되므로(구 fetchCategoryTree 버그) Edge 경유로 전환.
+ *   parentId=null/미지정 → 루트(대분류). 반환 노드는 직계 자식만(children=[], leaf 로 하위 존재 표시).
  *
- * 클라이언트 캐싱은 useMarketCategoryTree hook 의 useQuery staleTime 으로.
+ * 에러파싱은 esm-shipping-list-api 패턴 복제(Supabase JS v2 FunctionsHttpError 의
+ *   error.context 가 ReadableStream → clone().json()).
+ * 네이버 등 미지원 마켓은 Edge 가 `category_not_supported` (400) → CategoryFetchError.code 로 노출,
+ *   UI(CategoryCascader)가 fallback 분기.
+ *
+ * 클라이언트 캐싱은 useMarketCategoryChildren hook 의 useQuery staleTime(1h) 으로.
  */
-export async function fetchMarketCategoryTree(marketId: MarketId): Promise<CategoryNode[]> {
-  const adapter = await getMarketAdapter(marketId)
-  return adapter.fetchCategoryTree()
+
+/** 카테고리 조회 실패 — code 로 UI 분기(특히 'category_not_supported' 네이버 fallback). */
+export class CategoryFetchError extends Error {
+  readonly code: string
+  readonly correlationId: string | null
+  readonly raw: unknown
+
+  constructor(
+    payload: { code: string; message: string; correlationId?: string | null },
+    raw?: unknown,
+  ) {
+    super(payload.message)
+    this.name = 'CategoryFetchError'
+    this.code = payload.code
+    this.correlationId = payload.correlationId ?? null
+    this.raw = raw
+  }
+}
+
+/**
+ * 부모코드(parentId) 직계 자식 카테고리만 조회.
+ * @param parentId null = 루트(대분류). leaf=false 노드 선택 시 그 id 로 다음 단계 재조회.
+ */
+export async function fetchMarketCategoryChildren(
+  marketId: MarketId,
+  marketAccountId: string,
+  parentId: string | null,
+): Promise<CategoryNode[]> {
+  const supabase = getSupabase()
+  const { data, error } = await supabase.functions.invoke<unknown>(
+    'markets-category-children',
+    { body: { marketId, marketAccountId, parentId } },
+  )
+
+  if (error) {
+    logger.warn({ err: error.message }, '← markets-category-children error')
+    // Supabase JS v2 FunctionsHttpError: error.context 가 fetch Response (body 는 ReadableStream).
+    // esm-shipping-list-api 와 동일하게 clone().json() 으로 본문 파싱.
+    let errorBody: unknown = data
+    const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.clone === 'function' && typeof ctx.json === 'function') {
+      try {
+        errorBody = await ctx.clone().json()
+      } catch {
+        // body 가 JSON 이 아닐 수 있음 — data 폴백 유지
+      }
+    }
+    const parsed = parseEdgeError(errorBody)
+    if (parsed) {
+      throw new CategoryFetchError(parsed, error)
+    }
+    throw new CategoryFetchError({ code: 'internal', message: error.message }, error)
+  }
+
+  // error 없이 본문에 { code, message } 를 담아 4xx 를 흉내내는 경우도 방어.
+  const inline = parseEdgeError(data)
+  if (inline) {
+    throw new CategoryFetchError(inline, data)
+  }
+
+  return CategoryChildrenResponseSchema.parse(data).nodes
+}
+
+/** Edge `err()` 본문(`{ error: { code, message, correlationId } }`) 또는 flat 형태를 정규화. */
+function parseEdgeError(
+  body: unknown,
+): { code: string; message: string; correlationId?: string | null } | null {
+  if (body === null || typeof body !== 'object') return null
+  const obj = body as Record<string, unknown>
+  const inner = obj.error
+  if (inner && typeof inner === 'object') {
+    const e = inner as Record<string, unknown>
+    if (typeof e.code === 'string' && typeof e.message === 'string') {
+      return {
+        code: e.code,
+        message: e.message,
+        correlationId:
+          typeof e.correlationId === 'string' ? e.correlationId : null,
+      }
+    }
+  }
+  if (typeof obj.code === 'string' && typeof obj.message === 'string') {
+    return {
+      code: obj.code,
+      message: obj.message,
+      correlationId:
+        typeof obj.correlationId === 'string' ? obj.correlationId : null,
+    }
+  }
+  return null
 }

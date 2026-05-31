@@ -11,12 +11,15 @@ vi.mock('@/features/auth', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-// supabase storage public URL mock — ImageThumbnailGrid 의 ImagePreview 가 사용
+// supabase storage signed URL mock — ImageThumbnailGrid 의 ImagePreview 가 사용
 vi.mock('@/lib/supabase', () => ({
   getSupabase: () => ({
     storage: {
       from: () => ({
-        getPublicUrl: () => ({ data: { publicUrl: 'https://example.test/x.jpg' } }),
+        createSignedUrl: async () => ({
+          data: { signedUrl: 'https://example.test/x.jpg' },
+          error: null,
+        }),
       }),
     },
   }),

@@ -506,6 +506,7 @@ const ALLOWED_REDIRECT_URIS: Record<'debug' | 'real', Record<Market, string>> = 
 | Auth | session_revoked_global | seller_id, reason, at |
 | Market | market_connected / market_disconnected / market_token_refresh_failed | seller_id, market, reason?, at |
 | Registration | registration_job_started / registration_job_succeeded / registration_job_failed | seller_id, job_id, market_count, at |
+| Registration | category_children_queried (s3 3단계 카테고리 lazy 조회) | seller_id, market, parentId, count, at |
 | Security | rls_denied (DB trigger) / oauth_state_mismatch / webhook_signature_failure | seller_id?, market?, detail, at |
 | Account | seller_signup / seller_deleted | seller_id, at |
 

@@ -32,7 +32,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   StoredCredentialSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   type Product,
   type MarketMapping,
@@ -101,30 +100,7 @@ const VALID_MAPPING: MarketMapping = {
   },
 }
 
-// site-cats 대분류 응답 — 단일 leaf (추가 조회 없음). esm-api/product/4.md 형태.
-const CATEGORY_RESPONSE_LEAF = [
-  {
-    catCode: '200001234',
-    catName: '여성의류',
-    isLeaf: true,
-  },
-]
-
-// site-cats 대분류 응답 — 비-leaf 1개 + 인라인 subCats(leaf). 추가 조회 없이 트리 완성.
-const CATEGORY_RESPONSE_WITH_CHILDREN = [
-  {
-    catCode: '1',
-    catName: '패션',
-    isLeaf: false,
-    subCats: [
-      {
-        catCode: '200001234',
-        catName: '여성의류',
-        isLeaf: true,
-      },
-    ],
-  },
-]
+// 카테고리 응답 fixture 는 fetchCategoryTree Edge 이전(category-sync.md §6.4)으로 제거됨.
 
 // PR-4: POST /item/v1/goods 응답 (EsmGoodsCreateResponseSchema).
 const CREATE_PRODUCT_RESPONSE = {
@@ -214,60 +190,13 @@ describe('gmarketRealAdapter.authenticate', () => {
 // ─────────────────────────────────────────────
 
 describe('gmarketRealAdapter.fetchCategoryTree', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.stubGlobal('crypto', {
-      randomUUID: () => 'test-correlation-id',
-      subtle: globalThis.crypto.subtle,
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('F1: 정상 응답(leaf) → CategoryNodeSchema 통과 + leaf=true', async () => {
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock([{ ok: true, status: 200, body: CATEGORY_RESPONSE_LEAF }]),
+  // 카테고리 조회는 Edge markets-category-children 로 이전됨 (category-sync.md §6.4).
+  //   브라우저 직접 fetch 는 CORS 차단 → web 어댑터 fetchCategoryTree 는 런타임 미사용 throw.
+  it('F1: Edge 이전됨 — 호출 시 throw (런타임 미사용)', async () => {
+    const { gmarketRealAdapter } = await import('../index')
+    await expect(gmarketRealAdapter.fetchCategoryTree()).rejects.toThrow(
+      /markets-category-children/,
     )
-
-    const adapter = await getAuthenticatedAdapter()
-    const tree = await adapter.fetchCategoryTree()
-
-    expect(tree.length).toBe(1)
-    expect(() => CategoryNodeSchema.parse(tree[0])).not.toThrow()
-    expect(tree[0]?.leaf).toBe(true)
-    expect(tree[0]?.name).toBe('여성의류')
-  })
-
-  it('F2: 하위 카테고리 포함 → 재귀 children 파싱', async () => {
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock([{ ok: true, status: 200, body: CATEGORY_RESPONSE_WITH_CHILDREN }]),
-    )
-
-    const adapter = await getAuthenticatedAdapter()
-    const tree = await adapter.fetchCategoryTree()
-
-    expect(tree[0]?.leaf).toBe(false)
-    expect(tree[0]?.children.length).toBe(1)
-    expect(tree[0]?.children[0]?.name).toBe('여성의류')
-    expect(tree[0]?.children[0]?.parentId).toBe('1')
-  })
-
-  it('F3: 401 응답 → MarketError("unauthorized")', async () => {
-    vi.stubGlobal(
-      'fetch',
-      makeFetchMock([
-        { ok: false, status: 401, body: { resultCode: '401', resultMessage: 'Unauthorized' } },
-      ]),
-    )
-
-    const adapter = await getAuthenticatedAdapter()
-    await expect(adapter.fetchCategoryTree()).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
   })
 })
 

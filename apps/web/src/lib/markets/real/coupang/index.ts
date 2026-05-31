@@ -31,7 +31,6 @@ import type { MarketAdapter } from '../../types'
 import {
   HmacKeyAuthInputSchema,
   StoredCredentialSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   type AuthInput,
   type CategoryNode,
@@ -53,34 +52,14 @@ import { buildCoupangSignature } from './hmac'
 
 export const COUPANG_API_BASE = 'https://api-gateway.coupang.com'
 const MARKET = 'coupang' as const
-const CATEGORY_TIMEOUT_MS = 10_000
 const PRODUCT_NAME_MAX_LENGTH = 50
 
 // ─────────────────────────────────────────────
 // Wing OpenAPI 응답 zod 스키마 (런타임 검증)
 // ─────────────────────────────────────────────
-
-const CoupangCategoryResponseSchema = z.object({
-  code: z.string(),
-  message: z.string().optional(),
-  data: z
-    .object({
-      categoryId: z.number(),
-      displayCategoryName: z.string(),
-      isLeafCategory: z.boolean(),
-      subCategories: z
-        .array(
-          z.object({
-            categoryId: z.number(),
-            displayCategoryName: z.string(),
-            isLeafCategory: z.boolean(),
-          }),
-        )
-        .optional()
-        .default([]),
-    })
-    .optional(),
-})
+//
+// 카테고리 응답 스키마(CoupangCategoryResponseSchema)는 fetchCategoryTree 직접 fetch 제거와
+// 함께 삭제됨 — 카테고리 조회는 Edge markets-category-children 으로 이전 (category-sync.md §6.4).
 
 const CoupangCreateProductResponseSchema = z.object({
   code: z.string(),
@@ -201,78 +180,6 @@ function httpStatusToMarketError(
   })
 }
 
-/**
- * 카테고리 단건 fetch + 하위 3depth 재귀.
- */
-async function fetchCategoryNode(
-  categoryId: number,
-  depth: number,
-  accessKey: string,
-  secretKey: string,
-  correlationId: string,
-): Promise<CategoryNode> {
-  const path = `/v2/providers/seller_api/apis/api/v1/marketplace/meta/display-categories/${categoryId}`
-  const response = await coupangFetch({
-    method: 'GET',
-    path,
-    accessKey,
-    secretKey,
-    correlationId,
-    timeoutMs: CATEGORY_TIMEOUT_MS,
-  })
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw httpStatusToMarketError(response.status, text, correlationId)
-  }
-
-  const raw = await response.json()
-  const parsed = CoupangCategoryResponseSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new MarketError('server', '쿠팡 카테고리 응답 파싱 실패', {
-      market: MARKET,
-      cause: parsed.error,
-    })
-  }
-
-  const data = parsed.data.data
-  if (!data) {
-    throw new MarketError('server', '쿠팡 카테고리 데이터 없음', {
-      market: MARKET,
-      marketErrorCode: parsed.data.code,
-      ...(parsed.data.message !== undefined ? { marketErrorMessage: parsed.data.message } : {}),
-    })
-  }
-
-  const isLeaf = data.isLeafCategory || depth >= 3
-  const children: CategoryNode[] = []
-
-  // depth 3 미만이고 하위 카테고리가 있으면 재귀 fetch
-  if (!isLeaf && data.subCategories && data.subCategories.length > 0) {
-    for (const sub of data.subCategories) {
-      const child = await fetchCategoryNode(
-        sub.categoryId,
-        depth + 1,
-        accessKey,
-        secretKey,
-        correlationId,
-      )
-      children.push(child)
-    }
-  }
-
-  const node: CategoryNode = {
-    id: String(data.categoryId),
-    name: data.displayCategoryName,
-    depth,
-    leaf: isLeaf,
-    parentId: depth === 1 ? null : String(categoryId),
-    children,
-  }
-
-  return CategoryNodeSchema.parse(node)
-}
-
 // ─────────────────────────────────────────────
 // 어댑터 구현
 // ─────────────────────────────────────────────
@@ -338,15 +245,14 @@ function createCoupangRealAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
-    // fetchCategoryTree — depth 3까지 재귀
+    // fetchCategoryTree — Edge `markets-category-children` 로 이전됨 (category-sync.md §6.4).
+    //   브라우저 직접 fetch 는 CORS 차단 → lazy cascading Edge 경유로 전환. 런타임 미사용.
+    //   인터페이스 충족용 시그니처만 유지(throw).
     // ───────────────────────────────────────────
     async fetchCategoryTree(): Promise<CategoryNode[]> {
-      const { accessKey, secretKey } = getCredOrThrow()
-      const correlationId = crypto.randomUUID()
-
-      // 쿠팡 루트 카테고리 ID = 1
-      const rootNode = await fetchCategoryNode(1, 1, accessKey, secretKey, correlationId)
-      return [rootNode]
+      throw new Error(
+        'fetchCategoryTree 는 Edge markets-category-children 으로 이전됨 (category-sync.md §6.4)',
+      )
     },
 
     // ───────────────────────────────────────────

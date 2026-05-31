@@ -31,7 +31,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   StoredCredentialSchema,
-  CategoryNodeSchema,
   CreateProductResultSchema,
   type Product,
   type MarketMapping,
@@ -90,34 +89,7 @@ const VALID_MAPPING: MarketMapping = {
   extra: {},
 }
 
-// 카테고리 응답 mock
-const CATEGORY_RESPONSE_LEAF = {
-  code: '200',
-  message: 'success',
-  data: {
-    categoryId: 56137,
-    displayCategoryName: '여성의류',
-    isLeafCategory: true,
-    subCategories: [],
-  },
-}
-
-const CATEGORY_RESPONSE_WITH_CHILDREN = {
-  code: '200',
-  message: 'success',
-  data: {
-    categoryId: 1,
-    displayCategoryName: '패션의류',
-    isLeafCategory: false,
-    subCategories: [
-      {
-        categoryId: 56137,
-        displayCategoryName: '여성의류',
-        isLeafCategory: true,
-      },
-    ],
-  },
-}
+// 카테고리 응답 mock 은 fetchCategoryTree Edge 이전(category-sync.md §6.4)으로 제거됨.
 
 const CREATE_PRODUCT_RESPONSE = {
   code: '200',
@@ -211,57 +183,14 @@ describe('coupangRealAdapter.authenticate', () => {
 // ─────────────────────────────────────────────
 
 describe('coupangRealAdapter.fetchCategoryTree', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.stubGlobal('crypto', {
-      randomUUID: () => 'test-correlation-id',
-      subtle: globalThis.crypto.subtle,
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('F1: 정상 mock 응답(leaf) → CategoryNodeSchema 통과 + leaf=true', async () => {
-    vi.stubGlobal('fetch', makeFetchMock([
-      { ok: true, status: 200, body: CATEGORY_RESPONSE_LEAF },
-    ]))
-
-    const adapter = await getAuthenticatedAdapter()
-    const tree = await adapter.fetchCategoryTree()
-
-    expect(tree.length).toBeGreaterThan(0)
-    for (const node of tree) {
-      expect(() => CategoryNodeSchema.parse(node)).not.toThrow()
-    }
-    expect(tree[0]?.leaf).toBe(true)
-  })
-
-  it('F2: 하위 카테고리 포함 응답 → 재귀 children 파싱', async () => {
-    // 첫 번째 호출: 루트(패션의류), 두 번째 호출: 자식(여성의류)
-    vi.stubGlobal('fetch', makeFetchMock([
-      { ok: true, status: 200, body: CATEGORY_RESPONSE_WITH_CHILDREN },
-      { ok: true, status: 200, body: CATEGORY_RESPONSE_LEAF },
-    ]))
-
-    const adapter = await getAuthenticatedAdapter()
-    const tree = await adapter.fetchCategoryTree()
-
-    expect(tree[0]?.leaf).toBe(false)
-    expect(tree[0]?.children.length).toBeGreaterThan(0)
-    expect(tree[0]?.children[0]?.name).toBe('여성의류')
-  })
-
-  it('F3: 401 응답 → MarketError("unauthorized")', async () => {
-    vi.stubGlobal('fetch', makeFetchMock([
-      { ok: false, status: 401, body: { code: '401', message: 'Unauthorized' } },
-    ]))
-
-    const adapter = await getAuthenticatedAdapter()
-    await expect(adapter.fetchCategoryTree()).rejects.toMatchObject({
-      code: 'unauthorized',
-    })
+  // 카테고리 조회는 Edge markets-category-children 로 이전됨 (category-sync.md §6.4).
+  //   브라우저 직접 fetch 는 CORS 차단 → web 어댑터 fetchCategoryTree 는 런타임 미사용 throw.
+  //   인증 불필요(첫 줄에서 throw) — 모듈 export 를 동적 import 로 직접 호출.
+  it('F1: Edge 이전됨 — 호출 시 throw (런타임 미사용)', async () => {
+    const { coupangRealAdapter } = await import('../index')
+    await expect(coupangRealAdapter.fetchCategoryTree()).rejects.toThrow(
+      /markets-category-children/,
+    )
   })
 })
 
