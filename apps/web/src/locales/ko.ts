@@ -204,6 +204,14 @@ export const ko = {
         'API 키 발급 후 지원됩니다. 다른 마켓을 먼저 등록하거나 네이버는 제외하고 진행하세요.',
       // Step3 페이지 blockingReasons 용 — 네이버 선택 시 등록 차단 사유.
       notSupportedBlocking: '네이버 카테고리 조회 준비 중 — 등록 불가',
+      // 카테고리 검색박스 + 최근 사용 칩 (category-sync.md §6, 추천 Phase 1).
+      searchPlaceholder: '카테고리 이름으로 검색 (예: 티셔츠)',
+      searchAriaLabel: (market: string) => `${market} 카테고리 검색`,
+      searchEmpty: '일치하는 카테고리가 없습니다 — 단어를 줄이거나 아래에서 직접 선택하세요.',
+      searchBuilding:
+        '카테고리 색인 준비 중입니다 — 잠시 후 자동으로 표시됩니다. 급하면 아래에서 직접 선택하세요.',
+      recentTitle: '최근 사용',
+      recentAriaLabel: (market: string) => `${market} 최근 사용 카테고리`,
     },
     page: {
       title: '마켓 계정',
