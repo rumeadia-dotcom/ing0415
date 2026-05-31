@@ -61,6 +61,15 @@ vi.mock('../hooks/useMarketCategoryChildren', () => ({
   }),
 }))
 
+// 카테고리 검색박스/최근칩(추천 Phase 1) 훅 — 본 테스트는 ESM 배송필드/카테고리 매핑이
+//   관심사라 빈 응답으로 mock(검색박스 idle, 최근칩 0개→null).
+vi.mock('../hooks/useCategorySearch', () => ({
+  useCategorySearch: () => ({ data: undefined, isFetching: false }),
+}))
+vi.mock('../hooks/useRecentCategories', () => ({
+  useRecentCategories: () => ({ data: [] }),
+}))
+
 import { MarketOptionsCard } from '../components/MarketOptionsCard'
 
 const ACCOUNT_ID = '00000000-0000-0000-0000-0000000000a1'
