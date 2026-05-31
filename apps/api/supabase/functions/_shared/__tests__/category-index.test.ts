@@ -38,7 +38,7 @@ describe('flattenCategoryTree', () => {
       path_text: '패션 > 여성 > 티셔츠',
       path_labels: ['패션', '여성', '티셔츠'],
     })
-    expect(rows.find((r) => r.code === 'A')!.path_text).toBe('패션')
+    expect(rows.find((r) => r.code === 'A')?.path_text).toBe('패션')
   })
 
   it('빈 트리 → 빈 배열', () => {
