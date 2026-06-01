@@ -94,87 +94,49 @@ export async function getJmrAttemptCount(
 }
 
 /**
- * state.md §10.3 decideTerminalStatus 와 동등.
- * - 첫 in_flight 진입: pending → running.
- * - 모든 결과 종료: succeeded / partial / failed 중 하나.
- * - 진행 중이면 no-op.
+ * 잡 상태 재계산 (state.md §10.3).
+ * - 처리 중 UI 가 'running' 으로 보이도록 pending/retrying → running 승격 (둘 다 합법 전이).
+ * - 종결 판정/전이(succeeded/partial/failed + completed_at)는 rpc_recompute_job_status 에 위임.
+ *
+ * rpc_recompute_job_status 는 전이표(fn_registration_job_transition)를 우회해 행을 잠그고(for update)
+ * 직접 UPDATE 하므로 running 뿐 아니라 **retrying 에서도 terminal 로 전이**된다. 과거 TS 재구현은
+ * 종결도 전이표를 거쳐 retrying→terminal 이 illegal_transition 으로 거부 → 잡이 retrying 에
+ * 영구 정체하던 버그(W1). non_final 잔존 시 RPC 가 현 상태를 그대로 유지하므로 no-op 안전.
  */
 export async function recomputeJobStatus(
   service: Service,
   jobId: string,
   logger: Logger,
 ): Promise<void> {
-  const { data, error } = await service
-    .from('registration_job_market_results')
-    .select('market_status, excluded')
-    .eq('job_id', jobId)
-  if (error || !data) {
-    logger.warn({ jobId, rpcError: error?.code ?? 'unknown' }, '← recompute load failed')
-    return
-  }
-  const active = data.filter((r) => !r.excluded)
-  if (active.length === 0) return
-
-  const hasNonFinal = active.some(
-    (r) =>
-      r.market_status === 'pending' ||
-      r.market_status === 'in_flight' ||
-      r.market_status === 'failed',
-  )
-  if (hasNonFinal) {
-    // pending → running 만 전이. running/retrying 은 유지.
-    // state.md §4: 합법 전이는 fn_registration_job_transition 단일 source of truth.
-    // 현재 상태가 pending 이 아니면 race (worker 동시 invoke) — 무시 (정상).
-    const { data: jobRow } = await service
-      .from('registration_jobs')
-      .select('status')
-      .eq('id', jobId)
-      .maybeSingle()
-    if (jobRow && (jobRow as { status?: string }).status === 'pending') {
-      const { error: transitionErr } = await service.rpc(
-        'fn_registration_job_transition',
-        { p_job_id: jobId, p_to_status: 'running', p_actor: 'system' },
-      )
-      if (transitionErr) {
-        // race 또는 illegal_transition — 다른 worker 가 이미 전이시켰을 가능성.
-        logger.warn(
-          { jobId, code: transitionErr.code ?? 'unknown', msg: transitionErr.message },
-          '← job transition pending→running skipped',
-        )
-      }
-    }
-    return
-  }
-
-  const successCount = active.filter((r) => r.market_status === 'success').length
-  const failedFinalCount = active.filter((r) => r.market_status === 'failed_final').length
-
-  let next: 'succeeded' | 'partial' | 'failed'
-  if (successCount === active.length) next = 'succeeded'
-  else if (failedFinalCount === active.length) next = 'failed'
-  else next = 'partial'
-
-  // 종결 전이도 fn_registration_job_transition 경유. 단, 현재 상태가 이미 terminal 이면 raise.
-  // running / retrying 에서만 종결로 갈 수 있음 (state.md §4).
   const { data: jobRow } = await service
     .from('registration_jobs')
     .select('status')
     .eq('id', jobId)
     .maybeSingle()
   const currentStatus = jobRow && (jobRow as { status?: string }).status
-  if (currentStatus !== 'running' && currentStatus !== 'retrying') {
-    // pending 또는 이미 terminal. recompute 호출 시점 race — 정상으로 무시.
-    logger.warn({ jobId, currentStatus }, '← terminal transition skipped (not in running/retrying)')
-    return
+
+  if (currentStatus === 'pending' || currentStatus === 'retrying') {
+    const { error: transitionErr } = await service.rpc(
+      'fn_registration_job_transition',
+      { p_job_id: jobId, p_to_status: 'running', p_actor: 'system' },
+    )
+    if (transitionErr) {
+      // race (다른 worker 가 이미 전이) 또는 illegal — 무시 (정상).
+      logger.warn(
+        { jobId, code: transitionErr.code ?? 'unknown', msg: transitionErr.message },
+        '← job transition →running skipped',
+      )
+    }
   }
-  const { error: transitionErr } = await service.rpc(
-    'fn_registration_job_transition',
-    { p_job_id: jobId, p_to_status: next, p_actor: 'system' },
-  )
-  if (transitionErr) {
+
+  // 종결 판정/전이는 RPC 위임 (전이표 우회 + terminal 재계산 금지 + completed_at 동시 갱신).
+  const { error: recomputeErr } = await service.rpc('rpc_recompute_job_status', {
+    p_job_id: jobId,
+  })
+  if (recomputeErr) {
     logger.error(
-      { jobId, to: next, code: transitionErr.code ?? 'unknown', msg: transitionErr.message },
-      '← job terminal transition failed',
+      { jobId, code: recomputeErr.code ?? 'unknown', msg: recomputeErr.message },
+      '← rpc_recompute_job_status failed',
     )
   }
 }

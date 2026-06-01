@@ -84,8 +84,8 @@ mock 미실행 + real 등록 베타 미가동(latent) + Edge deploy 게이트 + 
 
 | # | 심각도 | 위치 | 결함 / 수정안 |
 |---|---|---|---|
-| **W1** | **crit** | registration-market-worker/lib/jmr-update.ts:124-179 | retry 후 잡이 `retrying` 영구 정체 (전이표상 retrying→terminal 불법, MCP 확인). **기존 `rpc_recompute_job_status` RPC 호출로 교체**(코드 주석이 이미 지시) 또는 승격조건 `status∈{pending,retrying}` 확장. |
-| **W2** | **crit** | registration-market-worker/lib/data-load.ts:141-149 | `product_image_transforms` 를 없는 컬럼 `product_id` 로 필터(MCP 확인: image_id 만) → 모든 real worker 42703 즉시 실패. **image_id 조인(product_images.product_id + seller_id 가드)** 로 교체. |
+| ~~W1~~ | ~~crit~~ | jmr-update.ts | ✅ **수정 완료 (2026-06-02, feature/registration-worker-realpath-fix)** — 종결 판정을 `rpc_recompute_job_status` 위임(전이표 우회). **⚠ Edge deploy 필요** (functions:deploy registration-market-worker). |
+| ~~W2~~ | ~~crit~~ | data-load.ts | ✅ **수정 완료 (2026-06-02, 동 PR)** — `image_id` 2-step 조인 + seller_id 가드 복원. **⚠ Edge deploy 필요** (동일 함수). |
 | W3 | high | image-transform/process.ts:95-146 | 'failed' transform upsert 반환 error 미검사(무음). error 로깅 추가. |
 | W4 | med | image-transform/index.ts:128-130 | product_images `status='ready'` 승격 update error 미검사. error 로깅. |
 | W5 | low~med | registration-retry/index.ts:195-209 | retry 시 `attempt_count` 미리셋(누적) → 실효 재시도 1회로 축소. **정책 결정**(리셋 vs 유지+UI 노출). |
