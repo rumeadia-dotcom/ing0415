@@ -14,7 +14,7 @@
  * type-only import 만 사용(런타임 의존 0) → Vitest 직접 import 가능.
  */
 
-/** 박스 모델 입력. zod ShippingConfigSchema.box 와 동형. */
+/** 박스 모델 입력. zod ShippingBoxSchema(z.number().int()) 와 동형 — 둘 다 음 아닌 정수. */
 export interface BoxModel {
   qtyPerBox: number
   feePerBox: number
@@ -41,12 +41,13 @@ export function expandBoxToTiers(box: BoxModel, maxTiers = 10): ShippingTier[] {
   if (!Number.isInteger(box.qtyPerBox) || box.qtyPerBox < 1) {
     throw new Error(`expandBoxToTiers: qtyPerBox must be >=1 (got ${box.qtyPerBox})`)
   }
-  if (!Number.isFinite(box.feePerBox) || box.feePerBox < 0) {
-    throw new Error(`expandBoxToTiers: feePerBox must be >=0 (got ${box.feePerBox})`)
+  if (!Number.isInteger(box.feePerBox) || box.feePerBox < 0) {
+    throw new Error(`expandBoxToTiers: feePerBox must be a non-negative integer (got ${box.feePerBox})`)
   }
   const n = box.qtyPerBox
   const m = box.feePerBox
-  const count = Math.max(1, Math.floor(maxTiers))
+  // maxTiers 비유한(NaN/Infinity) 방어: 기본 10. NaN → 빈 배열 → 11번가 빈 '^'-join 사고 차단.
+  const count = Number.isFinite(maxTiers) ? Math.max(1, Math.floor(maxTiers)) : 10
   const tiers: ShippingTier[] = []
   for (let k = 1; k <= count; k++) {
     tiers.push({

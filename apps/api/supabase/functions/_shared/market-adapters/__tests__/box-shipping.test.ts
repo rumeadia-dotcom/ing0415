@@ -4,6 +4,7 @@ import {
   elevenStBoxToFields,
   coupangBoxFallback,
   naverBoxToDeliveryFee,
+  NAVER_QTY_FEE_TYPE,
   esmBoxToDetails,
 } from '../box-shipping.ts'
 
@@ -25,6 +26,13 @@ describe('expandBoxToTiers', () => {
     expect(() => expandBoxToTiers({ qtyPerBox: 0, feePerBox: 2500 }, 5)).toThrow()
     expect(() => expandBoxToTiers({ qtyPerBox: 12, feePerBox: -1 }, 5)).toThrow()
   })
+  it('feePerBox 가 비정수면 throw (zod int() 계약 일치)', () => {
+    expect(() => expandBoxToTiers({ qtyPerBox: 12, feePerBox: 2.5 }, 5)).toThrow()
+  })
+  it('maxTiers 비유한(NaN/Infinity) 이면 기본 10구간으로 폴백', () => {
+    expect(expandBoxToTiers(BOX, Number.NaN)).toHaveLength(10)
+    expect(expandBoxToTiers(BOX, Number.POSITIVE_INFINITY)).toHaveLength(10)
+  })
 })
 
 describe('elevenStBoxToFields (11번가 04 — dlvCnt1/dlvCnt2/dlvCst3)', () => {
@@ -36,6 +44,7 @@ describe('elevenStBoxToFields (11번가 04 — dlvCnt1/dlvCnt2/dlvCst3)', () => 
     expect(f.dlvCst3.split('^')).toHaveLength(10)
     expect(f.dlvCnt1.split('^')[0]).toBe('1')
     expect(f.dlvCnt1.split('^')[1]).toBe('13')
+    expect(f.dlvCnt2.split('^')[0]).toBe('12')
     expect(f.dlvCst3.split('^')[0]).toBe('2500')
     expect(f.dlvCst3.split('^')[9]).toBe('25000') // 10박스 = 10×2500
   })
@@ -55,7 +64,7 @@ describe('naverBoxToDeliveryFee (변환기 — 아직 어댑터 미wiring)', () 
     const r = naverBoxToDeliveryFee(BOX)
     expect(r.repeatQuantity).toBe(12)
     expect(r.baseFee).toBe(2500)
-    expect(typeof r.deliveryFeeType).toBe('string') // C3 enum 리터럴 검증 대상
+    expect(r.deliveryFeeType).toBe(NAVER_QTY_FEE_TYPE) // C3 enum 확정 시 실제 리터럴로 교체
   })
 })
 
