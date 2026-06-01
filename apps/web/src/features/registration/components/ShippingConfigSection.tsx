@@ -18,7 +18,7 @@ import { ko } from '@/locales/ko'
  * - 단일 객체 필드(`ShippingConfig`) 를 편집. shape 단일 소스는
  *   `@/lib/schemas/shipping-config` 의 `ShippingConfigSchema`.
  * - `useFormContext()` + `useWatch()` 로 feeType / box 값을 구독해 조건부 렌더.
- * - 모든 숫자 입력은 `register(..., { valueAsNumber: true })` — 스키마가 number 기대.
+ * - 모든 숫자 입력은 `register(..., { setValueAs: numberOrUndefined })` — 스키마가 number 기대.
  * - StepInfoPage / SettingsPoliciesPage 양쪽에서 재사용 가능하도록 `name` prop 로 경로 주입.
  *
  * shadcn 미존재 컴포넌트:
@@ -48,6 +48,19 @@ const FEE_TYPES: readonly ShippingFeeType[] = [
 /** 박스 스키마 mins (qtyPerBox ≥ 2 / feePerBox ≥ 0) — 프리뷰 가드. */
 const BOX_MIN_QTY = 2
 const BOX_MIN_FEE = 0
+
+/**
+ * 빈 number input → undefined (NaN 금지).
+ *
+ * RHF `{ valueAsNumber: true }` 는 빈 입력을 NaN 으로 만들어 optional 숫자 스키마
+ * (`z.number().nullish()`)를 invalid_type(nan)으로 떨군다. 선택 숫자 필드는
+ * "비어있음 = 미설정(undefined)" 이어야 하므로 setValueAs 로 명시 변환한다.
+ */
+const numberOrUndefined = (v: unknown): number | undefined => {
+  if (v === '' || v === null || v === undefined) return undefined
+  const n = Number(v)
+  return Number.isNaN(n) ? undefined : n
+}
 
 export function ShippingConfigSection({
   name = 'shippingConfig',
@@ -113,7 +126,7 @@ export function ShippingConfigSection({
             type="number"
             min={0}
             max={30}
-            {...register(`${name}.etaDays`, { valueAsNumber: true })}
+            {...register(`${name}.etaDays`, { setValueAs: numberOrUndefined })}
           />
         </Row>
       </div>
@@ -151,7 +164,7 @@ export function ShippingConfigSection({
           label={t.baseFee.label}
           unit={t.baseFee.unit}
           min={0}
-          register={register(`${name}.baseFee`, { valueAsNumber: true })}
+          register={register(`${name}.baseFee`, { setValueAs: numberOrUndefined })}
         />
       )}
 
@@ -162,7 +175,7 @@ export function ShippingConfigSection({
             label={t.baseFee.label}
             unit={t.baseFee.unit}
             min={0}
-            register={register(`${name}.baseFee`, { valueAsNumber: true })}
+            register={register(`${name}.baseFee`, { setValueAs: numberOrUndefined })}
           />
           <NumberField
             id={id('freeThreshold')}
@@ -171,7 +184,7 @@ export function ShippingConfigSection({
             unit={t.freeThreshold.unit}
             min={0}
             register={register(`${name}.freeThreshold`, {
-              valueAsNumber: true,
+              setValueAs: numberOrUndefined,
             })}
           />
         </div>
@@ -187,7 +200,7 @@ export function ShippingConfigSection({
               unit={t.box.qtyPerBox.unit}
               min={2}
               register={register(`${name}.box.qtyPerBox`, {
-                valueAsNumber: true,
+                setValueAs: numberOrUndefined,
               })}
             />
             <NumberField
@@ -196,7 +209,7 @@ export function ShippingConfigSection({
               unit={t.box.feePerBox.unit}
               min={0}
               register={register(`${name}.box.feePerBox`, {
-                valueAsNumber: true,
+                setValueAs: numberOrUndefined,
               })}
             />
           </div>
@@ -262,14 +275,14 @@ export function ShippingConfigSection({
             label={t.advanced.returnFee.label}
             unit={t.advanced.returnFee.unit}
             min={0}
-            register={register(`${name}.returnFee`, { valueAsNumber: true })}
+            register={register(`${name}.returnFee`, { setValueAs: numberOrUndefined })}
           />
           <NumberField
             id={id('exchangeFee')}
             label={t.advanced.exchangeFee.label}
             unit={t.advanced.exchangeFee.unit}
             min={0}
-            register={register(`${name}.exchangeFee`, { valueAsNumber: true })}
+            register={register(`${name}.exchangeFee`, { setValueAs: numberOrUndefined })}
           />
           <NumberField
             id={id('jeju')}
@@ -277,7 +290,7 @@ export function ShippingConfigSection({
             unit={t.advanced.areaSurcharge.jeju.unit}
             min={0}
             register={register(`${name}.areaSurcharge.jeju`, {
-              valueAsNumber: true,
+              setValueAs: numberOrUndefined,
             })}
           />
           <NumberField
@@ -286,7 +299,7 @@ export function ShippingConfigSection({
             unit={t.advanced.areaSurcharge.island.unit}
             min={0}
             register={register(`${name}.areaSurcharge.island`, {
-              valueAsNumber: true,
+              setValueAs: numberOrUndefined,
             })}
           />
         </div>

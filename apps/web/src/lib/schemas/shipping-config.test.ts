@@ -34,11 +34,13 @@ describe('ShippingConfigSchema', () => {
 describe('ShippingTemplateSchema', () => {
   it('config + name + isDefault 통과', () => {
     const r = ShippingTemplateSchema.safeParse({
-      ...base, feeType: 'free', name: '기본', isDefault: true,
+      name: '기본', isDefault: true, config: { ...base, feeType: 'free' },
     })
     expect(r.success).toBe(true)
   })
   it('name 누락 실패', () => {
-    expect(ShippingTemplateSchema.safeParse({ ...base, feeType: 'free', isDefault: false }).success).toBe(false)
+    expect(
+      ShippingTemplateSchema.safeParse({ isDefault: false, config: { ...base, feeType: 'free' } }).success,
+    ).toBe(false)
   })
 })

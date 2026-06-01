@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useForm, type Resolver, Controller } from 'react-hook-form'
+import { useForm, FormProvider, type Resolver, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { Pencil, Plus, Trash2, Truck } from 'lucide-react'
@@ -27,36 +27,40 @@ import {
 import { ko } from '@/locales/ko'
 import { cn } from '@/lib/utils'
 import {
-  ShippingPolicyFormSchema,
-  type ShippingPolicyForm,
-  type ShippingPolicyMethod,
-} from '@/lib/schemas/shipping-policy'
+  ShippingTemplateSchema,
+  DEFAULT_SHIPPING_CONFIG,
+  type ShippingTemplate as ShippingTemplateForm,
+  type ShippingConfig,
+} from '@/lib/schemas/shipping-config'
+import { describeTiers } from '@/lib/shipping/expand-box'
+import { ShippingConfigSection } from '@/features/registration/components/ShippingConfigSection'
 import { SettingsNav } from '../../components/SettingsNav'
 import {
   useCreateShippingPolicy,
   useDeleteShippingPolicy,
   useShippingPolicies,
   useUpdateShippingPolicy,
-  type ShippingPolicy,
+  type ShippingTemplate,
 } from '@/features/registration/hooks/useShippingPolicies'
 
 /**
  * SettingsPoliciesPage — /settings/policies.
  *
  * 마스터:
- *  - docs/architecture/v1/features/registration.md §3.2 shipping_policies
- *  - PRD §1.1.4 기본 배송 정보 입력
+ *  - docs/architecture/v1/features/registration.md §3.2 shipping_policies (config 재편)
+ *  - PRD §1.1.4 기본 배송 정보 입력 + 수량 구간(박스) 배송비 (C9)
  *  - user_flow.md s9 (settings 도메인 — v1 정규 항목으로 편입)
  *
  * 책임:
- *  - 셀러 배송 정책 목록 + 신규/수정/삭제 + 기본값 토글
- *  - StepInfoPage 가 "배송 정책 관리에서 1건 이상 추가하세요" 안내 시 진입점
+ *  - 셀러 배송 템플릿 목록 + 신규/수정/삭제 + 기본값 토글
+ *  - 템플릿 = ShippingConfig 묶음 + 이름 + 기본여부. StepInfoPage 에서 "템플릿 적용" 으로 불러온다.
+ *  - 폼은 StepInfoPage 와 동일한 ShippingConfigSection(name="config") 재사용.
  *
  * 4상태:
  *  - loading: Skeleton 카드
  *  - error: ErrorMessage
- *  - empty: 빈 상태 안내 + [새 정책 추가] CTA
- *  - data: 정책 row 리스트 + 헤더 [새 정책 추가]
+ *  - empty: 빈 상태 안내 + [새 템플릿 추가] CTA
+ *  - data: 템플릿 row 리스트 + 헤더 [새 템플릿 추가]
  *
  * 기본값(isDefault) 규약:
  *  - 한 셀러당 1개. true 로 지정하면 다른 row 들은 자동으로 false 가 된다 (hook 에서 처리).
@@ -70,7 +74,7 @@ export function SettingsPoliciesPage(): JSX.Element {
   const deleteMut = useDeleteShippingPolicy()
 
   const [dialogState, setDialogState] = useState<DialogState>({ kind: 'closed' })
-  const [deleteTarget, setDeleteTarget] = useState<ShippingPolicy | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ShippingTemplate | null>(null)
 
   // cycle 38: 다이얼로그 닫힘 시 트리거 element 로 포커스 복귀 (WCAG 2.4.3).
   // discriminated state + 다중 트리거 패턴이라 DialogTrigger asChild 안 됨 → onCloseAutoFocus 콜백.
@@ -87,25 +91,23 @@ export function SettingsPoliciesPage(): JSX.Element {
     track(e)
     setDialogState({ kind: 'create' })
   }
-  const openEdit = (policy: ShippingPolicy, e: React.MouseEvent<HTMLElement>): void => {
+  const openEdit = (template: ShippingTemplate, e: React.MouseEvent<HTMLElement>): void => {
     track(e)
-    setDialogState({ kind: 'edit', policy })
+    setDialogState({ kind: 'edit', template })
   }
-  const openDelete = (policy: ShippingPolicy, e: React.MouseEvent<HTMLElement>): void => {
+  const openDelete = (template: ShippingTemplate, e: React.MouseEvent<HTMLElement>): void => {
     track(e)
-    setDeleteTarget(policy)
+    setDeleteTarget(template)
   }
   const closeDialog = (): void => setDialogState({ kind: 'closed' })
 
-  const handleSetDefault = (policy: ShippingPolicy): void => {
-    if (policy.isDefault) return
+  const handleSetDefault = (template: ShippingTemplate): void => {
+    if (template.isDefault) return
     updateMut.mutate(
       {
-        id: policy.id,
-        name: policy.name,
-        fee: policy.fee,
-        method: policy.method,
-        etaDays: policy.etaDays,
+        id: template.id,
+        name: template.name,
+        config: template.config,
         isDefault: true,
       },
       {
@@ -184,7 +186,7 @@ export function SettingsPoliciesPage(): JSX.Element {
 
               {list.isSuccess && list.data.length > 0 && (
                 <PoliciesList
-                  policies={list.data}
+                  templates={list.data}
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onSetDefault={handleSetDefault}
@@ -271,19 +273,52 @@ function EmptyState({
 }
 
 // ─────────────────────────────────────────────
+// config → 사람이 읽는 요약 (목록 row / 삭제 확인 셀)
+// ─────────────────────────────────────────────
+
+const won = (n: number): string => `${n.toLocaleString()}${ko.settings.policies.fee.unit}`
+
+/** ShippingConfig → "무료배송 · 배송 3일" 형태의 한 줄 요약. */
+export function describeShippingConfig(config: ShippingConfig): string {
+  const s = ko.settings.policies.summary
+  const parts: string[] = [s.feeType[config.feeType]]
+
+  switch (config.feeType) {
+    case 'paid':
+      parts.push(s.baseFee.replace('{fee}', won(config.baseFee)))
+      break
+    case 'conditional_free':
+      if (config.freeThreshold != null) {
+        parts.push(s.freeOver.replace('{amount}', won(config.freeThreshold)))
+      }
+      break
+    case 'quantity_tiered':
+      if (config.box) {
+        parts.push(describeTiers(config.box))
+      }
+      break
+    default:
+      break
+  }
+
+  parts.push(s.etaDays.replace('{days}', String(config.etaDays)))
+  return parts.join(' · ')
+}
+
+// ─────────────────────────────────────────────
 // 목록
 // ─────────────────────────────────────────────
 
 interface PoliciesListProps {
-  policies: ShippingPolicy[]
-  onEdit: (p: ShippingPolicy, e: React.MouseEvent<HTMLElement>) => void
-  onDelete: (p: ShippingPolicy, e: React.MouseEvent<HTMLElement>) => void
-  onSetDefault: (p: ShippingPolicy) => void
+  templates: ShippingTemplate[]
+  onEdit: (p: ShippingTemplate, e: React.MouseEvent<HTMLElement>) => void
+  onDelete: (p: ShippingTemplate, e: React.MouseEvent<HTMLElement>) => void
+  onSetDefault: (p: ShippingTemplate) => void
   setDefaultPending: boolean
 }
 
 function PoliciesList({
-  policies,
+  templates,
   onEdit,
   onDelete,
   onSetDefault,
@@ -292,7 +327,7 @@ function PoliciesList({
   const t = ko.settings.policies
   return (
     <ul className="flex flex-col gap-2" data-testid="policies-list">
-      {policies.map((p) => (
+      {templates.map((p) => (
         <li
           key={p.id}
           className={cn(
@@ -306,35 +341,21 @@ function PoliciesList({
               {p.isDefault && (
                 <Badge variant="accent">{t.badge.isDefault}</Badge>
               )}
-              <Badge variant="default">{t.methodLabels[p.method]}</Badge>
+              <Badge variant="default">{t.methodLabels[p.config.method]}</Badge>
             </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12.5px] text-text-tertiary sm:grid-cols-3">
-              <div className="flex gap-1.5">
-                <dt>{t.columns.fee}</dt>
-                <dd className="font-medium text-text">{formatFee(p.fee)}</dd>
-              </div>
-              <div className="flex gap-1.5">
-                <dt>{t.columns.etaDays}</dt>
-                <dd className="font-medium text-text">
-                  {p.etaDays}
-                  {t.etaUnit}
-                </dd>
-              </div>
-              <div className="flex items-center gap-2">
-                <dt id={`default-label-${p.id}`}>{t.columns.isDefault}</dt>
-                <dd>
-                  <Switch
-                    checked={p.isDefault}
-                    onCheckedChange={() => onSetDefault(p)}
-                    disabled={setDefaultPending || p.isDefault}
-                    aria-labelledby={`default-label-${p.id}`}
-                    {...(p.isDefault
-                      ? {}
-                      : { title: t.actions.setDefault })}
-                  />
-                </dd>
-              </div>
-            </dl>
+            <p className="text-[12.5px] text-text-tertiary">{describeShippingConfig(p.config)}</p>
+            <div className="flex items-center gap-2 pt-0.5">
+              <span id={`default-label-${p.id}`} className="text-[12.5px] text-text-tertiary">
+                {t.columns.isDefault}
+              </span>
+              <Switch
+                checked={p.isDefault}
+                onCheckedChange={() => onSetDefault(p)}
+                disabled={setDefaultPending || p.isDefault}
+                aria-labelledby={`default-label-${p.id}`}
+                {...(p.isDefault ? {} : { title: t.actions.setDefault })}
+              />
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -365,12 +386,6 @@ function PoliciesList({
   )
 }
 
-function formatFee(fee: number): string {
-  const t = ko.settings.policies.fee
-  if (fee === 0) return t.free
-  return `${fee.toLocaleString()}${t.unit}`
-}
-
 // ─────────────────────────────────────────────
 // 폼 다이얼로그 (신규/수정 공용)
 // ─────────────────────────────────────────────
@@ -378,40 +393,29 @@ function formatFee(fee: number): string {
 type DialogState =
   | { kind: 'closed' }
   | { kind: 'create' }
-  | { kind: 'edit'; policy: ShippingPolicy }
+  | { kind: 'edit'; template: ShippingTemplate }
 
 interface PolicyFormDialogProps {
   state: DialogState
   onClose: () => void
   onCloseAutoFocus: (e: Event) => void
   submitting: boolean
-  onSubmitCreate: (values: ShippingPolicyForm) => void
-  onSubmitEdit: (id: string, values: ShippingPolicyForm) => void
+  onSubmitCreate: (values: ShippingTemplateForm) => void
+  onSubmitEdit: (id: string, values: ShippingTemplateForm) => void
 }
 
-const METHOD_VALUES: ShippingPolicyMethod[] = [
-  'parcel',
-  'direct',
-  'quick',
-  'visit_pickup',
-]
-
-function defaultsFor(state: DialogState): ShippingPolicyForm {
+function defaultsFor(state: DialogState): ShippingTemplateForm {
   if (state.kind === 'edit') {
     return {
-      name: state.policy.name,
-      method: state.policy.method,
-      fee: state.policy.fee,
-      etaDays: state.policy.etaDays,
-      isDefault: state.policy.isDefault,
+      name: state.template.name,
+      isDefault: state.template.isDefault,
+      config: state.template.config,
     }
   }
   return {
     name: '',
-    method: 'parcel',
-    fee: 0,
-    etaDays: 2,
     isDefault: false,
+    config: DEFAULT_SHIPPING_CONFIG,
   }
 }
 
@@ -426,8 +430,8 @@ function PolicyFormDialog({
   const t = ko.settings.policies
   const open = state.kind !== 'closed'
 
-  const form = useForm<ShippingPolicyForm>({
-    resolver: zodResolver(ShippingPolicyFormSchema) as Resolver<ShippingPolicyForm>,
+  const form = useForm<ShippingTemplateForm>({
+    resolver: zodResolver(ShippingTemplateSchema) as Resolver<ShippingTemplateForm>,
     mode: 'onChange',
     defaultValues: defaultsFor(state),
   })
@@ -438,21 +442,22 @@ function PolicyFormDialog({
       form.reset(defaultsFor(state))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.kind, state.kind === 'edit' ? state.policy.id : null])
+  }, [state.kind, state.kind === 'edit' ? state.template.id : null])
 
-  const onSubmit = (values: ShippingPolicyForm): void => {
+  const onSubmit = (values: ShippingTemplateForm): void => {
     if (state.kind === 'create') {
       onSubmitCreate(values)
     } else if (state.kind === 'edit') {
-      onSubmitEdit(state.policy.id, values)
+      onSubmitEdit(state.template.id, values)
     }
   }
 
   const title = state.kind === 'edit' ? t.dialog.editTitle : t.dialog.createTitle
+  const nameError = form.formState.errors.name?.message
+  const configInvalid = form.formState.errors.config != null
   const blockingReasons: string[] = []
-  if (Object.keys(form.formState.errors).length > 0) {
-    blockingReasons.push(...collectFieldErrorMessages(form.formState.errors))
-  }
+  if (typeof nameError === 'string' && nameError.length > 0) blockingReasons.push(nameError)
+  if (configInvalid) blockingReasons.push(ko.register.shipping.blockingTiered)
   if (submitting) blockingReasons.push(t.dialog.submitting)
   const disabled = blockingReasons.length > 0
 
@@ -463,172 +468,100 @@ function PolicyFormDialog({
         if (!next) onClose()
       }}
     >
-      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
+      <DialogContent
+        onCloseAutoFocus={onCloseAutoFocus}
+        className="max-h-[90vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{t.dialog.description}</DialogDescription>
         </DialogHeader>
 
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          noValidate
-          className="space-y-4"
-        >
-          <FormField
-            id="policy-name"
-            label={t.dialog.nameLabel}
-            required
-            error={form.formState.errors.name?.message}
+        <FormProvider {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            noValidate
+            className="space-y-4"
           >
-            <Input
+            <FormField
               id="policy-name"
-              type="text"
-              autoComplete="off"
-              placeholder={t.dialog.namePlaceholder}
-              aria-invalid={form.formState.errors.name ? 'true' : 'false'}
-              aria-describedby={form.formState.errors.name ? 'policy-name-error' : undefined}
-              {...form.register('name')}
-            />
-          </FormField>
+              label={t.dialog.nameLabel}
+              required
+              error={nameError}
+            >
+              <Input
+                id="policy-name"
+                type="text"
+                autoComplete="off"
+                placeholder={t.dialog.namePlaceholder}
+                aria-invalid={form.formState.errors.name ? 'true' : 'false'}
+                aria-describedby={form.formState.errors.name ? 'policy-name-error' : undefined}
+                {...form.register('name')}
+              />
+            </FormField>
 
-          <FormField
-            id="policy-method"
-            label={t.dialog.methodLabel}
-            required
-            error={form.formState.errors.method?.message}
-          >
-            <Controller
-              control={form.control}
-              name="method"
-              render={({ field }) => (
-                <div
-                  role="radiogroup"
-                  aria-labelledby="policy-method-label"
-                  className="grid grid-cols-2 gap-2 sm:grid-cols-4"
-                >
-                  {METHOD_VALUES.map((m) => {
-                    const checked = field.value === m
-                    return (
-                      <Button
-                        key={m}
-                        type="button"
-                        variant={checked ? 'primary' : 'outline'}
-                        size="sm"
-                        role="radio"
-                        aria-checked={checked}
-                        onClick={() => field.onChange(m)}
-                        className="w-full"
-                      >
-                        {t.methodLabels[m]}
-                      </Button>
-                    )
-                  })}
+            <div className="rounded-lg border border-border bg-surface-subtle p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="policy-default" className="text-[13.5px]">
+                    {t.dialog.isDefaultLabel}
+                  </Label>
+                  <p className="text-[12px] text-text-tertiary">
+                    {t.dialog.isDefaultDescription}
+                  </p>
                 </div>
-              )}
-            />
-          </FormField>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField
-              id="policy-fee"
-              label={t.dialog.feeLabel}
-              required
-              error={form.formState.errors.fee?.message}
-            >
-              <Input
-                id="policy-fee"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                placeholder={t.dialog.feePlaceholder}
-                className="font-mono"
-                aria-invalid={form.formState.errors.fee ? 'true' : 'false'}
-                aria-describedby={form.formState.errors.fee ? 'policy-fee-error' : undefined}
-                {...form.register('fee', { valueAsNumber: true })}
-              />
-            </FormField>
-            <FormField
-              id="policy-eta"
-              label={t.dialog.etaDaysLabel}
-              required
-              error={form.formState.errors.etaDays?.message}
-            >
-              <Input
-                id="policy-eta"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={30}
-                step={1}
-                placeholder={t.dialog.etaDaysPlaceholder}
-                className="font-mono"
-                aria-invalid={form.formState.errors.etaDays ? 'true' : 'false'}
-                aria-describedby={form.formState.errors.etaDays ? 'policy-eta-error' : undefined}
-                {...form.register('etaDays', { valueAsNumber: true })}
-              />
-            </FormField>
-          </div>
-
-          <div className="rounded-lg border border-border bg-surface-subtle p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="policy-default" className="text-[13.5px]">
-                  {t.dialog.isDefaultLabel}
-                </Label>
-                <p className="text-[12px] text-text-tertiary">
-                  {t.dialog.isDefaultDescription}
-                </p>
+                <Controller
+                  control={form.control}
+                  name="isDefault"
+                  render={({ field }) => (
+                    <Switch
+                      id="policy-default"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label={t.dialog.isDefaultLabel}
+                    />
+                  )}
+                />
               </div>
-              <Controller
-                control={form.control}
-                name="isDefault"
-                render={({ field }) => (
-                  <Switch
-                    id="policy-default"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    aria-label={t.dialog.isDefaultLabel}
-                  />
-                )}
-              />
             </div>
-          </div>
 
-          {disabled && blockingReasons.length > 0 && (
-            <ul
-              role="alert"
-              className="space-y-0.5 text-[12px] text-text-tertiary"
-            >
-              {blockingReasons.map((r) => (
-                <li key={r}>· {r}</li>
-              ))}
-            </ul>
-          )}
+            <ShippingConfigSection name="config" />
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              onClick={onClose}
-              disabled={submitting}
-            >
-              {t.dialog.cancel}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              disabled={disabled}
-              {...(disabled && blockingReasons.length > 0
-                ? { title: blockingReasons.join(' · ') }
-                : {})}
-            >
-              {submitting ? t.dialog.submitting : t.dialog.submit}
-            </Button>
-          </DialogFooter>
-        </form>
+            {disabled && blockingReasons.length > 0 && (
+              <ul
+                role="alert"
+                className="space-y-0.5 text-[12px] text-text-tertiary"
+              >
+                {blockingReasons.map((r) => (
+                  <li key={r}>· {r}</li>
+                ))}
+              </ul>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={onClose}
+                disabled={submitting}
+              >
+                {t.dialog.cancel}
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                disabled={disabled}
+                {...(disabled && blockingReasons.length > 0
+                  ? { title: blockingReasons.join(' · ') }
+                  : {})}
+              >
+                {submitting ? t.dialog.submitting : t.dialog.submit}
+              </Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
       </DialogContent>
     </Dialog>
   )
@@ -639,7 +572,7 @@ function PolicyFormDialog({
 // ─────────────────────────────────────────────
 
 interface DeleteConfirmDialogProps {
-  target: ShippingPolicy | null
+  target: ShippingTemplate | null
   deleting: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -677,9 +610,7 @@ function DeleteConfirmDialog({
             <span className="font-semibold text-text">{target.name}</span>
             <span className="text-text-tertiary">
               {' · '}
-              {ko.settings.policies.methodLabels[target.method]}
-              {' · '}
-              {formatFee(target.fee)}
+              {describeShippingConfig(target.config)}
             </span>
           </div>
         )}
@@ -718,7 +649,7 @@ function PoliciesSkeleton(): JSX.Element {
     <div
       role="status"
       aria-live="polite"
-      aria-label="배송 정책을 불러오는 중"
+      aria-label="배송 템플릿을 불러오는 중"
       className="space-y-2"
     >
       <Skeleton className="h-16 w-full" />
@@ -765,23 +696,6 @@ function FormField({
       )}
     </div>
   )
-}
-
-// ─────────────────────────────────────────────
-// utils
-// ─────────────────────────────────────────────
-
-type FieldErrors = Record<string, { message?: string } | undefined>
-
-function collectFieldErrorMessages(errors: FieldErrors): string[] {
-  const out: string[] = []
-  for (const key of Object.keys(errors)) {
-    const e = errors[key]
-    if (e && typeof e.message === 'string' && e.message.length > 0) {
-      out.push(e.message)
-    }
-  }
-  return out
 }
 
 export default SettingsPoliciesPage

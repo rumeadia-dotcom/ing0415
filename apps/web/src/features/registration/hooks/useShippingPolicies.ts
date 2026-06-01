@@ -1,13 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSupabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth'
+import {
+  ShippingConfigSchema,
+  DEFAULT_SHIPPING_CONFIG,
+  type ShippingConfig,
+} from '@/lib/schemas/shipping-config'
 
 /**
- * 셀러 배송 정책 목록 + CRUD mutation.
- * 마스터: docs/architecture/v1/features/registration.md §3.2 shipping_policies
+ * 셀러 배송 템플릿 목록 + CRUD mutation.
+ * 마스터: docs/architecture/v1/features/registration.md §3.2 shipping_policies (config 재편)
+ *
+ * shipping_policies 테이블 재편(C9): fee/method/eta_days 컬럼 DROP → config jsonb + name + is_default.
+ * 템플릿 = ShippingConfig 묶음에 이름·기본여부를 붙인 형태. StepInfoPage 가 "템플릿 적용" 으로 불러온다.
  *
  * RLS 가 seller_id = auth.uid() 적용.
- * Step 1 진입 시 0개면 별도 화면(/settings/policies)에서 생성.
  *
  * 기본값(isDefault=true) 규약:
  *  - 한 셀러당 최대 1개. 새 row 를 default=true 로 만들면 같은 셀러의 다른 row 들을 false 로 만든다.
@@ -17,32 +24,35 @@ import { useAuth } from '@/features/auth'
  *  - RLS 가 seller_id = auth.uid() 이므로 .eq('seller_id', sellerId) 는 안전장치(가독성).
  */
 
-export interface ShippingPolicy {
+export interface ShippingTemplate {
   id: string
   name: string
-  fee: number
-  method: 'parcel' | 'direct' | 'quick' | 'visit_pickup'
-  etaDays: number
   isDefault: boolean
+  config: ShippingConfig
 }
 
-interface ShippingPolicyRow {
+/** 기존 import 처 호환용 별칭 (점진 이행). */
+export type ShippingPolicy = ShippingTemplate
+
+interface ShippingTemplateRow {
   id: string
   name: string
-  fee: number
-  method: ShippingPolicy['method']
-  eta_days: number
   is_default: boolean
+  config: unknown
 }
 
-function rowToPolicy(r: ShippingPolicyRow): ShippingPolicy {
+/** config jsonb 는 파싱된 객체로 도착 — 방어적으로 safeParse, 실패 시 기본값 fallback. */
+function parseConfig(raw: unknown): ShippingConfig {
+  const res = ShippingConfigSchema.safeParse(raw)
+  return res.success ? res.data : DEFAULT_SHIPPING_CONFIG
+}
+
+function rowToTemplate(r: ShippingTemplateRow): ShippingTemplate {
   return {
     id: r.id,
     name: r.name,
-    fee: r.fee,
-    method: r.method,
-    etaDays: r.eta_days,
     isDefault: r.is_default,
+    config: parseConfig(r.config),
   }
 }
 
@@ -53,7 +63,7 @@ export function useShippingPolicies() {
   const { user } = useAuth()
   const sellerId = user?.id ?? null
 
-  return useQuery<ShippingPolicy[]>({
+  return useQuery<ShippingTemplate[]>({
     queryKey: queryKey(sellerId),
     enabled: sellerId != null,
     staleTime: 5 * 60 * 1000,
@@ -61,14 +71,17 @@ export function useShippingPolicies() {
       const supabase = getSupabase()
       const { data, error } = await supabase
         .from('shipping_policies')
-        .select('id, name, fee, method, eta_days, is_default')
+        .select('id, name, is_default, config')
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true })
       if (error) throw error
-      return (data ?? []).map((row) => rowToPolicy(row as ShippingPolicyRow))
+      return (data ?? []).map((row) => rowToTemplate(row as ShippingTemplateRow))
     },
   })
 }
+
+/** 배송 템플릿 hook 별칭 (의미 명시용 — 동일 구현). */
+export const useShippingTemplates = useShippingPolicies
 
 // ─────────────────────────────────────────────
 // 공통: 같은 셀러의 다른 row 들의 is_default 를 false 로 클리어
@@ -90,12 +103,10 @@ async function clearDefaultsForSeller(
   if (error) throw error
 }
 
-interface CreatePolicyInput {
+interface CreateTemplateInput {
   name: string
-  fee: number
-  method: ShippingPolicy['method']
-  etaDays: number
   isDefault?: boolean
+  config: ShippingConfig
 }
 
 export function useCreateShippingPolicy() {
@@ -103,7 +114,7 @@ export function useCreateShippingPolicy() {
   const { user } = useAuth()
   const sellerId = user?.id ?? null
 
-  return useMutation<ShippingPolicy, unknown, CreatePolicyInput>({
+  return useMutation<ShippingTemplate, unknown, CreateTemplateInput>({
     mutationFn: async (input) => {
       const supabase = getSupabase()
       const wantDefault = input.isDefault ?? false
@@ -117,16 +128,14 @@ export function useCreateShippingPolicy() {
         .from('shipping_policies')
         .insert({
           name: input.name,
-          fee: input.fee,
-          method: input.method,
-          eta_days: input.etaDays,
           is_default: wantDefault,
+          config: input.config,
         })
-        .select('id, name, fee, method, eta_days, is_default')
-        .single<ShippingPolicyRow>()
+        .select('id, name, is_default, config')
+        .single<ShippingTemplateRow>()
       if (error) throw error
       if (!data) throw new Error('insert returned no row')
-      return rowToPolicy(data)
+      return rowToTemplate(data)
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKey(sellerId) })
@@ -134,13 +143,11 @@ export function useCreateShippingPolicy() {
   })
 }
 
-interface UpdatePolicyInput {
+interface UpdateTemplateInput {
   id: string
   name: string
-  fee: number
-  method: ShippingPolicy['method']
-  etaDays: number
   isDefault?: boolean
+  config: ShippingConfig
 }
 
 export function useUpdateShippingPolicy() {
@@ -148,7 +155,7 @@ export function useUpdateShippingPolicy() {
   const { user } = useAuth()
   const sellerId = user?.id ?? null
 
-  return useMutation<ShippingPolicy, unknown, UpdatePolicyInput>({
+  return useMutation<ShippingTemplate, unknown, UpdateTemplateInput>({
     mutationFn: async (input) => {
       const supabase = getSupabase()
       const wantDefault = input.isDefault ?? false
@@ -162,17 +169,15 @@ export function useUpdateShippingPolicy() {
         .from('shipping_policies')
         .update({
           name: input.name,
-          fee: input.fee,
-          method: input.method,
-          eta_days: input.etaDays,
           is_default: wantDefault,
+          config: input.config,
         })
         .eq('id', input.id)
-        .select('id, name, fee, method, eta_days, is_default')
-        .single<ShippingPolicyRow>()
+        .select('id, name, is_default, config')
+        .single<ShippingTemplateRow>()
       if (error) throw error
       if (!data) throw new Error('update returned no row')
-      return rowToPolicy(data)
+      return rowToTemplate(data)
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKey(sellerId) })
@@ -180,7 +185,7 @@ export function useUpdateShippingPolicy() {
   })
 }
 
-interface DeletePolicyInput {
+interface DeleteTemplateInput {
   id: string
 }
 
@@ -189,7 +194,7 @@ export function useDeleteShippingPolicy() {
   const { user } = useAuth()
   const sellerId = user?.id ?? null
 
-  return useMutation<{ id: string }, unknown, DeletePolicyInput>({
+  return useMutation<{ id: string }, unknown, DeleteTemplateInput>({
     mutationFn: async (input) => {
       const supabase = getSupabase()
       const { error } = await supabase

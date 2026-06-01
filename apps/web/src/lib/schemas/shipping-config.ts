@@ -31,17 +31,18 @@ export const ShippingConfigSchema = z
     etaDays: z.number().int().min(0).max(30),
     feeType: ShippingFeeTypeSchema,
     baseFee: z.number().int().min(0).default(0),
-    freeThreshold: z.number().int().min(0).optional(),
+    // 선택 숫자 필드 — 폼의 빈 number input 은 null 로 등록되므로 nullish (null = 미설정).
+    freeThreshold: z.number().int().min(0).nullish(),
     box: ShippingBoxSchema.optional(),
     payType: z.enum(['prepaid', 'collect', 'both']).default('prepaid'),
-    returnFee: z.number().int().min(0).optional(),
-    exchangeFee: z.number().int().min(0).optional(),
+    returnFee: z.number().int().min(0).nullish(),
+    exchangeFee: z.number().int().min(0).nullish(),
     areaSurcharge: z
       .object({
-        jeju: z.number().int().min(0),
-        island: z.number().int().min(0),
+        jeju: z.number().int().min(0).nullish(),
+        island: z.number().int().min(0).nullish(),
       })
-      .optional(),
+      .nullish(),
     bundleAllowed: z.boolean().default(false),
     marketOverrides: z
       .record(
@@ -77,12 +78,11 @@ export const ShippingConfigSchema = z
 export type ShippingConfig = z.infer<typeof ShippingConfigSchema>
 
 /** 배송 템플릿(shipping_policies 재편) — config + 이름 + 기본여부. */
-export const ShippingTemplateSchema = ShippingConfigSchema.and(
-  z.object({
-    name: z.string().min(1, '템플릿 이름을 입력해주세요').max(50, '이름은 50자 이하'),
-    isDefault: z.boolean(),
-  }),
-)
+export const ShippingTemplateSchema = z.object({
+  name: z.string().min(1, '템플릿 이름을 입력해주세요').max(50, '이름은 50자 이하'),
+  isDefault: z.boolean(),
+  config: ShippingConfigSchema,
+})
 export type ShippingTemplate = z.infer<typeof ShippingTemplateSchema>
 
 /** feeType 별 폼 초기값 헬퍼 (UI/마이그 backfill 기본값과 동형). */

@@ -722,24 +722,30 @@ export const ko = {
       },
     },
     policies: {
-      title: '배송 정책',
+      title: '배송 템플릿',
       subtitle:
-        '상품 등록 시 선택할 배송 정책을 관리합니다. 기본 정책 1개는 자동으로 선택됩니다.',
-      listTitle: '배송 정책 목록',
-      listDescription: '등록한 배송 정책을 확인하고 수정·삭제할 수 있습니다.',
-      addCta: '새 정책 추가',
+        '상품 등록 시 불러올 배송 템플릿을 관리합니다. 기본 템플릿 1개는 등록 화면에서 자동으로 적용됩니다.',
+      listTitle: '배송 템플릿 목록',
+      listDescription: '저장한 배송 템플릿을 확인하고 수정·삭제할 수 있습니다.',
+      addCta: '새 템플릿 추가',
       empty: {
-        title: '등록된 배송 정책이 없습니다',
+        title: '저장된 배송 템플릿이 없습니다',
         body:
-          '상품 등록을 시작하려면 배송 정책을 1건 이상 추가하세요. 기본 정책으로 지정한 항목이 자동 선택됩니다.',
+          '자주 쓰는 배송 설정을 템플릿으로 저장해 두면 상품 등록 시 한 번에 불러올 수 있습니다. 기본 템플릿으로 지정한 항목이 자동 적용됩니다.',
       },
-      columns: {
-        name: '정책명',
-        method: '배송 방식',
-        fee: '배송비',
-        etaDays: '예상 배송일수',
-        isDefault: '기본값',
-        actions: '관리',
+      // config 요약 라벨 (목록 row 셀)
+      summary: {
+        feeType: {
+          free: '무료배송',
+          conditional_free: '조건부무료',
+          paid: '유료배송',
+          quantity_tiered: '수량별(박스)',
+          charge_on_delivery: '착불',
+        },
+        baseFee: '기본배송비 {fee}',
+        freeOver: '{amount} 이상 무료',
+        perBox: '박스당 {qty}개 · {fee}',
+        etaDays: '배송 {days}일',
       },
       methodLabels: {
         parcel: '택배',
@@ -755,52 +761,50 @@ export const ko = {
         unit: '원',
       },
       etaUnit: '일',
+      columns: {
+        isDefault: '기본값',
+      },
       actions: {
         edit: '수정',
         delete: '삭제',
         setDefault: '기본값으로 지정',
       },
       dialog: {
-        createTitle: '새 배송 정책',
-        editTitle: '배송 정책 수정',
+        createTitle: '새 배송 템플릿',
+        editTitle: '배송 템플릿 수정',
         description:
-          '상품 등록 시 선택 가능한 배송 정책을 입력하세요. 기본값으로 지정하면 다른 정책의 기본값은 해제됩니다.',
-        nameLabel: '정책명',
+          '자주 쓰는 배송 설정을 템플릿으로 저장하세요. 기본값으로 지정하면 다른 템플릿의 기본값은 해제됩니다.',
+        nameLabel: '템플릿 이름',
         namePlaceholder: '예: 일반 택배 (선결제)',
-        methodLabel: '배송 방식',
-        feeLabel: '배송비 (원)',
-        feePlaceholder: '예: 3000',
-        etaDaysLabel: '예상 배송일수 (일)',
-        etaDaysPlaceholder: '예: 2',
-        isDefaultLabel: '기본 정책으로 지정',
+        isDefaultLabel: '기본 템플릿으로 지정',
         isDefaultDescription:
-          '상품 등록 화면에서 자동으로 선택됩니다. 셀러당 1개만 기본값으로 둘 수 있습니다.',
+          '상품 등록 화면에서 자동으로 적용됩니다. 셀러당 1개만 기본값으로 둘 수 있습니다.',
         submit: '저장',
         submitting: '저장 중…',
         cancel: '취소',
       },
       delete: {
-        confirmTitle: '배송 정책을 삭제할까요?',
+        confirmTitle: '배송 템플릿을 삭제할까요?',
         confirmBody:
-          '삭제하면 이 정책을 사용 중인 미완료 상품 등록은 다시 선택해야 합니다.',
+          '삭제해도 이미 등록된 상품의 배송 설정은 영향을 받지 않습니다. 앞으로 이 템플릿을 불러올 수 없게 됩니다.',
         confirmBodyDefault:
-          '기본 배송 정책을 삭제하면 상품 등록 화면에서 자동 선택될 항목이 없어집니다. 그래도 삭제하시겠습니까?',
+          '기본 배송 템플릿을 삭제하면 상품 등록 화면에서 자동 적용될 항목이 없어집니다. 그래도 삭제하시겠습니까?',
         confirmCta: '삭제',
         confirmingCta: '삭제 중…',
         cancelCta: '취소',
       },
       toast: {
-        createSuccess: '배송 정책을 추가했습니다.',
-        createError: '배송 정책을 추가하지 못했습니다.',
-        updateSuccess: '배송 정책을 수정했습니다.',
-        updateError: '배송 정책을 수정하지 못했습니다.',
-        deleteSuccess: '배송 정책을 삭제했습니다.',
-        deleteError: '배송 정책을 삭제하지 못했습니다.',
-        setDefaultSuccess: '기본 배송 정책을 변경했습니다.',
-        setDefaultError: '기본 배송 정책을 변경하지 못했습니다.',
+        createSuccess: '배송 템플릿을 추가했습니다.',
+        createError: '배송 템플릿을 추가하지 못했습니다.',
+        updateSuccess: '배송 템플릿을 수정했습니다.',
+        updateError: '배송 템플릿을 수정하지 못했습니다.',
+        deleteSuccess: '배송 템플릿을 삭제했습니다.',
+        deleteError: '배송 템플릿을 삭제하지 못했습니다.',
+        setDefaultSuccess: '기본 배송 템플릿을 변경했습니다.',
+        setDefaultError: '기본 배송 템플릿을 변경하지 못했습니다.',
       },
       errors: {
-        fetch: '배송 정책을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+        fetch: '배송 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
       },
     },
   },
@@ -1153,6 +1157,15 @@ export const ko = {
     shipping: {
       sectionTitle: '배송 설정',
       sectionDescription: '배송 방식·배송비·반품 정책을 입력합니다.',
+      // StepInfoPage 템플릿 적용 드롭다운
+      template: {
+        label: '배송 템플릿 적용 (선택)',
+        none: '직접 입력',
+        empty: '저장된 배송 템플릿이 없습니다.',
+        manageLink: '배송 템플릿 관리',
+      },
+      // 다음 버튼 blockingReason (수량별 박스 미완성)
+      blockingTiered: '박스당 수량·배송비를 입력하세요',
       // 1) 배송방식 + 예상 배송일수
       method: {
         label: '배송방식',

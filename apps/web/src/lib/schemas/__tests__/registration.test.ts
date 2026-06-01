@@ -11,6 +11,7 @@ import {
   JOB_STATUSES,
   MARKET_RESULT_STATUSES,
 } from '@/lib/schemas/registration'
+import { DEFAULT_SHIPPING_CONFIG } from '@/lib/schemas/shipping-config'
 
 /**
  * 등록 도메인 zod 스키마 단위 테스트.
@@ -72,7 +73,7 @@ describe('Step1Schema — 상품 정보 입력 (n16)', () => {
     manufacturer: '테스트제조사',
     descriptionHtml: '<p>상품 설명</p>',
     baseCategoryId: 'cat-100',
-    shippingPolicyId: '11111111-1111-1111-1111-111111111111',
+    shippingConfig: DEFAULT_SHIPPING_CONFIG,
   }
 
   it('유효 입력 parse 통과', () => {
@@ -113,9 +114,24 @@ describe('Step1Schema — 상품 정보 입력 (n16)', () => {
     }
   })
 
-  it('shippingPolicyId 가 UUID 가 아니면 parse 실패', () => {
-    const res = Step1Schema.safeParse({ ...valid, shippingPolicyId: 'not-a-uuid' })
+  it('shippingConfig 가 quantity_tiered 인데 box 가 없으면 parse 실패', () => {
+    const res = Step1Schema.safeParse({
+      ...valid,
+      shippingConfig: { ...DEFAULT_SHIPPING_CONFIG, feeType: 'quantity_tiered' },
+    })
     expect(res.success).toBe(false)
+  })
+
+  it('shippingConfig 가 quantity_tiered + box 면 parse 통과', () => {
+    const res = Step1Schema.safeParse({
+      ...valid,
+      shippingConfig: {
+        ...DEFAULT_SHIPPING_CONFIG,
+        feeType: 'quantity_tiered',
+        box: { qtyPerBox: 12, feePerBox: 2500 },
+      },
+    })
+    expect(res.success).toBe(true)
   })
 
   it('baseCategoryId 가 빈 문자열이면 parse 실패', () => {
@@ -425,7 +441,7 @@ describe('ProductDraftSchema — 전체 위저드 종합', () => {
     manufacturer: null,
     descriptionHtml: null,
     baseCategoryId: 'cat-200',
-    shippingPolicyId: '55555555-5555-5555-5555-555555555555',
+    shippingConfig: DEFAULT_SHIPPING_CONFIG,
     images: [validImage],
     selections: [
       {

@@ -18,9 +18,7 @@ vi.mock('../hooks/useShippingPolicies', () => ({
   useShippingPolicies: () => ({
     isLoading: false,
     isError: false,
-    data: [
-      { id: '00000000-0000-0000-0000-0000000000a1', name: '기본 배송', fee: 3000, method: 'parcel', etaDays: 2, isDefault: true },
-    ],
+    data: [],
   }),
 }))
 
@@ -39,6 +37,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import { StepInfoPage } from '../pages/StepInfoPage'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
+import { DEFAULT_SHIPPING_CONFIG } from '@/lib/schemas/shipping-config'
 
 function renderPage(): void {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -77,18 +76,23 @@ describe('StepInfoPage', () => {
     await user.clear(screen.getByLabelText(/판매가/))
     await user.type(screen.getByLabelText(/판매가/), '15000')
     await user.type(screen.getByLabelText(/내부 카테고리/), '가전 > 주방가전')
-    await user.selectOptions(screen.getByLabelText(/배송 정책/), '00000000-0000-0000-0000-0000000000a1')
 
-    // 제출 활성 후 클릭
-    const submit = await screen.findByRole('button', { name: /다음: 이미지/ })
-    await waitFor(() => expect(submit).toBeEnabled())
-    await user.click(submit)
+    // 배송 설정은 기본값(무료배송)이 valid 라 추가 입력 없이 제출 가능.
+    // 제출 버튼은 blocking 여부에 따라 다른 엘리먼트로 렌더되므로 매번 재조회한다.
+    // ShippingConfigSection 마운트로 인한 RHF 재검증이 jsdom 에서 느려 timeout 여유를 둔다.
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: /다음: 이미지/ })).toBeEnabled(),
+      { timeout: 3000 },
+    )
+    await user.click(screen.getByRole('button', { name: /다음: 이미지/ }))
 
     await screen.findByText('step-images')
     const stored = useRegisterFormStore.getState().step1
     expect(stored?.name).toBe('테스트 텀블러')
     expect(stored?.price).toBe(15000)
-    expect(stored?.shippingPolicyId).toBe('00000000-0000-0000-0000-0000000000a1')
+    // 폼은 기본 무료배송 config 를 그대로 저장한다 (advanced 빈 필드는 null 로 직렬화될 수 있음).
+    expect(stored?.shippingConfig).toMatchObject(DEFAULT_SHIPPING_CONFIG)
+    expect(stored?.shippingConfig.feeType).toBe('free')
   })
 
   it('판매가가 100 미만이면 zod 에러', async () => {
@@ -99,7 +103,6 @@ describe('StepInfoPage', () => {
     await user.clear(screen.getByLabelText(/판매가/))
     await user.type(screen.getByLabelText(/판매가/), '50')
     await user.type(screen.getByLabelText(/내부 카테고리/), '가전')
-    await user.selectOptions(screen.getByLabelText(/배송 정책/), '00000000-0000-0000-0000-0000000000a1')
 
     // 제출 시도 (disabled 일 수도 있으나, formState.errors 가 트리거되도록 한 번 클릭)
     const submit = screen.getByRole('button', { name: /다음: 이미지/ })

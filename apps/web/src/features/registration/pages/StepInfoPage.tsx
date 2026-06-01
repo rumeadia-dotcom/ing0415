@@ -1,26 +1,26 @@
 import { useEffect } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { useForm, type Resolver, Controller } from 'react-hook-form'
+import { useForm, FormProvider, type Resolver, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, Check, Lightbulb } from 'lucide-react'
 import {
   Button,
-  ErrorMessage,
   Input,
   Label,
   RichTextEditor,
-  Skeleton,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
 import { Step1Schema } from '@/lib/schemas/registration'
+import { DEFAULT_SHIPPING_CONFIG, ShippingConfigSchema } from '@/lib/schemas/shipping-config'
 import { ko } from '@/locales/ko'
 import type { z } from 'zod'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
 import { useDuplicateProductCheck } from '../hooks/useDuplicateProductCheck'
 import { useShippingPolicies } from '../hooks/useShippingPolicies'
 import { useUpsertProductDraft } from '../hooks/useProductDraft'
+import { ShippingConfigSection } from '../components/ShippingConfigSection'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
@@ -31,10 +31,16 @@ import { cn } from '@/lib/utils'
  *
  * - RHF + zodResolver(Step1Schema) — 단일 ground truth (lib/schemas/registration.ts).
  * - 상품명 디바운스 500ms 중복 확인.
- * - 배송정책 = useShippingPolicies 의 select. 0개면 안내.
- * - blockingReasons: 필수 누락 / 가격 잘못 / 중복 라벨 / 진행 중 mutation → tooltip 노출.
+ * - 배송 = 인라인 ShippingConfigSection (controlled, name="shippingConfig"). 템플릿 적용은 선택.
+ * - blockingReasons: 필수 누락 / 가격 잘못 / 중복 라벨 / 수량별 박스 미완성 / 진행 중 mutation → tooltip 노출.
  */
 type Step1Form = z.infer<typeof Step1Schema>
+
+const SHIPPING_T = ko.register.shipping
+
+/** ShippingConfigSection / 기존 select 와 동일한 styled native `<select>` className. */
+const SELECT_CLASS =
+  'flex h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 export function StepInfoPage(): JSX.Element {
   const navigate = useNavigate()
@@ -42,7 +48,7 @@ export function StepInfoPage(): JSX.Element {
   const setProductId = useRegisterFormStore((s) => s.setProductId)
   const initialStep1 = useRegisterFormStore((s) => s.step1)
   const productId = useRegisterFormStore((s) => s.productId)
-  const { data: policies, isLoading: policiesLoading, isError: policiesError } = useShippingPolicies()
+  const { data: templates } = useShippingPolicies()
   const upsert = useUpsertProductDraft()
 
   const form = useForm<Step1Form>({
@@ -56,12 +62,13 @@ export function StepInfoPage(): JSX.Element {
       manufacturer: null,
       descriptionHtml: null,
       baseCategoryId: '',
-      shippingPolicyId: '',
+      shippingConfig: DEFAULT_SHIPPING_CONFIG,
     },
   })
 
   const watchedName = form.watch('name')
   const watchedBrand = form.watch('brand')
+  const watchedShipping = form.watch('shippingConfig')
   const dup = useDuplicateProductCheck(watchedName, productId)
 
   // 빈 폼 진입 시점에 검증 1회 트리거 — blockingReasons 가 즉시 채워짐.
@@ -87,8 +94,31 @@ export function StepInfoPage(): JSX.Element {
     )
   }
 
+  // 배송 설정 유효성은 watch 값으로 직접 판정한다.
+  // RHF onChange 모드에서 controlled nested object(shippingConfig)의 에러가 값이 유효해진 뒤에도
+  // formState.errors 에 남는 경우가 있어(필드 자체를 다시 "변경"하지 않으면 clear 안 됨),
+  // 스키마 safeParse 로 결정론적으로 판정해 "다음" 버튼이 잘못 잠기는 것을 방지한다.
+  const shippingConfigValid = ShippingConfigSchema.safeParse(watchedShipping).success
+  // 수량별(박스) 인데 박스 입력이 미완성인지 — 전용 blockingReason 으로 노출.
+  const tieredIncomplete =
+    watchedShipping?.feeType === 'quantity_tiered' &&
+    (typeof watchedShipping.box?.qtyPerBox !== 'number' ||
+      typeof watchedShipping.box?.feePerBox !== 'number')
+
+  // 핵심 필수 필드(상품명/판매가/내부 카테고리)의 에러만 본다 (shippingConfig 는 위에서 별도 판정).
+  const coreFieldsInvalid =
+    !!form.formState.errors.name ||
+    !!form.formState.errors.price ||
+    !!form.formState.errors.originalPrice ||
+    !!form.formState.errors.baseCategoryId ||
+    !!form.formState.errors.brand ||
+    !!form.formState.errors.manufacturer ||
+    !!form.formState.errors.descriptionHtml
+
   const blockingReasons: string[] = []
-  if (Object.keys(form.formState.errors).length > 0) blockingReasons.push('필수 항목을 모두 입력하세요')
+  if (coreFieldsInvalid) blockingReasons.push('필수 항목을 모두 입력하세요')
+  if (tieredIncomplete || !shippingConfigValid)
+    blockingReasons.push(ko.register.shipping.blockingTiered)
   if (dup.data?.duplicate) blockingReasons.push('동일 상품명의 미완료 상품이 있습니다')
   if (form.formState.isSubmitting || upsert.isPending) blockingReasons.push('처리 중…')
 
@@ -96,10 +126,11 @@ export function StepInfoPage(): JSX.Element {
     !form.formState.errors.name &&
     !form.formState.errors.price &&
     !form.formState.errors.baseCategoryId &&
-    !form.formState.errors.shippingPolicyId
+    shippingConfigValid
   const hasBrand = watchedBrand !== null && String(watchedBrand).trim().length > 0
 
   return (
+    <FormProvider {...form}>
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         {/* 본문 — 기본 정보 */}
@@ -232,50 +263,45 @@ export function StepInfoPage(): JSX.Element {
               </p>
             </Field>
 
-            <Field
-              id="info-shipping"
-              label="배송 정책"
-              required
-              error={form.formState.errors.shippingPolicyId?.message}
-            >
-              {policiesLoading && <Skeleton className="h-10 w-full" />}
-              {policiesError && (
-                <ErrorMessage message="배송 정책을 불러오지 못했습니다. 새로고침해 주세요." />
-              )}
-              {!policiesLoading && !policiesError && (
-                <>
+            <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface-subtle p-4">
+              {(templates?.length ?? 0) > 0 && (
+                <Field id="info-shipping-template" label={SHIPPING_T.template.label}>
                   <select
-                    id="info-shipping"
-                    className="flex h-10 w-full rounded-md border border-border-strong bg-surface px-3 py-1 text-sm text-text shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-invalid={form.formState.errors.shippingPolicyId ? 'true' : 'false'}
-                    aria-describedby={
-                      form.formState.errors.shippingPolicyId ? 'info-shipping-error' : undefined
-                    }
-                    {...form.register('shippingPolicyId')}
-                    defaultValue={initialStep1?.shippingPolicyId ?? ''}
+                    id="info-shipping-template"
+                    className={SELECT_CLASS}
+                    defaultValue=""
+                    onChange={(e) => {
+                      const tpl = (templates ?? []).find((x) => x.id === e.target.value)
+                      if (tpl) {
+                        form.setValue('shippingConfig', tpl.config, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        })
+                      }
+                    }}
                   >
-                    <option value="">배송 정책을 선택하세요</option>
-                    {(policies ?? []).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} · {p.fee.toLocaleString()}원 · {p.etaDays}일
+                    <option value="">{SHIPPING_T.template.none}</option>
+                    {(templates ?? []).map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                        {tpl.isDefault ? ` · ${ko.settings.policies.badge.isDefault}` : ''}
                       </option>
                     ))}
                   </select>
-                  {(policies?.length ?? 0) === 0 && (
-                    <p className="text-xs font-medium text-warning-on-soft">
-                      등록된 배송 정책이 없습니다.{' '}
-                      <RouterLink
-                        to="/settings/policies"
-                        className="underline underline-offset-2 hover:text-text"
-                      >
-                        배송 정책 관리에서 1건 이상 추가하세요
-                      </RouterLink>
-                      .
-                    </p>
-                  )}
-                </>
+                </Field>
               )}
-            </Field>
+              <ShippingConfigSection name="shippingConfig" />
+              <p className="text-[11.5px] text-text-tertiary">
+                자주 쓰는 배송 설정은{' '}
+                <RouterLink
+                  to="/settings/policies"
+                  className="underline underline-offset-2 hover:text-text"
+                >
+                  {SHIPPING_T.template.manageLink}
+                </RouterLink>
+                에서 템플릿으로 저장해 두면 다음 등록 때 한 번에 불러올 수 있어요.
+              </p>
+            </div>
 
             <Field
               id="info-description"
@@ -320,7 +346,7 @@ export function StepInfoPage(): JSX.Element {
                 >
                   {hasCore ? '✓' : '·'}
                 </span>
-                상품명·가격·카테고리·배송정책 입력
+                상품명·가격·카테고리·배송 설정 입력
               </li>
               <li className="flex items-start gap-2">
                 <span
@@ -418,6 +444,7 @@ export function StepInfoPage(): JSX.Element {
         )}
       </div>
     </form>
+    </FormProvider>
   )
 }
 

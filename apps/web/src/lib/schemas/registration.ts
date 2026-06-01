@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MarketIdSchema, type MarketId } from './common'
+import { ShippingConfigSchema } from './shipping-config'
 
 /**
  * 등록 도메인 zod 스키마.
@@ -53,7 +54,7 @@ export const Step1Schema = z
     manufacturer: z.string().max(50).nullable(),
     descriptionHtml: z.string().max(50000).nullable(),
     baseCategoryId: z.string().min(1, '내부 카테고리를 선택하세요'),
-    shippingPolicyId: z.string().uuid('배송정책을 선택하세요'),
+    shippingConfig: ShippingConfigSchema,
   })
   .refine((d) => d.originalPrice === null || d.originalPrice >= d.price, {
     message: '정가는 판매가 이상이어야 합니다',

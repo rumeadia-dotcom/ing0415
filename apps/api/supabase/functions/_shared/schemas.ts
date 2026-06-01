@@ -240,7 +240,8 @@ export const ShippingConfigSchema = z.object({
   etaDays: z.number().int().min(0).max(30),
   feeType: ShippingFeeTypeSchema,
   baseFee: z.number().int().min(0).default(0),
-  freeThreshold: z.number().int().min(0).optional(),
+  // 선택 숫자 필드 — FE 폼의 빈 number input 은 null 로 직렬화되므로 nullish (null = 미설정).
+  freeThreshold: z.number().int().min(0).nullish(),
   box: z
     .object({
       qtyPerBox: z.number().int().min(2),
@@ -248,14 +249,14 @@ export const ShippingConfigSchema = z.object({
     })
     .optional(),
   payType: z.enum(['prepaid', 'collect', 'both']).default('prepaid'),
-  returnFee: z.number().int().min(0).optional(),
-  exchangeFee: z.number().int().min(0).optional(),
+  returnFee: z.number().int().min(0).nullish(),
+  exchangeFee: z.number().int().min(0).nullish(),
   areaSurcharge: z
     .object({
-      jeju: z.number().int().min(0),
-      island: z.number().int().min(0),
+      jeju: z.number().int().min(0).nullish(),
+      island: z.number().int().min(0).nullish(),
     })
-    .optional(),
+    .nullish(),
   bundleAllowed: z.boolean().default(false),
   marketOverrides: z
     .record(

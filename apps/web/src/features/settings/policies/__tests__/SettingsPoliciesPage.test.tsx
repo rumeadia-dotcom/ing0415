@@ -6,14 +6,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui'
 import { ko } from '@/locales/ko'
+import { DEFAULT_SHIPPING_CONFIG } from '@/lib/schemas/shipping-config'
 
 /**
  * SettingsPoliciesPage 단위 테스트 — R-001 (성공 + 실패 시나리오).
  *
  * 검증:
- *  - 빈 상태: empty CTA + "새 정책 추가" 노출
- *  - 데이터 상태: 정책 row 가 모두 노출
- *  - 기본값 토글: update mutation 호출 + isDefault=true 로 전달
+ *  - 빈 상태: empty CTA + "새 템플릿 추가" 노출
+ *  - 데이터 상태: 템플릿 row 가 모두 노출
+ *  - 기본값 토글: update mutation 호출 + isDefault=true + config 로 전달
  *  - 실패 상태: ErrorMessage 노출
  */
 
@@ -47,22 +48,29 @@ function renderPage(): void {
   render(<SettingsPoliciesPage />, { wrapper })
 }
 
+const paidConfig = {
+  ...DEFAULT_SHIPPING_CONFIG,
+  feeType: 'paid' as const,
+  baseFee: 3000,
+}
+const directConfig = {
+  ...DEFAULT_SHIPPING_CONFIG,
+  method: 'direct' as const,
+  etaDays: 1,
+}
+
 const samplePolicies = [
   {
     id: '00000000-0000-0000-0000-0000000000a1',
     name: '기본 택배',
-    fee: 3000,
-    method: 'parcel' as const,
-    etaDays: 2,
     isDefault: true,
+    config: paidConfig,
   },
   {
     id: '00000000-0000-0000-0000-0000000000a2',
     name: '당일 직배',
-    fee: 0,
-    method: 'direct' as const,
-    etaDays: 1,
     isDefault: false,
+    config: directConfig,
   },
 ]
 
@@ -133,9 +141,7 @@ describe('SettingsPoliciesPage', () => {
         id: '00000000-0000-0000-0000-0000000000a2',
         isDefault: true,
         name: '당일 직배',
-        method: 'direct',
-        fee: 0,
-        etaDays: 1,
+        config: directConfig,
       }),
     )
   })
