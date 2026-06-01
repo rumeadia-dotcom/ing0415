@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MarketIdSchema } from './common'
+import { MarketIdSchema, IsoDateTimeOffsetSchema } from './common'
 import {
   MarketResultStatusSchema,
   RegistrationJobStatusSchema,
@@ -20,9 +20,9 @@ import {
 export const JobSummarySchema = z.object({
   id: z.string().uuid(),
   status: RegistrationJobStatusSchema,
-  createdAt: z.string().datetime(),
-  startedAt: z.string().datetime().nullable(),
-  completedAt: z.string().datetime().nullable(),
+  createdAt: IsoDateTimeOffsetSchema,
+  startedAt: IsoDateTimeOffsetSchema.nullable(),
+  completedAt: IsoDateTimeOffsetSchema.nullable(),
   retryCount: z.number().int().min(0).max(5),
   errorSummary: z.string().nullable(),
   parentJobId: z.string().uuid().nullable(),
@@ -51,9 +51,9 @@ export const JobMarketResultSchema = z.object({
   errorCode: z.string().nullable(),
   errorMessage: z.string().nullable(),
   attemptCount: z.number().int().min(0).max(3),
-  lastAttemptedAt: z.string().datetime().nullable(),
+  lastAttemptedAt: IsoDateTimeOffsetSchema.nullable(),
   excluded: z.boolean(),
-  updatedAt: z.string().datetime(),
+  updatedAt: IsoDateTimeOffsetSchema,
 })
 export type JobMarketResult = z.infer<typeof JobMarketResultSchema>
 
@@ -63,12 +63,12 @@ export const JobDetailSchema = z.object({
     sellerId: z.string().uuid(),
     productId: z.string().uuid(),
     status: RegistrationJobStatusSchema,
-    createdAt: z.string().datetime(),
-    startedAt: z.string().datetime().nullable(),
-    completedAt: z.string().datetime().nullable(),
+    createdAt: IsoDateTimeOffsetSchema,
+    startedAt: IsoDateTimeOffsetSchema.nullable(),
+    completedAt: IsoDateTimeOffsetSchema.nullable(),
     retryCount: z.number().int().min(0).max(5),
     errorSummary: z.string().nullable(),
-    cancelledAt: z.string().datetime().nullable(),
+    cancelledAt: IsoDateTimeOffsetSchema.nullable(),
     parentJobId: z.string().uuid().nullable(),
     correlationId: z.string().uuid(),
   }),
@@ -82,14 +82,14 @@ export const JobDetailSchema = z.object({
     .object({
       id: z.string().uuid(),
       status: RegistrationJobStatusSchema,
-      createdAt: z.string().datetime(),
+      createdAt: IsoDateTimeOffsetSchema,
     })
     .nullable(),
   children: z.array(
     z.object({
       id: z.string().uuid(),
       status: RegistrationJobStatusSchema,
-      createdAt: z.string().datetime(),
+      createdAt: IsoDateTimeOffsetSchema,
     }),
   ),
   marketResults: z.array(JobMarketResultSchema),
@@ -110,7 +110,7 @@ export const HistoryFilterSchema = z
     markets: z.array(MarketIdSchema).optional(),
     statuses: z.array(RegistrationJobStatusSchema).optional(),
     q: z.string().max(100).optional(),
-    cursor: z.string().datetime().optional(),
+    cursor: IsoDateTimeOffsetSchema.optional(),
     cursorId: z.string().uuid().optional(),
     pageSize: z.union([z.literal(20), z.literal(50)]).default(20),
   })
@@ -214,14 +214,20 @@ export function historyFilterToSearchParams(filter: HistoryFilter): URLSearchPar
  * period preset → (from, to) ISO date 범위 계산.
  * - today: 오늘 00:00 (Asia/Seoul) ~ 내일 00:00
  * - 7d / 30d: 현재 시각 기준 N일 전 ~ 현재
- * - custom: filter.from/to 그대로 사용 (검증은 superRefine 에서 끝남)
+ * - custom: filter.from/to (YYYY-MM-DD) 를 KST 자정 기준 ISO 로 변환.
+ *   to 는 종료일 "다음날 0시" 로 올려, RPC 의 `created_at < p_to` (배타 상한) 에서
+ *   종료일 하루치가 통째로 누락되던 버그(H2)를 방지.
  */
 export function periodToRange(filter: HistoryFilter): { from?: string; to?: string } {
   const now = new Date()
   if (filter.period === 'custom') {
     const out: { from?: string; to?: string } = {}
-    if (filter.from) out.from = filter.from
-    if (filter.to) out.to = filter.to
+    if (filter.from) out.from = new Date(`${filter.from}T00:00:00+09:00`).toISOString()
+    if (filter.to) {
+      const end = new Date(`${filter.to}T00:00:00+09:00`)
+      end.setDate(end.getDate() + 1) // 종료일 전체 포함 (배타 상한)
+      out.to = end.toISOString()
+    }
     return out
   }
   if (filter.period === 'today') {
