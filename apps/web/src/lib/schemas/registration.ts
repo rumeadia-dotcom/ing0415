@@ -37,12 +37,9 @@ export const RegistrationJobStatusSchema = z.enum(JOB_STATUSES)
 export const MarketResultStatusSchema = z.enum(MARKET_RESULT_STATUSES)
 
 export const ProductStatusSchema = z.enum(['draft', 'ready', 'registered'])
-export const ShippingMethodSchema = z.enum([
-  'parcel',
-  'direct',
-  'quick',
-  'visit_pickup',
-])
+// ShippingMethodSchema 는 common.ts 에 정의 (shipping-config.ts ↔ registration.ts 순환 방지).
+// 기존 import 처가 깨지지 않도록 re-export 유지.
+export { ShippingMethodSchema, type ShippingMethod } from './common'
 
 // ─────────────────────────────────────────────
 // Step 1: 상품 정보 입력 (n16)
