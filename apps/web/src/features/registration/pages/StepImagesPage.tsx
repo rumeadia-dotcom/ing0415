@@ -42,6 +42,7 @@ export function StepImagesPage(): JSX.Element {
   const productId = useRegisterFormStore((s) => s.productId)
   const images = useRegisterFormStore((s) => s.images)
   const setImages = useRegisterFormStore((s) => s.setImages)
+  const addImage = useRegisterFormStore((s) => s.addImage)
   const [uploading, setUploading] = useState<UploadingItem[]>([])
   const [pageError, setPageError] = useState<string | null>(null)
   // unmount 후 진행 중인 setTimeout 의 setState 호출 차단 (memory leak warning 방지).
@@ -88,10 +89,8 @@ export function StepImagesPage(): JSX.Element {
                 prev.map((u) => (u.id === item.id ? { ...u, loaded, total } : u)),
               ),
           })
-          const current = useRegisterFormStore.getState().images
-          const isFirst = current.length === 0
-          const finalMeta: ImageMeta = { ...meta, role: isFirst ? 'main' : 'sub' }
-          setImages([...current, finalMeta])
+          // 원자적 append — 병렬 업로드가 서로의 결과를 덮어쓰지 않도록 (R2).
+          addImage(meta)
         } catch (err) {
           const msg =
             err instanceof ImageApiError ? err.message : '업로드 중 오류가 발생했습니다.'

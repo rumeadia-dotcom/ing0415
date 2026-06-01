@@ -61,6 +61,37 @@ describe('useRegisterFormStore', () => {
     expect(s.mappings).toHaveLength(1)
   })
 
+  // R2: 병렬 업로드 race 방지 — addImage 는 현재 store 상태에 원자적으로 append.
+  it('addImage: 첫 장은 main, 이후는 sub 로 누적 (소실 없음)', () => {
+    const makeMeta = (id: string) => ({
+      id,
+      storagePath: `s/p/${id}.jpg`,
+      role: 'sub' as const, // 호출자가 어떤 role 을 넣어도 store 가 위치 기준으로 덮어씀
+      sortOrder: 0,
+      width: 1024,
+      height: 1024,
+      bytes: 1234,
+      mimeType: 'image/jpeg',
+      hashSha256: 'a'.repeat(64),
+    })
+    const { addImage } = useRegisterFormStore.getState()
+    addImage(makeMeta('00000000-0000-0000-0000-0000000000a1'))
+    addImage(makeMeta('00000000-0000-0000-0000-0000000000a2'))
+    addImage(makeMeta('00000000-0000-0000-0000-0000000000a3'))
+
+    const imgs = useRegisterFormStore.getState().images
+    expect(imgs).toHaveLength(3)
+    expect(imgs[0]?.role).toBe('main')
+    expect(imgs[1]?.role).toBe('sub')
+    expect(imgs[2]?.role).toBe('sub')
+    // 누적 순서 유지
+    expect(imgs.map((i) => i.id)).toEqual([
+      '00000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-0000000000a2',
+      '00000000-0000-0000-0000-0000000000a3',
+    ])
+  })
+
   it('clear() 는 모든 필드를 초기값으로', () => {
     const { setStep1, clear } = useRegisterFormStore.getState()
     setStep1({

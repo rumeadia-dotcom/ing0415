@@ -36,6 +36,12 @@ interface RegisterFormState {
   setProductId: (id: string | null) => void
   setStep1: (data: Step1Draft) => void
   setImages: (images: ImageMeta[]) => void
+  /**
+   * 이미지 1장을 원자적으로 append (동시 업로드 race 방지). 첫 장이면 role='main'.
+   * 병렬 업로드 콜백이 각자 getState→setImages 하던 read-modify-write 가 서로를 덮어써
+   * 일부 이미지가 소실되던 버그(R2) 를 막는다.
+   */
+  addImage: (meta: ImageMeta) => void
   setSelections: (selections: MarketSelection[]) => void
   setMappings: (mappings: CategoryMapping[]) => void
   clear: () => void
@@ -47,13 +53,18 @@ const initial = {
   images: [],
   selections: [],
   mappings: [],
-} satisfies Omit<RegisterFormState, 'setProductId' | 'setStep1' | 'setImages' | 'setSelections' | 'setMappings' | 'clear'>
+} satisfies Omit<RegisterFormState, 'setProductId' | 'setStep1' | 'setImages' | 'addImage' | 'setSelections' | 'setMappings' | 'clear'>
 
 export const useRegisterFormStore = create<RegisterFormState>((set) => ({
   ...initial,
   setProductId: (id) => set({ productId: id }),
   setStep1: (data) => set({ step1: data }),
   setImages: (images) => set({ images }),
+  addImage: (meta) =>
+    set((s) => {
+      const isFirst = s.images.length === 0
+      return { images: [...s.images, { ...meta, role: isFirst ? 'main' : 'sub' }] }
+    }),
   setSelections: (selections) => set({ selections }),
   setMappings: (mappings) => set({ mappings }),
   clear: () => set(initial),
