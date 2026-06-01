@@ -1,8 +1,8 @@
-# MarketCast — WIP 핸드오프 (수량 구간 배송비 C9 구현 완료 / 카테고리 추천 Phase 1 / v0.19 운영)
+# MarketCast — WIP 핸드오프 (v0.20 운영 배포 완료 / 수량 구간 배송비 C9 / 카테고리 추천 Phase 1)
 
-**develop HEAD**: `1baf715` — feat(shipping): 수량 구간(박스) 배송비 C9 — 인라인 재편 (옵션 A) (#316)
-**릴리즈 진행**: **C9 #316 develop 머지 완료 → `release/v0.20` → main 운영 배포 진행 중** (chaltteok 스킬은 `feature/skill-chaltteok` 로 분리·별도 처리)
-**main HEAD**: `e48d7e0` — release: v0.19 — 이미지 업로드 멱등 fix (#308) · **Deploy (real) success (2026-05-31)**
+**develop HEAD**: `a06a7eb` — docs(handoff): WIP 갱신 — C9 develop 머지 완료 (#317)
+**main HEAD**: `73d73db` — **release: v0.20 (#318) · Deploy (real) success (2026-06-01) — 카테고리 Phase 0/1 + C9 배송비**
+**마이그**: **dev(eqoyw)·real(lfrny) 양쪽 4개 적용 완료** (`20260601000001`~`000004`). (chaltteok 스킬은 `feature/skill-chaltteok` 로 분리·별도 PR 대기.)
 **테스트**: 1468 passed / 1 skipped / 31 todo (135 files) · **deno check 28 entrypoint green**
 **갱신일**: 2026-06-01
 **develop 누적(→v0.20, 미릴리즈)**: 카테고리 추천 Phase 1 #312 (**마이그 3개**) + Phase 0 fix #311 + 수량구간 배송비 설계 #314 + **C9 구현 #316 (마이그 1개)**
@@ -27,20 +27,13 @@
 
 ---
 
-## ⚠ 즉시 필요한 운영 액션 (v0.20 release 시)
+## ⚠ 운영 액션 현황 (v0.20)
 
-### 1. real DB 마이그 적용 (apply_db_migrations) — **release main 머지 후 필수**
-```
-GitHub → Actions → "Deploy (real)" → Run workflow
-  branch: main · apply_db_migrations: true · deploy_edge_functions: true
-```
-→ 마이그 `20260601000001`~`000003`(카테고리 Phase 1) + **`20260601000004`(C9 배송)** real(lfrny) 적용 + Edge `markets-category-index-build`·`markets-category-search` 배포.
+### 1. real DB 마이그 적용 — ✅ **완료** (2026-06-01)
+`apply_db_migrations=true` workflow_dispatch(run 26736911165) 로 real(lfrny) 에 `20260601000001`~`000004` 4개 적용 + Edge `markets-category-index-build`·`markets-category-search` 배포 완료. (dispatch 로그 `Finished supabase db push` 확인.)
 
-### 2. dev DB 마이그 적용 (dev:db 테스트용) — **파괴적, 사용자 직접**
-```
-cd apps/api && npx supabase@latest db push
-```
-→ 카테고리 Phase 1 3개 + **C9 `20260601000004`**(products.shipping_config 추가·shipping_policy_id 드롭·shipping_policies enrich) dev(eqoyw) 적용. **미적용 시 dev:db 모드에서 상품 등록·배송 템플릿 insert 가 hard-fail(fail-fast).**
+### 2. dev DB 마이그 적용 — ✅ **완료** (2026-06-01)
+`pnpm db:push:dev` 로 dev(eqoyw) 에 `20260531000002` + `20260601000001`~`000004` 적용 완료. MCP 검증: `products.shipping_config`(default free) / `shipping_policies.config` / `market_category_index` 존재.
 
 ### 3. cron vault secret 확인 (운영 — 기등록 가능성 높음)
 `category-prewarm-daily` cron 은 `supabase_functions_url`/`service_role_key` vault secret 재사용(orders-sync 동일). Vault 에서 확인만.
@@ -107,13 +100,14 @@ Seller (auth.users) ─┬─ MarketAccount ── credential_payload jsonb + pg
 | v0.18 (#301·#303) | 카테고리 게이트웨이 lazy cascading + 이미지 썸네일 signed URL | 운영 배포 |
 | v0.19 (#307·#308) | 이미지 업로드 멱등 + product_images UNIQUE 완화 | **운영 배포 (real success)** |
 | develop 누적 (#311·#312) | 카테고리 cascader Phase 0 fix + 카테고리 추천 Phase 1(마이그 3개) | develop 머지 |
-| **C9 (#316)** | **수량 구간(박스) 배송비 — 인라인 재편 + 11번가/쿠팡 wiring (옵션 A, 마이그 1개, 14커밋)** | **develop 머지 (1baf715) · release/v0.20 진행** |
+| **v0.20 (#316·#311·#312)** | **수량 구간(박스) 배송비 C9(11번가/쿠팡 wiring) + 카테고리 추천 Phase 0/1** | **운영 배포 완료 (main 73d73db, real success)** |
 
 ## 운영 현황
 
 - **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/` · 직전 deploy = v0.19 (#308) success + Deploy(real) dispatch (2026-05-31)
-- **dev Supabase** (`eqoyw`): v0.19 까지 정합. **카테고리 Phase 1 3개 + C9 1개 마이그 미적용** (운영 액션 2).
-- **real Supabase** (`lfrny`): v0.19 까지 정합. **Phase 1 + C9 마이그 미적용** (운영 액션 1 — release 후).
+- **운영 배포 URL**: `https://rumeadia-dotcom.github.io/ing0415/` · **직전 deploy = v0.20 (#318) + apply_db_migrations dispatch success (2026-06-01)**
+- **dev Supabase** (`eqoyw`): **v0.20 정합** (마이그 `20260601000001`~`000004` 적용 완료).
+- **real Supabase** (`lfrny`): **v0.20 정합** (마이그 4개 적용 완료).
 - **Lightsail 게이트웨이**: healthz 200.
 
 ---
@@ -126,9 +120,9 @@ git pull origin develop && pnpm install && pnpm test
 **1468 passed** 확인 후 진입. (Edge: `~/.deno/bin/deno check --node-modules-dir=none apps/api/supabase/functions/*/index.ts`, deno 2.8.1.)
 
 ### 우선 순위
-1. **release/v0.20 → main 머지 + deploy.yml** — 진행 중. main 머지 후 **apply_db_migrations=true workflow_dispatch 필수**(운영 액션 1, 마이그 4개) + cron vault 확인(3) + playwright 검증(4).
-2. **dev DB 마이그 push**(운영 액션 2) — `cd apps/api && npx supabase@latest db push` (dev:db 모드 동작 위해).
-3. **C3 real 실호출 검증** — 셀러 키 + IP 화이트리스트 후 5마켓 1회. C9 11번가 박스 실등록 + 네이버 enum·ESM FeeAmnt 확정 → 그때 C7(네이버)·C10(ESM) wiring.
+1. **C3 real 실호출 검증** — 셀러 키 + IP `3.36.239.243` 화이트리스트 후 5마켓 1회. **C9 11번가 박스 실등록**(dev 키 불필요로 우선 가능) + 네이버 `deliveryFeeType` enum · ESM `FeeAmnt` 할증 확정 → 그때 C7(네이버)·C10(ESM) 박스 wiring.
+2. **배포 후 라이브 검증**(운영 액션 4) — 카테고리 검색/최근 + C9 Step1 인라인 배송·박스 미리보기·쿠팡 경고(Step4·5). cron vault 확인(운영 액션 3).
+3. **chaltteok 스킬** — `feature/skill-chaltteok`(로컬) 별도 PR 로 develop 반영.
 4. **chaltteok 스킬** — `feature/skill-chaltteok`(로컬) 별도 PR 로 develop 반영.
 
 > C9 develop 머지 완료(11번가·쿠팡 wired). release/v0.20 main 머지 후 마이그 4개(Phase1 3 + C9 1) apply_db_migrations 가 핵심 운영 액션.
