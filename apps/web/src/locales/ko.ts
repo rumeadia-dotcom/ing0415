@@ -1147,6 +1147,92 @@ export const ko = {
       },
     },
   },
+  // s3 상품 등록 — 인라인 배송 설정 섹션 (ShippingConfigSection).
+  // 마스터: docs/superpowers/specs/2026-06-01-quantity-tiered-shipping-design.md §5.
+  register: {
+    shipping: {
+      sectionTitle: '배송 설정',
+      sectionDescription: '배송 방식·배송비·반품 정책을 입력합니다.',
+      // 1) 배송방식 + 예상 배송일수
+      method: {
+        label: '배송방식',
+        parcel: '택배',
+        direct: '직접배송',
+        quick: '퀵배송',
+        visit_pickup: '방문수령',
+      },
+      etaDays: {
+        label: '예상 배송일수',
+        hint: '0~30일',
+        unit: '일',
+      },
+      // 2) 배송비 유형 (radiogroup)
+      feeType: {
+        legend: '배송비 유형',
+        free: '무료',
+        conditional_free: '조건부무료',
+        paid: '유료',
+        quantity_tiered: '수량별(박스)',
+        charge_on_delivery: '착불',
+      },
+      // 3) 조건부 필드
+      baseFee: {
+        label: '기본배송비',
+        unit: '원',
+      },
+      freeThreshold: {
+        label: '무료조건 금액',
+        hint: '이 금액 이상 구매 시 무료',
+        unit: '원',
+      },
+      box: {
+        qtyPerBox: {
+          label: '박스당 수량',
+          hint: '2개 이상',
+          unit: '개',
+        },
+        feePerBox: {
+          label: '박스당 배송비',
+          unit: '원',
+        },
+        previewLabel: '구간 미리보기',
+      },
+      coupangWarning: '쿠팡은 수량별(박스) 배송비를 지원하지 않습니다. 쿠팡에는 박스당 배송비가 기본배송비로 적용됩니다.',
+      // 4) 결제방법 + 묶음배송
+      payType: {
+        label: '결제방법',
+        prepaid: '선결제',
+        collect: '착불',
+        both: '선/착불 모두',
+      },
+      bundleAllowed: {
+        label: '묶음배송 허용',
+        description: '동일 배송지 주문을 묶어 배송비를 1회만 부과합니다.',
+      },
+      // 5) 접힘 섹션 (반품/교환/도서산간)
+      advanced: {
+        summary: '반품·교환·도서산간 (선택)',
+        returnFee: {
+          label: '반품비',
+          unit: '원',
+        },
+        exchangeFee: {
+          label: '교환비',
+          unit: '원',
+        },
+        areaSurcharge: {
+          jeju: {
+            label: '도서산간 제주',
+            unit: '원',
+          },
+          island: {
+            label: '도서산간 추가',
+            unit: '원',
+          },
+        },
+      },
+    },
+  },
 } as const
 
 export type Locale = typeof ko
