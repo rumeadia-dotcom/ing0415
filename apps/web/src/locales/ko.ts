@@ -744,7 +744,6 @@ export const ko = {
         },
         baseFee: '기본배송비 {fee}',
         freeOver: '{amount} 이상 무료',
-        perBox: '박스당 {qty}개 · {fee}',
         etaDays: '배송 {days}일',
       },
       methodLabels: {
@@ -757,10 +756,8 @@ export const ko = {
         isDefault: '기본',
       },
       fee: {
-        free: '무료',
         unit: '원',
       },
-      etaUnit: '일',
       columns: {
         isDefault: '기본값',
       },
@@ -1161,7 +1158,6 @@ export const ko = {
       template: {
         label: '배송 템플릿 적용 (선택)',
         none: '직접 입력',
-        empty: '저장된 배송 템플릿이 없습니다.',
         manageLink: '배송 템플릿 관리',
       },
       // 다음 버튼 blockingReason (수량별 박스 미완성)

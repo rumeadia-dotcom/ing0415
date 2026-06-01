@@ -2,8 +2,13 @@
 
 > 상품마다 다른 "수량 구간별 차등 배송비"(특정 개수 초과 시 다른 박스 → 배송비 배수)를 5개 마켓에 등록할 수 있게 모델링하고, 그 과정에서 현재의 "별도 엔티티 + 필수 select" 구조인 `shipping_policies`(배송 정책)를 **상품 인라인 배송 설정 + 선택적 템플릿**으로 재편한다.
 >
-> 상태: **설계 확정 (§1~§4 사용자 승인 2026-06-01, §5~§8 제시)**. 구현은 후속 PR.
-> 의존(갱신 대상): `cross-cutting/shipping-fee-model.md`, `features/registration.md §3.2`, `design-renewal/s3-register.md`.
+> 상태: **구현 완료 (옵션 A) — C9, 2026-06-01**. 실제 구현이 본 설계와 다른 점:
+> - **어댑터 wiring**: 11번가(`dlvCstInstBasiCd=04`)·쿠팡(단일 fallback+경고)만 `transformProduct` 에 wired (real 경로 동작). **네이버 `repeatQuantity` / ESM `each.feeType=4` 변환기는 작성·단위테스트만, 어댑터 미wiring** — 네이버 Edge 어댑터가 아직 stub, ESM 은 조회형 전환과 충돌하여 옵션 A 로 분리(C3·C7 real 트랙에서 wiring).
+> - **파일명**: zod 단일 소스는 `lib/schemas/shipping-config.ts` (기존 송장 도메인 `shipping.ts` 와의 이름 충돌 회피). 폐기된 `shipping-policy.ts` 는 삭제.
+> - **템플릿 스키마**: `ShippingTemplateSchema` 는 `{ name, isDefault, config }` 중첩(별도 flat 컬럼 미보존).
+> - **back-compat**: `Product.shippingFeeKrw` 는 **제거하지 않고 유지**(유효 단일배송비 파생) + `shippingConfig` 추가 — 기존 어댑터 무중단.
+> - **워커**: `resolveShippingFee`(shipping_policies.fee 조회) 제거 → `parseShippingConfig(products.shipping_config)` + `effectiveSingleFee`.
+> 의존(동기화 완료): `cross-cutting/shipping-fee-model.md`, `features/registration.md §3.2`, `design-renewal/s3-register.md`.
 > 근거: 2026-05-31~06-01 사용자 요구 — "상품마다 배송비 정책을 다르게, 특정 개수 넘으면 박스가 나뉘어 배송비 배수". CLAUDE.md "설계 원칙 — 사용자 편의 우선".
 
 ---
@@ -177,6 +182,12 @@ export const ShippingTemplateSchema = ShippingConfigSchema.and(z.object({
 | **어댑터** | 네이버 `real/naver/index.ts`(repeatQuantity)·11번가 `eleven-st-map.ts`(04+dlvCnt1/2/dlvCst3)·ESM(each.feeType=4)·쿠팡 `real/coupang/index.ts`(fallback) `transformProduct` + 공용 `expandBoxToTiers` 순수함수 + `parity.spec` |
 | **문서동기화** | `cross-cutting/shipping-fee-model.md`(Layer1 모델 — feeType에 quantity_tiered/박스/fallback 반영, §2 표 갱신)·`features/registration.md §3.2`·`design-renewal/s3-register.md` (CLAUDE.md 2개 산출물 룰) |
 
+> **실제 구현(C9)과의 차이 (2026-06-01):**
+> - **어댑터**: 위 표는 4 마켓 `transformProduct` 동시 wiring 을 가정했으나, 실제는 **11번가 + 쿠팡만 wired**. 네이버 변환기(`repeatQuantity`)는 함수·단위테스트만 — **네이버 Edge 어댑터가 아직 stub** 이라 wiring 대상이 없음. ESM `each.feeType=4` 변환기도 작성만 — 조회형 전환과 충돌하여 미wiring. 두 마켓은 C3·C7 real 트랙에서 wiring.
+> - **web 어댑터**: 박스→마켓 매핑은 **Edge 측 순수모듈**(`_shared/market-adapters/box-shipping.ts` + `expandBoxToTiers`)에서만 사용. web mock 어댑터는 박스 전개를 직접 쓰지 않음(미리보기는 web `lib/shipping/expand-box.ts` 의 `describeShippingForMarket` 사용).
+> - **zod 파일명**: 표의 `lib/schemas/shipping.ts` 는 실제로 **`shipping-config.ts`**(기존 송장 `shipping.ts` 와 충돌 회피). `shipping-policy.ts` 는 삭제.
+> - **"0원 버그"**: §7·아래 회귀 항목의 `shippingFeeKrw:0` 하드코딩 버그는 **C9 이전에 이미 `resolveShippingFee` 도입으로 해소**돼 있었음 — C9 는 그 경로를 `shipping_config` 로 교체한 것(신규 버그 픽스 아님).
+
 ---
 
 ## 7. 테스트
@@ -184,7 +195,7 @@ export const ShippingTemplateSchema = ShippingConfigSchema.and(z.object({
 - **`expandBoxToTiers` + 마켓 변환 순수함수** (집중 대상): 11번가 10박스 생성/초과 캡 · ESM 5박스/캡 · 네이버 repeatQuantity · 쿠팡 fallback 단일+경고플래그. 각 pass + fail 시나리오 (R-001).
 - **`ShippingConfigSchema`**: feeType별 동반필드 필수 (paid→baseFee 없으면 fail, conditional_free→freeThreshold 없으면 fail, quantity_tiered→box 없으면 fail). pass 1 + fail ≥1 (zod 규약).
 - **`parity.spec`**: mock↔real `transformProduct` 배송비 동등성 (R-006).
-- **워커 fee resolve 회귀** — 기존 `shippingFeeKrw:0` 하드코딩 버그(`shipping-fee-model.md §3.1`) 동시 해소 검증.
+- **워커 fee resolve 회귀** — `shipping_config` 경로(`parseShippingConfig` + `effectiveSingleFee`)가 셀러 배송비를 올바로 반영하는지 검증. (참고: `shippingFeeKrw:0` 하드코딩 버그는 C9 이전 `resolveShippingFee` 로 이미 해소됨 — C9 는 그 경로를 `shipping_config` 로 교체.)
 - (선택) E2E 골든패스: 수량별 박스 상품 1건 등록.
 
 ---

@@ -33,7 +33,7 @@
 | 1.1.1 | 상품명 자동 검증 + 실시간 중복 확인 | Step 1 (`useDuplicateProductCheck` 500ms 디바운스) |
 | 1.1.2 | 이미지 다중 업로드 + 미리보기 + 순서 조정 | Step 2 (`ImageDropzone` / `ImageThumbnailGrid`) |
 | 1.1.3 | 동적 카테고리 선택 + 필터링 | Step 3 (`MarketOptionsCard` — 카테고리 + 마켓별 동적 등록필드) |
-| 1.1.4 | 기본 배송 정보 입력 | Step 1 의 `shippingPolicyId` 선택 (정책 마스터는 별도 화면) |
+| 1.1.4 | 기본 배송 정보 입력 + 수량 구간(박스) 배송비 (C9) | Step 1 의 **인라인 배송 설정** (`shippingConfig`, `ShippingConfigSection`). 배송 템플릿은 선택적 prefill |
 | 1.2.1 | 마켓별 상품 속성 자동 변환 | Step 4 미리보기 (`transformProduct` 클라이언트 + 서버 결정성) |
 | 1.2.2 | 마켓별 이미지 규격·포맷 자동 최적화 | Step 2 업로드 시 이미지 파이프라인 (`image-pipeline.md`) |
 | 1.2.3 | 마켓별 필수 항목 자동 체크 + 알림 | Step 4 `registration-validate` Edge Function |
@@ -86,7 +86,7 @@
 
 - **라우트**: `/register/info`
 - **파일**: `apps/web/src/features/registration/pages/StepInfoPage.tsx`
-- **목적**: 마스터 상품 정보 (이름·가격·정상가·브랜드·제조사·내부 카테고리·배송 정책·설명) 입력 및 `products` 테이블에 draft 로 upsert.
+- **목적**: 마스터 상품 정보 (이름·가격·정상가·브랜드·제조사·내부 카테고리·**인라인 배송 설정**·설명) 입력 및 `products` 테이블에 draft 로 upsert. **C9 (2026-06-01)**: 기존 "배송 정책 select(`shippingPolicyId`)" 는 인라인 **배송 설정 섹션**(`ShippingConfigSection`)으로 대체됐다 — 배송비/배송조건이 상품에 직접 저장(`products.shipping_config`)되며, 배송 정책 마스터는 선택적 **배송 템플릿(prefill)** 으로 강등.
 
 **입력 항목** (zod: `lib/schemas/registration.ts` `Step1Schema`):
 
@@ -99,7 +99,8 @@
 | `manufacturer` | string \| null | ≤ 50자 | 동상 |
 | `descriptionHtml` | string \| null | ≤ 50000자 | **v0.6 부터 Tiptap WYSIWYG** (StarterKit + Link + Image + Placeholder) + DOMPurify sanitize |
 | `baseCategoryId` | string | required | 내부 분류 키 (마켓 카테고리는 Step 3 에서 별도 매핑) |
-| `shippingPolicyId` | string uuid | required | `useShippingPolicies` select. 0개면 빠른 생성 안내 (별도 페이지) |
+| `shippingConfig` | object (`ShippingConfigSchema`) | required | **인라인 배송 설정** (`ShippingConfigSection`). 배송방식 / 예상일수 / 배송비유형 5종 라디오(`free` / `conditional_free` / `paid` / `quantity_tiered` / `charge_on_delivery`) / 박스 입력 + 실시간 구간 미리보기 + 쿠팡 경고 / 결제·묶음 / 반품·교환·도서산간(접힘) |
+| (배송 템플릿 적용) | dropdown (선택) | optional | `useShippingPolicies` 가 1개 이상일 때만 노출. 선택 시 해당 템플릿 `config` 를 폼에 prefill(덮어쓰기). "직접 입력" + "배송 템플릿 관리" 링크 |
 
 **워크플로우**:
 
@@ -109,28 +110,38 @@
 | `name` 입력 (2자 이상) | 500ms 디바운스 → `useDuplicateProductCheck` 쿼리 → `duplicate=true` 면 경고 라벨 |
 | `price` 입력 | onChange 즉시 zod 검증 (RHF mode='onChange') |
 | `originalPrice < price` | RHF refine 오류 → `정가는 판매가 이상이어야 합니다` |
-| 배송 정책 select 변경 | 즉시 store 반영 |
+| 배송비 유형 라디오 변경 | 조건부 필드 토글 (`paid`→기본배송비 / `conditional_free`→기본배송비+무료조건금액 / `quantity_tiered`→박스 입력+미리보기+쿠팡 경고) |
+| 박스(`qtyPerBox`/`feePerBox`) 입력 | `describeTiers` 로 실시간 구간 미리보기 텍스트 갱신 (`qtyPerBox≥2`·`feePerBox≥0` 충족 시) |
+| 배송 템플릿 적용 select 변경 | 선택 템플릿 `config` 를 폼에 prefill(덮어쓰기) → 즉시 store 반영 |
 | "다음: 이미지" 클릭 | `setStep1` → `useUpsertProductDraft` mutate → 성공 시 `setProductId` + `/register/images` navigate. 실패 시 sonner toast (자세한 메시지는 `registration-error-messages.ts`) |
 
+**인라인 배송 설정 섹션** (`ShippingConfigSection`, C9 — `RegisterLayout` Step 1 내):
+1. **배송방식** select (택배/직접/퀵/방문수령) + **예상 배송일수** number (0~30일).
+2. **배송비 유형** 라디오그룹 5종 — `free`(무료) / `conditional_free`(조건부무료) / `paid`(유료) / `quantity_tiered`(수량별·박스) / `charge_on_delivery`(착불).
+3. **조건부 필드** — `paid`: 기본배송비 / `conditional_free`: 기본배송비 + 무료조건금액 / `quantity_tiered`: 박스당 수량(`qtyPerBox≥2`) + 박스당 배송비(`feePerBox`) **+ 실시간 구간 미리보기**(`describeTiers`) + **쿠팡 미지원 경고**(`ErrorMessage tone="warning"`).
+4. **결제방법**(선불/착불/둘다) + **묶음배송 허용** 토글.
+5. **반품·교환·도서산간**(선택) — `<details>` 접힘. 반품배송비 / 교환배송비 / 제주 / 도서산간 추가비.
+
 **주요 컴포넌트**:
-- shadcn: `Card` / `Input` / `Label` / `Tooltip` / `ErrorMessage` / `Skeleton` / `Button`
-- 자체: `Field` (label + children + error 슬롯) — 파일 내 private 컴포넌트
+- shadcn: `Card` / `Input` / `Label` / `Switch` / `Tooltip` / `ErrorMessage` / `Skeleton` / `Button`
+- 자체: `Field` (label + children + error 슬롯) / `ShippingConfigSection` (인라인 배송 설정, `name` prop 로 RHF 경로 주입 — `SettingsPoliciesPage` 와 공유)
 
 **데이터 의존**:
-- `useShippingPolicies()` — TanStack Query, 셀러의 배송 정책 목록.
+- `useShippingPolicies()` — TanStack Query, 셀러의 **배송 템플릿** 목록 (선택적 prefill 용. 0개면 템플릿 드롭다운 미노출).
 - `useDuplicateProductCheck(name, productId)` — TanStack Query, 동명 미완료 상품 확인 (현재 편집 중인 productId 는 제외).
-- `useUpsertProductDraft()` — mutation, `products` 테이블 draft upsert.
+- `useUpsertProductDraft()` — mutation, `products` 테이블 draft upsert (`shipping_config` 인라인 포함).
 
 **상태 분기** (loading / data / error / empty + partial 해당 없음):
 
-- **loading**: 배송 정책 fetch 중 → `Skeleton`.
-- **data**: 정책 select 옵션 렌더.
-- **error**: 배송 정책 fetch 실패 → `ErrorMessage` ("새로고침해 주세요").
-- **empty**: 배송 정책 0개 → 경고 라벨 ("등록된 배송 정책이 없습니다. 별도 화면에서 1건 이상 생성해 주세요").
+- **loading**: 배송 템플릿 fetch 중 → 드롭다운 자리 `Skeleton` (인라인 배송 설정 입력 자체는 fetch 무관, 항상 즉시 가능).
+- **data**: 템플릿 1개 이상 → 적용 드롭다운 렌더. 인라인 배송 설정 폼은 항상 렌더.
+- **error**: 배송 템플릿 fetch 실패 → 드롭다운만 비노출 (인라인 입력은 정상). 등록 자체는 차단하지 않음.
+- **empty**: 배송 템플릿 0개 → 드롭다운 미노출 (직접 입력으로 충분 — C9 이후 정책 0개가 등록 blocker 아님).
 - 업서트 mutation 진행 중 → `blockingReasons` 에 "처리 중…" 추가, 버튼 disabled + tooltip.
 
 **다음 단계 진입 가드** (`blockingReasons`):
 - 폼 zod 에러 1개라도 있음 → "필수 항목을 모두 입력하세요"
+- 배송비 유형 `quantity_tiered` 인데 박스 미완성 (`qtyPerBox`/`feePerBox` 누락·미달) → "박스당 수량·배송비를 입력하세요"
 - 중복 상품명 → "동일 상품명의 미완료 상품이 있습니다"
 - `upsert.isPending` 또는 `form.formState.isSubmitting` → "처리 중…"
 
@@ -222,7 +233,7 @@
 - **동적 등록필드 (PR-3.5)**: `MarketOptionsCard` 는 `getRegistrationFieldsForMarket(marketId)` 가 돌려준 `RegistrationFieldMeta[]` 를 `kind` 별로 렌더(마켓 하드코딩 분기 없음). 그 외 마켓은 필드 0개 → 카테고리만. required 필드 미입력 시 `makeStep3Schema` fail + 다음 버튼 비활성 tooltip.
 - **ESM 출하지/발송정책 select (PR-E2, 조회형 Layer 2)**: ⚠️ 생성형(`shippingProfile` + `esm_shipping_profiles` 테이블 + `/settings/shipping/esm-profiles` 생성 화면) → **조회형으로 전환**(`esm.md` "전환 결정 2026-05-30"). ESM(gmarket/auction)은 `kind='select'` + `optionsSource='esmShippingPlace'|'esmDispatchPolicy'` 필드 2개(`shippingPlaceNo`/`dispatchPolicyNo`). `useEsmShippingOptions(marketAccountId)`(Edge `esm-shipping-list` POST `{ marketAccountId }` 호출 — ESM 17 출하지 / 19 발송정책 조회)로 옵션을 채운다. 4상태: loading(skeleton) / error(조회 실패 문구) / data(이름 표시·번호 값) / empty(ESM Plus 등록 안내 + ESM Plus 외부 링크 — 우리 앱은 생성 화면 없음). 발송정책은 사이트별(G/A) — Edge 가 계정 site 분만 태깅해 내려주므로 카드는 받은 목록을 그대로 노출한다. 표시·저장은 `placeName`/`placeNo`·`dispatchPolicyName`/`dispatchPolicyNo` 만(주소·연락처 등 PII 미저장·미노출). 미선택 시 `makeStep3Schema` fail + blockingReason("출하지 선택 필요"/"발송정책 선택 필요") tooltip. (생성형 UI/훅/테이블 제거는 PR-E3/E4.)
 - **11번가 출고지/반품지 select (PR-2, 조회형 Layer 2)**: 11번가는 `kind='select'` + `optionsSource='elevenStOutbound'|'elevenStReturn'` 필드 2개(`outboundAddrSeq`/`returnAddrSeq`). `useElevenStShippingAddresses(marketAccountId)`(Edge `eleven-st-shipping-list` 호출 — 11번가 1014/1015 조회)로 옵션을 채운다. 4상태: loading(skeleton) / error(조회 실패 문구) / data(addrNm 표시·addrSeq 값) / empty(셀러오피스 등록 안내 + 11번가 셀러오피스 외부 링크 — 우리 앱은 생성 화면 없음). 표시·저장은 `addrNm`/`addrSeq` 만(주소·전화 등 PII 미저장·미노출 — `features/11st.md §3`). 미선택 시 `makeStep3Schema` fail + blockingReason("출고지 선택 필요"/"반품/교환지 선택 필요") tooltip. 11번가 `officialNotice`(상품정보고시)는 PR-4 에서 같은 카드에 추가됨(아래 항목).
-- **11번가 상품등록 backend (PR-3, 화면 변화 없음)**: 선택한 카테고리(leaf)·배송 정책(Layer 1)·출고지/반품지(Layer 2 select)·이미지가 `transformProduct` 에서 11번가 `<Product>`(prodservices 1003) 필수 20+ 필드로 매핑된다 — 상수(고정가/일반배송/새상품/택배/업체배송) + 배송 인라인(`dlvCstInstBasiCd`/`dlvCst1`/`PrdFrDlvBasiAmt`/`jeju·islandDlvCst`/`rtngd·exchDlvCst`/`bndlDlvCnYn`) + `addrSeqOut`/`addrSeqIn` + (카테고리 KC인증 필수 시) `ProductCertGroup`. 이미지는 `prdImage01~12`(대표+추가 11), 13장↑ 은 무음 드롭 + `images_truncated` warning(등록 결과 카드에 노출). `createProduct` 는 `POST /prodservices/product`(XML EUC-KR, `openapikey` 헤더) → 응답 `ClientMessage.resultCode∈{200,210}` + `productNo` 면 성공(`externalId`/`productUrl`). 그 외(400 일500개 한도 / 500 검증실패) 는 등록 결과 카드에 마켓 오류 메시지로 표시. `officialNotice`(ProductNotification) 입력 UI 는 PR-4(아래). (마스터: `features/11st.md §4.1/§4.2/§7`.)
+- **11번가 상품등록 backend (PR-3, 화면 변화 없음)**: 선택한 카테고리(leaf)·배송 설정(Layer 1 = `products.shipping_config` 인라인, C9)·출고지/반품지(Layer 2 select)·이미지가 `transformProduct` 에서 11번가 `<Product>`(prodservices 1003) 필수 20+ 필드로 매핑된다 — 상수(고정가/일반배송/새상품/택배/업체배송) + 배송 인라인(`dlvCstInstBasiCd`(수량별=04)/`dlvCst1`/`dlvCst3`(박스 구간)/`PrdFrDlvBasiAmt`/`jeju·islandDlvCst`/`rtngd·exchDlvCst`/`bndlDlvCnYn`) + `addrSeqOut`/`addrSeqIn` + (카테고리 KC인증 필수 시) `ProductCertGroup`. 이미지는 `prdImage01~12`(대표+추가 11), 13장↑ 은 무음 드롭 + `images_truncated` warning(등록 결과 카드에 노출). `createProduct` 는 `POST /prodservices/product`(XML EUC-KR, `openapikey` 헤더) → 응답 `ClientMessage.resultCode∈{200,210}` + `productNo` 면 성공(`externalId`/`productUrl`). 그 외(400 일500개 한도 / 500 검증실패) 는 등록 결과 카드에 마켓 오류 메시지로 표시. `officialNotice`(ProductNotification) 입력 UI 는 PR-4(아래). (마스터: `features/11st.md §4.1/§4.2/§7`.)
 - **상품정보고시 — ESM (PR-5)**: `kind='officialNotice'` 필드는 `OfficialNoticeField` 로 렌더. ESM 은 상품군 select(41개 법정 표준 상품군, `ESM_OFFICIAL_NOTICE_GROUPS`) → 선택 군의 필수 고시 항목 동적 폼(군의 정적 `requiredItemCodes` 는 코드 잠금 행으로 seed, 그 외 군은 셀러가 `{code,value}` 행 추가). 입력값은 `EsmOfficialNotice`({officialNoticeNo, details[{code,value}]}) 형태로 `marketOptions.officialNotice` 에 적재 → 오케스트레이터가 `mapping.extra.officialNotice` 로 흘려 `transformProduct` 가 페이로드에 매핑. 군 미선택/항목 value 누락은 `makeStep3Schema`(객체 형태 완성도 판정 `isMarketOptionValuePresent`) fail → blockingReason "상품정보고시 입력 필요" tooltip + 다음 버튼 비활성.
 - **상품정보고시 — 11번가 (PR-4)**: 같은 `OfficialNoticeField` 공용 프레임을 **재사용**(컴포넌트 마켓 하드코딩 0 — `MarketOptionsCard` 가 marketId 로 상품군 마스터 `config` 만 주입). 11번가 상품군 마스터(`ELEVEN_ST_NOTICE_GROUPS`)는 spec 1003 의 `ProductNotification`(`type`+`item[{code,name}]`) 41군 전체 코드가 **외부 첨부파일**이라 확보 군이 1개(`891011`)뿐(C4 backlog) → **상품군 select 1개 + "직접 입력(free-form)" 옵션**(셀러가 미확보 군의 `type`·항목 code/name 직접 입력, 코드 날조 금지). UI 값 형태는 ESM 과 동일 generic(`{officialNoticeNo, details[{code,value}]}`) → `marketOptions.officialNotice` 적재 → `transformProduct`(`map.ts normalizeElevenStOfficialNotice`)가 11번가 `ProductNotification`(`{type, item:[{code,name}]}`)으로 변환해 `<Product>` 에 주입(PR-3 슬롯). 미입력 시 `makeStep3Schema` fail + blockingReason "상품정보고시 입력 필요". 고시 데이터는 PII 없음(소재·원산지 등 상품 속성).
 
@@ -262,6 +273,7 @@
 | 검증 응답 도착 | 마켓별 `MarketPreviewCard` 렌더 — payload 요약 + 예상 수수료 + issue (error/warning) 목록 |
 | issue.code 가 blocker 목록에 포함 | 등록 실행 disabled + blockingReasons |
 | warning 만 있음 | 사용자 인지 후 등록 가능 (오버레이 confirm 없이 그냥 통과) |
+| (C9) 배송비 미리보기 섹션 | `step1.shippingConfig` + 선택 마켓별로 `describeShippingForMarket` 결과 표시 — 마켓마다 실제 적용될 배송비를 사전 노출. `quantity_tiered` + 쿠팡 선택 + `marketOverrides.coupang` 미설정 시 **쿠팡 수량구간 미지원 경고**(`coupangPreviewWarning`, 박스당 단일요금 fallback 안내) |
 | "일괄 등록 실행 (N개 마켓)" | `useRegistrationStart` mutate → 성공 시 `/register/result/<jobId>` replace |
 
 **검증 issue 코드 (blocker)**:
@@ -274,7 +286,7 @@ token_expired / token_revoked / mapping_not_found
 (warning 코드 = `image_size_too_small` 등)
 
 **주요 컴포넌트**:
-- 자체: `MarketPreviewCard` (`marketId` / `estimatedFee` / `issues[]` / `hasPayload`)
+- 자체: `MarketPreviewCard` (`marketId` / `estimatedFee` / `issues[]` / `hasPayload`), **배송비 미리보기 섹션**(C9 — 마켓별 `describeShippingForMarket` 요약 + 쿠팡 `quantity_tiered` 경고 `ErrorMessage tone="warning"`)
 - shadcn: `Card` / `Skeleton` / `ErrorMessage` / `Tooltip` / `Button`
 
 **데이터 의존**:
@@ -309,6 +321,7 @@ token_expired / token_revoked / mapping_not_found
 | 액션 | 반응 |
 |---|---|
 | 페이지 진입 | `useRegistrationJob(jobId)` 시작 — useQuery + Supabase Realtime 2채널 (`registration_jobs` row update + `registration_job_market_results` 행 update) |
+| (C9) 쿠팡 수량구간 fallback 경고 배너 | 동일 세션(`step1` 보유)에서 `shippingConfig.feeType==='quantity_tiered'` + 쿠팡 시도 + `marketOverrides.coupang` 미설정 시 상단 경고 배너(`coupangResultWarning`) — 쿠팡은 박스당 단일요금으로 등록됐음을 사후 고지 |
 | 진행 중 | `JobProgressBar` 가 상위 status + 마켓별 진행률 합산하여 표시. terminal 진입 시 refetchInterval 자동 정지 |
 | `status === 'partial'` | `PartialJobBanner` 노출 — 성공 N / 실패 M 요약 + "전체 재시도" + "마켓 제외 후 재등록" |
 | 마켓 행 "재시도" | `useRegistrationRetry.mutate({ jobId, marketResultIds: [resultId] })` |

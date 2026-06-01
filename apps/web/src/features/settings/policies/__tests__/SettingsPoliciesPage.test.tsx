@@ -82,7 +82,7 @@ describe('SettingsPoliciesPage', () => {
     deleteMutateMock.mockReset()
   })
 
-  it('빈 상태: empty CTA + 새 정책 추가 버튼 노출', () => {
+  it('빈 상태: empty CTA + 새 템플릿 추가 버튼 노출', () => {
     useShippingPoliciesMock.mockReturnValue({
       isPending: false,
       isError: false,
@@ -97,7 +97,7 @@ describe('SettingsPoliciesPage', () => {
     expect(ctas.length).toBeGreaterThan(0)
   })
 
-  it('데이터 상태: 정책 row 가 모두 노출된다', () => {
+  it('데이터 상태: 템플릿 row 가 모두 노출된다', () => {
     useShippingPoliciesMock.mockReturnValue({
       isPending: false,
       isError: false,
