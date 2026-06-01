@@ -32,13 +32,19 @@ on conflict (id) do update set
   updated_at = now();
 
 -- ─────────────────────────────────────────────────────────────
--- 2. 배송 정책 (v0.6 신규 — shipping_policies)
+-- 2. 배송 정책 (C9 재편 — shipping_policies = 배송 템플릿)
 -- ─────────────────────────────────────────────────────────────
-insert into public.shipping_policies (id, seller_id, name, fee, method, eta_days, is_default, created_at, updated_at)
+insert into public.shipping_policies (id, seller_id, name, is_default, config, created_at, updated_at)
 values
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', :'test_seller_id', '기본 정책 (3,000원)', 3000, 'courier', 2, true, now(), now()),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', :'test_seller_id', '무료 배송', 0, 'courier', 3, false, now(), now()),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', :'test_seller_id', '제주/도서산간 추가 2,500원', 3000, 'courier', 4, false, now(), now())
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', :'test_seller_id', '기본 택배 (3,000원)', true,
+   '{"method":"parcel","etaDays":2,"feeType":"paid","baseFee":3000,"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now()),
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', :'test_seller_id', '무료 배송', false,
+   '{"method":"parcel","etaDays":3,"feeType":"free","baseFee":0,"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now()),
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', :'test_seller_id', '수량별 박스 (12개 2,500원)', false,
+   '{"method":"parcel","etaDays":2,"feeType":"quantity_tiered","baseFee":0,"box":{"qtyPerBox":12,"feePerBox":2500},"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now())
 on conflict (id) do nothing;
 
 -- ─────────────────────────────────────────────────────────────
@@ -55,25 +61,35 @@ values
 on conflict (id) do nothing;
 
 -- ─────────────────────────────────────────────────────────────
--- 4. 상품 (products — 5개 샘플)
+-- 4. 상품 (products — 5개 샘플, C9 인라인 배송 설정)
 -- ─────────────────────────────────────────────────────────────
-insert into public.products (id, seller_id, name, price, original_price, brand, manufacturer, description_html, base_category_id, shipping_policy_id, created_at, updated_at)
+insert into public.products (id, seller_id, name, price, original_price, brand, manufacturer, description_html, base_category_id, shipping_config, created_at, updated_at)
 values
   ('cccccccc-cccc-cccc-cccc-cccccccccc01', :'test_seller_id', '테스트 상품 A — 기본 의류', 29900, 39900, 'TestBrand', 'TestMfg',
    '<p>테스트 상품 A 의 상세 설명. <strong>WYSIWYG</strong> 미리보기.</p>',
-   'category-clothing-default', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', now(), now()),
+   'category-clothing-default',
+   '{"method":"parcel","etaDays":2,"feeType":"paid","baseFee":3000,"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now()),
   ('cccccccc-cccc-cccc-cccc-cccccccccc02', :'test_seller_id', '테스트 상품 B — 뷰티 세트', 49900, null, 'TestBrand', null,
    '<p>뷰티 세트 상세.</p>',
-   'category-beauty-default', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', now(), now()),
+   'category-beauty-default',
+   '{"method":"parcel","etaDays":3,"feeType":"free","baseFee":0,"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now()),
   ('cccccccc-cccc-cccc-cccc-cccccccccc03', :'test_seller_id', '테스트 상품 C — 식품', 12000, null, null, '식품 제조사',
    '<p>식품 상세.</p>',
-   'category-food-default', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', now(), now()),
+   'category-food-default',
+   '{"method":"parcel","etaDays":2,"feeType":"quantity_tiered","baseFee":0,"box":{"qtyPerBox":6,"feePerBox":3000},"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now()),
   ('cccccccc-cccc-cccc-cccc-cccccccccc04', :'test_seller_id', '테스트 상품 D — 가전', 199000, 250000, 'TestBrand', 'TestMfg',
    '<p>가전 상세. <em>WYSIWYG</em> 적용.</p>',
-   'category-appliance-default', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', now(), now()),
+   'category-appliance-default',
+   '{"method":"parcel","etaDays":4,"feeType":"paid","baseFee":3000,"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now()),
   ('cccccccc-cccc-cccc-cccc-cccccccccc05', :'test_seller_id', '테스트 상품 E — 도서', 18000, null, null, null,
    '<p>도서 상세.</p>',
-   'category-book-default', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', now(), now())
+   'category-book-default',
+   '{"method":"parcel","etaDays":2,"feeType":"free","baseFee":0,"payType":"prepaid","bundleAllowed":false}'::jsonb,
+   now(), now())
 on conflict (id) do nothing;
 
 -- ─────────────────────────────────────────────────────────────
