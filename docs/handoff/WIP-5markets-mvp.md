@@ -1,7 +1,7 @@
 # MarketCast — WIP 핸드오프 (수량 구간 배송비 C9 구현 완료 / 카테고리 추천 Phase 1 / v0.19 운영)
 
-**develop HEAD**: `4c5026e` — docs(shipping): 수량 구간(박스) 배송비 설계 + WIP 갱신 (C9) (#314)
-**이 브랜치**: `feature/quantity-tiered-shipping` — **C9 수량 구간(박스) 배송비 구현 완료 (옵션 A)** · **PR #316 → develop (CI 대기)**
+**develop HEAD**: `1baf715` — feat(shipping): 수량 구간(박스) 배송비 C9 — 인라인 재편 (옵션 A) (#316)
+**릴리즈 진행**: **C9 #316 develop 머지 완료 → `release/v0.20` → main 운영 배포 진행 중** (chaltteok 스킬은 `feature/skill-chaltteok` 로 분리·별도 처리)
 **main HEAD**: `e48d7e0` — release: v0.19 — 이미지 업로드 멱등 fix (#308) · **Deploy (real) success (2026-05-31)**
 **테스트**: 1468 passed / 1 skipped / 31 todo (135 files) · **deno check 28 entrypoint green**
 **갱신일**: 2026-06-01
@@ -107,7 +107,7 @@ Seller (auth.users) ─┬─ MarketAccount ── credential_payload jsonb + pg
 | v0.18 (#301·#303) | 카테고리 게이트웨이 lazy cascading + 이미지 썸네일 signed URL | 운영 배포 |
 | v0.19 (#307·#308) | 이미지 업로드 멱등 + product_images UNIQUE 완화 | **운영 배포 (real success)** |
 | develop 누적 (#311·#312) | 카테고리 cascader Phase 0 fix + 카테고리 추천 Phase 1(마이그 3개) | develop 머지 |
-| **C9 (#316)** | **수량 구간(박스) 배송비 — 인라인 재편 + 11번가/쿠팡 wiring (옵션 A, 마이그 1개, 14커밋)** | **PR #316 → develop (CI 대기)** |
+| **C9 (#316)** | **수량 구간(박스) 배송비 — 인라인 재편 + 11번가/쿠팡 wiring (옵션 A, 마이그 1개, 14커밋)** | **develop 머지 (1baf715) · release/v0.20 진행** |
 
 ## 운영 현황
 
@@ -126,11 +126,12 @@ git pull origin develop && pnpm install && pnpm test
 **1468 passed** 확인 후 진입. (Edge: `~/.deno/bin/deno check --node-modules-dir=none apps/api/supabase/functions/*/index.ts`, deno 2.8.1.)
 
 ### 우선 순위
-1. **PR #316 머지(squash) → develop** — CI green 확인 후. 머지 후 **dev DB 마이그 push**(운영 액션 2) 해야 dev:db 모드 동작.
-2. **release/v0.20 → main 배포 + 마이그 적용** — Phase 0/1 + C9 운영 반영. main 머지 후 **apply_db_migrations workflow_dispatch 필수**(운영 액션 1) + cron vault 확인(3) + playwright 검증(4).
+1. **release/v0.20 → main 머지 + deploy.yml** — 진행 중. main 머지 후 **apply_db_migrations=true workflow_dispatch 필수**(운영 액션 1, 마이그 4개) + cron vault 확인(3) + playwright 검증(4).
+2. **dev DB 마이그 push**(운영 액션 2) — `cd apps/api && npx supabase@latest db push` (dev:db 모드 동작 위해).
 3. **C3 real 실호출 검증** — 셀러 키 + IP 화이트리스트 후 5마켓 1회. C9 11번가 박스 실등록 + 네이버 enum·ESM FeeAmnt 확정 → 그때 C7(네이버)·C10(ESM) wiring.
+4. **chaltteok 스킬** — `feature/skill-chaltteok`(로컬) 별도 PR 로 develop 반영.
 
-> C9 구현 완료(11번가·쿠팡 wired). release 시 마이그 4개(Phase1 3 + C9 1) 적용이 핵심 운영 액션.
+> C9 develop 머지 완료(11번가·쿠팡 wired). release/v0.20 main 머지 후 마이그 4개(Phase1 3 + C9 1) apply_db_migrations 가 핵심 운영 액션.
 
 ---
 
