@@ -3,9 +3,10 @@
 **develop HEAD**: `a06a7eb` — docs(handoff): WIP 갱신 — C9 develop 머지 완료 (#317)
 **main HEAD**: `73d73db` — **release: v0.20 (#318) · Deploy (real) success (2026-06-01) — 카테고리 Phase 0/1 + C9 배송비**
 **마이그**: **dev(eqoyw)·real(lfrny) 양쪽 4개 적용 완료** (`20260601000001`~`000004`). (chaltteok 스킬은 `feature/skill-chaltteok` 로 분리·별도 PR 대기.)
-**테스트**: 1468 passed / 1 skipped / 31 todo (135 files) · **deno check 28 entrypoint green**
-**갱신일**: 2026-06-01
+**테스트**: 1490 passed / 1 skipped / 31 todo (138 files) — overnight 수정으로 +22 (회귀 0)
+**갱신일**: 2026-06-01 (밤 — overnight 자율 검수)
 **develop 누적(→v0.20, 미릴리즈)**: 카테고리 추천 Phase 1 #312 (**마이그 3개**) + Phase 0 fix #311 + 수량구간 배송비 설계 #314 + **C9 구현 #316 (마이그 1개)**
+**진행 중 PR(미머지)**: `feature/overnight-autofix-20260601-fixes` — 무인 검수로 FE/cron 버그 **11건 수정** (TIER1 5 + TIER2 6, 아래 §overnight 세션). overnight-autofix 스킬 자체는 #321(별도).
 
 ---
 
@@ -24,6 +25,26 @@
 
 ### 직전 (#312·#311, 동일 develop)
 카테고리 추천 Phase 1(전역 인덱스+검색+최근, 4마켓) + 카테고리 cascader Phase 0 fix.
+
+---
+
+## 2026-06-01 (밤) — overnight 자율 버그 검수·수정 (PR `feature/overnight-autofix-20260601-fixes`)
+
+mock 이 가린 **스키마/DB 정합 깨짐 + 로직 버그 11건**을 무인 검수로 수정. 전부 TDD(실패 테스트 먼저) + 직접 MCP/코드 교차검증. **real DB write·마이그 적용·Edge deploy·main 배포 없음.**
+
+| # | 심각도 | 수정 | 커밋 |
+|---|---|---|---|
+| H1 | high | history JobSummary/JobDetail `datetime()`→offset 허용 (실DB `+00:00` 거부 → 이력 전면 throw) | 50e0676 |
+| H2 | med | history custom 기간 종료일 1일 누락 (`created_at < p_to`) → KST 다음날 0시 상한 | 50e0676 |
+| O1 | **crit** | orders `market_dispatch_status` RPC(success/failed/null)↔zod(pending/submitted/failed) 매핑 경계 추가 → 목록·상세 전면 throw 해소 | e4c17fe |
+| O2 | high | orders `dispatch_failed` 가 `OrderShippingStatusSchema`(5값)에 누락 → 6값 동기(badge·timeline·필터) | e4c17fe |
+| R1 | **crit** | registration `ValidationIssueSchema` enum 2개 누락(transform_failed/description_html_unsafe) → real 미리보기 전면 generic 에러 | 9a6e5da |
+| M1 | **crit** | markets-token-refresh-cron `needs_reauth`(DB CHECK 위반)→`expired`/`auto_expired` 무음 실패 | 6c7d3cd |
+| R2 | high | StepImagesPage 다중 업로드 read-modify-write race → store `addImage` 원자 append | ff1fc11 |
+| R3 | med | PartialJobBanner `failed_final` 포함 카운트 → non-final `failed` 만 재시도 대상 | ff1fc11 |
+| R4 | med | registration start/retry error code 3개 client 메시지맵 누락 → 전용 메시지 | ff1fc11 |
+| M3 | med | category children/search query key `marketAccountId` 누락 → 계정전환 stale | ff1fc11 |
+| O3/H5 | low | OrdersListPage 11번가 컬러바 누락 / Dashboard 잡 0건 빈상태 미노출 | 3695570 |
 
 ---
 
@@ -56,6 +77,21 @@
 | **C5** | 이미지 ≥13장 truncate 사전경고 UX | warning 처리됨 — v2 |
 | **C6** | mcp_ro_dev supabase_migrations read GRANT | MCP 마이그 이력 조회 편의 |
 | **C8** | 카테고리 추천 Phase 2 후보 | ESM 풀트리 resumable 빌드 · 마켓별 자동매핑(PRD §1.2.1) |
+
+### ⚠ overnight 검수 round-2 인계 — real Edge 경로 결함 (검증됨, deploy 게이트라 미수정)
+
+mock 미실행 + real 등록 베타 미가동(latent) + Edge deploy 게이트 + 핵심 오케스트레이션/스펙 결정 필요 → overnight 자율 수정 보류. **후속 "registration-worker + image-transform + logen-settings 정합 PR" 권고.** 근본원인·수정안 전문은 세션 BUGLOG 참조.
+
+| # | 심각도 | 위치 | 결함 / 수정안 |
+|---|---|---|---|
+| **W1** | **crit** | registration-market-worker/lib/jmr-update.ts:124-179 | retry 후 잡이 `retrying` 영구 정체 (전이표상 retrying→terminal 불법, MCP 확인). **기존 `rpc_recompute_job_status` RPC 호출로 교체**(코드 주석이 이미 지시) 또는 승격조건 `status∈{pending,retrying}` 확장. |
+| **W2** | **crit** | registration-market-worker/lib/data-load.ts:141-149 | `product_image_transforms` 를 없는 컬럼 `product_id` 로 필터(MCP 확인: image_id 만) → 모든 real worker 42703 즉시 실패. **image_id 조인(product_images.product_id + seller_id 가드)** 로 교체. |
+| W3 | high | image-transform/process.ts:95-146 | 'failed' transform upsert 반환 error 미검사(무음). error 로깅 추가. |
+| W4 | med | image-transform/index.ts:128-130 | product_images `status='ready'` 승격 update error 미검사. error 로깅. |
+| W5 | low~med | registration-retry/index.ts:195-209 | retry 시 `attempt_count` 미리셋(누적) → 실효 재시도 1회로 축소. **정책 결정**(리셋 vs 유지+UI 노출). |
+| **W6** | **crit** | logen.ts ↔ logen-verify-credential/index.ts | 로젠 연결테스트 FE↔Edge contract(요청/응답 shape) 전면 불일치 → verify 절대 성공 불가. ground truth(README=Edge) 기준 FE 재정렬 + W8 ReadableStream 동시 수정. |
+| **W7** | high | SettingsShippingSenderPage.tsx:180-183 ↔ logen.ts:44/DB CHECK | 발송인 `fareTy` select `C/S/R` vs 스키마·DB `C/P/M` → S/R 저장 불가. **fareTy 의미가 4파일 상충(신용/선불/착불 매핑 모순) → 로젠 스펙 확인 필수(추측 금지, 운임 오발급 위험).** |
+| W8 | high | shipping-settings-api.ts:122-134 | verify `error.context.body`(ReadableStream) await 없이 safeParse → 모든 에러 'internal' 폴백(markets-api 가 이미 고친 회귀). W6 과 함께. |
 
 > **해소됨**: **C9 수량 구간(박스) 배송비 → 구현 완료 #316 (11번가·쿠팡 wired)** · 카테고리 검색 UX → Phase 1 #312 · 이미지 업로드 멱등 #307.
 > 참고: 워커 fee 0원 하드코딩 버그는 C9 이전 `resolveShippingFee` 도입으로 이미 해소돼 있었고, C9 가 그 경로를 `shipping_config` 로 교체.
@@ -101,6 +137,7 @@ Seller (auth.users) ─┬─ MarketAccount ── credential_payload jsonb + pg
 | v0.19 (#307·#308) | 이미지 업로드 멱등 + product_images UNIQUE 완화 | **운영 배포 (real success)** |
 | develop 누적 (#311·#312) | 카테고리 cascader Phase 0 fix + 카테고리 추천 Phase 1(마이그 3개) | develop 머지 |
 | **v0.20 (#316·#311·#312)** | **수량 구간(박스) 배송비 C9(11번가/쿠팡 wiring) + 카테고리 추천 Phase 0/1** | **운영 배포 완료 (main 73d73db, real success)** |
+| **overnight (미머지 PR)** | **무인 검수 — FE/cron 버그 11건 수정 (mock 가 가린 스키마/DB 정합 + 로직)** | **develop 머지 대기 (W1~W8 round-2 결함은 인계)** |
 
 ## 운영 현황
 
@@ -117,13 +154,13 @@ Seller (auth.users) ─┬─ MarketAccount ── credential_payload jsonb + pg
 ```bash
 git pull origin develop && pnpm install && pnpm test
 ```
-**1468 passed** 확인 후 진입. (Edge: `~/.deno/bin/deno check --node-modules-dir=none apps/api/supabase/functions/*/index.ts`, deno 2.8.1.)
+**1490 passed** 확인 후 진입. (Edge: `~/.deno/bin/deno check --node-modules-dir=none apps/api/supabase/functions/*/index.ts`, deno 2.8.1.)
 
 ### 우선 순위
-1. **C3 real 실호출 검증** — 셀러 키 + IP `3.36.239.243` 화이트리스트 후 5마켓 1회. **C9 11번가 박스 실등록**(dev 키 불필요로 우선 가능) + 네이버 `deliveryFeeType` enum · ESM `FeeAmnt` 할증 확정 → 그때 C7(네이버)·C10(ESM) 박스 wiring.
-2. **배포 후 라이브 검증**(운영 액션 4) — 카테고리 검색/최근 + C9 Step1 인라인 배송·박스 미리보기·쿠팡 경고(Step4·5). cron vault 확인(운영 액션 3).
-3. **chaltteok 스킬** — `feature/skill-chaltteok`(로컬) 별도 PR 로 develop 반영.
-4. **chaltteok 스킬** — `feature/skill-chaltteok`(로컬) 별도 PR 로 develop 반영.
+1. **overnight PR 머지 확인** — `feature/overnight-autofix-20260601-fixes` → develop CI green 후 머지(자율 진행됨). 머지 후 develop HEAD 갱신.
+2. **W1·W2 (crit, real Edge)** — registration-worker retry 정체(rpc_recompute_job_status 배선) + product_id 쿼리(image_id 조인). C3 real 검증 _전에_ 반드시. Edge deploy 필요 → 후속 정합 PR.
+3. **C3 real 실호출 검증** — 셀러 키 + IP `3.36.239.243` 화이트리스트 후 5마켓 1회. C9 11번가 박스 실등록 + 네이버/ESM 운임 확정.
+4. **W6~W8 로젠 설정 정합** — verify contract + fareTy 스펙 확인(운임 오발급 위험) + ReadableStream. / **chaltteok 스킬** `feature/skill-chaltteok` 별도 PR.
 
 > C9 develop 머지 완료(11번가·쿠팡 wired). release/v0.20 main 머지 후 마이그 4개(Phase1 3 + C9 1) apply_db_migrations 가 핵심 운영 액션.
 
