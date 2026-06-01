@@ -138,18 +138,44 @@ export async function loadDomainProduct(
     throw HttpErrors.notFound('product_not_found', 'product not found for worker')
   }
 
-  const imagesRes = await service
-    .from('product_image_transforms')
-    .select('output_path, market, status')
+  // 변환본(product_image_transforms)은 image_id 로만 연결된다(product_id 컬럼 없음).
+  // 1) 이 상품·셀러의 이미지 id (cross-tenant 가드: seller_id) → 2) 그 이미지의 마켓 변환본.
+  const imageRowsRes = await service
+    .from('product_images')
+    .select('id, position')
     .eq('product_id', productId)
-    .eq('market', marketId)
-    .eq('status', 'succeeded')
-  if (imagesRes.error) {
-    throw HttpErrors.internal('image_transforms_load_failed', 'failed to load transforms')
+    .eq('seller_id', sellerId)
+    .order('position', { ascending: true })
+  if (imageRowsRes.error) {
+    throw HttpErrors.internal('product_images_load_failed', 'failed to load product images')
   }
-  const transformedUrls: string[] = (imagesRes.data ?? [])
-    .map((row) => (typeof row.output_path === 'string' ? row.output_path : null))
-    .filter((u): u is string => Boolean(u))
+  const orderedImageIds: string[] = (imageRowsRes.data ?? [])
+    .map((row) => (typeof row.id === 'string' ? row.id : null))
+    .filter((id): id is string => Boolean(id))
+
+  let transformedUrls: string[] = []
+  if (orderedImageIds.length > 0) {
+    const imagesRes = await service
+      .from('product_image_transforms')
+      .select('output_path, image_id, market, status')
+      .in('image_id', orderedImageIds)
+      .eq('market', marketId)
+      .eq('status', 'succeeded')
+    if (imagesRes.error) {
+      throw HttpErrors.internal('image_transforms_load_failed', 'failed to load transforms')
+    }
+    // image_id → output_path (마켓·succeeded 당 1건). product_images.position 순서로 정렬해
+    // 대표 이미지가 첫 번째가 되도록 보존.
+    const pathByImageId = new Map<string, string>()
+    for (const row of imagesRes.data ?? []) {
+      if (typeof row.output_path === 'string' && typeof row.image_id === 'string') {
+        pathByImageId.set(row.image_id, row.output_path)
+      }
+    }
+    transformedUrls = orderedImageIds
+      .map((id) => pathByImageId.get(id) ?? null)
+      .filter((u): u is string => Boolean(u))
+  }
 
   if (transformedUrls.length === 0) {
     // image-transform 미완료. validation 으로 분류 (재시도 불가 → state.md §6.2 매핑).
