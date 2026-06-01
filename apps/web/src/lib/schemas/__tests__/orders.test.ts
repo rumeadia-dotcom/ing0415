@@ -145,10 +145,17 @@ describe('OrdersFilterSchema (keyset cursor)', () => {
     ).toBe(false)
   })
 
-  it('status 가 OrderShippingStatus 외 값(dispatch_failed)이면 parse 실패', () => {
-    // dispatch_failed 는 marketDispatchStatus 측 실패라 shippingStatus 필터로는 받지 않는다.
+  it('dispatch_failed 는 유효한 배송상태 필터 (order_status enum 6값 중 하나, O2)', () => {
+    // dispatch_failed 는 orders.status 가 실제로 가질 수 있는 종착 상태(송장 제출 실패)다.
+    // RPC list_orders 의 p_status 로 그대로 전달되어 해당 주문을 필터한다.
     expect(
       OrdersFilterSchema.safeParse({ status: 'dispatch_failed' }).success,
+    ).toBe(true)
+  })
+
+  it('status 가 OrderShippingStatus enum 외 값이면 parse 실패', () => {
+    expect(
+      OrdersFilterSchema.safeParse({ status: 'not_a_real_status' }).success,
     ).toBe(false)
   })
 })
