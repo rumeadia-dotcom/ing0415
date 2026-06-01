@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
+import { DEFAULT_SHIPPING_CONFIG } from '@/lib/schemas/shipping-config'
 
 describe('useRegisterFormStore', () => {
   beforeEach(() => {
@@ -26,7 +27,7 @@ describe('useRegisterFormStore', () => {
       manufacturer: null,
       descriptionHtml: null,
       baseCategoryId: 'cat-1',
-      shippingPolicyId: '00000000-0000-0000-0000-000000000sp1',
+      shippingConfig: DEFAULT_SHIPPING_CONFIG,
     })
     setImages([
       {
@@ -70,7 +71,7 @@ describe('useRegisterFormStore', () => {
       manufacturer: null,
       descriptionHtml: null,
       baseCategoryId: 'c',
-      shippingPolicyId: '00000000-0000-0000-0000-000000000sp2',
+      shippingConfig: DEFAULT_SHIPPING_CONFIG,
     })
     clear()
     expect(useRegisterFormStore.getState().step1).toBeNull()

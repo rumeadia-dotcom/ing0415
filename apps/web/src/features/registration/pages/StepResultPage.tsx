@@ -29,6 +29,10 @@ export function StepResultPage(): JSX.Element {
   const retry = useRegistrationRetry()
   const start = useRegistrationStart()
   const productId = useRegisterFormStore((s) => s.productId)
+  // 동일 세션 happy-path: store 에서 shippingConfig + 선택 마켓을 읽는다.
+  // 새로고침 시 step1=null → 배너 미표시 (graceful).
+  const step1 = useRegisterFormStore((s) => s.step1)
+  const selections = useRegisterFormStore((s) => s.selections)
 
   if (!jobId) {
     return (
@@ -105,6 +109,18 @@ export function StepResultPage(): JSX.Element {
     )
   }
 
+  // 쿠팡 수량구간 fallback 경고: step1 이 있을 때(동일 세션)만 평가.
+  // data.results 의 실제 시도 마켓 목록을 우선 참고하고, store 선택 마켓을 보조로 사용.
+  const attemptedMarketIds = data?.results.map((r) => r.marketId) ?? []
+  const hasCoupang =
+    attemptedMarketIds.includes('coupang') ||
+    selections.some((s) => s.marketId === 'coupang')
+  const isTieredCoupang =
+    step1 !== null &&
+    step1.shippingConfig.feeType === 'quantity_tiered' &&
+    hasCoupang &&
+    !step1.shippingConfig.marketOverrides?.coupang
+
   return (
     <div className="mx-auto w-full max-w-[1080px]">
       <PageHeader
@@ -135,6 +151,14 @@ export function StepResultPage(): JSX.Element {
 
       {data && (
         <div className="flex flex-col gap-4">
+          {/* 쿠팡 수량구간 fallback 경고 배너 — 동일 세션에서만 표시 */}
+          {isTieredCoupang && (
+            <ErrorMessage
+              tone="warning"
+              message={ko.register.shipping.coupangResultWarning}
+            />
+          )}
+
           {/* Hero — 진행률 KPI + (partial 일 때) 우측 액션 카드 */}
           <div
             className={

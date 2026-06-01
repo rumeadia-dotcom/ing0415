@@ -48,6 +48,7 @@ import {
   type MarketOrder,
 } from '../market-orders.ts'
 import { buildCoupangSignature } from './coupang-hmac.ts'
+import { coupangBoxFallback } from './box-shipping.ts'
 import {
   buildCoupangOrdersPath,
   COUPANG_ORDERS_MAX_PAGES,
@@ -360,6 +361,28 @@ export function createCoupangAdapter(): MarketAdapter {
           ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
           : product.name
 
+      // C9: 쿠팡은 수량 구간(박스) 배송비를 지원하지 않는다. quantity_tiered 면
+      //   - marketOverrides.coupang 가 있으면 셀러가 명시한 baseFee 적용,
+      //   - 없으면 coupangBoxFallback(박스당 단일 + 경고) 로 다운그레이드한다.
+      // 경고는 payload.warnings 로만 실어 결과 화면에 노출하고, createProduct 는
+      // payload.raw 만 외부 API 로 보내므로 warnings 가 쿠팡으로 누출되지 않는다.
+      const config = product.shippingConfig
+      let shippingFee = product.shippingFeeKrw
+      const warnings: { code: string; message: string }[] = []
+      if (config?.feeType === 'quantity_tiered' && config.box) {
+        const override = config.marketOverrides?.coupang
+        if (override) {
+          shippingFee = override.baseFee
+        } else {
+          const fb = coupangBoxFallback({
+            qtyPerBox: config.box.qtyPerBox,
+            feePerBox: config.box.feePerBox,
+          })
+          shippingFee = fb.shippingFee
+          warnings.push(fb.warning)
+        }
+      }
+
       const raw = {
         sellerProductName: truncatedName,
         vendorId: cred?.vendorId ?? '',
@@ -371,12 +394,12 @@ export function createCoupangAdapter(): MarketAdapter {
           cdnPath: url,
         })),
         displayCategoryCode: Number(mapping.categoryId),
-        shippingFee: product.shippingFeeKrw,
+        shippingFee,
         brand: product.brand ?? '',
         ...mapping.extra,
       }
 
-      return { market: MARKET, raw }
+      return { market: MARKET, raw, ...(warnings.length ? { warnings } : {}) }
     },
 
     // ───────────────────────────────────────────

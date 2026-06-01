@@ -83,4 +83,5 @@ export {
 } from './audit.ts'
 export * from './schemas.ts'
 export { invokeMarketWorker } from './registration/invoke-worker.ts'
-export { resolveShippingFee } from './shipping-fee.ts'
+export { parseShippingConfig } from './shipping-fee.ts'
+export { effectiveSingleFee } from './market-adapters/box-shipping.ts'

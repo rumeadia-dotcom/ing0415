@@ -4,6 +4,7 @@ import type {
   MarketSelection,
   CategoryMapping,
 } from '@/lib/schemas/registration'
+import type { ShippingConfig } from '@/lib/schemas/shipping-config'
 
 /**
  * 5단계 위저드 횡단 폼 store (zustand).
@@ -22,7 +23,7 @@ export interface Step1Draft {
   manufacturer: string | null
   descriptionHtml: string | null
   baseCategoryId: string
-  shippingPolicyId: string
+  shippingConfig: ShippingConfig
 }
 
 interface RegisterFormState {

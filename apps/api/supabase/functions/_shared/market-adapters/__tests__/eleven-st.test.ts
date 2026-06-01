@@ -418,6 +418,72 @@ describe('PR-3 Layer1 배송 인라인', () => {
   })
 })
 
+// C9: 수량 구간(박스) wiring — shippingConfig.feeType='quantity_tiered' 가 04 분기를 타고
+//   elevenStBoxToFields 의 dlvCnt1/dlvCnt2/dlvCst3 가 그대로 fields 에 실리는지(=wiring) 검증.
+//   변환기 자체는 box-shipping.test.ts 에서 별도 커버 — 여기선 buildElevenStProductRaw 경유 결합만.
+describe('C9 quantity_tiered 박스 배송 wiring (dlvCstInstBasiCd=04)', () => {
+  it('shippingConfig.box → 04 + dlvCnt1/dlvCnt2/dlvCst3 전개', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({
+        shippingFeeKrw: 0,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 2,
+          feeType: 'quantity_tiered',
+          baseFee: 0,
+          box: { qtyPerBox: 12, feePerBox: 2_500 },
+          payType: 'prepaid',
+          bundleAllowed: false,
+        },
+      }),
+      makeMapping(),
+    )
+    // 04 = 수량 구간(박스) 배송비 코드.
+    expect(fields.dlvCstInstBasiCd).toBe('04')
+    // 구간 하한은 1 부터 시작 (1^13^25^…).
+    expect(typeof fields.dlvCnt1).toBe('string')
+    expect(String(fields.dlvCnt1).startsWith('1')).toBe(true)
+    expect(String(fields.dlvCnt1).split('^')[0]).toBe('1')
+    expect(String(fields.dlvCnt1).split('^')[1]).toBe('13')
+    // 1박스 배송비 2500 부터 (2500^5000^…), 10원 단위.
+    expect(String(fields.dlvCst3).split('^')[0]).toBe('2500')
+    expect(String(fields.dlvCst3).split('^')[1]).toBe('5000')
+    // 마지막 open-ended 구간은 상한 제외 → dlvCnt2 항목 수 = dlvCnt1 - 1.
+    expect(String(fields.dlvCnt2).split('^').length).toBe(
+      String(fields.dlvCnt1).split('^').length - 1,
+    )
+    // 비박스 인라인 필드(dlvCst1)는 04 분기에서 미부착.
+    expect(fields.dlvCst1).toBeUndefined()
+  })
+
+  it('areaSurcharge/returnFee/exchangeFee/bundleAllowed 는 config 값을 04 분기로 전달', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({
+        shippingFeeKrw: 0,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 2,
+          feeType: 'quantity_tiered',
+          baseFee: 0,
+          box: { qtyPerBox: 10, feePerBox: 3_000 },
+          payType: 'prepaid',
+          bundleAllowed: true,
+          returnFee: 2_500,
+          exchangeFee: 5_000,
+          areaSurcharge: { jeju: 3_000, island: 4_000 },
+        },
+      }),
+      makeMapping(),
+    )
+    expect(fields.dlvCstInstBasiCd).toBe('04')
+    expect(fields.bndlDlvCnYn).toBe('Y')
+    expect(fields.jejuDlvCst).toBe(3_000)
+    expect(fields.islandDlvCst).toBe(4_000)
+    expect(fields.rtngdDlvCst).toBe(2_500)
+    expect(fields.exchDlvCst).toBe(5_000)
+  })
+})
+
 describe('PR-3 Layer2 addrSeq 주입', () => {
   it('extra.outboundAddrSeq/returnAddrSeq → addrSeqOut/addrSeqIn', () => {
     const { fields } = buildElevenStProductRaw(

@@ -223,6 +223,51 @@ export type CategoryIndexBuildRequest = z.infer<
 >
 
 // ─────────────────────────────────────────────
+// 배송 설정 (web lib/schemas/shipping-config.ts 미러 — 동형 유지)
+// 마스터: docs/superpowers/specs/2026-06-01-quantity-tiered-shipping-design.md §2
+// ─────────────────────────────────────────────
+export const ShippingFeeTypeSchema = z.enum([
+  'free',
+  'conditional_free',
+  'paid',
+  'quantity_tiered',
+  'charge_on_delivery',
+])
+export const ShippingMethodSchema = z.enum(['parcel', 'direct', 'quick', 'visit_pickup'])
+
+export const ShippingConfigSchema = z.object({
+  method: ShippingMethodSchema,
+  etaDays: z.number().int().min(0).max(30),
+  feeType: ShippingFeeTypeSchema,
+  baseFee: z.number().int().min(0).default(0),
+  // 선택 숫자 필드 — FE 폼의 빈 number input 은 null 로 직렬화되므로 nullish (null = 미설정).
+  freeThreshold: z.number().int().min(0).nullish(),
+  box: z
+    .object({
+      qtyPerBox: z.number().int().min(2),
+      feePerBox: z.number().int().min(0),
+    })
+    .optional(),
+  payType: z.enum(['prepaid', 'collect', 'both']).default('prepaid'),
+  returnFee: z.number().int().min(0).nullish(),
+  exchangeFee: z.number().int().min(0).nullish(),
+  areaSurcharge: z
+    .object({
+      jeju: z.number().int().min(0).nullish(),
+      island: z.number().int().min(0).nullish(),
+    })
+    .nullish(),
+  bundleAllowed: z.boolean().default(false),
+  marketOverrides: z
+    .record(
+      z.enum(MARKET_IDS),
+      z.object({ feeType: ShippingFeeTypeSchema, baseFee: z.number().int().min(0) }),
+    )
+    .optional(),
+})
+export type ShippingConfig = z.infer<typeof ShippingConfigSchema>
+
+// ─────────────────────────────────────────────
 // Product (도메인 마스터)
 // ─────────────────────────────────────────────
 export const ProductImageSchema = z.object({
@@ -242,7 +287,8 @@ export const ProductSchema = z.object({
   descriptionHtml: z.string().max(50_000).default(''),
   categoryHint: z.string().max(120).optional(),
   brand: z.string().max(60).optional(),
-  shippingFeeKrw: MoneyKrwSchema.default(0),
+  shippingFeeKrw: MoneyKrwSchema.default(0), // 유효 단일 배송비(파생) — 기존 어댑터 back-compat
+  shippingConfig: ShippingConfigSchema.optional(), // C9: 박스 등 전체 의도
 })
 export type Product = z.infer<typeof ProductSchema>
 
@@ -263,6 +309,11 @@ export type MarketMapping = z.infer<typeof MarketMappingSchema>
 export const MarketPayloadSchema = z.object({
   market: MarketIdSchema,
   raw: z.unknown(),
+  // C9: transformProduct 가 무음 다운그레이드(쿠팡 박스 미지원 등) 를 알릴 때만 채운다.
+  //   createProduct 는 payload.raw 만 외부로 보내므로 warnings 는 외부 누출 없이 결과 화면 전용.
+  warnings: z
+    .array(z.object({ code: z.string(), message: z.string() }))
+    .optional(),
 })
 export type MarketPayload = z.infer<typeof MarketPayloadSchema>
 

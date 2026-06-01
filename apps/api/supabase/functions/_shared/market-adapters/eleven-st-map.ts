@@ -21,6 +21,7 @@ import {
   type CarrierCode,
 } from '../carrier-codes.ts'
 import { stripNsPrefix } from '../xml.ts'
+import { elevenStBoxToFields } from './box-shipping.ts'
 
 export const MARKET = '11st' as const
 
@@ -473,6 +474,27 @@ function buildElevenStShippingFields(
   product: Product,
   intent: ElevenStShippingIntent,
 ): Record<string, unknown> {
+  const config = product.shippingConfig
+  // C9: 수량 구간(박스) → dlvCstInstBasiCd=04 (box-shipping.ts).
+  // 구간 하한/상한/배송비(dlvCnt1/dlvCnt2/dlvCst3) 는 elevenStBoxToFields 가 박스 모델에서 전개.
+  // 도서산간/반품/교환/묶음은 config 우선, 없으면 intent(mapping.extra.shipping) fallback.
+  if (config?.feeType === 'quantity_tiered' && config.box) {
+    const box = elevenStBoxToFields({
+      qtyPerBox: config.box.qtyPerBox,
+      feePerBox: config.box.feePerBox,
+    })
+    return {
+      bndlDlvCnYn: (config.bundleAllowed ?? intent.bundleAllowed) ? 'Y' : 'N',
+      jejuDlvCst: floorTo10(config.areaSurcharge?.jeju ?? intent.jejuFee ?? 0),
+      islandDlvCst: floorTo10(config.areaSurcharge?.island ?? intent.islandFee ?? 0),
+      rtngdDlvCst: floorTo10(config.returnFee ?? intent.returnFee ?? 0),
+      exchDlvCst: floorTo10(config.exchangeFee ?? intent.exchangeFee ?? 0),
+      dlvCstInstBasiCd: box.dlvCstInstBasiCd,
+      dlvCnt1: box.dlvCnt1,
+      dlvCnt2: box.dlvCnt2,
+      dlvCst3: box.dlvCst3,
+    }
+  }
   const baseFee = floorTo10(intent.baseFee ?? product.shippingFeeKrw)
   const freeThreshold = intent.freeThreshold ?? 0
   const out: Record<string, unknown> = {

@@ -722,24 +722,29 @@ export const ko = {
       },
     },
     policies: {
-      title: '배송 정책',
+      title: '배송 템플릿',
       subtitle:
-        '상품 등록 시 선택할 배송 정책을 관리합니다. 기본 정책 1개는 자동으로 선택됩니다.',
-      listTitle: '배송 정책 목록',
-      listDescription: '등록한 배송 정책을 확인하고 수정·삭제할 수 있습니다.',
-      addCta: '새 정책 추가',
+        '상품 등록 시 불러올 배송 템플릿을 관리합니다. 기본 템플릿 1개는 등록 화면에서 자동으로 적용됩니다.',
+      listTitle: '배송 템플릿 목록',
+      listDescription: '저장한 배송 템플릿을 확인하고 수정·삭제할 수 있습니다.',
+      addCta: '새 템플릿 추가',
       empty: {
-        title: '등록된 배송 정책이 없습니다',
+        title: '저장된 배송 템플릿이 없습니다',
         body:
-          '상품 등록을 시작하려면 배송 정책을 1건 이상 추가하세요. 기본 정책으로 지정한 항목이 자동 선택됩니다.',
+          '자주 쓰는 배송 설정을 템플릿으로 저장해 두면 상품 등록 시 한 번에 불러올 수 있습니다. 기본 템플릿으로 지정한 항목이 자동 적용됩니다.',
       },
-      columns: {
-        name: '정책명',
-        method: '배송 방식',
-        fee: '배송비',
-        etaDays: '예상 배송일수',
-        isDefault: '기본값',
-        actions: '관리',
+      // config 요약 라벨 (목록 row 셀)
+      summary: {
+        feeType: {
+          free: '무료배송',
+          conditional_free: '조건부무료',
+          paid: '유료배송',
+          quantity_tiered: '수량별(박스)',
+          charge_on_delivery: '착불',
+        },
+        baseFee: '기본배송비 {fee}',
+        freeOver: '{amount} 이상 무료',
+        etaDays: '배송 {days}일',
       },
       methodLabels: {
         parcel: '택배',
@@ -751,56 +756,52 @@ export const ko = {
         isDefault: '기본',
       },
       fee: {
-        free: '무료',
         unit: '원',
       },
-      etaUnit: '일',
+      columns: {
+        isDefault: '기본값',
+      },
       actions: {
         edit: '수정',
         delete: '삭제',
         setDefault: '기본값으로 지정',
       },
       dialog: {
-        createTitle: '새 배송 정책',
-        editTitle: '배송 정책 수정',
+        createTitle: '새 배송 템플릿',
+        editTitle: '배송 템플릿 수정',
         description:
-          '상품 등록 시 선택 가능한 배송 정책을 입력하세요. 기본값으로 지정하면 다른 정책의 기본값은 해제됩니다.',
-        nameLabel: '정책명',
+          '자주 쓰는 배송 설정을 템플릿으로 저장하세요. 기본값으로 지정하면 다른 템플릿의 기본값은 해제됩니다.',
+        nameLabel: '템플릿 이름',
         namePlaceholder: '예: 일반 택배 (선결제)',
-        methodLabel: '배송 방식',
-        feeLabel: '배송비 (원)',
-        feePlaceholder: '예: 3000',
-        etaDaysLabel: '예상 배송일수 (일)',
-        etaDaysPlaceholder: '예: 2',
-        isDefaultLabel: '기본 정책으로 지정',
+        isDefaultLabel: '기본 템플릿으로 지정',
         isDefaultDescription:
-          '상품 등록 화면에서 자동으로 선택됩니다. 셀러당 1개만 기본값으로 둘 수 있습니다.',
+          '상품 등록 화면에서 자동으로 적용됩니다. 셀러당 1개만 기본값으로 둘 수 있습니다.',
         submit: '저장',
         submitting: '저장 중…',
         cancel: '취소',
       },
       delete: {
-        confirmTitle: '배송 정책을 삭제할까요?',
+        confirmTitle: '배송 템플릿을 삭제할까요?',
         confirmBody:
-          '삭제하면 이 정책을 사용 중인 미완료 상품 등록은 다시 선택해야 합니다.',
+          '삭제해도 이미 등록된 상품의 배송 설정은 영향을 받지 않습니다. 앞으로 이 템플릿을 불러올 수 없게 됩니다.',
         confirmBodyDefault:
-          '기본 배송 정책을 삭제하면 상품 등록 화면에서 자동 선택될 항목이 없어집니다. 그래도 삭제하시겠습니까?',
+          '기본 배송 템플릿을 삭제하면 상품 등록 화면에서 자동 적용될 항목이 없어집니다. 그래도 삭제하시겠습니까?',
         confirmCta: '삭제',
         confirmingCta: '삭제 중…',
         cancelCta: '취소',
       },
       toast: {
-        createSuccess: '배송 정책을 추가했습니다.',
-        createError: '배송 정책을 추가하지 못했습니다.',
-        updateSuccess: '배송 정책을 수정했습니다.',
-        updateError: '배송 정책을 수정하지 못했습니다.',
-        deleteSuccess: '배송 정책을 삭제했습니다.',
-        deleteError: '배송 정책을 삭제하지 못했습니다.',
-        setDefaultSuccess: '기본 배송 정책을 변경했습니다.',
-        setDefaultError: '기본 배송 정책을 변경하지 못했습니다.',
+        createSuccess: '배송 템플릿을 추가했습니다.',
+        createError: '배송 템플릿을 추가하지 못했습니다.',
+        updateSuccess: '배송 템플릿을 수정했습니다.',
+        updateError: '배송 템플릿을 수정하지 못했습니다.',
+        deleteSuccess: '배송 템플릿을 삭제했습니다.',
+        deleteError: '배송 템플릿을 삭제하지 못했습니다.',
+        setDefaultSuccess: '기본 배송 템플릿을 변경했습니다.',
+        setDefaultError: '기본 배송 템플릿을 변경하지 못했습니다.',
       },
       errors: {
-        fetch: '배송 정책을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+        fetch: '배송 템플릿을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
       },
     },
   },
@@ -1143,6 +1144,115 @@ export const ko = {
           title: '10. 배송 자동화 트러블슈팅',
           body:
             'Q1. 로젠 자동 등록이 실패한 주문이 있어요.\n  A. [주문·배송 → 주문 목록] 에서 `logen_failed` 상태 주문을 확인합니다. 사유가 일시 오류(rate limit 등) 이면 자동 재시도되며, 수취인 주소 누락 등 검증 실패는 주문 상세에서 수정 후 [재시도] 합니다.\n\nQ2. 운송장이 너무 많아 한 번에 출력하기 어려워요.\n  A. 출력 화면에서 마켓별 또는 날짜별로 필터링하여 분할 출력할 수 있습니다. 출력 완료 표시는 묶음 단위로 가능합니다.\n\nQ3. 마켓 송장 제출이 일부만 성공했어요.\n  A. 실패한 마켓의 오류 메시지를 확인하고, 자격증명 만료가 원인이면 [마켓 계정] 에서 재인증한 뒤 [재시도] 합니다.\n\nQ4. "출력 후 자동 제출" 을 OFF 로 두고 싶어요.\n  A. [설정 → 배송 설정] 에서 토글로 즉시 변경됩니다. 변경 즉시 다음 출력부터 적용됩니다.',
+        },
+      },
+    },
+  },
+  // s3 상품 등록 — 인라인 배송 설정 섹션 (ShippingConfigSection).
+  // 마스터: docs/superpowers/specs/2026-06-01-quantity-tiered-shipping-design.md §5.
+  register: {
+    shipping: {
+      sectionTitle: '배송 설정',
+      sectionDescription: '배송 방식·배송비·반품 정책을 입력합니다.',
+      // StepInfoPage 템플릿 적용 드롭다운
+      template: {
+        label: '배송 템플릿 적용 (선택)',
+        none: '직접 입력',
+        manageLink: '배송 템플릿 관리',
+      },
+      // 다음 버튼 blockingReason (수량별 박스 미완성)
+      blockingTiered: '박스당 수량·배송비를 입력하세요',
+      // 1) 배송방식 + 예상 배송일수
+      method: {
+        label: '배송방식',
+        parcel: '택배',
+        direct: '직접배송',
+        quick: '퀵배송',
+        visit_pickup: '방문수령',
+      },
+      etaDays: {
+        label: '예상 배송일수',
+        hint: '0~30일',
+        unit: '일',
+      },
+      // 2) 배송비 유형 (radiogroup)
+      feeType: {
+        legend: '배송비 유형',
+        free: '무료',
+        conditional_free: '조건부무료',
+        paid: '유료',
+        quantity_tiered: '수량별(박스)',
+        charge_on_delivery: '착불',
+      },
+      // 3) 조건부 필드
+      baseFee: {
+        label: '기본배송비',
+        unit: '원',
+      },
+      freeThreshold: {
+        label: '무료조건 금액',
+        hint: '이 금액 이상 구매 시 무료',
+        unit: '원',
+      },
+      box: {
+        qtyPerBox: {
+          label: '박스당 수량',
+          hint: '2개 이상',
+          unit: '개',
+        },
+        feePerBox: {
+          label: '박스당 배송비',
+          unit: '원',
+        },
+        previewLabel: '구간 미리보기',
+      },
+      coupangWarning: '쿠팡은 수량별(박스) 배송비를 지원하지 않습니다. 쿠팡에는 박스당 배송비가 기본배송비로 적용됩니다.',
+      // Step4 미리보기 배송비 요약 (StepPreviewPage)
+      preview: {
+        title: '마켓별 배송비',
+        tieredEleven: (desc: string) => `수량별 구간 — ${desc}`,
+        tieredCoupang: (fee: number) => `박스당 ${fee.toLocaleString()}원 단일 ⚠ (수량 구간 미지원)`,
+        tieredOther: (fee: number) => `기본 배송비 ${fee.toLocaleString()}원 적용 (수량 구간 미반영)`,
+        free: '무료배송',
+        paid: (fee: number) => `유료 ${fee.toLocaleString()}원`,
+        conditionalFree: (threshold: number) => `${threshold.toLocaleString()}원 이상 무료`,
+        chargeOnDelivery: '착불',
+      },
+      coupangPreviewWarning:
+        '쿠팡은 수량별(박스) 배송비를 지원하지 않습니다. 쿠팡에는 박스당 배송비(단일 금액)가 기본배송비로 적용되어, 2박스 이상 구매 시 실제 배송비보다 적게 부과될 수 있습니다. 쿠팡에 별도 배송비를 적용하려면 이전 단계에서 마켓 오버라이드를 설정하세요.',
+      coupangResultWarning:
+        '쿠팡에 수량별(박스) 배송비 미지원으로 박스당 단일 배송비가 기본배송비로 등록되었습니다. 2박스 이상 구매 시 실제 배송비보다 적게 부과될 수 있으니 쿠팡 셀러센터에서 직접 확인하세요.',
+      // 4) 결제방법 + 묶음배송
+      payType: {
+        label: '결제방법',
+        prepaid: '선결제',
+        collect: '착불',
+        both: '선/착불 모두',
+      },
+      bundleAllowed: {
+        label: '묶음배송 허용',
+        description: '동일 배송지 주문을 묶어 배송비를 1회만 부과합니다.',
+      },
+      // 5) 접힘 섹션 (반품/교환/도서산간)
+      advanced: {
+        summary: '반품·교환·도서산간 (선택)',
+        returnFee: {
+          label: '반품비',
+          unit: '원',
+        },
+        exchangeFee: {
+          label: '교환비',
+          unit: '원',
+        },
+        areaSurcharge: {
+          jeju: {
+            label: '도서산간 제주',
+            unit: '원',
+          },
+          island: {
+            label: '도서산간 추가',
+            unit: '원',
+          },
         },
       },
     },

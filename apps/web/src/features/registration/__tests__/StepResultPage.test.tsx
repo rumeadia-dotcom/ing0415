@@ -29,6 +29,8 @@ vi.mock('../hooks/useRegistrationStart', () => ({
 }))
 
 import { StepResultPage } from '../pages/StepResultPage'
+import { useRegisterFormStore } from '../store/useRegisterFormStore'
+import type { Step1Draft } from '../store/useRegisterFormStore'
 
 const JOB_ID = '00000000-0000-0000-0000-0000000000d4'
 
@@ -79,11 +81,30 @@ function makeResult(idx: number, marketId: 'naver' | 'coupang', marketStatus: Ma
   }
 }
 
+const STEP1_BASE: Step1Draft = {
+  name: '테스트 상품',
+  price: 10000,
+  originalPrice: null,
+  brand: null,
+  manufacturer: null,
+  descriptionHtml: null,
+  baseCategoryId: 'cat-1',
+  shippingConfig: {
+    method: 'parcel',
+    etaDays: 3,
+    feeType: 'free',
+    baseFee: 0,
+    payType: 'prepaid',
+    bundleAllowed: false,
+  },
+}
+
 describe('StepResultPage', () => {
   beforeEach(() => {
     retryMutate.mockReset()
     startMutate.mockReset()
     mockJobHook.mockReset()
+    useRegisterFormStore.getState().clear()
   })
 
   it('로딩: 스켈레톤', () => {
@@ -122,5 +143,111 @@ describe('StepResultPage', () => {
     await user.click(retryAll)
     await waitFor(() => expect(retryMutate).toHaveBeenCalledTimes(1))
     expect(retryMutate).toHaveBeenCalledWith({ jobId: JOB_ID }, expect.anything())
+  })
+
+  describe('쿠팡 수량구간 fallback 경고 배너', () => {
+    it('quantity_tiered + coupang 결과 포함 → 경고 배너 렌더', () => {
+      // store 에 step1(quantity_tiered) + 쿠팡 선택 설정
+      useRegisterFormStore.getState().setStep1({
+        ...STEP1_BASE,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 3,
+          feeType: 'quantity_tiered',
+          baseFee: 0,
+          payType: 'prepaid',
+          bundleAllowed: false,
+          box: { qtyPerBox: 12, feePerBox: 2500 },
+        },
+      })
+      useRegisterFormStore.getState().setSelections([
+        { marketId: 'coupang', marketAccountId: '00000000-0000-0000-0000-0000000000a2' },
+      ])
+      mockJobHook.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: {
+          job: makeJob('succeeded'),
+          results: [makeResult(1, 'coupang', 'success')],
+        },
+      })
+      renderPage()
+      // 경고 배너의 구체적인 텍스트로 확인 (마켓 카드의 "쿠팡" 라벨과 구분)
+      expect(screen.getByText(/박스당 단일 배송비/)).toBeInTheDocument()
+    })
+
+    it('quantity_tiered + coupang marketOverride 설정 시 → 배너 미표시', () => {
+      useRegisterFormStore.getState().setStep1({
+        ...STEP1_BASE,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 3,
+          feeType: 'quantity_tiered',
+          baseFee: 0,
+          payType: 'prepaid',
+          bundleAllowed: false,
+          box: { qtyPerBox: 12, feePerBox: 2500 },
+          marketOverrides: {
+            coupang: { feeType: 'paid', baseFee: 3000 },
+          },
+        },
+      })
+      useRegisterFormStore.getState().setSelections([
+        { marketId: 'coupang', marketAccountId: '00000000-0000-0000-0000-0000000000a2' },
+      ])
+      mockJobHook.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: {
+          job: makeJob('succeeded'),
+          results: [makeResult(1, 'coupang', 'success')],
+        },
+      })
+      renderPage()
+      expect(screen.queryByText(/박스당 단일 배송비/)).not.toBeInTheDocument()
+    })
+
+    it('step1=null (새로고침) → 배너 미표시, 크래시 없음', () => {
+      // store clear 상태 (step1=null)
+      mockJobHook.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: {
+          job: makeJob('succeeded'),
+          results: [makeResult(1, 'coupang', 'success')],
+        },
+      })
+      renderPage()
+      expect(screen.queryByText(/박스당 단일 배송비/)).not.toBeInTheDocument()
+      // 크래시 없이 마켓별 결과 섹션은 렌더됨
+      expect(screen.getByText(/마켓별 결과/)).toBeInTheDocument()
+    })
+
+    it('free feeType + coupang → 배너 미표시', () => {
+      useRegisterFormStore.getState().setStep1({
+        ...STEP1_BASE,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 3,
+          feeType: 'free',
+          baseFee: 0,
+          payType: 'prepaid',
+          bundleAllowed: false,
+        },
+      })
+      useRegisterFormStore.getState().setSelections([
+        { marketId: 'coupang', marketAccountId: '00000000-0000-0000-0000-0000000000a2' },
+      ])
+      mockJobHook.mockReturnValue({
+        isLoading: false,
+        isError: false,
+        data: {
+          job: makeJob('succeeded'),
+          results: [makeResult(1, 'coupang', 'success')],
+        },
+      })
+      renderPage()
+      expect(screen.queryByText(/박스당 단일 배송비/)).not.toBeInTheDocument()
+    })
   })
 })

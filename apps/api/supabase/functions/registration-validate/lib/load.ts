@@ -4,12 +4,7 @@
  * - getUserClient 로 셀러 JWT 적용. service_role 사용 안 함.
  */
 
-import {
-  getUserClient,
-  HttpErrors,
-  type Logger,
-  resolveShippingFee,
-} from '../../_shared/index.ts'
+import { getUserClient, HttpErrors, type Logger } from '../../_shared/index.ts'
 import type { ImageRow, MappingRow, ProductRow } from './types.ts'
 
 export async function loadProductBundle(
@@ -26,7 +21,7 @@ export async function loadProductBundle(
   const productRes = await supabase
     .from('products')
     .select(
-      'id, seller_id, name, price, brand, manufacturer, description_html, base_category_id, shipping_policy_id',
+      'id, seller_id, name, price, brand, manufacturer, description_html, base_category_id, shipping_config',
     )
     .eq('id', productId)
     .maybeSingle()
@@ -41,16 +36,10 @@ export async function loadProductBundle(
   if (!productRes.data) {
     throw HttpErrors.notFound('product_not_found', 'product not found')
   }
-  const productRaw = productRes.data as Omit<ProductRow, 'shipping_fee'>
-
-  // 배송 정책(Layer 1) fee 해소 — 미리보기 배송비를 워커와 동일하게 맞춘다
-  // (cross-cutting/shipping-fee-model.md §3-1).
-  const shippingFee = await resolveShippingFee(
-    supabase,
-    productRaw.shipping_policy_id,
-    productRaw.seller_id,
-  )
-  const product: ProductRow = { ...productRaw, shipping_fee: shippingFee }
+  // shipping_config(jsonb) 는 raw 로 운반 — check.ts 의 toDomainProduct 가
+  // ShippingConfigSchema 로 파싱해 배송비/배송설정을 채운다
+  // (C9: shipping_policies.fee 조회 → products.shipping_config 파싱).
+  const product = productRes.data as ProductRow
 
   const imagesRes = await supabase
     .from('product_images')
