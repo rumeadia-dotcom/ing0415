@@ -30,7 +30,10 @@ export function DashboardPage(): JSX.Element {
 
   const hasNoConnectedMarkets =
     !health.isLoading && !health.isError && (health.data?.total ?? 0) === 0
-  const hasNoJobs = summary.data?.last_job_at === null
+  // summary RPC 는 잡 0건 셀러에게 row 를 안 내려 data===null 이 될 수 있다.
+  // 그 경우도 "잡 없음" 으로 봐야 no-activity 빈 상태가 뜬다 (H5). 로딩/에러는 제외(깜빡임 방지).
+  const hasNoJobs =
+    !summary.isLoading && !summary.isError && (!summary.data || summary.data.last_job_at === null)
   const totalOrders =
     marketOrders.data?.markets.reduce(
       (acc, m) => acc + m.newOrdersCount + m.todayTotalCount,
