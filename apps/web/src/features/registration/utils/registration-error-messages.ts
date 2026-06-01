@@ -81,6 +81,7 @@ const ISSUE_MESSAGE_MAP: Record<string, string> = {
   token_expired: '마켓 인증이 만료되었습니다. 재인증이 필요합니다.',
   token_revoked: '마켓 인증이 해제되었습니다. 다시 연결해 주세요.',
   mapping_not_found: '카테고리 매핑이 없습니다.',
+  transform_failed: '마켓 형식으로 상품 정보를 변환하지 못했습니다. 입력값을 확인해 주세요.',
 }
 
 export function formatValidationIssue(code: string): string {
