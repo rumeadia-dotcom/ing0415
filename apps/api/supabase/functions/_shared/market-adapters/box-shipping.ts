@@ -14,6 +14,8 @@
  * type-only import 만 사용(런타임 의존 0) → Vitest 직접 import 가능.
  */
 
+import type { ShippingConfig } from '../schemas.ts'
+
 /** 박스 모델 입력. zod ShippingBoxSchema(z.number().int()) 와 동형 — 둘 다 음 아닌 정수. */
 export interface BoxModel {
   qtyPerBox: number
@@ -135,5 +137,23 @@ export function esmBoxToDetails(box: BoxModel): EsmBoxEach {
   return {
     feeType: '4',
     details: tiers.map((t) => ({ Condition: t.minQty, FeeAmnt: floorTo10(t.fee) })),
+  }
+}
+
+// ── ShippingConfig → 유효 단일 배송비 (back-compat) ────────────────────────
+/** ShippingConfig → 어댑터 back-compat 용 "유효 단일 배송비". 박스는 1박스 요금. */
+export function effectiveSingleFee(config: ShippingConfig | null | undefined): number {
+  if (!config) return 0
+  switch (config.feeType) {
+    case 'free':
+      return 0
+    case 'quantity_tiered':
+      return floorTo10(config.box?.feePerBox ?? 0)
+    case 'conditional_free':
+    case 'paid':
+    case 'charge_on_delivery':
+      return floorTo10(config.baseFee ?? 0)
+    default:
+      return 0
   }
 }

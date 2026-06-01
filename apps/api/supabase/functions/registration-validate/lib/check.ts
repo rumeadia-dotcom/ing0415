@@ -12,6 +12,8 @@ import {
   type MarketId,
   type MarketMapping,
   type Product,
+  parseShippingConfig,
+  effectiveSingleFee,
 } from '../../_shared/index.ts'
 import { checkHtmlSafe } from '../../_shared/sanitize-html.ts'
 import type {
@@ -23,6 +25,7 @@ import type {
 } from './types.ts'
 
 function toDomainProduct(p: ProductRow, images: ImageRow[]): Product {
+  const shippingConfig = parseShippingConfig(p.shipping_config)
   return {
     id: p.id,
     sellerId: p.seller_id,
@@ -35,7 +38,8 @@ function toDomainProduct(p: ProductRow, images: ImageRow[]): Product {
     })),
     descriptionHtml: p.description_html ?? '',
     brand: p.brand ?? undefined,
-    shippingFeeKrw: p.shipping_fee,
+    shippingFeeKrw: effectiveSingleFee(shippingConfig),
+    ...(shippingConfig ? { shippingConfig } : {}),
   }
 }
 

@@ -13,7 +13,8 @@ import {
   type MarketId,
   type MarketMapping,
   type Product,
-  resolveShippingFee,
+  parseShippingConfig,
+  effectiveSingleFee,
 } from '../../_shared/index.ts'
 
 type Service = ReturnType<typeof getServiceClient>
@@ -129,7 +130,7 @@ export async function loadDomainProduct(
 ): Promise<{ product: Product; mapping: MarketMapping }> {
   const productRes = await service
     .from('products')
-    .select('id, seller_id, name, price, brand, description_html, shipping_policy_id')
+    .select('id, seller_id, name, price, brand, description_html, shipping_config')
     .eq('id', productId)
     .eq('seller_id', sellerId)
     .single()
@@ -168,13 +169,11 @@ export async function loadDomainProduct(
     throw new MarketError('validation', 'market mapping not found', { market: marketId })
   }
 
-  // 배송 정책(Layer 1) 의 fee 를 해소 — 기존엔 0 하드코딩 버그
-  // (cross-cutting/shipping-fee-model.md §3-1).
-  const shippingPolicyId =
-    typeof productRes.data.shipping_policy_id === 'string'
-      ? productRes.data.shipping_policy_id
-      : null
-  const shippingFeeKrw = await resolveShippingFee(service, shippingPolicyId, sellerId)
+  // 배송 설정(products.shipping_config) 을 파싱 — 박스 등 전체 의도(shippingConfig) +
+  // 어댑터 back-compat 용 유효 단일 배송비(shippingFeeKrw) 를 함께 채운다
+  // (C9: shipping_policies.fee 조회 → products.shipping_config 파싱).
+  const shippingConfig = parseShippingConfig(productRes.data.shipping_config)
+  const shippingFeeKrw = effectiveSingleFee(shippingConfig)
 
   const product: Product = {
     id: String(productRes.data.id),
@@ -188,6 +187,7 @@ export async function loadDomainProduct(
       : '',
     brand: productRes.data.brand ? String(productRes.data.brand) : undefined,
     shippingFeeKrw,
+    ...(shippingConfig ? { shippingConfig } : {}),
   }
 
   const baseExtra = (mappingRes.data.market_options ?? {}) as Record<

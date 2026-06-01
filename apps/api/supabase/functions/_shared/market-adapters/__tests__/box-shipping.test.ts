@@ -6,6 +6,7 @@ import {
   naverBoxToDeliveryFee,
   NAVER_QTY_FEE_TYPE,
   esmBoxToDetails,
+  effectiveSingleFee,
 } from '../box-shipping.ts'
 
 const BOX = { qtyPerBox: 12, feePerBox: 2500 }
@@ -75,5 +76,28 @@ describe('esmBoxToDetails (변환기 — 아직 어댑터 미wiring, 최대 5단
     expect(r.details).toHaveLength(5)
     expect(r.details[0]).toEqual({ Condition: 1, FeeAmnt: 2500 })
     expect(r.details[4]).toEqual({ Condition: 49, FeeAmnt: 12500 })
+  })
+})
+
+describe('effectiveSingleFee', () => {
+  it('quantity_tiered → 1박스 요금', () => {
+    expect(
+      effectiveSingleFee({
+        feeType: 'quantity_tiered',
+        box: { qtyPerBox: 12, feePerBox: 2500 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).toBe(2500)
+  })
+  it('free → 0', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(effectiveSingleFee({ feeType: 'free' } as any)).toBe(0)
+  })
+  it('paid → baseFee', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(effectiveSingleFee({ feeType: 'paid', baseFee: 3000 } as any)).toBe(3000)
+  })
+  it('null → 0', () => {
+    expect(effectiveSingleFee(null)).toBe(0)
   })
 })
