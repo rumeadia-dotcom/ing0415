@@ -80,6 +80,7 @@ export const ORDER_SHIPPING_STATUSES = [
   'logen_failed',
   'waybill_printed',
   'tracking_submitted',
+  'dispatch_failed',
 ] as const
 export type OrderShippingStatus = (typeof ORDER_SHIPPING_STATUSES)[number]
 export const OrderShippingStatusSchema = z.enum(ORDER_SHIPPING_STATUSES)

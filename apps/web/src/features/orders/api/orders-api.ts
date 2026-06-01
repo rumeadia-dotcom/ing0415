@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { getSupabase } from '@/lib/supabase'
 import { logger } from '@/lib/logger'
+import { mapDispatchStatus } from '@/features/orders/lib/dispatch-status'
 import {
   OrderDetailSchema,
   OrderSummarySchema,
@@ -36,7 +37,8 @@ const RawOrderRowSchema = z.object({
   product_name: z.string(),
   buyer_masked_name: z.string(),
   shipping_status: z.string(),
-  market_dispatch_status: z.string(),
+  // RPC 는 shipping_job_results.status (success|failed) 또는 결과행 없을 때 null 을 내린다 (O1).
+  market_dispatch_status: z.string().nullable(),
   waybill_number: z.string().nullable(),
   ordered_at: z.string(),
   updated_at: z.string(),
@@ -88,7 +90,7 @@ function mapOrderRow(row: z.infer<typeof RawOrderRowSchema>): OrderSummary {
     productName: row.product_name,
     buyerMaskedName: row.buyer_masked_name,
     shippingStatus: row.shipping_status,
-    marketDispatchStatus: row.market_dispatch_status,
+    marketDispatchStatus: mapDispatchStatus(row.market_dispatch_status),
     waybillNumber: row.waybill_number,
     orderedAt: row.ordered_at,
     updatedAt: row.updated_at,
@@ -117,7 +119,7 @@ function remapOrderDetail(raw: unknown): unknown {
       buyerMaskedPhone: o['buyer_masked_phone'],
       shippingAddressMasked: o['shipping_address_masked'],
       shippingStatus: o['shipping_status'],
-      marketDispatchStatus: o['market_dispatch_status'],
+      marketDispatchStatus: mapDispatchStatus(o['market_dispatch_status'] as string | null),
       waybillNumber: o['waybill_number'],
       logenErrorMessage: o['logen_error_message'],
       orderedAt: o['ordered_at'],

@@ -13,6 +13,7 @@ import type { OrderShippingStatus } from '@/lib/schemas/orders'
  *  - waybill_printed → accent
  *  - tracking_submitted → muted
  *  - logen_failed → danger
+ *  - dispatch_failed → danger
  */
 type Tone = 'info' | 'success' | 'accent' | 'muted' | 'danger'
 
@@ -22,6 +23,7 @@ const TONE_MAP: Record<OrderShippingStatus, Tone> = {
   logen_failed: 'danger',
   waybill_printed: 'accent',
   tracking_submitted: 'muted',
+  dispatch_failed: 'danger',
 }
 
 const TONE_CLASS: Record<Tone, { wrap: string; dot: string }> = {
