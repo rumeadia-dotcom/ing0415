@@ -27,7 +27,7 @@ export function useUpsertProductDraft() {
         manufacturer: draft.manufacturer,
         description_html: draft.descriptionHtml,
         base_category_id: draft.baseCategoryId,
-        shipping_policy_id: draft.shippingPolicyId,
+        shipping_config: draft.shippingConfig,
         status: 'draft' as const,
       }
       if (productId) {

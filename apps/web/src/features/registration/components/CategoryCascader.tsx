@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ErrorMessage, Skeleton } from '@/components/ui'
 import { useMarketCategoryChildren } from '../hooks/useMarketCategoryChildren'
 import { CategoryFetchError } from '../api/category-api'
@@ -116,6 +116,23 @@ export function CategoryCascader({
     onChange(confirmed ? (node?.id ?? '') : '', pathLabels)
   }
 
+  /**
+   * 비-root 단계의 자식이 0개로 로드되면, 그 단계를 트림하고 직전 선택 부모를 leaf 로 자동 확정.
+   * (쿠팡 자식 leaf 미상·11번가 경계 노드의 dead-end 방어. category-recommendation-design §3.3)
+   */
+  const handleEmptyLevel = (levelIndex: number): void => {
+    if (levelIndex === 0) return // root 0개는 확정 대상 부모 없음 → 기존 안내 유지.
+    const parentNodeId = levels[levelIndex]?.parentId
+    if (parentNodeId == null) return
+    if (value === parentNodeId) return // 이미 확정됨(재호출 방어).
+    const trimmed = levels.slice(0, levelIndex)
+    setLevels(trimmed)
+    const pathLabels = trimmed
+      .map((l) => l.selectedLabel)
+      .filter((l): l is string => l != null)
+    onChange(parentNodeId, pathLabels)
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {levels.map((level, idx) => (
@@ -128,6 +145,7 @@ export function CategoryCascader({
           parentId={level.parentId}
           selectedId={level.selectedId}
           onSelect={(node) => handleSelect(idx, node)}
+          onEmptyChildren={() => handleEmptyLevel(idx)}
         />
       ))}
     </div>
@@ -142,6 +160,8 @@ interface CascaderLevelProps {
   parentId: string | null
   selectedId: string | null
   onSelect: (node: CategoryNode | null) => void
+  /** 비-root 단계의 자식이 0개로 로드되면 1회 호출(부모 자동 확정 트리거). */
+  onEmptyChildren: () => void
 }
 
 /** 단일 단계 — useMarketCategoryChildren 4상태 렌더. */
@@ -153,6 +173,7 @@ function CascaderLevel({
   parentId,
   selectedId,
   onSelect,
+  onEmptyChildren,
 }: CascaderLevelProps): JSX.Element {
   const t = ko.markets.category
   const { data, isLoading, isError, error } = useMarketCategoryChildren(
@@ -160,6 +181,16 @@ function CascaderLevel({
     marketAccountId,
     parentId,
   )
+
+  // 비-root 단계 자식이 0개로 로드되면 부모를 자동 확정(1회). category-recommendation-design §3.3.
+  const emptyFiredRef = useRef(false)
+  useEffect(() => {
+    if (isLoading || isError || parentId == null) return
+    if ((data?.length ?? 0) === 0 && !emptyFiredRef.current) {
+      emptyFiredRef.current = true
+      onEmptyChildren()
+    }
+  }, [isLoading, isError, parentId, data, onEmptyChildren])
 
   // 네이버 등 미지원 → fallback 안내 카드(첫 단계에서만 발생).
   if (error instanceof CategoryFetchError && error.code === 'category_not_supported') {

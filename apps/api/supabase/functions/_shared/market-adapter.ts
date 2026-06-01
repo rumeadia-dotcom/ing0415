@@ -76,6 +76,9 @@ export interface MarketAdapter {
    */
   fetchCategoryChildren?(parentId: string | null): Promise<CategoryNode[]>
 
+  /** 마켓 전체 카테고리 트리를 1콜(또는 적은 콜)로 — 인덱스 빌드용. 미지원 마켓은 생략. */
+  fetchCategoryTreeFull?(): Promise<CategoryNode[]>
+
   /**
    * 카테고리 KC인증 메타 조회 (NEW-2, optional — 서버 워커 전용).
    * 11번가만 구현(cateservice 1617 — 조회 카테고리 자신 포함 하위 트리의 certType/requiredYn).

@@ -108,11 +108,12 @@
                                               │
                                               ▼ N
 ┌──────────────────────┐    ┌─────────────────────────────────┐    ┌──────────────────────────┐
-│   shipping_policies  │    │   sellers (= auth.users 투영)   │    │   market_accounts        │
-│   id (uuid, PK)      │◄───┤   RLS owner key (auth.uid())    │◄───┤   id (uuid, PK)          │
-│   seller_id (FK)     │ N  │                                 │  N │   seller_id (FK)         │
-│   name, fee, method  │    │                                 │    │   market_id (text)       │
-│   eta_days           │    │                                 │    │   status ENUM            │
+│  shipping_policies   │    │   sellers (= auth.users 투영)   │    │   market_accounts        │
+│  (= 배송 템플릿,C9)  │◄───┤   RLS owner key (auth.uid())    │◄───┤   id (uuid, PK)          │
+│   id (uuid, PK)      │ N  │                                 │  N │   seller_id (FK)         │
+│   seller_id (FK)     │    │                                 │    │   market_id (text)       │
+│   name, is_default   │    │                                 │    │   status ENUM            │
+│   config (jsonb)     │    │  (products 는 더 이상 FK 안 함) │    │                          │
 └──────────────────────┘    └─────────────┬───────────────────┘    └──────────────────────────┘
                                           │ 1                                    ▲
                                           │                                      │
@@ -125,7 +126,7 @@
               │   brand, manufacturer                              │             │
               │   description_html (text, sanitized)               │             │
               │   base_category_id (text, 내부 단일 카테고리 코드) │             │
-              │   shipping_policy_id (FK → shipping_policies)      │             │
+              │   shipping_config (jsonb, 인라인 — C9, FK 제거)    │             │
               │   status ENUM (product_status)                     │             │
               │   created_at, updated_at                           │             │
               └────────┬──────────────────┬────────────────────────┘             │
@@ -213,9 +214,9 @@ create type shipping_method as enum (
 );
 ```
 
-### 3.2 `shipping_policies`
+### 3.2 `shipping_policies` (= 배송 템플릿, C9 재편)
 
-> 배송 정책 = 마켓 무관 **요금 의도(Layer 1)** 단일 소스. 마켓별 배송비 인라인 매핑 / ESM 프로필 연계 / 워커·validate 의 `shipping_policy_id`→`fee` 해소는 `cross-cutting/shipping-fee-model.md` 참조. (현재 `fee` flat 1개 — Layer 1 enrich 는 후속 PR.)
+> **C9 재편 (2026-06-01, 마이그 20260601000004)**: 배송 요금 의도(Layer 1)의 단일 소스는 더 이상 이 테이블이 아니라 **`products.shipping_config jsonb` 인라인**(§3.3)이다. `shipping_policies` 는 셀러가 자주 쓰는 설정을 저장해 Step1 에서 prefill 하는 **배송 템플릿**으로 강등됐다. 기존 flat 컬럼 `fee`/`method`/`eta_days` 는 드롭하고, 설정 전체를 `config jsonb`(= `ShippingConfigSchema`) 1개로 담는다. `products.shipping_policy_id` FK 는 제거됐다(아래 §3.3). 박스→마켓 매핑·fallback 은 `cross-cutting/shipping-fee-model.md` §2 참조.
 
 ```sql
 create table public.shipping_policies (
@@ -224,9 +225,8 @@ create table public.shipping_policies (
   -- (RLS WITH CHECK(seller_id = auth.uid()) 는 유지 → spoofing 차단). 마이그 20260531000001.
   seller_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name            text not null,
-  fee             integer not null check (fee >= 0),     -- 원
-  method          shipping_method not null,
-  eta_days        smallint not null check (eta_days between 0 and 30),
+  -- C9: flat fee/method/eta_days 드롭 → config jsonb 단일 소스 (ShippingConfigSchema).
+  config          jsonb not null,
   is_default      boolean not null default false,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
@@ -282,8 +282,9 @@ create table public.products (
   -- 카테고리 (내부 단일 카테고리 — Step 1 입력. 마켓별 매핑은 product_market_mappings 에)
   base_category_id    text not null,                                      -- 자체 내부 카테고리 코드 (PRD §1.1.1)
 
-  -- 배송
-  shipping_policy_id  uuid references public.shipping_policies(id) on delete restrict,
+  -- 배송 (C9: 인라인 단일 진실원본. shipping_policy_id FK 제거 — 마이그 20260601000004.)
+  -- shipping_config = ShippingConfigSchema. feeType=quantity_tiered 시 box={qtyPerBox,feePerBox}.
+  shipping_config     jsonb not null,
 
   -- 상태
   status              product_status not null default 'draft',
@@ -464,7 +465,7 @@ create trigger pmm_set_updated_at
 transformProduct(product: Product, mapping: MarketMapping): MarketPayload;
 ```
 
-`Product` / `MarketMapping` / `MarketPayload` 의 zod 스키마는 `market-adapter.md` §3 참조. `Product` 는 본 문서 `products` + `product_images` + `shipping_policies` 의 조회 view 결과를 그대로 매핑.
+`Product` / `MarketMapping` / `MarketPayload` 의 zod 스키마는 `market-adapter.md` §3 참조. `Product` 는 본 문서 `products`(인라인 `shipping_config` 포함) + `product_images` 의 조회 view 결과를 그대로 매핑. C9 이후 배송 요금은 `products.shipping_config`(`ShippingConfigSchema`)에서 직접 오며, `Product.shippingFeeKrw`(유효 단일 배송비 파생)는 back-compat 으로 유지되고 `shippingConfig` 가 추가된다. `shipping_policies`(배송 템플릿)는 조회 view 에 포함하지 않는다(등록 진실원본 아님).
 
 ### 5.3 마켓별 필수 필드 (Step 4 미리보기·`registration-validate` 에서 검증)
 
@@ -476,8 +477,8 @@ transformProduct(product: Product, mapping: MarketMapping): MarketPayload;
 | 카테고리 | 필수, 마켓 leaf 코드 | 필수, 마켓 leaf 코드 | product_market_mappings.market_category_code |
 | 브랜드 | 일부 카테고리 필수 (의류·뷰티) | 일부 카테고리 필수 | products.brand. 누락 시 어댑터가 validation 에러 |
 | 제조사 | 일부 카테고리 필수 | 일부 카테고리 필수 | products.manufacturer |
-| 배송 방식 | 필수 (택배/직접/방문) | 필수 (택배/직접) | shipping_policies.method, coupang 은 quick/visit 미지원 |
-| 배송비 | 필수 (≥ 0) | 필수 (≥ 0) | shipping_policies.fee |
+| 배송 방식 | 필수 (택배/직접/방문) | 필수 (택배/직접) | products.shipping_config.method, coupang 은 quick/visit 미지원 |
+| 배송비 | 필수 (≥ 0) | 필수 (≥ 0) | products.shipping_config (effectiveSingleFee 파생). feeType=quantity_tiered 시 박스→마켓 매핑(11번가 04 / 쿠팡 단일 fallback+경고) |
 | 대표 이미지 | 필수 1장, 640×640 이상 | 필수 1장, 500×500 이상 | product_images role='main' |
 | 추가 이미지 | 최대 9장 | 최대 9장 | product_images role='sub' |
 | 상세설명 HTML | 선택 (없으면 자동 기본 템플릿) | 필수 (≥ 10자) | products.description_html |
@@ -821,7 +822,8 @@ export const Step1Schema = z.object({
   manufacturer: z.string().max(50).nullable(),
   descriptionHtml: z.string().max(50000).nullable(),
   baseCategoryId: z.string().min(1, '내부 카테고리를 선택하세요'),
-  shippingPolicyId: z.string().uuid('배송정책을 선택하세요'),
+  // C9: 배송정책 select(shippingPolicyId) → 인라인 배송 설정. 단일 소스 = schemas/shipping-config.ts.
+  shippingConfig: ShippingConfigSchema,   // { method, etaDays, feeType, baseFee?, freeThreshold?, box?, ... }
 }).refine(
   (d) => d.originalPrice === null || d.originalPrice >= d.price,
   { message: '정가는 판매가 이상이어야 합니다', path: ['originalPrice'] },
@@ -967,7 +969,7 @@ export type ProductDraft = z.infer<typeof ProductDraftSchema>;
 export type ImageMeta = z.infer<typeof ImageMetaSchema>;
 export type MarketSelection = z.infer<typeof MarketSelectionSchema>;
 export type CategoryMapping = z.infer<typeof CategoryMappingSchema>;
-export type ShippingPolicy = z.infer<typeof Step1Schema.shape.shippingPolicyId> extends string ? unknown : never;
+// C9: shippingPolicyId 제거. 배송 설정 타입은 schemas/shipping-config.ts (ShippingConfig / ShippingTemplate).
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;
 export type MarketResult = z.infer<typeof MarketResultSchema>;
 export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
@@ -1097,7 +1099,7 @@ export type RegistrationJob = z.infer<typeof RegistrationJobSchema>;
 - `price` < 100 → "판매가는 100원 이상이어야 합니다"
 - `originalPrice` < `price` → "정가는 판매가 이상이어야 합니다"
 - `baseCategoryId` 빈 값 → "내부 카테고리를 선택하세요"
-- `shippingPolicyId` 빈 값 → "배송정책을 선택하세요"
+- `shippingConfig` (인라인 배송 설정, C9): `feeType=paid` 인데 `baseFee≤0` / `feeType=conditional_free` 인데 `freeThreshold` 누락 / `feeType=quantity_tiered` 인데 박스 미완성 → "박스당 수량·배송비를 입력하세요"
 
 ### 10.4 Step 2 — 이미지 업로드 (n18)
 

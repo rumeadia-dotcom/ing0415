@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { flattenCategoryTree } from '../../category-index'
 import {
   ELEVEN_ST_API_BASE,
   ELEVEN_ST_API_CODES,
@@ -152,6 +153,29 @@ describe('elevenStChildrenOf — 전체 트리에서 직계 자식 추출 (lazy 
 
   it('edge: 미존재 parentId → 빈 배열', () => {
     expect(elevenStChildrenOf(allRoots, '99999')).toEqual([])
+  })
+
+  it('1617-형 응답(leafYn 없음·조회노드+전체하위) → 직계 자식 leaf 정확', () => {
+    // 1617(/cateservice/category/1097) 응답: 조회노드 1097 + 하위 전부. leafYn 필드 없음.
+    //   parentDispNo(1097→1033)는 응답에 1033 이 없어 1097 이 root 로 승격된다.
+    const raw1617 = {
+      'ns2:categorys': {
+        'ns2:category': [
+          { dispNo: '1097', dispNm: '주방조리가전', depth: '1', parentDispNo: '1033' },
+          { dispNo: '1098', dispNm: '전기밥솥', depth: '2', parentDispNo: '1097' },
+          { dispNo: '1099', dispNm: '밥솥내솥', depth: '3', parentDispNo: '1098' },
+        ],
+      },
+    }
+    const roots = mapElevenStCategories(raw1617)
+    // 1097 직계 → 1098 (자식 1099 보유 → non-leaf)
+    const lv1 = elevenStChildrenOf(roots, '1097')
+    expect(lv1.map((n) => n.id)).toEqual(['1098'])
+    expect(lv1[0]?.leaf).toBe(false)
+    // 1098 직계 → 1099 (자식 없음 → leaf=true 로 확정 가능)
+    const lv2 = elevenStChildrenOf(roots, '1098')
+    expect(lv2.map((n) => n.id)).toEqual(['1099'])
+    expect(lv2[0]?.leaf).toBe(true)
   })
 })
 
@@ -394,6 +418,72 @@ describe('PR-3 Layer1 배송 인라인', () => {
   })
 })
 
+// C9: 수량 구간(박스) wiring — shippingConfig.feeType='quantity_tiered' 가 04 분기를 타고
+//   elevenStBoxToFields 의 dlvCnt1/dlvCnt2/dlvCst3 가 그대로 fields 에 실리는지(=wiring) 검증.
+//   변환기 자체는 box-shipping.test.ts 에서 별도 커버 — 여기선 buildElevenStProductRaw 경유 결합만.
+describe('C9 quantity_tiered 박스 배송 wiring (dlvCstInstBasiCd=04)', () => {
+  it('shippingConfig.box → 04 + dlvCnt1/dlvCnt2/dlvCst3 전개', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({
+        shippingFeeKrw: 0,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 2,
+          feeType: 'quantity_tiered',
+          baseFee: 0,
+          box: { qtyPerBox: 12, feePerBox: 2_500 },
+          payType: 'prepaid',
+          bundleAllowed: false,
+        },
+      }),
+      makeMapping(),
+    )
+    // 04 = 수량 구간(박스) 배송비 코드.
+    expect(fields.dlvCstInstBasiCd).toBe('04')
+    // 구간 하한은 1 부터 시작 (1^13^25^…).
+    expect(typeof fields.dlvCnt1).toBe('string')
+    expect(String(fields.dlvCnt1).startsWith('1')).toBe(true)
+    expect(String(fields.dlvCnt1).split('^')[0]).toBe('1')
+    expect(String(fields.dlvCnt1).split('^')[1]).toBe('13')
+    // 1박스 배송비 2500 부터 (2500^5000^…), 10원 단위.
+    expect(String(fields.dlvCst3).split('^')[0]).toBe('2500')
+    expect(String(fields.dlvCst3).split('^')[1]).toBe('5000')
+    // 마지막 open-ended 구간은 상한 제외 → dlvCnt2 항목 수 = dlvCnt1 - 1.
+    expect(String(fields.dlvCnt2).split('^').length).toBe(
+      String(fields.dlvCnt1).split('^').length - 1,
+    )
+    // 비박스 인라인 필드(dlvCst1)는 04 분기에서 미부착.
+    expect(fields.dlvCst1).toBeUndefined()
+  })
+
+  it('areaSurcharge/returnFee/exchangeFee/bundleAllowed 는 config 값을 04 분기로 전달', () => {
+    const { fields } = buildElevenStProductRaw(
+      makeProduct({
+        shippingFeeKrw: 0,
+        shippingConfig: {
+          method: 'parcel',
+          etaDays: 2,
+          feeType: 'quantity_tiered',
+          baseFee: 0,
+          box: { qtyPerBox: 10, feePerBox: 3_000 },
+          payType: 'prepaid',
+          bundleAllowed: true,
+          returnFee: 2_500,
+          exchangeFee: 5_000,
+          areaSurcharge: { jeju: 3_000, island: 4_000 },
+        },
+      }),
+      makeMapping(),
+    )
+    expect(fields.dlvCstInstBasiCd).toBe('04')
+    expect(fields.bndlDlvCnYn).toBe('Y')
+    expect(fields.jejuDlvCst).toBe(3_000)
+    expect(fields.islandDlvCst).toBe(4_000)
+    expect(fields.rtngdDlvCst).toBe(2_500)
+    expect(fields.exchDlvCst).toBe(5_000)
+  })
+})
+
 describe('PR-3 Layer2 addrSeq 주입', () => {
   it('extra.outboundAddrSeq/returnAddrSeq → addrSeqOut/addrSeqIn', () => {
     const { fields } = buildElevenStProductRaw(
@@ -526,6 +616,19 @@ describe('toElevenStDate', () => {
   })
   it('잘못된 입력 → 빈 문자열 (엣지)', () => {
     expect(toElevenStDate('not-a-date')).toBe('')
+  })
+})
+
+describe('fetchCategoryTreeFull 위임 — flattenCategoryTree 통합 (인덱스 빌드)', () => {
+  it('1001 트리 → flatten 인덱스 rows (path 누적)', () => {
+    const tree = mapElevenStCategories({ 'ns2:categorys': { 'ns2:category': [
+      { dispNo: '1033', dispNm: '주방가전', depth: '1', parentDispNo: '0', leafYn: 'Y' },
+      { dispNo: '1097', dispNm: '주방조리가전', depth: '2', parentDispNo: '1033', leafYn: 'Y' },
+      { dispNo: '1098', dispNm: '전기밥솥', depth: '3', parentDispNo: '1097', leafYn: 'N' } ] } })
+    const leafRow = flattenCategoryTree('11st', tree).find((r) => r.code === '1098')
+    expect(leafRow).toBeDefined()
+    expect(leafRow?.leaf).toBe(true)
+    expect(leafRow?.path_text).toBe('주방가전 > 주방조리가전 > 전기밥솥')
   })
 })
 

@@ -136,20 +136,20 @@ select ma.id, ma.seller_id, ma.market_id, 'connect_succeeded'
   where ma.seller_id in ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
                          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid);
 
--- shipping_policies
-insert into public.shipping_policies (seller_id, name, fee, method, eta_days, is_default) values
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, 'A-기본배송', 3000, 'parcel', 2, true),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid, 'B-기본배송', 3500, 'parcel', 3, true);
+-- shipping_policies (C9 재편 — config jsonb)
+insert into public.shipping_policies (seller_id, name, is_default, config) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, 'A-기본배송', true,
+   '{"method":"parcel","etaDays":2,"feeType":"paid","baseFee":3000,"payType":"prepaid","bundleAllowed":false}'::jsonb),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid, 'B-기본배송', true,
+   '{"method":"parcel","etaDays":3,"feeType":"paid","baseFee":3500,"payType":"prepaid","bundleAllowed":false}'::jsonb);
 
--- products (shipping_policy_id 본인 정책)
-insert into public.products (seller_id, name, price, base_category_id, shipping_policy_id)
-select 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, '셀러A 상품', 10000, 'cat-1', id
-  from public.shipping_policies
-  where seller_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid;
-insert into public.products (seller_id, name, price, base_category_id, shipping_policy_id)
-select 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid, '셀러B 상품', 20000, 'cat-2', id
-  from public.shipping_policies
-  where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid;
+-- products (C9 재편 — shipping_config 인라인)
+insert into public.products (seller_id, name, price, base_category_id, shipping_config)
+values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid, '셀러A 상품', 10000, 'cat-1',
+        '{"method":"parcel","etaDays":2,"feeType":"paid","baseFee":3000,"payType":"prepaid","bundleAllowed":false}'::jsonb);
+insert into public.products (seller_id, name, price, base_category_id, shipping_config)
+values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid, '셀러B 상품', 20000, 'cat-2',
+        '{"method":"parcel","etaDays":3,"feeType":"paid","baseFee":3500,"payType":"prepaid","bundleAllowed":false}'::jsonb);
 
 -- product_images
 insert into public.product_images
@@ -660,7 +660,7 @@ select is(
 );
 
 with upd as (
-  update public.shipping_policies set fee = 1
+  update public.shipping_policies set name = 'hacked'
     where seller_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid returning 1
 )
 select is(

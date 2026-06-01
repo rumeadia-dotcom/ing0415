@@ -333,13 +333,24 @@ export function createElevenStAdapter(): MarketAdapter {
       return mapElevenStCategories(parseElevenStXml(res.text))
     },
 
-    // 카테고리 직계 자식 조회 (lazy cascading) — cateservice 1001 전체 1회 후 직계만 추출.
-    //   11번가는 부모별 직계 조회 endpoint 가 없어 전체(1001)를 한 번 받아 트리에서 잘라낸다.
-    //   API Key 불필요(1001). parentId=null → 대분류, else → 트리에서 parentId 직계.
+    // 인덱스 빌드용 풀트리 — 11번가는 1001 전체가 곧 풀트리. fetchCategoryTree 위임.
+    async fetchCategoryTreeFull(): Promise<CategoryNode[]> {
+      return this.fetchCategoryTree()
+    },
+
+    // 카테고리 직계 자식 조회 (lazy cascading).
+    //   root(parentId=null) → 1001 전체 카테고리.
+    //   비-root → 1617 하위 카테고리(/cateservice/category/{parentId}) — 조회노드+전체하위.
+    //   1001 은 깊은 레벨을 빠뜨려 경계 노드에서 빈 배열이 나므로, 드릴은 1617 로 한다.
+    //   API Key 불필요. parentId 직계만 잘라 반환(elevenStChildrenOf).
     async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
       const correlationId = generateCorrelationId()
+      const url =
+        parentId !== null && parentId.trim() !== ''
+          ? buildElevenStCategoryUrl(parentId)
+          : buildElevenStCategoryUrl()
       const res = await elevenStCategoryFetch({
-        url: buildElevenStCategoryUrl(),
+        url,
         correlationId,
         timeoutMs: CATEGORY_TIMEOUT_MS,
       })

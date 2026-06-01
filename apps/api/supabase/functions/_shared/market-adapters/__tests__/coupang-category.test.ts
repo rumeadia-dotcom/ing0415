@@ -4,6 +4,7 @@ import {
   buildDisplayCategoryPath,
   buildCategoryTree,
   coerceCoupangCategory,
+  coupangFullTreeToNodes,
   coupangHttpStatusToMarketError,
   coupangSubCategoriesToNodes,
   COUPANG_DISPLAY_CATEGORY_BASE_PATH,
@@ -108,6 +109,57 @@ describe('coerceCoupangCategory — 관대한 매핑 (핑은 200 이면 성공)'
     expect(node.categoryId).toBe(7)
     expect(node.subCategories).toEqual([])
   })
+
+  it('실제 쿠팡 응답(child / displayCategoryCode / name)을 매핑한다', () => {
+    const node = coerceCoupangCategory(
+      {
+        code: 'SUCCESS',
+        message: '',
+        data: {
+          displayCategoryCode: 0,
+          name: 'ROOT',
+          status: 'ACTIVE',
+          child: [
+            { displayCategoryCode: 77834, name: '가구/홈데코', status: 'ACTIVE', child: [] },
+            { displayCategoryCode: 62588, name: '가전/디지털', status: 'ACTIVE', child: [] },
+          ],
+        },
+      },
+      0,
+    )
+    expect(node.subCategories).toHaveLength(2)
+    expect(node.subCategories[0]).toEqual({
+      categoryId: 77834,
+      displayCategoryName: '가구/홈데코',
+      isLeafCategory: false,
+    })
+  })
+
+  it('displayItemCategoryCode 변형 필드도 읽는다', () => {
+    const node = coerceCoupangCategory(
+      {
+        data: {
+          displayItemCategoryCode: 56112,
+          name: '뷰티',
+          child: [{ displayItemCategoryCode: 1, name: '스킨케어', child: [] }],
+        },
+      },
+      0,
+    )
+    expect(node.categoryId).toBe(56112)
+    expect(node.displayCategoryName).toBe('뷰티')
+    expect(node.subCategories[0]?.categoryId).toBe(1)
+  })
+
+  it('조회 노드 자신의 leaf = child 가 비었는지로 판정', () => {
+    const leafNode = coerceCoupangCategory({ data: { displayCategoryCode: 9, name: '말단', child: [] } }, 0)
+    expect(leafNode.isLeafCategory).toBe(true)
+    const parentNode = coerceCoupangCategory(
+      { data: { displayCategoryCode: 9, name: '부모', child: [{ displayCategoryCode: 10, name: 'x', child: [] }] } },
+      0,
+    )
+    expect(parentNode.isLeafCategory).toBe(false)
+  })
 })
 
 describe('buildCategoryTree — 핑 깊이 제한 (게이트웨이 폭주 방지)', () => {
@@ -158,6 +210,30 @@ describe('buildCategoryTree — 핑 깊이 제한 (게이트웨이 폭주 방지
     const root = await buildCategoryTree(fetchRaw, 0, 1, 3, null)
     expect(fetchRaw).toHaveBeenCalledTimes(1)
     expect(root.leaf).toBe(true)
+  })
+})
+
+describe('coupangFullTreeToNodes — 풀트리(/display-categories) 재귀 파싱', () => {
+  const raw = { data: { displayItemCategoryCode: 0, name: 'ROOT', child: [
+    { displayItemCategoryCode: 1, name: '패션', child: [
+      { displayItemCategoryCode: 2, name: '여성', child: [
+        { displayItemCategoryCode: 3, name: '티셔츠', child: [] }] }] },
+    { displayItemCategoryCode: 4, name: '식품', child: [] }] } }
+  it('ROOT child 를 트리로 — leaf=child빈, parentId/depth 부착', () => {
+    const tree = coupangFullTreeToNodes(raw)
+    expect(tree.map((t) => t.id)).toEqual(['1', '4'])
+    const fashion = tree.find((t) => t.id === '1')
+    expect(fashion).toBeDefined()
+    expect(fashion?.leaf).toBe(false)
+    expect(fashion?.depth).toBe(1)
+    expect(fashion?.children[0]?.children[0]).toMatchObject(
+      { id: '3', name: '티셔츠', leaf: true, depth: 3, parentId: '2' })
+    const food = tree.find((t) => t.id === '4')
+    expect(food?.leaf).toBe(true)
+  })
+  it('형태 이상/빈 응답 → 빈 배열', () => {
+    expect(coupangFullTreeToNodes({})).toEqual([])
+    expect(coupangFullTreeToNodes({ data: {} })).toEqual([])
   })
 })
 

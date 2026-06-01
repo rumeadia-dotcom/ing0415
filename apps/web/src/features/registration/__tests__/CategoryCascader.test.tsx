@@ -10,8 +10,9 @@
  *
  * useMarketCategoryChildren 을 mock — parentId 별 정적 children 으로 단계 동작을 제어.
  */
+import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { CategoryNode } from '@/lib/schemas'
 import { CategoryFetchError } from '../api/category-api'
@@ -188,6 +189,89 @@ describe('CategoryCascader', () => {
       />,
     )
     expect(screen.getByText(ko.markets.category.empty)).toBeInTheDocument()
+  })
+
+  it('⑥ 비-root 단계 자식 0개 → 직전 부모를 자동 확정', async () => {
+    childrenHookMock.mockImplementation((_m, _a, parentId: string | null) => {
+      if (parentId == null) {
+        return ok([node({ id: '1001', name: '패션', leaf: false, depth: 1 })])
+      }
+      return ok([]) // 드릴 결과 자식 없음 → '패션'이 사실상 말단
+    })
+
+    const onChange = vi.fn()
+    render(
+      <CategoryCascader
+        marketId="coupang"
+        marketAccountId={ACCOUNT_ID}
+        value={null}
+        onChange={onChange}
+      />,
+    )
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(ko.markets.category.rootAriaLabel('쿠팡')),
+      '1001',
+    )
+
+    expect(onChange).toHaveBeenLastCalledWith('1001', ['패션'])
+    // 자동 확정('1001')은 정확히 1회 — 중간 미확정 통지 onChange('') 와는 별개.
+    expect(onChange.mock.calls.filter((c) => c[0] === '1001')).toHaveLength(1)
+    expect(
+      screen.queryByLabelText(ko.markets.category.childAriaLabel('쿠팡', 2)),
+    ).not.toBeInTheDocument()
+  })
+
+  it('⑦ root(첫 단계) 0개는 자동 확정하지 않는다 (확정 대상 부모 없음)', () => {
+    childrenHookMock.mockReturnValue(ok([]))
+    const onChange = vi.fn()
+    render(
+      <CategoryCascader
+        marketId="coupang"
+        marketAccountId={ACCOUNT_ID}
+        value={null}
+        onChange={onChange}
+      />,
+    )
+    expect(screen.getByText(ko.markets.category.empty)).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('⑧ StrictMode + 로딩→empty 비동기 전환에서도 부모를 정확히 1회 확정', async () => {
+    // 루트: 비-leaf '패션'. 자식: 처음 로딩(isLoading) → 이후 빈 배열.
+    let childrenLoaded = false
+    childrenHookMock.mockImplementation((_m, _a, parentId: string | null) => {
+      if (parentId == null) {
+        return ok([node({ id: '1001', name: '패션', leaf: false, depth: 1 })])
+      }
+      // 비-root: 첫 렌더는 로딩, 이후 빈 배열(말단).
+      if (!childrenLoaded) {
+        childrenLoaded = true
+        return { data: undefined, isLoading: true, isError: false, error: null }
+      }
+      return ok([])
+    })
+
+    const onChange = vi.fn()
+    render(
+      <StrictMode>
+        <CategoryCascader
+          marketId="coupang"
+          marketAccountId={ACCOUNT_ID}
+          value={null}
+          onChange={onChange}
+        />
+      </StrictMode>,
+    )
+
+    await userEvent.selectOptions(
+      screen.getByLabelText(ko.markets.category.rootAriaLabel('쿠팡')),
+      '1001',
+    )
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('1001', ['패션']))
+    // StrictMode 이중 호출 + 재렌더에도 확정은 정확히 1회.
+    expect(onChange.mock.calls.filter((c) => c[0] === '1001')).toHaveLength(1)
   })
 
   it('⑤ category_not_supported(네이버) → fallback 안내', () => {

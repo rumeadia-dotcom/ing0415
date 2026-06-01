@@ -48,6 +48,7 @@ import {
   type MarketOrder,
 } from '../market-orders.ts'
 import { buildCoupangSignature } from './coupang-hmac.ts'
+import { coupangBoxFallback } from './box-shipping.ts'
 import {
   buildCoupangOrdersPath,
   COUPANG_ORDERS_MAX_PAGES,
@@ -58,8 +59,10 @@ import {
   buildCategoryTree,
   buildDisplayCategoryPath,
   coerceCoupangCategory,
+  coupangFullTreeToNodes,
   coupangHttpStatusToMarketError,
   coupangSubCategoriesToNodes,
+  COUPANG_DISPLAY_CATEGORY_BASE_PATH,
   ROOT_DISPLAY_CATEGORY_CODE,
   type RawCoupangCategory,
 } from './coupang-category.ts'
@@ -304,8 +307,10 @@ export function createCoupangAdapter(): MarketAdapter {
 
     // ───────────────────────────────────────────
     // fetchCategoryChildren — 부모코드 직계 자식만 (lazy cascading)
-    //   GET .../meta/display-categories/{parentId ?? 0} → data.subCategories 직계 매핑.
-    //   parentId=null → 루트(0). children=[], leaf=각 sub.isLeafCategory.
+    //   GET .../meta/display-categories/{parentId ?? 0} → data.child[] 직계 매핑.
+    //   parentId=null → 루트(0). children=[]. 자식 leaf 는 응답으로 판정 불가(per-code 는 자식의
+    //   child 를 항상 [] 로 줌) → 항상 drillable(leaf=false), 실제 말단은 CategoryCascader 의
+    //   "드릴 결과 0개 → 부모 자동 확정"이 판정 (coupang-category.ts coerceCoupangCategory 참조).
     // ───────────────────────────────────────────
     async fetchCategoryChildren(parentId: string | null): Promise<CategoryNode[]> {
       const { accessKey, secretKey } = getCredOrThrow()
@@ -324,6 +329,30 @@ export function createCoupangAdapter(): MarketAdapter {
     },
 
     // ───────────────────────────────────────────
+    // fetchCategoryTreeFull — 인덱스 빌드용 풀트리 (1콜)
+    //   GET .../meta/display-categories (코드 없음) → 재귀 child 구조 전체 반환.
+    //   coupangFullTreeToNodes 로 CategoryNode 트리 파싱. throw 없이 빈 배열 fallback.
+    // ───────────────────────────────────────────
+    async fetchCategoryTreeFull(): Promise<CategoryNode[]> {
+      const { accessKey, secretKey } = getCredOrThrow()
+      const correlationId = generateCorrelationId()
+      const response = await coupangFetch({
+        method: 'GET',
+        path: COUPANG_DISPLAY_CATEGORY_BASE_PATH,
+        accessKey,
+        secretKey,
+        correlationId,
+        timeoutMs: CATEGORY_TIMEOUT_MS,
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw coupangHttpStatusToMarketError(response.status, text, correlationId)
+      }
+      const raw = await response.json().catch(() => ({}))
+      return coupangFullTreeToNodes(raw)
+    },
+
+    // ───────────────────────────────────────────
     // transformProduct — 순수 함수
     // ───────────────────────────────────────────
     transformProduct(product: Product, mapping: MarketMapping): MarketPayload {
@@ -331,6 +360,28 @@ export function createCoupangAdapter(): MarketAdapter {
         product.name.length > PRODUCT_NAME_MAX_LENGTH
           ? product.name.slice(0, PRODUCT_NAME_MAX_LENGTH)
           : product.name
+
+      // C9: 쿠팡은 수량 구간(박스) 배송비를 지원하지 않는다. quantity_tiered 면
+      //   - marketOverrides.coupang 가 있으면 셀러가 명시한 baseFee 적용,
+      //   - 없으면 coupangBoxFallback(박스당 단일 + 경고) 로 다운그레이드한다.
+      // 경고는 payload.warnings 로만 실어 결과 화면에 노출하고, createProduct 는
+      // payload.raw 만 외부 API 로 보내므로 warnings 가 쿠팡으로 누출되지 않는다.
+      const config = product.shippingConfig
+      let shippingFee = product.shippingFeeKrw
+      const warnings: { code: string; message: string }[] = []
+      if (config?.feeType === 'quantity_tiered' && config.box) {
+        const override = config.marketOverrides?.coupang
+        if (override) {
+          shippingFee = override.baseFee
+        } else {
+          const fb = coupangBoxFallback({
+            qtyPerBox: config.box.qtyPerBox,
+            feePerBox: config.box.feePerBox,
+          })
+          shippingFee = fb.shippingFee
+          warnings.push(fb.warning)
+        }
+      }
 
       const raw = {
         sellerProductName: truncatedName,
@@ -343,12 +394,12 @@ export function createCoupangAdapter(): MarketAdapter {
           cdnPath: url,
         })),
         displayCategoryCode: Number(mapping.categoryId),
-        shippingFee: product.shippingFeeKrw,
+        shippingFee,
         brand: product.brand ?? '',
         ...mapping.extra,
       }
 
-      return { market: MARKET, raw }
+      return { market: MARKET, raw, ...(warnings.length ? { warnings } : {}) }
     },
 
     // ───────────────────────────────────────────

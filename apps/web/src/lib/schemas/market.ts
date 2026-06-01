@@ -177,6 +177,40 @@ export type CategoryChildrenResponse = z.infer<
 >
 
 // ─────────────────────────────────────────────
+// 카테고리 검색 / 최근 / 인덱스 빌드 — Edge markets-category-search,
+//   -index-build, RPC get_recent_categories. 서버 _shared/schemas.ts 와 동형.
+//   마스터: docs/architecture/v1/features/category-sync.md §6
+// ─────────────────────────────────────────────
+export const CategorySearchRequestSchema = z.object({
+  marketId: MarketIdSchema,
+  marketAccountId: z.string().uuid(),
+  query: z.string().min(2).max(50),
+})
+/** 검색·최근 공통 hit. RPC get_recent_categories 반환 키와 동일. */
+export const CategoryHitSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  pathText: z.string().min(1),
+  pathLabels: z.array(z.string()),
+})
+export const CategoryHitsArraySchema = z.array(CategoryHitSchema)
+export const CategorySearchResponseSchema = z.object({
+  status: z.enum(['ready', 'building', 'unsupported']),
+  hits: CategoryHitsArraySchema,
+})
+/** 빌드 Edge body. marketAccountId 생략 시 service_role/cron 이 active account 자동 선택. */
+export const CategoryIndexBuildRequestSchema = z.object({
+  marketId: MarketIdSchema,
+  marketAccountId: z.string().uuid().optional(),
+})
+export type CategorySearchRequest = z.infer<typeof CategorySearchRequestSchema>
+export type CategoryHit = z.infer<typeof CategoryHitSchema>
+export type CategorySearchResponse = z.infer<typeof CategorySearchResponseSchema>
+export type CategoryIndexBuildRequest = z.infer<
+  typeof CategoryIndexBuildRequestSchema
+>
+
+// ─────────────────────────────────────────────
 // Product (도메인 마스터) + 이미지
 // ─────────────────────────────────────────────
 export const ProductImageSchema = z.object({
