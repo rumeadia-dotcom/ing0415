@@ -1211,6 +1211,19 @@ export const ko = {
         previewLabel: '구간 미리보기',
       },
       coupangWarning: '쿠팡은 수량별(박스) 배송비를 지원하지 않습니다. 쿠팡에는 박스당 배송비가 기본배송비로 적용됩니다.',
+      // Step4 미리보기 배송비 요약 (StepPreviewPage)
+      preview: {
+        title: '마켓별 배송비',
+        tieredEleven: (desc: string) => `수량별 구간 — ${desc}`,
+        tieredCoupang: (fee: number) => `박스당 ${fee.toLocaleString()}원 단일 ⚠ (수량 구간 미지원)`,
+        tieredOther: (fee: number) => `기본 배송비 ${fee.toLocaleString()}원 적용 (수량 구간 미반영)`,
+        free: '무료배송',
+        paid: (fee: number) => `유료 ${fee.toLocaleString()}원`,
+        conditionalFree: (threshold: number) => `${threshold.toLocaleString()}원 이상 무료`,
+        chargeOnDelivery: '착불',
+      },
+      coupangPreviewWarning:
+        '쿠팡은 수량별(박스) 배송비를 지원하지 않습니다. 쿠팡에는 박스당 배송비(단일 금액)가 기본배송비로 적용되어, 2박스 이상 구매 시 실제 배송비보다 적게 부과될 수 있습니다. 쿠팡에 별도 배송비를 적용하려면 이전 단계에서 마켓 오버라이드를 설정하세요.',
       // 4) 결제방법 + 묶음배송
       payType: {
         label: '결제방법',
