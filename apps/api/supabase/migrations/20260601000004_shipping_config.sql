@@ -57,6 +57,13 @@ update public.products p
 alter table public.products
   alter column shipping_config set not null;
 
+-- 컬럼 default(free 설정) — FE(Step1Schema)는 항상 명시 전송하나, 비-FE insert
+-- (pgTAP 테스트 fixture / 향후 서버 insert) 의 NOT NULL 위반 방지 안전망.
+-- "배송 설정 미지정 = 무료 배송" 이 합리적 기본. effectiveSingleFee(free)=0.
+alter table public.products
+  alter column shipping_config set default
+    '{"method":"parcel","etaDays":3,"feeType":"free","baseFee":0,"payType":"prepaid","bundleAllowed":false}'::jsonb;
+
 -- 필수 FK 제거 (인라인 모델로 전환).
 alter table public.products
   drop column shipping_policy_id;
