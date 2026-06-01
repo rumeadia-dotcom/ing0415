@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { AlertCircle, Image as ImageIcon } from 'lucide-react'
+import { AlertCircle, Image as ImageIcon, Truck } from 'lucide-react'
 import {
   Button,
   ErrorMessage,
@@ -17,7 +17,10 @@ import { MarketPreviewCard } from '../components/MarketPreviewCard'
 import { RegistrationApiError } from '../api/registration-api'
 import { formatRegistrationError } from '../utils/registration-error-messages'
 import type { MarketId } from '@/features/markets/types'
+import type { ShippingConfig } from '@/lib/schemas/shipping-config'
+import type { MarketSelection } from '@/lib/schemas/registration'
 import { ko } from '@/locales/ko'
+import { describeShippingForMarket } from '@/lib/shipping/expand-box'
 
 /**
  * StepPreviewPage — n20 등록 미리보기 (4/5). Studio 룩.
@@ -211,6 +214,14 @@ export function StepPreviewPage(): JSX.Element {
         </div>
       )}
 
+      {/* 배송비 미리보기 섹션 */}
+      {step1?.shippingConfig && selections.length > 0 && (
+        <ShippingPreviewSection
+          shippingConfig={step1.shippingConfig}
+          selections={selections}
+        />
+      )}
+
       {/* Action bar */}
       <div className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-surface px-5 py-3 shadow-sm">
         <Button
@@ -258,6 +269,66 @@ function PreviewStat({ label, value }: { label: string; value: string }): JSX.El
     <div>
       <dt className="text-[11.5px] font-semibold text-text-tertiary">{label}</dt>
       <dd className="mt-0.5 font-mono text-[14px] font-semibold text-text">{value}</dd>
+    </div>
+  )
+}
+
+interface ShippingPreviewSectionProps {
+  shippingConfig: ShippingConfig
+  selections: MarketSelection[]
+}
+
+function ShippingPreviewSection({
+  shippingConfig,
+  selections,
+}: ShippingPreviewSectionProps): JSX.Element {
+  const selectedMarketIds = selections.map((s) => s.marketId as MarketId)
+
+  // 쿠팡 수량 구간 경고: quantity_tiered + coupang 선택 + marketOverrides.coupang 없을 때
+  const showCoupangWarning =
+    shippingConfig.feeType === 'quantity_tiered' &&
+    selectedMarketIds.includes('coupang') &&
+    !shippingConfig.marketOverrides?.['coupang']
+
+  const marketLabel = ko.market
+
+  return (
+    <div className="mt-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <div className="mb-3 flex items-center gap-2">
+        <Truck className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
+        <p className="text-[13px] font-semibold text-text">{ko.register.shipping.preview.title}</p>
+      </div>
+      <ul className="space-y-1.5">
+        {selectedMarketIds.map((mid) => {
+          const summary = describeShippingForMarket(shippingConfig, mid)
+          const isCoupangTiered =
+            shippingConfig.feeType === 'quantity_tiered' && mid === 'coupang'
+          return (
+            <li key={mid} className="flex items-baseline gap-2 text-[12.5px]">
+              <span className="w-[5.5rem] shrink-0 font-semibold text-text-secondary">
+                {marketLabel[mid]}
+              </span>
+              <span
+                className={
+                  isCoupangTiered
+                    ? 'font-medium text-warning-on-soft'
+                    : 'text-text-secondary'
+                }
+              >
+                {summary}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      {showCoupangWarning && (
+        <div className="mt-3">
+          <ErrorMessage
+            tone="warning"
+            message={ko.register.shipping.coupangPreviewWarning}
+          />
+        </div>
+      )}
     </div>
   )
 }

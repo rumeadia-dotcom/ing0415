@@ -13,7 +13,7 @@
 
 배송에는 직교하는 두 가지가 섞여 있다:
 
-- **(가) 요금 의도 (fee intent)** — 무료/유료/조건부무료/착불, 기본배송비, 무료조건금액, 반품·교환비, 도서산간 추가비. **마켓 무관한 셀러 의도**. → `shipping_policies` 의 책임.
+- **(가) 요금 의도 (fee intent)** — 무료/유료/조건부무료/수량별(박스)/착불, 기본배송비, 무료조건금액, 반품·교환비, 도서산간 추가비. **마켓 무관한 셀러 의도**. → C9(2026-06-01) 이후 **`products.shipping_config jsonb` 인라인이 단일 소스**(이전엔 `shipping_policies` 엔티티였으나 배송 템플릿/prefill 로 강등, §2 참조).
 - **(나) 물류 참조 (logistics reference)** — 출고지/반품지 주소, 발송 타이밍. **모든 마켓이 계정 단위 사전 생성 리소스를 요구**. → `esm_shipping_profiles`(현재 ESM 한정)의 책임이지만 사실 보편 패턴.
 
 ---
@@ -62,19 +62,28 @@
 
 배송 관심사를 직교하는 두 레이어로 재정립한다.
 
-### Layer 1 — 배송 정책 (요금 의도, 마켓 무관 단일 소스)
+### Layer 1 — 배송 설정 (요금 의도, 마켓 무관 단일 소스)
 
-`shipping_policies` 를 **모든 마켓 배송비 필드의 합집합** 수준으로 enrich. 셀러당 N개, 상품·마켓 무관하게 재사용. `transformProduct` 가 각 마켓 인라인 필드로 매핑.
+> **C9 재편 (2026-06-01)**: Layer 1 요금 의도의 단일 소스는 더 이상 `shipping_policies`(별도 엔티티) 가 아니라 **`products.shipping_config jsonb` 인라인**이다. `shipping_policies` 는 **배송 템플릿(prefill 용)로 강등** — 셀러가 자주 쓰는 설정을 저장해 두고 Step1 에서 한 번에 불러오는 편의 기능일 뿐, 등록 진실원본이 아니다. `products.shipping_policy_id` FK 는 제거. zod 단일 소스는 web `apps/web/src/lib/schemas/shipping-config.ts`(`ShippingConfigSchema`) + Edge 미러 `_shared/schemas.ts`. 박스(수량 구간) 입력은 `box={qtyPerBox≥2, feePerBox}` 1개를 받아 순수함수 `expandBoxToTiers` 로 마켓별 구간으로 전개한다.
+
+`products.shipping_config` 가 **모든 마켓 배송비 필드의 합집합**을 표현한다(아래 표). `transformProduct` 가 각 마켓 인라인 필드로 매핑.
 
 | 우리 필드 (Layer 1) | 의미 | 쿠팡 매핑 | 네이버 매핑 | 11번가 매핑 (spec 확정) | ESM 매핑 |
 |---|---|---|---|---|---|
-| `feeType` | free / paid / conditional_free / charge_on_delivery | `deliveryChargeType` | `deliveryFeeType` | `dlvCstInstBasiCd`(01/02/03/05) | 묶음배송비정책 `feeType`(생성 시) |
+| `feeType` | free / conditional_free / paid / quantity_tiered / charge_on_delivery | `deliveryChargeType` | `deliveryFeeType` | `dlvCstInstBasiCd`(01/02/03/04/05) | 묶음배송비정책 `feeType`(생성 시) |
 | `baseFee` | 기본배송비(원) | `deliveryCharge` | `baseFee` | `dlvCst1`(고정·조건부) / `dlvCst4`(개당) | `fee`(생성 시) |
 | `freeThreshold` | 조건부무료 기준금액 | `freeShipOverAmount` | `freeConditionalAmount` | `PrdFrDlvBasiAmt` | `shippingFee[].condition`(생성 시) |
+| `box` (`qtyPerBox`,`feePerBox`) | 수량 구간(박스) — N개당 1박스 배송비 | **단일 fallback + 경고**(수량차등 미지원) | `repeatQuantity`(변환기만) | `dlvCstInstBasiCd=04` + `dlvCst3`(`feePerBox^qtyPerBox^…`, 어댑터 wired) | `each.feeType=4`(변환기만) |
 | `returnFee` | 반품배송비 | `returnCharge` | `claimDeliveryInfo.returnDeliveryFee` | `rtngdDlvCst` (+ `exchDlvCst` 교환) | `returnAndExchange.fee` |
 | `initialReturnFee` | 초도반품배송비(무료배송 시) | `deliveryChargeOnReturn` | (해당 없음) | `rtngdDlvCd`(부과방법 01왕복/02편도) | (해당 없음) |
 | `areaSurcharge` | 제주/도서산간 추가비 | 출고지 `remoteInfos`(Layer 2) | `deliveryFeeByArea` | `jejuDlvCst`/`islandDlvCst`(인라인) | 출하지(Layer 2) |
 | `bundleAllowed` | 묶음배송 허용 | `unionDeliveryType` | `deliveryBundleGroupUsable` | `bndlDlvCnYn`(Y/N) | 묶음배송비정책 |
+
+> **`quantity_tiered`(박스) 마켓 매핑 (C9 옵션 A)**: 박스→마켓 구간 전개는 순수함수 `expandBoxToTiers` + 변환기 `_shared/market-adapters/box-shipping.ts`.
+> - **11번가**: `dlvCstInstBasiCd=04`(수량별차등) + `dlvCst3` 구간 문자열로 매핑 — **어댑터 wired (real 경로 동작)**.
+> - **쿠팡**: 수량차등 API 미지원 → **박스당 단일요금 fallback + 가시적 경고**(Step4 미리보기·Step5 결과). **어댑터 wired**. 선택적 `marketOverrides.coupang` 로 셀러가 단일요금 직접 지정 가능.
+> - **네이버 `repeatQuantity` / ESM `each.feeType=4`**: 변환기 함수·단위테스트만 작성, **어댑터 미wiring**(옵션 A). 네이버는 Edge 어댑터가 아직 stub, ESM 은 조회형 전환과 충돌 → C3·C7 real 트랙에서 wiring.
+> - `shippingFeeKrw` 는 유효 단일 배송비(파생)로 **유지**되고 `shippingConfig` 가 추가됨 — 기존 어댑터 back-compat.
 
 > **ESM 특이 (조회형 전환 후)**: ESM 은 배송비를 사전 정책(`dispatchPolicyNo`/묶음배송비)에 박으므로, **배송비 금액은 셀러가 ESM Plus 에서 정책 생성 시 이미 입력**한다. 따라서 ESM 은 Layer 1 fee 를 `transformProduct` 에서 인라인 매핑하지 않고, 셀러가 select 한 정책 번호에 묶인 금액을 그대로 따른다(우리 Layer 1 fee 는 ESM 에선 비적용 — 정보성). 인라인 매핑은 쿠팡/네이버/11번가 한정. (생성형 시절엔 "프로필 생성 시점에 Layer 1 fee 소비" 였으나, 조회형 전환으로 우리가 생성하지 않으므로 해당 흐름 폐기.)
 
@@ -97,7 +106,7 @@
 
 ## 3. 현재 코드의 갭 (이 결정으로 드러난 위험)
 
-1. **워커 fee 0원 하드코딩** — `registration-market-worker/lib/data-load.ts:181` + `registration-validate/lib/check.ts:38` 이 `shippingFeeKrw: 0` 고정. `shipping_policy_id` 를 SELECT 하면서도 fee 로 해소(resolve)하지 않음 → 네이버/쿠팡/11번가가 셀러가 고른 배송비를 무시하고 0(무료)으로 등록될 수 있음. **버그.**
+1. **워커 fee 0원 하드코딩** — `registration-market-worker/lib/data-load.ts:181` + `registration-validate/lib/check.ts:38` 이 `shippingFeeKrw: 0` 고정. `shipping_policy_id` 를 SELECT 하면서도 fee 로 해소(resolve)하지 않음 → 네이버/쿠팡/11번가가 셀러가 고른 배송비를 무시하고 0(무료)으로 등록될 수 있음. **버그.** *(이력: C9 이전에 이미 `resolveShippingFee`(shipping_policies.fee 조회) 도입으로 해소됨. C9(2026-06-01)에서 그 경로를 `parseShippingConfig(products.shipping_config)` + `effectiveSingleFee` 로 교체하며 `resolveShippingFee` 는 제거 — §4 갱신.)*
 2. **쿠팡/네이버 어댑터가 출고지/반품지 미전송** — 두 마켓은 `outboundShippingPlaceCode`/`returnCenterCode`(쿠팡), `shippingAddressId`/`returnAddressId`(네이버)가 필수. 현재 어댑터는 배송비만 보냄 → real 실호출 시 거부. 11번가도 동일(미전송). → Layer 2 조회형 select 로 일괄 해소.
 3. **배송 정책 스키마 빈약** — `ShippingPolicyFormSchema` 는 `method`/`fee`/`etaDays`/`isDefault` flat. 조건부무료·반품비·도서산간·feeType 을 표현 못 함.
 4. **ESM 만 생성형 (Layer 2 모델 분기)** — `esm_shipping_profiles` 테이블 + 4단계 생성 Edge + 생성 UI 가 나머지 마켓의 조회형과 다른 축으로 분기. 마켓별 Layer 2 모델이 둘로 갈려 유지·테스트 부담 + 신규 마켓이 잘못된 템플릿(생성형) 따를 위험. → ESM 조회형 전환으로 단일화(§4-5).
@@ -106,8 +115,10 @@
 
 ## 4. 구현 순서 (제안)
 
-1. **버그픽스** — 워커/validate 가 `shipping_policy_id` → `shipping_policies` 조회 → `product.shippingFeeKrw`(및 후속 필드) 주입. 0원 하드코딩 제거.
-2. **Layer 1 enrich** — `shipping_policies` 마이그레이션 + `ShippingPolicyFormSchema` 에 `feeType`/`freeThreshold`/`returnFee`/`initialReturnFee`/`areaSurcharge`/`bundleAllowed` 추가. `SettingsPoliciesPage` 폼 확장.
+> **C9 반영 (2026-06-01, 옵션 A)**: 아래 1·2번은 C9 에서 **인라인 모델로 재편 완료**. ① 워커/validate 는 `resolveShippingFee`(shipping_policies.fee 조회)를 제거하고 `parseShippingConfig(products.shipping_config)` + `effectiveSingleFee` 로 교체. ② Layer 1 단일 소스가 `products.shipping_config jsonb` 인라인으로 이동(`shipping_policy_id` FK 제거), `shipping_policies` 는 배송 템플릿(`config jsonb`+`name`+`is_default`, 기존 flat `fee`/`method`/`eta_days` 드롭)으로 강등. zod 단일 소스 = `shipping-config.ts`(`ShippingConfigSchema`/`ShippingTemplateSchema`) + Edge `_shared/schemas.ts` 미러. feeType 에 `quantity_tiered`(박스) 추가. 어댑터 매핑(3번)은 **11번가 `dlvCstInstBasiCd=04` + 쿠팡 단일 fallback+경고만 wired**, 네이버/ESM 변환기는 작성·단위테스트만(C3·C7 wiring). 4·5번(Layer 2 조회형/ESM deprecate)은 C9 범위 밖(별도 트랙).
+
+1. **버그픽스** — 워커/validate 가 `shipping_policy_id` → `shipping_policies` 조회 → `product.shippingFeeKrw`(및 후속 필드) 주입. 0원 하드코딩 제거. *(C9 에서 `products.shipping_config` 인라인 경로로 교체됨 — 위 주석.)*
+2. **Layer 1 enrich** — `shipping_policies` 마이그레이션 + `ShippingPolicyFormSchema` 에 `feeType`/`freeThreshold`/`returnFee`/`initialReturnFee`/`areaSurcharge`/`bundleAllowed` 추가. `SettingsPoliciesPage` 폼 확장. *(C9 에서 인라인 `products.shipping_config jsonb` 로 이전, `shipping_policies` 는 템플릿으로 강등 — 위 주석.)*
 3. **어댑터 매핑** — 각 `transformProduct`(쿠팡/네이버/11번가)가 §2 Layer 1 표대로 인라인 필드 매핑. parity.spec 갱신. (ESM 은 fee 가 정책에 묶여 인라인 비대상.)
 4. **Layer 2 조회형 단일화** — 5마켓 전부 "마켓 콘솔 선행 등록분 조회 → select". 마켓별 조회 Edge(11번가 `outboundarea`, ESM `/shipping/places`·`/dispatch-policies` 전체조회, 쿠팡 출고지/반품지 조회, 네이버 주소록 조회) + `getRegistrationFields` select 의 `optionsSource` 를 마켓별 lookup 으로. **배송 참조 DB 테이블 없음**(조회 결과는 호출측 24h 캐시).
 5. **ESM 생성형 deprecate** — `esm_shipping_profiles` 테이블 + 생성 Edge `esm-shipping-profile`(4단계) + 생성 UI(`SettingsShippingEsmProfilesPage` 등)를 제거하고 ESM 도 4번의 조회형으로 전환. 상세 로드맵·코드 blast radius 는 `features/esm.md` "전환 결정(생성형→조회형)" 절.

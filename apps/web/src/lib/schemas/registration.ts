@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MarketIdSchema, type MarketId } from './common'
+import { ShippingConfigSchema } from './shipping-config'
 
 /**
  * 등록 도메인 zod 스키마.
@@ -37,12 +38,9 @@ export const RegistrationJobStatusSchema = z.enum(JOB_STATUSES)
 export const MarketResultStatusSchema = z.enum(MARKET_RESULT_STATUSES)
 
 export const ProductStatusSchema = z.enum(['draft', 'ready', 'registered'])
-export const ShippingMethodSchema = z.enum([
-  'parcel',
-  'direct',
-  'quick',
-  'visit_pickup',
-])
+// ShippingMethodSchema 는 common.ts 에 정의 (shipping-config.ts ↔ registration.ts 순환 방지).
+// 기존 import 처가 깨지지 않도록 re-export 유지.
+export { ShippingMethodSchema, type ShippingMethod } from './common'
 
 // ─────────────────────────────────────────────
 // Step 1: 상품 정보 입력 (n16)
@@ -56,7 +54,7 @@ export const Step1Schema = z
     manufacturer: z.string().max(50).nullable(),
     descriptionHtml: z.string().max(50000).nullable(),
     baseCategoryId: z.string().min(1, '내부 카테고리를 선택하세요'),
-    shippingPolicyId: z.string().uuid('배송정책을 선택하세요'),
+    shippingConfig: ShippingConfigSchema,
   })
   .refine((d) => d.originalPrice === null || d.originalPrice >= d.price, {
     message: '정가는 판매가 이상이어야 합니다',

@@ -27,9 +27,28 @@ vi.mock('../api/registration-api', async () => {
 
 import { StepPreviewPage } from '../pages/StepPreviewPage'
 import { useRegisterFormStore } from '../store/useRegisterFormStore'
+import type { Step1Draft } from '../store/useRegisterFormStore'
 
 const PRODUCT_ID = '00000000-0000-0000-0000-0000000000c3'
 const JOB_ID = '00000000-0000-0000-0000-0000000000d4'
+
+const STEP1_BASE: Step1Draft = {
+  name: '테스트 상품',
+  price: 10000,
+  originalPrice: null,
+  brand: null,
+  manufacturer: null,
+  descriptionHtml: null,
+  baseCategoryId: 'cat-1',
+  shippingConfig: {
+    method: 'parcel',
+    etaDays: 3,
+    feeType: 'free',
+    baseFee: 0,
+    payType: 'prepaid',
+    bundleAllowed: false,
+  },
+}
 
 function renderPage(): void {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -107,5 +126,65 @@ describe('StepPreviewPage', () => {
       expect(screen.getByRole('button', { name: /일괄 등록 실행/ })).toBeDisabled()
     })
     expect(screen.getByText(/재인증/)).toBeInTheDocument()
+  })
+
+  it('quantity_tiered box + coupang 선택 → 쿠팡 under-charge 경고 렌더', async () => {
+    useRegisterFormStore.getState().setProductId(PRODUCT_ID)
+    useRegisterFormStore.getState().setSelections([
+      { marketId: 'coupang', marketAccountId: '00000000-0000-0000-0000-0000000000a2' },
+    ])
+    useRegisterFormStore.getState().setStep1({
+      ...STEP1_BASE,
+      shippingConfig: {
+        method: 'parcel',
+        etaDays: 3,
+        feeType: 'quantity_tiered',
+        baseFee: 0,
+        payType: 'prepaid',
+        bundleAllowed: false,
+        box: { qtyPerBox: 12, feePerBox: 2500 },
+      },
+    })
+    validateMock.mockResolvedValueOnce({
+      ok: true,
+      issues: [],
+      previews: [{ marketId: 'coupang', payload: {}, estimatedFee: null }],
+    })
+
+    renderPage()
+    // 쿠팡 under-charge 경고 문구 확인
+    await waitFor(() => {
+      expect(screen.getByText(/2박스 이상 구매 시 실제 배송비보다 적게 부과/)).toBeInTheDocument()
+    })
+  })
+
+  it('quantity_tiered box + 11st 선택 → 구간 설명 렌더 (1~12개)', async () => {
+    useRegisterFormStore.getState().setProductId(PRODUCT_ID)
+    useRegisterFormStore.getState().setSelections([
+      { marketId: '11st', marketAccountId: '00000000-0000-0000-0000-0000000000a3' },
+    ])
+    useRegisterFormStore.getState().setStep1({
+      ...STEP1_BASE,
+      shippingConfig: {
+        method: 'parcel',
+        etaDays: 3,
+        feeType: 'quantity_tiered',
+        baseFee: 0,
+        payType: 'prepaid',
+        bundleAllowed: false,
+        box: { qtyPerBox: 12, feePerBox: 2500 },
+      },
+    })
+    validateMock.mockResolvedValueOnce({
+      ok: true,
+      issues: [],
+      previews: [{ marketId: '11st', payload: {}, estimatedFee: null }],
+    })
+
+    renderPage()
+    await waitFor(() => {
+      // 11번가 행에 구간 설명이 포함되어 있어야 함
+      expect(screen.getByText(/1~12개/)).toBeInTheDocument()
+    })
   })
 })

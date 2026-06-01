@@ -324,6 +324,14 @@ logger.error({ market: 'naver', err: maskError(e) }, '← market error');
 - **레포 내 문서** (`docs/handoff/WIP-*.md`, `docs/architecture/v1/`) — 시점에 따라 달라지는 진행 상황·외부 참조. 커밋되어 포터블.
 - **하니스 메모리** (`~/.claude/.../memory/`) — 사용하지 않음. (자동 recall 은 되지만 머신 종속이라 "동일 작업환경" 요구와 충돌.)
 
+### WIP 핸드오프는 머지 _전_ 갱신 (PR 에 포함)
+
+**모든 머지에서 `docs/handoff/WIP-*.md` 갱신은 머지 _전_ 에, 머지될 브랜치 위에서 수행해 같은 PR 에 포함시킨다.** 머지 _후_ 갱신은 protected 브랜치(develop/main)에 WIP-only PR 을 따로 내야 해 비효율이고, 다음 세션이 stale WIP 를 보게 된다.
+
+- `feature/*` → `develop`: feature 작업 마무리(테스트 green) 시점에 같은 feature 브랜치에서 WIP 갱신 → C9 PR 등 같은 PR 에 포함.
+- `release/*` / `hotfix/*` → `main`: release/hotfix 브랜치에서 WIP 갱신 후 main PR 에 포함 (`release-deploy` 스킬 §4).
+- **근거**: 2026-05-31 사용자 지시 ("develop 머지 전에 WIP 작성"). 2026-06-01 재확인 — `wip-update` 스킬의 일반 트리거("머지 직후")보다 본 룰(머지 전)이 우선. release-deploy 한정이 아니라 **feature→develop 포함 전 머지**에 적용.
+
 ### 프론트엔드 UI 일관성
 
 새 화면 개발 시 공통 규칙을 반드시 따른다:

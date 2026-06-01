@@ -29,3 +29,15 @@ export const IsoDateTimeSchema = z.string().datetime()
 
 /** 원화 금액 — 음수 불가. */
 export const MoneyKrwSchema = z.number().int().nonnegative()
+
+// ─────────────────────────────────────────────
+// 배송 방법 ENUM — shipping.ts / shipping-config.ts / registration.ts 공용.
+// 역방향 import 방지를 위해 leaf 모듈(common.ts) 에 정의.
+// ─────────────────────────────────────────────
+export const ShippingMethodSchema = z.enum([
+  'parcel',
+  'direct',
+  'quick',
+  'visit_pickup',
+])
+export type ShippingMethod = z.infer<typeof ShippingMethodSchema>
