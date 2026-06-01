@@ -334,6 +334,7 @@ function ShippingPreviewSection({
 }
 
 // validation issue code 중 등록 차단성인 것만. token_expired / token_revoked / mapping_not_found 도 차단.
+// description_html_unsafe(XSS)·image_size_too_small(규격 미달)·transform_failed(변환 실패)도 차단 대상.
 function isErrorCode(code: string): boolean {
   const blockers = [
     'product_name_invalid',
@@ -344,11 +345,14 @@ function isErrorCode(code: string): boolean {
     'manufacturer_required',
     'shipping_method_unsupported',
     'image_main_missing',
+    'image_size_too_small',
     'description_required',
+    'description_html_unsafe',
     'market_options_missing',
     'token_expired',
     'token_revoked',
     'mapping_not_found',
+    'transform_failed',
   ]
   return blockers.includes(code)
 }

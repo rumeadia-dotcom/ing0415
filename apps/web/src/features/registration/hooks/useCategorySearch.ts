@@ -18,7 +18,8 @@ function useDebounced<T>(value: T, delay = 250): T {
  *
  * - 250ms 디바운스, enabled = q≥2 & marketId!=='naver' & marketAccountId 존재.
  * - status==='building'(ESM 인덱스 빌드 중) 이면 4s 폴링 → ready 전환 시 자동 hits.
- * - Query Key: ['registration','category-search', marketId, debouncedQuery]
+ * - Query Key: ['registration','category-search', marketId, marketAccountId, debouncedQuery]
+ *   (marketAccountId 포함 — 계정 전환 시 이전 계정 캐시 재사용 방지, M3)
  */
 export function useCategorySearch(
   marketId: MarketId | null,
@@ -33,7 +34,7 @@ export function useCategorySearch(
     debounced.length >= 2
 
   return useQuery<CategorySearchResponse>({
-    queryKey: ['registration', 'category-search', marketId, debounced],
+    queryKey: ['registration', 'category-search', marketId, marketAccountId, debounced],
     enabled,
     staleTime: 60_000,
     queryFn: () => {

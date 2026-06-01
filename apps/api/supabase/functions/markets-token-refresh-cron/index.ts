@@ -10,7 +10,8 @@
  *   - 네이버 OAuth `market_accounts` 중 토큰 만료가 1시간 이내인 active 항목을
  *     일괄 refresh.
  *   - adapter.refreshToken (real / debug) → storeCredential UPSERT.
- *   - 실패 시 `market_accounts.status = 'needs_reauth'` 갱신 + Sentry/구조화 로그.
+ *   - 실패 시 `market_accounts.status = 'expired'` (= 재인증 필요 상태) 갱신 + Sentry/구조화 로그.
+ *     (DB CHECK 어휘: active|expired|revoked|error. 'needs_reauth' 는 제약에 없어 사용 금지.)
  *
  * vs `markets-token-refresh`:
  *   - 기존 `markets-token-refresh` 는 scheduled (오래 전 1주 단위) + on_demand 통합.
@@ -118,7 +119,7 @@ export async function selectExpiringNaverCredentials(opts: {
 export interface RefreshOutcome {
   refreshed: boolean
   reason?: string
-  status?: 'active' | 'needs_reauth'
+  status?: 'active' | 'expired'
 }
 
 async function refreshOne(
@@ -166,7 +167,7 @@ async function refreshOne(
   } catch (e) {
     const code = e instanceof MarketError ? e.code : 'unknown'
 
-    // 토큰 자체가 무효 → needs_reauth (셀러 재인증 필요)
+    // 토큰 자체가 무효 → status='expired' (셀러 재인증 필요. DB CHECK 상 expired 가 재인증 상태)
     if (e instanceof MarketError && e.code === 'unauthorized') {
       await supabase
         .from('market_credentials')
@@ -179,7 +180,7 @@ async function refreshOne(
       await supabase
         .from('market_accounts')
         .update({
-          status: 'needs_reauth',
+          status: 'expired',
           last_error_code: 'invalid_grant',
           last_error_at: new Date().toISOString(),
         })
@@ -188,7 +189,7 @@ async function refreshOne(
         account_id: null,
         seller_id: meta.sellerId,
         market_id: meta.marketId,
-        event: 'needs_reauth',
+        event: 'auto_expired',
         correlation_id: ctx.correlationId,
         error_code: 'invalid_grant',
       })
@@ -211,11 +212,11 @@ async function refreshOne(
       return {
         refreshed: false,
         reason: 'invalid_grant',
-        status: 'needs_reauth',
+        status: 'expired',
       }
     }
 
-    // 일시적 오류 — 누적 카운트 → 임계치 초과 시 needs_reauth 로 승격
+    // 일시적 오류 — 누적 카운트 → 임계치 초과 시 status='expired'(재인증 필요) 로 승격
     const { data: row } = await supabase
       .from('market_credentials')
       .select('refresh_failure_count')
@@ -237,7 +238,7 @@ async function refreshOne(
       await supabase
         .from('market_accounts')
         .update({
-          status: 'needs_reauth',
+          status: 'expired',
           last_error_code: code,
           last_error_at: new Date().toISOString(),
         })
@@ -246,7 +247,7 @@ async function refreshOne(
         account_id: null,
         seller_id: meta.sellerId,
         market_id: meta.marketId,
-        event: 'needs_reauth',
+        event: 'auto_expired',
         correlation_id: ctx.correlationId,
         error_code: code,
       })
@@ -276,7 +277,7 @@ async function refreshOne(
     return {
       refreshed: false,
       reason: code,
-      status: exceeded ? 'needs_reauth' : 'active',
+      status: exceeded ? 'expired' : 'active',
     }
   }
 
@@ -364,7 +365,7 @@ export default Deno.serve(
         })
         if (outcome.refreshed) refreshed += 1
         else failed += 1
-        if (outcome.status === 'needs_reauth') needsReauth += 1
+        if (outcome.status === 'expired') needsReauth += 1
       }
 
       logger.info(

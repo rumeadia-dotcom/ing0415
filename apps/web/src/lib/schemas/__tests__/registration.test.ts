@@ -8,6 +8,7 @@ import {
   makeStep3Schema,
   isMarketOptionValuePresent,
   ProductDraftSchema,
+  Step4ValidationSchema,
   JOB_STATUSES,
   MARKET_RESULT_STATUSES,
 } from '@/lib/schemas/registration'
@@ -468,5 +469,29 @@ describe('ProductDraftSchema — 전체 위저드 종합', () => {
   it('이미지 0장이면 parse 실패 (Step2 검증 합쳐짐)', () => {
     const res = ProductDraftSchema.safeParse({ ...valid, images: [] })
     expect(res.success).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────
+// Step4ValidationSchema — registration-validate 응답 (R1)
+//   backend(check.ts)는 transform_failed / description_html_unsafe 를 실제로 발행한다.
+//   client enum 이 누락하면 응답 전체가 parse 실패 → 미리보기가 generic 에러로 깨진다.
+// ─────────────────────────────────────────────
+describe('Step4ValidationSchema — backend 발행 issue code 수용 (R1)', () => {
+  it('transform_failed / description_html_unsafe 가 섞인 응답 parse 통과', () => {
+    const res = Step4ValidationSchema.safeParse({
+      ok: false,
+      issues: [
+        { marketId: 'naver', code: 'transform_failed', field: 'adapter', message: '변환 실패' },
+        {
+          marketId: 'coupang',
+          code: 'description_html_unsafe',
+          field: 'description_html',
+          message: '위험 태그',
+        },
+      ],
+      previews: [],
+    })
+    expect(res.success).toBe(true)
   })
 })

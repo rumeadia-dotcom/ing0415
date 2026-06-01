@@ -15,7 +15,10 @@ describe('formatRegistrationError', () => {
     'job_not_found',
     'market_unavailable',
     'job_in_progress',
+    'market_not_connected',
     'not_retryable',
+    'job_not_retryable',
+    'no_retry_targets',
     'retry_exceeded',
     'already_finalized',
     'rate_limited',
@@ -44,6 +47,17 @@ describe('formatRegistrationError', () => {
       correlationId: null,
     })
   })
+
+  // R4: backend(registration-start/preflight, registration-retry)가 실제 발행하는 code 들.
+  // 누락 시 'unknown' 폴백 → 셀러가 무엇을 고쳐야 할지 모르는 generic 에러.
+  it.each(['market_not_connected', 'job_not_retryable', 'no_retry_targets'])(
+    '%s 는 전용 메시지 — unknown 폴백 아님',
+    (code) => {
+      const r = formatRegistrationError({ code, correlationId: null })
+      expect(r.code).toBe(code)
+      expect(r.message).not.toBe(REGISTRATION_ERROR_MESSAGES.unknown)
+    },
+  )
 })
 
 describe('formatValidationIssue', () => {

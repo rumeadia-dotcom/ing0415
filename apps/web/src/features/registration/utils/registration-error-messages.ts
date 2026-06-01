@@ -13,8 +13,11 @@ export type RegistrationErrorCode =
   | 'market_unavailable'
   // 6.3 start
   | 'job_in_progress'
+  | 'market_not_connected'
   // 6.5 retry
   | 'not_retryable'
+  | 'job_not_retryable'
+  | 'no_retry_targets'
   | 'retry_exceeded'
   // 6.6 cancel
   | 'already_finalized'
@@ -31,7 +34,10 @@ const MESSAGE_MAP: Record<RegistrationErrorCode, string> = {
   job_not_found: '이 등록 잡을 찾을 수 없습니다. URL 이 만료되었거나 잘못된 잡 ID 입니다.',
   market_unavailable: '마켓 서버에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
   job_in_progress: '이미 진행 중인 등록이 있습니다. 완료 또는 취소 후 다시 시도해 주세요.',
+  market_not_connected: '선택한 마켓 중 연결되지 않은 계정이 있습니다. 마켓 계정을 먼저 연결해 주세요.',
   not_retryable: '재시도할 수 없는 상태입니다.',
+  job_not_retryable: '현재 상태에서는 재시도할 수 없습니다. 잡이 진행 중이거나 이미 종료되었습니다.',
+  no_retry_targets: '재시도할 실패 마켓이 없습니다. 재시도 불가 마켓은 “실패 마켓 제외 후 재등록”을 사용하세요.',
   retry_exceeded: '재시도 횟수를 초과했습니다.',
   already_finalized: '이미 종료된 잡입니다.',
   rate_limited: '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.',
@@ -81,6 +87,7 @@ const ISSUE_MESSAGE_MAP: Record<string, string> = {
   token_expired: '마켓 인증이 만료되었습니다. 재인증이 필요합니다.',
   token_revoked: '마켓 인증이 해제되었습니다. 다시 연결해 주세요.',
   mapping_not_found: '카테고리 매핑이 없습니다.',
+  transform_failed: '마켓 형식으로 상품 정보를 변환하지 못했습니다. 입력값을 확인해 주세요.',
 }
 
 export function formatValidationIssue(code: string): string {

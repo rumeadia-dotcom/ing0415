@@ -37,6 +37,8 @@ function statusReachedFlag(
   target: TimelineStep['key'],
 ): boolean {
   if (current === 'logen_failed') return target === 'collected'
+  // dispatch_failed: waybill_printed 까지 도달했으나 송장 제출(tracking_submitted)에서 실패.
+  if (current === 'dispatch_failed') return target !== 'tracking_submitted'
   const currentIdx = STEP_ORDER.indexOf(current as TimelineStep['key'])
   const targetIdx = STEP_ORDER.indexOf(target)
   if (currentIdx === -1 || targetIdx === -1) return false
@@ -45,10 +47,13 @@ function statusReachedFlag(
 
 export function OrderStatusTimeline({ order }: OrderStatusTimelineProps): JSX.Element {
   const failedAtLogen = order.shippingStatus === 'logen_failed'
+  const failedAtDispatch = order.shippingStatus === 'dispatch_failed'
 
   const steps: TimelineStep[] = STEP_ORDER.map((key) => {
     const reached = statusReachedFlag(order.shippingStatus, key)
-    const failed = key === 'logen_registered' && failedAtLogen
+    const failed =
+      (key === 'logen_registered' && failedAtLogen) ||
+      (key === 'tracking_submitted' && failedAtDispatch)
     const timestamp =
       key === 'collected'
         ? order.collectedAt
@@ -62,6 +67,7 @@ export function OrderStatusTimeline({ order }: OrderStatusTimelineProps): JSX.El
 
   const currentIdx = (() => {
     if (failedAtLogen) return STEP_ORDER.indexOf('logen_registered')
+    if (failedAtDispatch) return STEP_ORDER.indexOf('tracking_submitted')
     const firstUnreached = steps.findIndex((s) => !s.reached)
     return firstUnreached === -1 ? steps.length - 1 : Math.max(0, firstUnreached - 1)
   })()
@@ -75,7 +81,11 @@ export function OrderStatusTimeline({ order }: OrderStatusTimelineProps): JSX.El
         const isCurrent = idx === currentIdx
         const isReached = s.reached
         const isFailed = s.failed
-        const label = isFailed ? ko.orders.timeline.logen_failed : ko.orders.timeline[s.key]
+        const label = isFailed
+          ? s.key === 'tracking_submitted'
+            ? ko.orders.timeline.dispatch_failed
+            : ko.orders.timeline.logen_failed
+          : ko.orders.timeline[s.key]
         const nextReached = idx < steps.length - 1 ? steps[idx + 1]?.reached ?? false : false
         return (
           <li

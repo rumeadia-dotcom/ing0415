@@ -19,9 +19,13 @@ export function PartialJobBanner({
   onExcludeAndRestart,
   retryAllPending,
 }: PartialJobBannerProps): JSX.Element {
+  // 표시용: 실패 전체(failed + failed_final).
   const failed = results.filter(
     (r) => r.marketStatus === 'failed' || r.marketStatus === 'failed_final',
   )
+  // 재시도 대상: non-final 'failed' 만. failed_final 은 registration-retry 가 재시도하지 않으므로
+  // '전체 재시도' 카운트/활성 판정에서 제외 (포함 시 항상 실패하는 버튼이 활성됨 — R3).
+  const retryable = results.filter((r) => r.marketStatus === 'failed')
   const success = results.filter((r) => r.marketStatus === 'success')
 
   return (
@@ -46,9 +50,9 @@ export function PartialJobBanner({
           size="sm"
           variant="primary"
           onClick={onRetryAll}
-          disabled={retryAllPending || failed.length === 0}
+          disabled={retryAllPending || retryable.length === 0}
         >
-          {retryAllPending ? '재시도 중…' : `전체 재시도 (${failed.length}개)`}
+          {retryAllPending ? '재시도 중…' : `전체 재시도 (${retryable.length}개)`}
         </Button>
         <Button
           type="button"

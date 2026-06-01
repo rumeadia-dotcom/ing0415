@@ -276,6 +276,7 @@ export function OrdersListPage(): JSX.Element {
                         'h-7 w-[3px] rounded-sm',
                         o.marketId === 'naver' && 'bg-market-naver',
                         o.marketId === 'coupang' && 'bg-market-coupang',
+                        o.marketId === '11st' && 'bg-market-eleventh',
                         o.marketId === 'gmarket' && 'bg-market-gmarket',
                         o.marketId === 'auction' && 'bg-market-auction',
                       )}
