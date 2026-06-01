@@ -308,6 +308,11 @@ export type MarketMapping = z.infer<typeof MarketMappingSchema>
 export const MarketPayloadSchema = z.object({
   market: MarketIdSchema,
   raw: z.unknown(),
+  // C9: transformProduct 가 무음 다운그레이드(쿠팡 박스 미지원 등) 를 알릴 때만 채운다.
+  //   createProduct 는 payload.raw 만 외부로 보내므로 warnings 는 외부 누출 없이 결과 화면 전용.
+  warnings: z
+    .array(z.object({ code: z.string(), message: z.string() }))
+    .optional(),
 })
 export type MarketPayload = z.infer<typeof MarketPayloadSchema>
 
